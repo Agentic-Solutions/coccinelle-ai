@@ -183,6 +183,48 @@ router.post('/webhooks/vapi/function-call', async (request, env, ctx) => {
     }
     
     if (message.type === 'tool-calls' && message.toolCallList) {
+    
+    // NOUVEAU : Traitement end-of-call-report pour capture transcription
+    if (message.type === 'end-of-call-report') {
+      console.log('📝 End-of-call-report reçu');
+      
+      const callData = message.call || {};
+      const transcript = message.transcript || callData.transcript || '';
+      const analysis = message.analysis || {};
+      
+      console.log('Call ID:', callData.id);
+      console.log('Transcript length:', transcript.length);
+      
+      try {
+        await env.DB.prepare(`
+          INSERT INTO vapi_call_logs (
+            id, tenant_id, call_id, phone_number, status,
+            duration_seconds, cost_usd, transcript, 
+            summary, sentiment_score, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).bind(
+          crypto.randomUUID(),
+          tenant.id,
+          callData.id || 'unknown',
+          callData.customer?.number || '',
+          callData.status || 'completed',
+          Math.round(callData.duration || 0),
+          (callData.cost || 0).toFixed(4),
+          transcript,
+          analysis.summary || '',
+          analysis.sentiment || ''
+        ).run();
+        
+        console.log('✅ Transcription enregistrée en base');
+      } catch (dbError) {
+        console.error('❌ Erreur enregistrement transcription:', dbError);
+      }
+
+      return new Response(JSON.stringify({ received: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
       const results = [];
       
       for (const toolCall of message.toolCallList) {
