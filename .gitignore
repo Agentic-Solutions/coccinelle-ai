@@ -1,0 +1,44 @@
+# Node modules
+node_modules/
+.npm/
+
+# Wrangler
+.wrangler/
+.dev.vars
+.mf/
+
+# Environment variables
+.env
+.env.local
+*.env
+
+# Secrets (CRITIQUE - ne JAMAIS commit)
+wrangler.toml.local
+secrets.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dashboard Next.js
+coccinelle-dashboard-new/.next/
+coccinelle-dashboard-new/out/
+coccinelle-dashboard-new/build/
+coccinelle-dashboard-new/node_modules/
+
+# Backups (on ne veut pas polluer Git avec ça)
+*.backup*
+*backup_*
+*.bak
+
+# Fichiers temporaires
+/tmp/
+current_index.txt

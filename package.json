@@ -1,0 +1,19 @@
+{
+  "name": "coccinelle-api",
+  "version": "1.0.0",
+  "description": "API Cloudflare Workers pour Coccinelle.ai - Module RDV",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 execute coccinelle-db --local --file=database/schema-v1.sql",
+    "db:seed": "wrangler d1 execute coccinelle-db --local --file=database/seed-data.sql"
+  },
+  "dependencies": {
+    "itty-router": "^4.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

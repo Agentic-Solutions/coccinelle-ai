@@ -1,0 +1,14 @@
+name = "coccinelle-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+ENVIRONMENT = "production"
+N8N_WEBHOOK_URL = "https://votre-n8n.com/webhook/coccinelle"
+TWILIO_PHONE_NUMBER = "+33939035761"
+RESEND_FROM_EMAIL = "onboarding@resend.dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "coccinelle-db"
+database_id = "f4d7ff42-fc12-4c16-9c19-ada63c023827"
