@@ -1,0 +1,12 @@
+LIGNE À CORRIGER (environ ligne 290-310 dans handleCreateAppointment) :
+
+REMPLACER :
+  const formattedDate = localDate.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+PAR :
+  const formattedDate = localDate;
