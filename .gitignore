@@ -42,3 +42,13 @@ coccinelle-dashboard-new/node_modules/
 # Fichiers temporaires
 /tmp/
 current_index.txt
+
+# Scripts de développement/debug (optionnel)
+*.sh
+fix_*.py
+fix_*.txt
+
+# Scripts de développement/debug
+*.sh
+fix_*.py
+fix_*.txt
