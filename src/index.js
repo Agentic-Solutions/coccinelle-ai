@@ -206,6 +206,7 @@ router.post('/webhooks/vapi/function-call', async (request, env, ctx) => {
           crypto.randomUUID(),
           tenant.id,
           callData.id || 'unknown',
+          callData.id || 'unknown',
           callData.customer?.number || '',
           callData.status || 'completed',
           Math.round(callData.duration || 0),
