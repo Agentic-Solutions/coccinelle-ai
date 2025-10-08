@@ -404,13 +404,12 @@ async function handleCreateAppointment(params, tenantId, env, ctx) {
 
   const prospectId = generateId('prospect');
   await env.DB.prepare(`
-    INSERT INTO prospects (id, tenant_id, name, first_name, last_name, phone, email, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'contacted', datetime('now'))
+    INSERT INTO prospects (id, tenant_id, first_name, last_name, phone, email, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'contacted', datetime('now'))
   `).bind(
     prospectId,
     tenantId,
-    prospectName,
-    firstName || '',
+        firstName || '',
     lastName || '',
     phone,
     email || 'noemail@placeholder.com'
@@ -630,12 +629,13 @@ router.post('/api/v1/prospects', async (request, env, ctx) => {
   const prospectId = generateId('prospect');
 
   await env.DB.prepare(`
-    INSERT INTO prospects (id, tenant_id, name, phone, email, status, source, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO prospects (id, tenant_id, first_name, last_name, phone, email, status, source, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `).bind(
     prospectId,
     tenant.id,
-    body.name,
+    body.first_name || '',
+  body.last_name || '',
     body.phone || null,
     body.email || null,
     body.status || 'new',
@@ -645,7 +645,7 @@ router.post('/api/v1/prospects', async (request, env, ctx) => {
 
   ctx.waitUntil(notifyN8N(env, 'prospect.created', {
     prospect_id: prospectId,
-    name: body.name
+    name: `${body.first_name || ''} ${body.last_name || ''}`.trim() || 'Prospect'
   }));
 
   return new Response(JSON.stringify({
