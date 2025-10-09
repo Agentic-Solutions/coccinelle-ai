@@ -1,0 +1,242 @@
+{
+  "name": "Sara RDV Optimisé v1.9",
+  "description": "Workflow complet pour prise de RDV avec Sara - Tools connectés",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "position": {"x": 100, "y": 100},
+      "data": {
+        "label": "Début"
+      }
+    },
+    {
+      "id": "accueil",
+      "type": "message",
+      "position": {"x": 100, "y": 200},
+      "data": {
+        "label": "Accueil Sara",
+        "message": "Bonjour ! Je suis Sara, votre assistante virtuelle. Je vais vous aider à prendre un rendez-vous. Laissez-moi vérifier mes disponibilités.",
+        "voice": {
+          "provider": "cartesia",
+          "voiceId": "sonic-french-female"
+        }
+      }
+    },
+    {
+      "id": "check_availability",
+      "type": "tool",
+      "position": {"x": 100, "y": 300},
+      "data": {
+        "label": "Vérifier Disponibilités",
+        "toolId": "4d61c432-d44f-4049-8a62-6f9695a2f1ac",
+        "parameters": {
+          "date": "{{$today}}"
+        }
+      }
+    },
+    {
+      "id": "proposer_creneaux",
+      "type": "message",
+      "position": {"x": 100, "y": 400},
+      "data": {
+        "label": "Proposer Créneaux",
+        "message": "J'ai plusieurs créneaux disponibles. {{#each toolResult.slots}}{{#if @first}}Je peux vous proposer {{this.time}}{{else if @last}}, ou {{this.time}}{{else}}, {{this.time}}{{/if}}{{/each}}. Quel créneau vous convient le mieux ?",
+        "voice": {
+          "provider": "cartesia",
+          "voiceId": "sonic-french-female"
+        }
+      }
+    },
+    {
+      "id": "collect_creneau",
+      "type": "input",
+      "position": {"x": 100, "y": 500},
+      "data": {
+        "label": "Collecter Créneau Choisi",
+        "variableName": "creneauChoisi",
+        "inputType": "speech",
+        "prompt": "Quel créneau préférez-vous ?",
+        "validation": {
+          "type": "custom",
+          "message": "Je n'ai pas bien compris. Pouvez-vous répéter le créneau souhaité ?"
+        }
+      }
+    },
+    {
+      "id": "collect_prenom",
+      "type": "input",
+      "position": {"x": 100, "y": 600},
+      "data": {
+        "label": "Collecter Prénom",
+        "variableName": "prenom",
+        "inputType": "speech",
+        "prompt": "Parfait ! Pour finaliser votre rendez-vous, quel est votre prénom ?",
+        "validation": {
+          "type": "required",
+          "message": "Je n'ai pas entendu votre prénom. Pouvez-vous le répéter s'il vous plaît ?"
+        }
+      }
+    },
+    {
+      "id": "collect_nom",
+      "type": "input",
+      "position": {"x": 100, "y": 700},
+      "data": {
+        "label": "Collecter Nom",
+        "variableName": "nom",
+        "inputType": "speech",
+        "prompt": "Merci {{prenom}}. Et quel est votre nom de famille ?",
+        "validation": {
+          "type": "required",
+          "message": "Je n'ai pas entendu votre nom. Pouvez-vous le répéter s'il vous plaît ?"
+        }
+      }
+    },
+    {
+      "id": "collect_telephone",
+      "type": "input",
+      "position": {"x": 100, "y": 800},
+      "data": {
+        "label": "Collecter Téléphone",
+        "variableName": "telephone",
+        "inputType": "speech",
+        "prompt": "Quel est votre numéro de téléphone ? Dictez-le chiffre par chiffre s'il vous plaît.",
+        "validation": {
+          "type": "phone",
+          "message": "Ce numéro ne semble pas valide. Pouvez-vous le répéter chiffre par chiffre ?"
+        }
+      }
+    },
+    {
+      "id": "collect_email",
+      "type": "input",
+      "position": {"x": 100, "y": 900},
+      "data": {
+        "label": "Collecter Email",
+        "variableName": "email",
+        "inputType": "speech",
+        "prompt": "Et enfin, quelle est votre adresse email ? Dictez-la lentement, en épelant si nécessaire.",
+        "validation": {
+          "type": "email",
+          "message": "Cette adresse email ne semble pas valide. Pouvez-vous la répéter lentement ?"
+        },
+        "optional": true
+      }
+    },
+    {
+      "id": "create_appointment",
+      "type": "tool",
+      "position": {"x": 100, "y": 1000},
+      "data": {
+        "label": "Créer Rendez-vous",
+        "toolId": "f0311622-be86-464d-802f-a672275de80b",
+        "parameters": {
+          "firstName": "{{prenom}}",
+          "lastName": "{{nom}}",
+          "phone": "{{telephone}}",
+          "email": "{{email}}",
+          "datetime": "{{creneauChoisi}}"
+        }
+      }
+    },
+    {
+      "id": "confirmation",
+      "type": "message",
+      "position": {"x": 100, "y": 1100},
+      "data": {
+        "label": "Confirmation",
+        "message": "Parfait ! Votre rendez-vous est confirmé pour le {{creneauChoisi}}. Vous recevrez un SMS et un email de confirmation. Merci et à bientôt !",
+        "voice": {
+          "provider": "cartesia",
+          "voiceId": "sonic-french-female"
+        }
+      }
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "position": {"x": 100, "y": 1200},
+      "data": {
+        "label": "Fin"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "start",
+      "target": "accueil"
+    },
+    {
+      "id": "e2",
+      "source": "accueil",
+      "target": "check_availability"
+    },
+    {
+      "id": "e3",
+      "source": "check_availability",
+      "target": "proposer_creneaux"
+    },
+    {
+      "id": "e4",
+      "source": "proposer_creneaux",
+      "target": "collect_creneau"
+    },
+    {
+      "id": "e5",
+      "source": "collect_creneau",
+      "target": "collect_prenom"
+    },
+    {
+      "id": "e6",
+      "source": "collect_prenom",
+      "target": "collect_nom"
+    },
+    {
+      "id": "e7",
+      "source": "collect_nom",
+      "target": "collect_telephone"
+    },
+    {
+      "id": "e8",
+      "source": "collect_telephone",
+      "target": "collect_email"
+    },
+    {
+      "id": "e9",
+      "source": "collect_email",
+      "target": "create_appointment"
+    },
+    {
+      "id": "e10",
+      "source": "create_appointment",
+      "target": "confirmation"
+    },
+    {
+      "id": "e11",
+      "source": "confirmation",
+      "target": "end"
+    }
+  ],
+  "settings": {
+    "voice": {
+      "provider": "cartesia",
+      "voiceId": "sonic-french-female",
+      "stability": 0.5,
+      "similarityBoost": 0.75,
+      "speed": 1.0
+    },
+    "transcriber": {
+      "provider": "deepgram",
+      "model": "nova-2-phonecall",
+      "language": "fr"
+    },
+    "model": {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "temperature": 0.7,
+      "maxTokens": 500
+    }
+  }
+}
