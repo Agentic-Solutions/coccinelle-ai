@@ -71,6 +71,97 @@ async function notifyN8N(env, eventType, data) {
 // ============================================================================
 // VAPI WEBHOOK - CORRIGÉ v1.12.6
 // ============================================================================
+
+// ============================================================================
+// WEB CRAWLER FUNCTIONS - Phase 2 v1.13.1
+// ============================================================================
+
+function extractTextFromHTML(html) {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractMetadata(html, url) {
+  const metadata = { url, title: '', description: '', headings: [] };
+  const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+  if (titleMatch) metadata.title = titleMatch[1].trim();
+  const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["'](.*?)["']/i);
+  if (descMatch) metadata.description = descMatch[1].trim();
+  const h1Tags = html.match(/<h1[^>]*>(.*?)<\/h1>/gi) || [];
+  const h2Tags = html.match(/<h2[^>]*>(.*?)<\/h2>/gi) || [];
+  metadata.headings = [...h1Tags, ...h2Tags].map(h => extractTextFromHTML(h)).filter(h => h.length > 0);
+  return metadata;
+}
+
+function extractLinks(html, baseUrl) {
+  const links = [];
+  const matches = html.matchAll(/<a[^>]*href=["'](.*?)["']/gi);
+  for (const match of matches) {
+    try {
+      let href = match[1];
+      if (href.startsWith('/')) href = new URL(baseUrl).origin + href;
+      else if (!href.startsWith('http')) href = new URL(href, baseUrl).href;
+      const url = new URL(href);
+      if (url.protocol === 'http:' || url.protocol === 'https:') links.push(url.href);
+    } catch (e) {}
+  }
+  return [...new Set(links)];
+}
+
+function isSameDomain(url1, url2) {
+  try { return new URL(url1).hostname === new URL(url2).hostname; } catch { return false; }
+}
+
+function shouldCrawlUrl(url, includePatterns, excludePatterns) {
+  if (excludePatterns?.length > 0) for (const p of excludePatterns) if (url.includes(p)) return false;
+  if (includePatterns?.length > 0) { for (const p of includePatterns) if (url.includes(p)) return true; return false; }
+  return true;
+}
+
+function hashString(str) {
+  let h = 0; for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; }
+  return Math.abs(h).toString(36);
+}
+
+async function saveDocument(tenantId, db, docData) {
+  const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+  const contentHash = hashString(docData.content || '');
+  const existing = await db.prepare('SELECT id FROM knowledge_documents WHERE tenant_id = ? AND content_hash = ?').bind(tenantId, contentHash).first();
+  if (existing) return existing.id;
+  await db.prepare('INSERT INTO knowledge_documents (id, tenant_id, source_type, source_url, title, content, content_hash, word_count, metadata, status, crawled_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(docId, tenantId, docData.sourceType || 'webpage', docData.sourceUrl, docData.title, docData.content, contentHash, docData.content ? docData.content.split(/\s+/).length : 0, JSON.stringify(docData.metadata || {}), 'completed', new Date().toISOString(), new Date().toISOString(), new Date().toISOString()).run();
+  return docId;
+}
+
+async function crawlWebsite(tenantId, db, rootUrl, options = {}) {
+  const { maxPages = 50, maxDepth = 3, includePatterns = [], excludePatterns = [] } = options;
+  const visited = new Set(); const queue = [{ url: rootUrl, depth: 0 }]; const documents = [];
+  while (queue.length > 0 && visited.size < maxPages) {
+    const { url, depth } = queue.shift();
+    if (visited.has(url) || depth > maxDepth || !shouldCrawlUrl(url, includePatterns, excludePatterns)) continue;
+    visited.add(url);
+    try {
+      const response = await fetch(url, { headers: { 'User-Agent': 'Coccinelle.ai Bot/1.0' } });
+      if (!response.ok || !(response.headers.get('content-type') || '').includes('text/html')) continue;
+      const html = await response.text();
+      const mainContent = extractTextFromHTML(html);
+      const metadata = extractMetadata(html, url);
+      if (mainContent && mainContent.length > 100) {
+        documents.push(await saveDocument(tenantId, db, { sourceType: 'webpage', sourceUrl: url, title: metadata.title || url, content: mainContent, metadata }));
+      }
+      if (depth < maxDepth) {
+        for (const link of extractLinks(html, url)) {
+          if (isSameDomain(link, rootUrl) && !visited.has(link)) queue.push({ url: link, depth: depth + 1 });
+        }
+      }
+      await new Promise(r => setTimeout(r, 500));
+    } catch (e) {}
+  }
+  return { pagesCrawled: visited.size, documentsCreated: documents.length };
+}
 router.post('/webhooks/vapi/function-call', async (request, env, ctx) => {
   try {
     const payload = await request.json();
@@ -1379,6 +1470,67 @@ router.post('/rdv/:token/cancel', async (request, env, ctx) => {
 });
 
 // 404 handler
+
+// ============================================================================
+// KNOWLEDGE BASE ROUTES - Phase 2 v1.13.1
+// ============================================================================
+
+router.post('/api/v1/knowledge/crawl', async (request, env, ctx) => {
+  const tenant = await authenticate(request, env);
+  if (!tenant) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+  const body = await request.json();
+  const { startUrl, maxPages, includePatterns, excludePatterns } = body;
+  if (!startUrl) {
+    return new Response(JSON.stringify({ error: 'startUrl is required' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+  const jobId = generateId('crawl');
+  await env.DB.prepare('INSERT INTO crawl_jobs (id, tenant_id, start_url, max_pages, include_patterns, exclude_patterns, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, \'running\', datetime(\'now\'), datetime(\'now\'))').bind(jobId, tenant.id, startUrl, maxPages || 50, JSON.stringify(includePatterns || []), JSON.stringify(excludePatterns || [])).run();
+  ctx.waitUntil((async () => {
+    try {
+      const result = await crawlWebsite(tenant.id, env.DB, startUrl, { maxPages: maxPages || 50, maxDepth: 3, includePatterns: includePatterns || [], excludePatterns: excludePatterns || [] });
+      await env.DB.prepare('UPDATE crawl_jobs SET status = \'completed\', pages_crawled = ?, documents_created = ?, completed_at = datetime(\'now\'), updated_at = datetime(\'now\') WHERE id = ?').bind(result.pagesCrawled, result.documentsCreated, jobId).run();
+      await notifyN8N(env, 'crawl.completed', { job_id: jobId, pages_crawled: result.pagesCrawled, documents_created: result.documentsCreated });
+    } catch (error) {
+      await env.DB.prepare('UPDATE crawl_jobs SET status = \'failed\', error_message = ?, updated_at = datetime(\'now\') WHERE id = ?').bind(error.message, jobId).run();
+    }
+  })());
+  return new Response(JSON.stringify({ success: true, job_id: jobId, status: 'running' }), { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+});
+
+router.get('/api/v1/knowledge/crawl/:jobId', async (request, env) => {
+  const tenant = await authenticate(request, env);
+  if (!tenant) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  const { jobId } = request.params;
+  const job = await env.DB.prepare('SELECT * FROM crawl_jobs WHERE id = ? AND tenant_id = ?').bind(jobId, tenant.id).first();
+  if (!job) {
+    return new Response(JSON.stringify({ error: 'Job not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  return new Response(JSON.stringify({ success: true, job: { id: job.id, start_url: job.start_url, status: job.status, pages_crawled: job.pages_crawled || 0, documents_created: job.documents_created || 0, error_message: job.error_message, created_at: job.created_at, completed_at: job.completed_at } }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+});
+
+router.get('/api/v1/knowledge/documents', async (request, env) => {
+  const tenant = await authenticate(request, env);
+  if (!tenant) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  const url = new URL(request.url);
+  const limit = parseInt(url.searchParams.get('limit') || '50');
+  const offset = parseInt(url.searchParams.get('offset') || '0');
+  const documents = await env.DB.prepare('SELECT id, source_type, source_url, title, word_count, status, crawled_at, created_at FROM knowledge_documents WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(tenant.id, limit, offset).all();
+  const total = await env.DB.prepare('SELECT COUNT(*) as count FROM knowledge_documents WHERE tenant_id = ?').bind(tenant.id).first();
+  return new Response(JSON.stringify({ success: true, documents: documents.results || [], pagination: { total: total.count, limit, offset, has_more: (offset + limit) < total.count } }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+});
+
 router.all('*', () => new Response('Not Found', { status: 404 }));
 
 // ============================================================================
