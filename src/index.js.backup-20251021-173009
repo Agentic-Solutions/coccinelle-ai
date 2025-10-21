@@ -5,7 +5,6 @@
 
 // Import du module text processing
 import { processDocument } from './text-processing.js';
-import { handleAuthRoutes } from './auth-routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -23,11 +22,6 @@ export default {
     if (method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
-
-    // Routes Auth (nouveau v2.5.1)
-    const authResponse = await handleAuthRoutes(request, env, ctx, corsHeaders);
-    if (authResponse) return authResponse;
-
 
     try {
       // ========================================
