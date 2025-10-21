@@ -11,9 +11,14 @@
     "db:seed": "wrangler d1 execute coccinelle-db --local --file=database/seed-data.sql"
   },
   "dependencies": {
-    "itty-router": "^4.0.0"
+    "itty-router": "^4.0.0",
+    "lucide-react": "^0.546.0",
+    "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.14",
     "wrangler": "^3.0.0"
   }
 }

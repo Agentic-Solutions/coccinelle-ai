@@ -1,134 +1,133 @@
-// ============================================
-// TEXT PROCESSING MODULE - Phase 3
-// ============================================
-// v1.14.2 - 18 octobre 2025 - FIX: Added tenant_id
+// ============================================================================
+// COCCINELLE.AI - TEXT PROCESSING MODULE
+// Phase 3 : Chunking & Tokenization
+// Version : 1.17.0
+// ============================================================================
 
-export function countTokens(text) {
-  if (!text || typeof text !== 'string') return 0;
-  return Math.ceil(text.length / 1.3);
+/**
+ * Compte approximativement les tokens (1 token ≈ 4 caractères en français)
+ */
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
 }
 
-export function chunkText(text, maxTokens = 512, overlapTokens = 50) {
-  if (!text || typeof text !== 'string') return [];
-  
+/**
+ * Nettoie le texte
+ */
+function cleanText(text) {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Divise le texte en chunks avec overlap
+ */
+function chunkText(text, chunkSize = 1000, overlap = 200) {
   const chunks = [];
-  const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 0);
+  const sentences = text.split(/(?<=[.!?])\s+/);
   
   let currentChunk = '';
   let currentTokens = 0;
-  
-  for (const paragraph of paragraphs) {
-    const paragraphTokens = countTokens(paragraph);
+
+  for (const sentence of sentences) {
+    const sentenceTokens = estimateTokens(sentence);
     
-    if (paragraphTokens > maxTokens) {
-      if (currentChunk) {
-        chunks.push(currentChunk.trim());
-        currentChunk = '';
-        currentTokens = 0;
-      }
+    if (currentTokens + sentenceTokens > chunkSize && currentChunk.length > 0) {
+      chunks.push({
+        text: currentChunk.trim(),
+        tokens: currentTokens
+      });
       
-      const sentences = paragraph.match(/[^.!?]+[.!?]+/g) || [paragraph];
-      
-      for (const sentence of sentences) {
-        const sentenceTokens = countTokens(sentence);
-        
-        if (currentTokens + sentenceTokens > maxTokens) {
-          if (currentChunk) {
-            chunks.push(currentChunk.trim());
-          }
-          currentChunk = sentence;
-          currentTokens = sentenceTokens;
-        } else {
-          currentChunk += ' ' + sentence;
-          currentTokens += sentenceTokens;
-        }
-      }
-    } else {
-      if (currentTokens + paragraphTokens > maxTokens) {
-        chunks.push(currentChunk.trim());
-        
-        const words = currentChunk.split(' ');
-        const overlapWords = words.slice(-Math.floor(overlapTokens * 1.3));
-        
-        currentChunk = overlapWords.join(' ') + '\n\n' + paragraph;
-        currentTokens = countTokens(currentChunk);
-      } else {
-        currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
-        currentTokens += paragraphTokens;
-      }
+      // Overlap : garder les derniers mots
+      const words = currentChunk.split(' ');
+      const overlapWords = Math.floor(overlap / 4);
+      currentChunk = words.slice(-overlapWords).join(' ') + ' ';
+      currentTokens = estimateTokens(currentChunk);
     }
+    
+    currentChunk += sentence + ' ';
+    currentTokens += sentenceTokens;
   }
-  
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk.trim());
+
+  // Ajouter le dernier chunk
+  if (currentChunk.trim().length > 0) {
+    chunks.push({
+      text: currentChunk.trim(),
+      tokens: currentTokens
+    });
   }
-  
+
   return chunks;
 }
 
-export async function processDocument(db, documentId) {
-  try {
-    console.log(`[TEXT-PROCESSING] Starting processing for document: ${documentId}`);
-    
-    const document = await db.prepare(
-      'SELECT * FROM knowledge_documents WHERE id = ?'
-    ).bind(documentId).first();
-    
-    if (!document) {
-      console.error(`[TEXT-PROCESSING] Document not found: ${documentId}`);
-      return { success: false, error: 'Document not found' };
-    }
-    
-    console.log(`[TEXT-PROCESSING] Document loaded: ${document.title} (${document.word_count} words)`);
-    
-    const chunks = chunkText(document.content, 512, 50);
-    console.log(`[TEXT-PROCESSING] Created ${chunks.length} chunks`);
-    
-    let savedChunks = 0;
-    
-    for (let i = 0; i < chunks.length; i++) {
-      const chunkText = chunks[i];
-      const chunkId = crypto.randomUUID();
-      const tokenCount = countTokens(chunkText);
-      
-      await db.prepare(`
-        INSERT INTO knowledge_chunks (
-          id, document_id, tenant_id, chunk_index, content, 
-          token_count, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        chunkId,
-        documentId,
-        document.tenant_id,
-        i,
-        chunkText,
-        tokenCount,
-        new Date().toISOString()
-      ).run();
-      
-      savedChunks++;
-      console.log(`[TEXT-PROCESSING] Chunk ${i}/${chunks.length} saved (${tokenCount} tokens)`);
-    }
-    
-    await db.prepare(`
-      UPDATE knowledge_documents 
-      SET chunk_count = ?
-      WHERE id = ?
-    `).bind(chunks.length, documentId).run();
-    
-    console.log(`[TEXT-PROCESSING] Document ${documentId} processed successfully`);
-    console.log(`[TEXT-PROCESSING] Stats: ${savedChunks} saved`);
-    
-    return {
-      success: true,
-      documentId,
-      totalChunks: chunks.length,
-      savedChunks,
-      avgTokensPerChunk: Math.round(chunks.reduce((sum, c) => sum + countTokens(c), 0) / chunks.length)
-    };
-    
-  } catch (error) {
-    console.error(`[TEXT-PROCESSING] Error processing document ${documentId}:`, error.message);
-    return { success: false, error: error.message };
+/**
+ * Fonction principale de traitement
+ * @param {string} text - Texte à traiter
+ * @param {object} options - Options (chunkSize, chunkOverlap)
+ * @returns {Promise<Array>} - Array de chunks
+ */
+export async function processText(text, options = {}) {
+  const {
+    chunkSize = 1000,
+    chunkOverlap = 200
+  } = options;
+
+  console.log('[TEXT_PROCESSING] Starting...', {
+    textLength: text.length,
+    chunkSize,
+    chunkOverlap
+  });
+
+  // Nettoyer le texte
+  const cleanedText = cleanText(text);
+  
+  // Générer les chunks
+  const chunks = chunkText(cleanedText, chunkSize, chunkOverlap);
+
+  console.log('[TEXT_PROCESSING] Completed ✅', {
+    chunksGenerated: chunks.length,
+    totalTokens: chunks.reduce((sum, c) => sum + c.tokens, 0)
+  });
+
+  return chunks;
+}
+
+/**
+ * Validation du texte
+ */
+export function validateText(text) {
+  if (!text || typeof text !== 'string') {
+    return { valid: false, error: 'Text must be a non-empty string' };
   }
+
+  if (text.length < 50) {
+    return { valid: false, error: 'Text is too short (minimum 50 characters)' };
+  }
+
+  if (text.length > 1000000) {
+    return { valid: false, error: 'Text is too long (maximum 1M characters)' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Stats sur le texte
+ */
+export function getTextStats(text) {
+  const cleaned = cleanText(text);
+  const words = cleaned.split(/\s+/).length;
+  const sentences = cleaned.split(/[.!?]+/).length;
+  const tokens = estimateTokens(cleaned);
+
+  return {
+    characters: cleaned.length,
+    words,
+    sentences,
+    estimatedTokens: tokens,
+    avgWordsPerSentence: Math.round(words / sentences)
+  };
 }

@@ -12,3 +12,7 @@ RESEND_FROM_EMAIL = "onboarding@resend.dev"
 binding = "DB"
 database_name = "coccinelle-db"
 database_id = "f4d7ff42-fc12-4c16-9c19-ada63c023827"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "coccinelle-vectors"
