@@ -1,0 +1,601 @@
+// ============================================================================
+// COCCINELLE.AI - BACKEND API
+// Version : 1.17.0 (Vectorize Auto-Sync FIXED)
+// Stack : Cloudflare Workers + D1 + Vectorize + OpenAI + Anthropic
+// ============================================================================
+
+import { processText } from './text-processing.js';
+import { processDocumentEmbeddings, getEmbeddingsStatus } from './embeddings.js';
+import { ragPipeline, hybridSearch, upsertToVectorize } from './search.js';
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Content-Type': 'application/json'
+};
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data, null, 2), {
+    status,
+    headers: CORS_HEADERS
+  });
+}
+
+function errorResponse(message, status = 500, details = null) {
+  return jsonResponse({
+    success: false,
+    error: message,
+    details,
+    timestamp: new Date().toISOString()
+  }, status);
+}
+
+async function validateTenant(db, tenantId) {
+  if (!tenantId) return false;
+  
+  const tenant = await db.prepare(
+    'SELECT id FROM tenants WHERE id = ? AND is_active = 1'
+  ).bind(tenantId).first();
+  
+  return !!tenant;
+}
+
+// ============================================================================
+// ROUTE HANDLERS
+// ============================================================================
+
+async function handleGetDocuments(env, tenantId = null) {
+  try {
+    let query = `
+      SELECT 
+        id,
+        tenant_id,
+        title,
+        source_url,
+        source_type,
+        content_hash,
+        chunk_count,
+        total_tokens,
+        status,
+        indexed_at,
+        created_at,
+        updated_at
+      FROM knowledge_documents
+    `;
+    
+    const params = [];
+    
+    if (tenantId) {
+      query += ' WHERE tenant_id = ?';
+      params.push(tenantId);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    const stmt = env.DB.prepare(query);
+    const result = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
+
+    return jsonResponse({
+      success: true,
+      count: result.results.length,
+      documents: result.results
+    });
+
+  } catch (error) {
+    console.error('[GET_DOCUMENTS] Error:', error);
+    return errorResponse('Failed to fetch documents', 500, error.message);
+  }
+}
+
+async function handleProcessDocument(env, documentId, ctx) {
+  try {
+    console.log('[PROCESS_DOCUMENT] Starting:', documentId);
+
+    // Récupérer le document
+    const document = await env.DB.prepare(`
+      SELECT id, tenant_id, title, content, source_url
+      FROM knowledge_documents
+      WHERE id = ?
+    `).bind(documentId).first();
+
+    if (!document) {
+      return errorResponse('Document not found', 404);
+    }
+
+    if (!document.content) {
+      return errorResponse('Document has no content to process', 400);
+    }
+
+    // Valider le tenant
+    const isValidTenant = await validateTenant(env.DB, document.tenant_id);
+    if (!isValidTenant) {
+      return errorResponse('Invalid tenant', 403);
+    }
+
+    // Traiter le texte et générer les chunks
+    const chunks = await processText(document.content, {
+      chunkSize: 1000,
+      chunkOverlap: 200
+    });
+
+    console.log('[PROCESS_DOCUMENT] Chunks generated:', chunks.length);
+
+    // Stocker les chunks dans la DB
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const chunkId = `${documentId}_chunk_${i + 1}`;
+
+      await env.DB.prepare(`
+        INSERT INTO knowledge_chunks (
+          id, document_id, tenant_id, chunk_index,
+          content, token_count, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        chunkId,
+        document.id,
+        document.tenant_id,
+        i,
+        chunk.text,
+        chunk.tokens
+      ).run();
+    }
+
+    // Mettre à jour le document
+    const totalTokens = chunks.reduce((sum, chunk) => sum + chunk.tokens, 0);
+    
+    await env.DB.prepare(`
+      UPDATE knowledge_documents
+      SET chunk_count = ?,
+          total_tokens = ?,
+          status = 'chunked',
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(chunks.length, totalTokens, documentId).run();
+
+    console.log('[PROCESS_DOCUMENT] Document updated ✅');
+
+    // 🔥 FIX : Générer automatiquement les embeddings avec Vectorize
+    console.log('[PROCESS_DOCUMENT] Starting auto-embedding with Vectorize...');
+    
+    ctx.waitUntil(
+      processDocumentEmbeddings(
+        env.DB, 
+        env.VECTORIZE,
+        documentId, 
+        env.OPENAI_API_KEY
+      ).then(result => {
+        console.log('[PROCESS_DOCUMENT] Auto-embedding completed:', result);
+      }).catch(error => {
+        console.error('[PROCESS_DOCUMENT] Auto-embedding failed:', error);
+      })
+    );
+
+    return jsonResponse({
+      success: true,
+      documentId: document.id,
+      title: document.title,
+      chunks: chunks.length,
+      totalTokens,
+      status: 'chunked',
+      autoEmbedding: 'started'
+    });
+
+  } catch (error) {
+    console.error('[PROCESS_DOCUMENT] Error:', error);
+    return errorResponse('Failed to process document', 500, error.message);
+  }
+}
+
+async function handleGenerateEmbeddings(env, documentId, ctx) {
+  try {
+    console.log('[GENERATE_EMBEDDINGS] Starting:', documentId);
+
+    // Vérifier que le document existe
+    const document = await env.DB.prepare(`
+      SELECT id, tenant_id, status
+      FROM knowledge_documents
+      WHERE id = ?
+    `).bind(documentId).first();
+
+    if (!document) {
+      return errorResponse('Document not found', 404);
+    }
+
+    // Valider le tenant
+    const isValidTenant = await validateTenant(env.DB, document.tenant_id);
+    if (!isValidTenant) {
+      return errorResponse('Invalid tenant', 403);
+    }
+
+    // Lancer le traitement en arrière-plan avec Vectorize
+    ctx.waitUntil(
+      processDocumentEmbeddings(
+        env.DB,
+        env.VECTORIZE,
+        documentId,
+        env.OPENAI_API_KEY
+      ).then(result => {
+        console.log('[GENERATE_EMBEDDINGS] Background processing completed:', result);
+      }).catch(error => {
+        console.error('[GENERATE_EMBEDDINGS] Background processing failed:', error);
+      })
+    );
+
+    return jsonResponse({
+      success: true,
+      message: 'Embedding generation started',
+      documentId,
+      status: 'processing'
+    });
+
+  } catch (error) {
+    console.error('[GENERATE_EMBEDDINGS] Error:', error);
+    return errorResponse('Failed to start embedding generation', 500, error.message);
+  }
+}
+
+async function handleGetEmbeddingsStatus(env, documentId) {
+  try {
+    const status = await getEmbeddingsStatus(env.DB, documentId);
+
+    if (!status.success) {
+      return errorResponse(status.error, 500);
+    }
+
+    return jsonResponse(status);
+
+  } catch (error) {
+    console.error('[EMBEDDINGS_STATUS] Error:', error);
+    return errorResponse('Failed to get embeddings status', 500, error.message);
+  }
+}
+
+async function handleSearch(env, body) {
+  try {
+    const { query, topK = 10, tenantId } = body;
+
+    if (!query) {
+      return errorResponse('Query is required', 400);
+    }
+
+    if (!tenantId) {
+      return errorResponse('tenantId is required', 400);
+    }
+
+    // Valider le tenant
+    const isValidTenant = await validateTenant(env.DB, tenantId);
+    if (!isValidTenant) {
+      return errorResponse('Invalid tenant', 403);
+    }
+
+    console.log('[SEARCH] Processing:', { query, topK, tenantId });
+
+    // Recherche hybride
+    const results = await hybridSearch({
+      query,
+      db: env.DB,
+      vectorize: env.VECTORIZE,
+      openaiApiKey: env.OPENAI_API_KEY,
+      topK,
+      tenantId
+    });
+
+    return jsonResponse({
+      success: true,
+      query,
+      topK,
+      tenantId,
+      resultsCount: results.length,
+      results
+    });
+
+  } catch (error) {
+    console.error('[SEARCH] Error:', error);
+    return errorResponse('Search failed', 500, error.message);
+  }
+}
+
+async function handleAsk(env, body) {
+  try {
+    const { question, topK = 5, tenantId, maxTokens = 4000 } = body;
+
+    if (!question) {
+      return errorResponse('Question is required', 400);
+    }
+
+    if (!tenantId) {
+      return errorResponse('tenantId is required', 400);
+    }
+
+    // Valider le tenant
+    const isValidTenant = await validateTenant(env.DB, tenantId);
+    if (!isValidTenant) {
+      return errorResponse('Invalid tenant', 403);
+    }
+
+    console.log('[ASK] Processing question:', { question, topK, tenantId });
+
+    // Pipeline RAG complet
+    const result = await ragPipeline({
+      question,
+      db: env.DB,
+      vectorize: env.VECTORIZE,
+      openaiApiKey: env.OPENAI_API_KEY,
+      anthropicApiKey: env.ANTHROPIC_API_KEY,
+      topK,
+      tenantId,
+      maxTokens
+    });
+
+    if (!result.success) {
+      return errorResponse(result.error, 500);
+    }
+
+    return jsonResponse({
+      success: true,
+      question,
+      answer: result.answer,
+      sources: result.sources,
+      tokensUsed: result.tokensUsed,
+      metadata: {
+        chunksRetrieved: result.chunksRetrieved,
+        searchScore: result.searchScore,
+        processingTime: result.processingTime
+      }
+    });
+
+  } catch (error) {
+    console.error('[ASK] Error:', error);
+    return errorResponse('Question answering failed', 500, error.message);
+  }
+}
+
+async function handleSyncVectorize(env, body) {
+  try {
+    const { documentId, tenantId } = body;
+
+    if (!documentId) {
+      return errorResponse('documentId is required', 400);
+    }
+
+    console.log('[SYNC_VECTORIZE] Starting sync:', { documentId, tenantId });
+
+    // Récupérer les chunks avec embeddings
+    let query = `
+      SELECT 
+        kc.id,
+        kc.content,
+        kc.document_id,
+        kc.tenant_id,
+        kc.chunk_index,
+        kc.vector_id
+      FROM knowledge_chunks kc
+      WHERE kc.document_id = ?
+      AND kc.vector_id IS NOT NULL
+    `;
+
+    const params = [documentId];
+
+    if (tenantId) {
+      query += ' AND kc.tenant_id = ?';
+      params.push(tenantId);
+    }
+
+    const result = await env.DB.prepare(query).bind(...params).all();
+
+    if (!result.results || result.results.length === 0) {
+      return errorResponse('No chunks with embeddings found', 404);
+    }
+
+    console.log('[SYNC_VECTORIZE] Found chunks:', result.results.length);
+
+    // Générer les embeddings et uploader vers Vectorize
+    const chunks = result.results;
+    let synced = 0;
+    let failed = 0;
+
+    for (const chunk of chunks) {
+      try {
+        // Générer l'embedding
+        const response = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: chunk.content,
+            encoding_format: 'float'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`OpenAI API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const embedding = data.data[0].embedding;
+
+        // Upsert dans Vectorize
+        await env.VECTORIZE.upsert([
+          {
+            id: chunk.id,
+            values: embedding,
+            metadata: {
+              vector_id: chunk.vector_id,
+              document_id: chunk.document_id,
+              tenant_id: chunk.tenant_id,
+              chunk_index: chunk.chunk_index
+            }
+          }
+        ]);
+
+        synced++;
+        console.log(`[SYNC_VECTORIZE] Synced chunk ${chunk.id} ✅`);
+
+      } catch (error) {
+        console.error(`[SYNC_VECTORIZE] Failed to sync chunk ${chunk.id}:`, error);
+        failed++;
+      }
+
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    return jsonResponse({
+      success: true,
+      documentId,
+      totalChunks: chunks.length,
+      synced,
+      failed,
+      message: `Synchronized ${synced}/${chunks.length} chunks to Vectorize`
+    });
+
+  } catch (error) {
+    console.error('[SYNC_VECTORIZE] Error:', error);
+    return errorResponse('Vectorize sync failed', 500, error.message);
+  }
+}
+
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const method = request.method;
+
+    // CORS Preflight
+    if (method === 'OPTIONS') {
+      return new Response(null, { headers: CORS_HEADERS });
+    }
+
+    console.log(`[${method}] ${path}`);
+
+    try {
+      // ========================================
+      // ROOT
+      // ========================================
+      if (path === '/' && method === 'GET') {
+        return jsonResponse({
+          name: 'Coccinelle.AI API',
+          version: '1.17.0',
+          status: 'operational',
+          phase: 'Phase 5 - Search & RAG (100%)',
+          endpoints: {
+            documents: 'GET /api/v1/knowledge/documents',
+            processDocument: 'POST /api/v1/knowledge/documents/:id/process',
+            generateEmbeddings: 'POST /api/v1/knowledge/documents/:id/embeddings',
+            embeddingsStatus: 'GET /api/v1/knowledge/documents/:id/embeddings/status',
+            search: 'POST /api/v1/knowledge/search',
+            ask: 'POST /api/v1/knowledge/ask',
+            syncVectorize: 'POST /api/v1/knowledge/sync-vectorize'
+          },
+          features: [
+            'Knowledge Base Management',
+            'Text Chunking & Processing',
+            'OpenAI Embeddings (text-embedding-3-small)',
+            'Cloudflare Vectorize Integration',
+            'Semantic Search',
+            'RAG with Claude Sonnet 4',
+            'Hybrid Search (Semantic + Full-text)',
+            'Auto-sync Vectorize on Document Processing'
+          ],
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // ========================================
+      // KNOWLEDGE ENDPOINTS
+      // ========================================
+
+      // GET Documents
+      if (path === '/api/v1/knowledge/documents' && method === 'GET') {
+        const tenantId = url.searchParams.get('tenantId');
+        return await handleGetDocuments(env, tenantId);
+      }
+
+      // POST Process Document
+      if (path.match(/^\/api\/v1\/knowledge\/documents\/[^/]+\/process$/) && method === 'POST') {
+        const documentId = path.split('/')[5];
+        return await handleProcessDocument(env, documentId, ctx);
+      }
+
+      // POST Generate Embeddings
+      if (path.match(/^\/api\/v1\/knowledge\/documents\/[^/]+\/embeddings$/) && method === 'POST') {
+        const documentId = path.split('/')[5];
+        return await handleGenerateEmbeddings(env, documentId, ctx);
+      }
+
+      // GET Embeddings Status
+      if (path.match(/^\/api\/v1\/knowledge\/documents\/[^/]+\/embeddings\/status$/) && method === 'GET') {
+        const documentId = path.split('/')[5];
+        return await handleGetEmbeddingsStatus(env, documentId);
+      }
+
+      // POST Search
+      if (path === '/api/v1/knowledge/search' && method === 'POST') {
+        const body = await request.json();
+        return await handleSearch(env, body);
+      }
+
+      // POST Ask (RAG)
+      if (path === '/api/v1/knowledge/ask' && method === 'POST') {
+        const body = await request.json();
+        return await handleAsk(env, body);
+      }
+
+      // POST Sync Vectorize
+      if (path === '/api/v1/knowledge/sync-vectorize' && method === 'POST') {
+        const body = await request.json();
+        return await handleSyncVectorize(env, body);
+      }
+
+      // ========================================
+      // 404
+      // ========================================
+
+  // ========================================
+  // Endpoint interne DB pour auth frontend
+  // ========================================
+  if (url.pathname === "/api/v1/internal/db/query" && request.method === "POST") {
+    try {
+      const secret = request.headers.get("X-Internal-Secret");
+      if (secret !== "dev-secret-123") {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      const { query, params } = await request.json();
+      const stmt = env.DB.prepare(query);
+      let result;
+      if (params && params.length > 0) {
+        result = await stmt.bind(...params).all();
+      } else {
+        result = await stmt.all();
+      }
+      return jsonResponse(result);
+    } catch (error) {
+      console.error("[INTERNAL DB] Error:", error);
+      return jsonResponse({ error: error.message }, 500);
+    }
+  }
+
+      return errorResponse('Endpoint not found', 404);
+
+    } catch (error) {
+      console.error('[MAIN_HANDLER] Unhandled error:', error);
+      return errorResponse('Internal server error', 500, error.message);
+    }
+  }
+};

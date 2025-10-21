@@ -1,0 +1,571 @@
+import { Router } from 'itty-router';
+
+const router = Router();
+
+// ==================== CORS ====================
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+};
+
+router.options('*', () => new Response(null, { headers: corsHeaders }));
+
+// ==================== AUTH ====================
+async function authenticateApiKey(request, env) {
+  const apiKey = request.headers.get('X-API-Key');
+  if (!apiKey) return null;
+  
+  const tenant = await env.DB.prepare(
+    'SELECT * FROM tenants WHERE api_key = ?'
+  ).bind(apiKey).first();
+  
+  return tenant;
+}
+
+// ==================== UTILS ====================
+function generateToken() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function convertVapiDatetimeToUTC(datetime, timezone = 'Europe/Paris') {
+  try {
+    const localDate = new Date(datetime);
+    const utcDate = new Date(localDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+    return utcDate.toISOString().replace('.000Z', 'Z');
+  } catch (error) {
+    console.error('Erreur conversion date:', error);
+    return datetime;
+  }
+}
+
+async function sendAppointmentNotifications(env, appointmentId, managementToken, firstName, datetime, phone, email) {
+  const managementUrl = `https://coccinelle-api.youssef-amrouche.workers.dev/rdv/${managementToken}`;
+  
+  const dateFormatted = new Date(datetime).toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  if (phone && phone !== 'undefined' && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
+    try {
+      const smsBody = `Bonjour ${firstName}, votre rendez-vous est confirmé le ${dateFormatted}. Gérez-le ici : ${managementUrl}`;
+      
+      const twilioAuth = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
+      const smsResponse = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${twilioAuth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            To: phone,
+            From: env.TWILIO_PHONE_NUMBER,
+            Body: smsBody,
+          }),
+        }
+      );
+
+      if (smsResponse.ok) {
+        const smsData = await smsResponse.json();
+        await env.DB.prepare(`
+          INSERT INTO appointment_notifications (tenant_id, appointment_id, type, recipient, status, provider_message_id, sent_at)
+          VALUES (?, ?, 'sms', ?, 'sent', ?, datetime('now'))
+        `).bind('tenant_demo_001', appointmentId, phone, smsData.sid).run();
+        
+        console.log('✅ SMS envoyé:', smsData.sid);
+      } else {
+        const errorText = await smsResponse.text();
+        await env.DB.prepare(`
+          INSERT INTO appointment_notifications (tenant_id, appointment_id, type, recipient, status, error_message, sent_at)
+          VALUES (?, ?, 'sms', ?, 'failed', ?, datetime('now'))
+        `).bind('tenant_demo_001', appointmentId, phone, errorText).run();
+        
+        console.error('❌ Erreur SMS:', errorText);
+      }
+    } catch (error) {
+      console.error('❌ Exception SMS:', error);
+    }
+  }
+
+  if (email && email !== 'noemail@placeholder.com' && env.RESEND_API_KEY) {
+    try {
+      const emailResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+          to: [email],
+          subject: `Confirmation de rendez-vous - ${dateFormatted}`,
+          html: `
+            <h2>Bonjour ${firstName},</h2>
+            <p>Votre rendez-vous est confirmé pour le <strong>${dateFormatted}</strong>.</p>
+            <p><a href="${managementUrl}" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Gérer mon rendez-vous</a></p>
+            <p>À bientôt !</p>
+          `,
+        }),
+      });
+
+      if (emailResponse.ok) {
+        const emailData = await emailResponse.json();
+        await env.DB.prepare(`
+          INSERT INTO appointment_notifications (tenant_id, appointment_id, type, recipient, status, provider_message_id, sent_at)
+          VALUES (?, ?, 'email', ?, 'sent', ?, datetime('now'))
+        `).bind('tenant_demo_001', appointmentId, email, emailData.id).run();
+        
+        console.log('✅ Email envoyé:', emailData.id);
+      } else {
+        const errorText = await emailResponse.text();
+        await env.DB.prepare(`
+          INSERT INTO appointment_notifications (tenant_id, appointment_id, type, recipient, status, error_message, sent_at)
+          VALUES (?, ?, 'email', ?, 'failed', ?, datetime('now'))
+        `).bind('tenant_demo_001', appointmentId, email, errorText).run();
+        
+        console.error('❌ Erreur Email:', errorText);
+      }
+    } catch (error) {
+      console.error('❌ Exception Email:', error);
+    }
+  }
+}
+
+// ==================== WEBHOOK VAPI ====================
+router.post('/webhooks/vapi/function-call', async (request, env) => {
+  try {
+    const message = await request.json();
+    
+    // 🔍 LOG DEBUG DÉTAILLÉ
+    console.log('🔍 STRUCTURE COMPLÈTE MESSAGE VAPI:');
+    console.log('Keys:', Object.keys(message));
+    console.log('message.call:', message.call);
+    console.log('message.callId:', message.callId);
+    console.log('message.id:', message.id);
+
+    const tenant = await env.DB.prepare(
+      'SELECT * FROM tenants WHERE vapi_assistant_id IS NOT NULL LIMIT 1'
+    ).first();
+
+    if (!tenant) {
+      return new Response(JSON.stringify({ error: 'Tenant non trouvé' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    const ctx = message;
+
+    if (message.type === 'tool-calls' && message.toolCallList) {
+      const results = [];
+
+      for (const toolCall of message.toolCallList) {
+        console.log(`Traitement: ${toolCall.function.name}`);
+
+        let result = null;
+
+        if (toolCall.function.name === 'searchKnowledge') {
+          result = await handleSearchKnowledge(toolCall.function.arguments, env, tenant);
+        } else if (toolCall.function.name === 'checkAvailability') {
+          result = handleCheckAvailabilitySimple(toolCall.function.arguments);
+        } else if (toolCall.function.name === 'createAppointment') {
+          result = await handleCreateAppointment(toolCall.function.arguments, env, tenant, ctx);
+        }
+
+        results.push({
+          toolCallId: toolCall.id,
+          result: result
+        });
+      }
+
+      return new Response(JSON.stringify({ results }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+
+  } catch (error) {
+    console.error('Erreur webhook:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+});
+
+// ==================== HANDLERS ====================
+async function handleSearchKnowledge(args, env, tenant) {
+  const { query } = args;
+  
+  const results = await env.DB.prepare(`
+    SELECT answer FROM knowledge_base
+    WHERE type = 'qa'
+    AND (question LIKE ? OR answer LIKE ?)
+    AND tenant_id = ?
+    LIMIT 2
+  `).bind(`%${query}%`, `%${query}%`, tenant.id).all();
+  
+  if (results.results.length > 0) {
+    return results.results.map(r => r.answer).join(' ');
+  }
+  
+  return "Je n'ai pas d'information spécifique sur ce sujet.";
+}
+
+function handleCheckAvailabilitySimple(args) {
+  const { date } = args;
+  return `Pour le ${date}, j'ai : 9h00, 10h00, 14h00, 15h00. Lequel préférez-vous ?`;
+}
+
+async function handleCreateAppointment(args, env, tenant, ctx) {
+  const { firstName, lastName, phone, email, datetime } = args;
+  
+  console.log('Création RDV:', { firstName, lastName, phone, datetime });
+  
+  try {
+    const tenantTimezone = tenant.timezone || 'Europe/Paris';
+    const correctedDatetime = convertVapiDatetimeToUTC(datetime, tenantTimezone);
+    
+    let prospect = await env.DB.prepare(`
+      SELECT id FROM prospects WHERE phone = ? AND tenant_id = ?
+    `).bind(phone, tenant.id).first();
+    
+    let prospectId;
+    if (!prospect) {
+      prospectId = `prospect_${Date.now()}`;
+      await env.DB.prepare(`
+        INSERT INTO prospects (id, tenant_id, first_name, last_name, phone, email, status)
+        VALUES (?, ?, ?, ?, ?, ?, 'contacted')
+      `).bind(prospectId, tenant.id, firstName, lastName, phone, email).run();
+    } else {
+      prospectId = prospect.id;
+    }
+    
+    const agent = await env.DB.prepare(`
+      SELECT id FROM agents WHERE tenant_id = ? LIMIT 1
+    `).bind(tenant.id).first();
+    
+    if (!agent) {
+      return "Erreur : aucun agent disponible.";
+    }
+    
+    const appointmentId = `appt_${Date.now()}`;
+    const managementToken = generateToken();
+    
+    await env.DB.prepare(`
+      INSERT INTO appointments 
+      (id, tenant_id, prospect_id, agent_id, type, scheduled_at, status, management_token)
+      VALUES (?, ?, ?, ?, 'phone_call', ?, 'confirmed', ?)
+    `).bind(appointmentId, tenant.id, prospectId, agent.id, correctedDatetime, managementToken).run();
+    
+    console.log('✅ RDV créé:', appointmentId);
+    
+    // ==================== LOGGING VAPI AVEC DEBUG ====================
+    try {
+      // Test de toutes les possibilités pour trouver le call_id
+      const vapiCallId = ctx?.call?.id || ctx?.callId || ctx?.id || `call_${Date.now()}`;
+      
+      console.log('🔍 DEBUG CALL ID:');
+      console.log('ctx.call?.id:', ctx?.call?.id);
+      console.log('ctx.callId:', ctx?.callId);
+      console.log('ctx.id:', ctx?.id);
+      console.log('vapiCallId final:', vapiCallId);
+      
+      const callStatus = 'completed';
+      const callDuration = ctx?.call?.duration || 0;
+      const callCost = ctx?.call?.cost || '0.00';
+      
+      await env.DB.prepare(`
+        INSERT INTO vapi_call_logs (
+          id, tenant_id, call_id, phone_number,
+          status, duration_seconds, cost_usd,
+          prospect_id, prospect_name, prospect_email,
+          appointment_created, appointment_id,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).bind(
+        `log_${Date.now()}`,
+        tenant.id,
+        vapiCallId,
+        phone || '',
+        callStatus,
+        callDuration,
+        callCost,
+        prospectId,
+        `${firstName} ${lastName}`,
+        email || '',
+        1,
+        appointmentId
+      ).run();
+      
+      console.log('✅ Appel Vapi loggé dans vapi_call_logs');
+    } catch (logError) {
+      console.error('❌ Erreur logging Vapi:', logError);
+    }
+    
+    const match = datetime.match(/T(\d{2}):(\d{2})/);
+    const localTime = match ? `${match[1]}h${match[2]}` : 'l\'heure demandée';
+    
+    const dateMatch = datetime.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const localDate = dateMatch ? `${dateMatch[3]}/${dateMatch[2]}` : 'la date';
+    
+    const confirmationMessage = `Parfait ${firstName} ! Rendez-vous confirmé le ${localDate} à ${localTime}. Vous recevrez une confirmation par SMS et email.`;
+    
+    ctx.waitUntil(
+      (async () => {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await sendAppointmentNotifications(
+          env, 
+          appointmentId, 
+          managementToken,
+          firstName,
+          datetime, 
+          phone, 
+          email
+        );
+      })()
+    );
+    
+    return confirmationMessage;
+    
+  } catch (error) {
+    console.error('❌ Erreur création RDV:', error);
+    return `Erreur lors de la création du rendez-vous : ${error.message}`;
+  }
+}
+
+// ==================== API ROUTES (le reste du code reste identique) ====================
+router.get('/api/v1/prospects', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const prospects = await env.DB.prepare(
+    'SELECT * FROM prospects WHERE tenant_id = ?'
+  ).bind(tenant.id).all();
+
+  return new Response(JSON.stringify(prospects.results), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.post('/api/v1/prospects', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const { name, email, phone, source, notes } = await request.json();
+  const prospectId = `prospect_${Date.now()}`;
+
+  await env.DB.prepare(`
+    INSERT INTO prospects (id, tenant_id, name, email, phone, source, notes, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
+  `).bind(prospectId, tenant.id, name, email, phone, source || 'api', notes || '').run();
+
+  return new Response(JSON.stringify({ success: true, id: prospectId }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/agents', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const agents = await env.DB.prepare(
+    'SELECT * FROM agents WHERE tenant_id = ?'
+  ).bind(tenant.id).all();
+
+  return new Response(JSON.stringify({ success: true, agents: agents.results }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/appointments', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const appointments = await env.DB.prepare(`
+    SELECT a.*, p.name as prospect_name, ag.name as agent_name
+    FROM appointments a
+    LEFT JOIN prospects p ON a.prospect_id = p.id
+    LEFT JOIN agents ag ON a.agent_id = ag.id
+    WHERE a.tenant_id = ?
+    ORDER BY a.scheduled_at DESC
+  `).bind(tenant.id).all();
+
+  return new Response(JSON.stringify({ success: true, appointments: appointments.results }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.post('/api/v1/appointments', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const { prospect_id, agent_id, property_id, service_id, type, scheduled_at, notes } = await request.json();
+  
+  const appointmentId = `appt_${Date.now()}`;
+  const managementToken = generateToken();
+  const managementUrl = `https://coccinelle-api.youssef-amrouche.workers.dev/rdv/${managementToken}`;
+
+  await env.DB.prepare(`
+    INSERT INTO appointments 
+    (id, tenant_id, prospect_id, agent_id, property_id, service_id, type, scheduled_at, status, management_token, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
+  `).bind(
+    appointmentId, 
+    tenant.id, 
+    prospect_id, 
+    agent_id, 
+    property_id || null, 
+    service_id || null, 
+    type, 
+    scheduled_at, 
+    managementToken, 
+    notes || ''
+  ).run();
+
+  return new Response(JSON.stringify({ 
+    success: true, 
+    id: appointmentId,
+    management_url: managementUrl
+  }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/services', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const services = await env.DB.prepare(
+    'SELECT * FROM services WHERE tenant_id = ?'
+  ).bind(tenant.id).all();
+
+  return new Response(JSON.stringify({ success: true, services: services.results }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/knowledge-base', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const kb = await env.DB.prepare(
+    'SELECT * FROM knowledge_base WHERE tenant_id = ?'
+  ).bind(tenant.id).all();
+
+  return new Response(JSON.stringify({ success: true, knowledge: kb.results }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.post('/api/v1/knowledge-base', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const { type, category, question, answer, document_url, metadata } = await request.json();
+  const kbId = `kb_${Date.now()}`;
+
+  await env.DB.prepare(`
+    INSERT INTO knowledge_base (id, tenant_id, type, category, question, answer, document_url, metadata)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(kbId, tenant.id, type, category || null, question || null, answer || null, document_url || null, metadata || null).run();
+
+  return new Response(JSON.stringify({ success: true, id: kbId }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/vapi/calls', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const { status, prospect_id, date_from, date_to } = Object.fromEntries(new URL(request.url).searchParams);
+  
+  let query = 'SELECT * FROM vapi_call_logs WHERE tenant_id = ?';
+  const params = [tenant.id];
+  
+  if (status) {
+    query += ' AND status = ?';
+    params.push(status);
+  }
+  
+  if (prospect_id) {
+    query += ' AND prospect_id = ?';
+    params.push(prospect_id);
+  }
+  
+  if (date_from) {
+    query += ' AND created_at >= ?';
+    params.push(date_from);
+  }
+  
+  if (date_to) {
+    query += ' AND created_at <= ?';
+    params.push(date_to);
+  }
+  
+  query += ' ORDER BY created_at DESC LIMIT 50';
+  
+  const calls = await env.DB.prepare(query).bind(...params).all();
+
+  return new Response(JSON.stringify({ success: true, calls: calls.results }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/vapi/calls/:callId', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const { callId } = request.params;
+  
+  const call = await env.DB.prepare(
+    'SELECT * FROM vapi_call_logs WHERE id = ? AND tenant_id = ?'
+  ).bind(callId, tenant.id).first();
+
+  if (!call) {
+    return new Response(JSON.stringify({ success: false, error: 'Appel non trouvé' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+
+  return new Response(JSON.stringify({ success: true, call }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/vapi/stats', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const stats = await getVapiStats(env, tenant.id);
+
+  return new Response(JSON.stringify({
+    success: true,
+    stats: stats
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.all('*', () => new Response('Not Found', { status: 404 }));
+
+export default {
+  fetch: router.handle
+};

@@ -1,0 +1,1245 @@
+import { Router } from 'itty-router';
+import { logVapiCall, getVapiCalls, getVapiCallById, getVapiStats } from './vapi-logger.js';
+
+const router = Router();
+
+// ============================================================================
+// TIMEZONE OFFSETS
+// ============================================================================
+const TIMEZONE_OFFSETS = {
+  'Europe/Paris': 2,
+  'America/New_York': -4,
+  'America/Los_Angeles': -7,
+  'Asia/Tokyo': 9,
+  'Australia/Sydney': 11,
+  'Europe/London': 1,
+  'America/Sao_Paulo': -3,
+  'Asia/Dubai': 4,
+};
+
+// ============================================================================
+// MIDDLEWARE
+// ============================================================================
+async function authenticateApiKey(request, env) {
+  const apiKey = request.headers.get('X-API-Key');
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'API key required' }), { 
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const tenant = await env.DB.prepare(
+    'SELECT * FROM tenants WHERE api_key = ?'
+  ).bind(apiKey).first();
+
+  if (!tenant) {
+    return new Response(JSON.stringify({ error: 'Invalid API key' }), { 
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  return tenant;
+}
+
+// ============================================================================
+// CORS
+// ============================================================================
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, X-Webhook-Secret',
+};
+
+// ============================================================================
+// TIMEZONE CONVERSION
+// ============================================================================
+function convertVapiDatetimeToUTC(vapiDatetime, timezone) {
+  const match = vapiDatetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+  if (!match) {
+    console.error('Format datetime invalide:', vapiDatetime);
+    return vapiDatetime;
+  }
+  
+  const [_, year, month, day, hour, minute, second] = match;
+  const offset = TIMEZONE_OFFSETS[timezone] || 0;
+  const utcHour = parseInt(hour) - offset;
+  
+  const utcDatetime = `${year}-${month}-${day}T${String(utcHour).padStart(2, '0')}:${minute}:${second}Z`;
+  
+  console.log('Conversion:', vapiDatetime, '→', utcDatetime);
+  
+  return utcDatetime;
+}
+
+function generateToken() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// ============================================================================
+// CALCUL DISPONIBILITÉS
+// ============================================================================
+async function getAgentAvailability(env, agentId, startDate, endDate, duration = 60) {
+  const agent = await env.DB.prepare(
+    'SELECT * FROM agents WHERE id = ?'
+  ).bind(agentId).first();
+  
+  if (!agent) return [];
+  
+  const slots = await env.DB.prepare(
+    'SELECT * FROM availability_slots WHERE agent_id = ?'
+  ).bind(agentId).all();
+  
+  const appointments = await env.DB.prepare(`
+    SELECT scheduled_at FROM appointments 
+    WHERE agent_id = ? AND status = 'confirmed'
+    AND scheduled_at BETWEEN ? AND ?
+  `).bind(agentId, startDate, endDate).all();
+  
+  const blocks = await env.DB.prepare(`
+    SELECT start_datetime, end_datetime FROM calendar_blocks
+    WHERE agent_id = ?
+    AND end_datetime >= ? AND start_datetime <= ?
+  `).bind(agentId, startDate, endDate).all();
+  
+  const availableSlots = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dayOfWeek = d.getDay();
+    const daySlots = slots.results.filter(s => s.day_of_week === dayOfWeek);
+    
+    for (const slot of daySlots) {
+      const [startHour, startMin] = slot.start_time.split(':');
+      const [endHour, endMin] = slot.end_time.split(':');
+      
+      let currentTime = new Date(d);
+      currentTime.setHours(parseInt(startHour), parseInt(startMin), 0);
+      
+      const slotEnd = new Date(d);
+      slotEnd.setHours(parseInt(endHour), parseInt(endMin), 0);
+      
+      while (currentTime < slotEnd) {
+        const slotEndTime = new Date(currentTime.getTime() + duration * 60000);
+        
+        if (slotEndTime <= slotEnd) {
+          const slotStart = currentTime.toISOString();
+          const slotEndISO = slotEndTime.toISOString();
+          
+          const hasAppointment = appointments.results.some(apt => {
+            const aptTime = new Date(apt.scheduled_at);
+            const aptEnd = new Date(aptTime.getTime() + duration * 60000 + agent.buffer_time_minutes * 60000);
+            return (currentTime >= aptTime && currentTime < aptEnd) ||
+                   (slotEndTime > aptTime && slotEndTime <= aptEnd);
+          });
+          
+          const hasBlock = blocks.results.some(block => {
+            const blockStart = new Date(block.start_datetime);
+            const blockEnd = new Date(block.end_datetime);
+            return (currentTime >= blockStart && currentTime < blockEnd) ||
+                   (slotEndTime > blockStart && slotEndTime <= blockEnd);
+          });
+          
+          if (!hasAppointment && !hasBlock && currentTime > new Date()) {
+            availableSlots.push({
+              start: slotStart,
+              end: slotEndISO,
+              duration_minutes: duration
+            });
+          }
+        }
+        
+        currentTime = new Date(currentTime.getTime() + 30 * 60000);
+      }
+    }
+  }
+  
+  return availableSlots;
+}
+
+// ============================================================================
+// WEBHOOK VAPI
+// ============================================================================
+router.post('/webhooks/vapi/function-call', async (request, env, ctx) => {
+  try {
+    const body = await request.json();
+    console.log('Webhook type:', body.message?.type);
+    
+    const message = body.message;
+    
+    const tenant = await env.DB.prepare(
+      'SELECT * FROM tenants WHERE id = ?'
+    ).bind('tenant_demo_001').first();
+    
+    if (!tenant) {
+      return new Response(JSON.stringify({ error: 'Tenant not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    
+    if (message.type === 'tool-calls' && message.toolCallList) {
+      const results = [];
+      
+      for (const toolCall of message.toolCallList) {
+        console.log(`Traitement: ${toolCall.function.name}`);
+        
+        let result = null;
+        
+        if (toolCall.function.name === 'searchKnowledge') {
+          result = await handleSearchKnowledge(toolCall.function.arguments, env, tenant);
+        } else if (toolCall.function.name === 'checkAvailability') {
+          result = handleCheckAvailabilitySimple(toolCall.function.arguments);
+        } else if (toolCall.function.name === 'createAppointment') {
+          result = await handleCreateAppointment(toolCall.function.arguments, env, tenant, ctx);
+        }
+        
+        results.push({
+          toolCallId: toolCall.id,
+          result: result
+        });
+      }
+      
+      return new Response(JSON.stringify({ results }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+    
+  } catch (error) {
+    console.error('Erreur webhook:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+});
+
+// ============================================================================
+// HANDLERS
+// ============================================================================
+
+async function handleSearchKnowledge(args, env, tenant) {
+  const { query } = args;
+  
+  const results = await env.DB.prepare(`
+    SELECT answer FROM knowledge_base 
+    WHERE type = 'qa' 
+    AND (question LIKE ? OR answer LIKE ?)
+    AND tenant_id = ?
+    LIMIT 2
+  `).bind(`%${query}%`, `%${query}%`, tenant.id).all();
+  
+  if (results.results.length > 0) {
+    return results.results.map(r => r.answer).join(' ');
+  }
+  
+  return "Je n'ai pas d'information spécifique sur ce sujet.";
+}
+
+function handleCheckAvailabilitySimple(args) {
+  const { date } = args;
+  return `Pour le ${date}, j'ai : 9h00, 10h00, 14h00, 15h00. Lequel préférez-vous ?`;
+}
+
+async function handleCreateAppointment(args, env, tenant, ctx) {
+  const { firstName, lastName, phone, email, datetime } = args;
+  
+  console.log('Création RDV:', { firstName, lastName, phone, datetime });
+  
+  try {
+    const tenantTimezone = tenant.timezone || 'Europe/Paris';
+    const correctedDatetime = convertVapiDatetimeToUTC(datetime, tenantTimezone);
+    
+    let prospect = await env.DB.prepare(`
+      SELECT id FROM prospects WHERE phone = ? AND tenant_id = ?
+    `).bind(phone, tenant.id).first();
+    
+    let prospectId;
+    if (!prospect) {
+      prospectId = `prospect_${Date.now()}`;
+      await env.DB.prepare(`
+        INSERT INTO prospects (id, tenant_id, first_name, last_name, phone, email, status)
+        VALUES (?, ?, ?, ?, ?, ?, 'contacted')
+      `).bind(prospectId, tenant.id, firstName, lastName, phone, email).run();
+    } else {
+      prospectId = prospect.id;
+    }
+    
+    const agent = await env.DB.prepare(`
+      SELECT id FROM agents WHERE tenant_id = ? LIMIT 1
+    `).bind(tenant.id).first();
+    
+    if (!agent) {
+      return "Erreur : aucun agent disponible.";
+    }
+    
+    const appointmentId = `appt_${Date.now()}`;
+    const managementToken = generateToken();
+    
+    await env.DB.prepare(`
+      INSERT INTO appointments 
+      (id, tenant_id, prospect_id, agent_id, type, scheduled_at, status, management_token)
+      VALUES (?, ?, ?, ?, 'phone_call', ?, 'confirmed', ?)
+    `).bind(appointmentId, tenant.id, prospectId, agent.id, correctedDatetime, managementToken).run();
+    
+    console.log('✅ RDV créé:', appointmentId);
+    
+    const match = datetime.match(/T(\d{2}):(\d{2})/);
+    const localTime = match ? `${match[1]}h${match[2]}` : 'l\'heure demandée';
+    
+    const dateMatch = datetime.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const localDate = dateMatch ? `${dateMatch[3]}/${dateMatch[2]}` : 'la date';
+    
+    const confirmationMessage = `Parfait ${firstName} ! Rendez-vous confirmé le ${localDate} à ${localTime}. Vous recevrez une confirmation par SMS et email.`;
+    
+    ctx.waitUntil(
+      (async () => {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await sendAppointmentNotifications(
+          env, 
+          appointmentId, 
+          managementToken,
+          firstName,
+          datetime, 
+          phone, 
+          email
+        );
+      })()
+    );
+    
+    return confirmationMessage;
+  
+  // Logger l'appel Vapi dans vapi_call_logs
+  try {
+    await logVapiCall(env, {
+      call_id: ctx?.callId || `call_${Date.now()}`,
+      tenant_id: tenant.id,
+      phone_number: phone,
+      status: 'completed',
+      prospect_id: prospectId,
+      prospect_name: `${firstName} ${lastName}`,
+      prospect_email: email,
+      functions_called: ['createAppointment'],
+      appointment_created: true,
+      appointment_id: appointmentId
+    });
+    console.log('✅ Appel Vapi loggé avec succès');
+  } catch (logError) {
+    console.error('⚠️ Erreur logging Vapi:', logError);
+  }
+
+    
+  } catch (error) {
+    console.error('❌ Erreur RDV:', error);
+    return `Désolé, erreur : ${error.message}`;
+  }
+}
+
+async function sendAppointmentNotifications(env, appointmentId, managementToken, firstName, datetime, phone, email) {
+  try {
+    const match = datetime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!match) return;
+    
+    const [_, year, month, day, hour, minute] = match;
+    const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+    
+    const formattedDate = localDate.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+    
+    const formattedTime = `${hour}h${minute}`;
+    const managementUrl = `https://coccinelle-api.youssef-amrouche.workers.dev/rdv/${managementToken}`;
+    
+    // SMS
+    if (phone && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
+      try {
+        const smsBody = `Bonjour ${firstName}, RDV confirmé le ${formattedDate} à ${formattedTime}. Gérer: ${managementUrl}`;
+        
+        const twilioResponse = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Basic ' + btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`),
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              To: phone,
+              From: env.TWILIO_PHONE_NUMBER,
+              Body: smsBody
+            })
+          }
+        );
+        
+        if (twilioResponse.ok) {
+          const twilioData = await twilioResponse.json();
+          await env.DB.prepare(`
+            INSERT INTO appointment_notifications 
+            (id, tenant_id, appointment_id, type, recipient, status, provider_message_id, sent_at)
+            VALUES (?, 'tenant_demo_001', ?, 'sms', ?, 'sent', ?, datetime('now'))
+          `).bind(`notif_${Date.now()}_sms`, appointmentId, phone, twilioData.sid).run();
+          
+          console.log('✅ SMS envoyé');
+        }
+      } catch (e) {
+        console.error('❌ Exception SMS:', e);
+      }
+    }
+    
+    // Email
+    if (email && env.RESEND_API_KEY) {
+      try {
+        const emailResponse = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: env.RESEND_FROM_EMAIL,
+            to: email,
+            subject: 'Confirmation de rendez-vous',
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #111827; font-size: 20px; margin-bottom: 16px;">Bonjour ${firstName},</h2>
+                <p style="color: #374151; font-size: 15px; line-height: 1.6;">Votre rendez-vous est confirmé pour :</p>
+                <p style="color: #111827; font-size: 16px; font-weight: 600; margin: 20px 0;">${formattedDate} à ${formattedTime}</p>
+                <a href="${managementUrl}" style="display: inline-block; background: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 16px; font-size: 15px;">
+                  Modifier ou annuler
+                </a>
+                <p style="margin-top: 24px; color: #6b7280; font-size: 13px;">
+                  Vous pouvez également copier ce lien : ${managementUrl}
+                </p>
+              </div>
+            `
+          })
+        });
+        
+        if (emailResponse.ok) {
+          const emailData = await emailResponse.json();
+          await env.DB.prepare(`
+            INSERT INTO appointment_notifications 
+            (id, tenant_id, appointment_id, type, recipient, status, provider_message_id, sent_at)
+            VALUES (?, 'tenant_demo_001', ?, 'email', ?, 'sent', ?, datetime('now'))
+          `).bind(`notif_${Date.now()}_email`, appointmentId, email, emailData.id).run();
+          
+          console.log('✅ Email envoyé');
+        }
+      } catch (e) {
+        console.error('❌ Exception Email:', e);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erreur notifications:', error);
+  }
+}
+
+// ============================================================================
+// ENDPOINT DISPONIBILITÉS POUR PAGE RDV (SÉCURISÉ PAR TOKEN)
+// ============================================================================
+
+router.get('/rdv/:token/availability', async (request, env) => {
+  const { token } = request.params;
+  const url = new URL(request.url);
+  const startDate = url.searchParams.get('start_date');
+  const endDate = url.searchParams.get('end_date');
+  const duration = parseInt(url.searchParams.get('duration') || '60');
+  
+  if (!startDate || !endDate) {
+    return new Response(JSON.stringify({ error: 'start_date and end_date required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+  
+  const appointment = await env.DB.prepare(
+    'SELECT agent_id FROM appointments WHERE management_token = ?'
+  ).bind(token).first();
+  
+  if (!appointment) {
+    return new Response(JSON.stringify({ error: 'Invalid token' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+  
+  const agent = await env.DB.prepare(
+    'SELECT * FROM agents WHERE id = ?'
+  ).bind(appointment.agent_id).first();
+  
+  if (!agent) {
+    return new Response(JSON.stringify({ error: 'Agent not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+  
+  const startISO = new Date(startDate).toISOString();
+  const endISO = new Date(endDate + 'T23:59:59').toISOString();
+  
+  const slots = await getAgentAvailability(env, appointment.agent_id, startISO, endISO, duration);
+  
+  return new Response(JSON.stringify({
+    success: true,
+    agent: {
+      id: agent.id,
+      name: `${agent.first_name} ${agent.last_name}`,
+      buffer_time: agent.buffer_time_minutes,
+      max_appointments_per_day: agent.max_appointments_per_day
+    },
+    available_slots: slots,
+    period: {
+      start: startDate,
+      end: endDate,
+      duration: duration
+    }
+  }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+// ============================================================================
+// PAGE WEB DE GESTION RDV
+// ============================================================================
+
+router.get('/rdv/:token', async (request, env) => {
+  const { token } = request.params;
+  
+  const appointment = await env.DB.prepare(`
+    SELECT a.*, 
+           p.first_name as prospect_first_name, 
+           p.last_name as prospect_last_name, 
+           p.email, 
+           p.phone,
+           ag.first_name as agent_first_name, 
+           ag.last_name as agent_last_name,
+           pr.title as property_title
+    FROM appointments a
+    LEFT JOIN prospects p ON a.prospect_id = p.id
+    LEFT JOIN agents ag ON a.agent_id = ag.id
+    LEFT JOIN properties pr ON a.property_id = pr.id
+    WHERE a.management_token = ?
+  `).bind(token).first();
+  
+  if (!appointment) {
+    return new Response('Rendez-vous non trouvé', { 
+      status: 404,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+  }
+  
+  const date = new Date(appointment.scheduled_at);
+  const formattedDate = date.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+  const formattedTime = date.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  
+  const agentName = appointment.agent_first_name ? 
+    `${appointment.agent_first_name} ${appointment.agent_last_name}` : 
+    'Non assigné';
+  
+  const statusColors = {
+    'confirmed': '#10b981',
+    'cancelled': '#ef4444',
+    'completed': '#6b7280'
+  };
+  
+  const statusLabels = {
+    'confirmed': 'Confirmé',
+    'cancelled': 'Annulé',
+    'completed': 'Terminé'
+  };
+  
+  const safeToken = token.replace(/'/g, "\\'");
+  const safeScheduledAt = appointment.scheduled_at.replace(/'/g, "\\'");
+  
+  const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion de rendez-vous</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #2d2d2d;
+            line-height: 1.5;
+            padding: 24px 16px;
+        }
+        .container {
+            max-width: 580px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            padding: 28px;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 500;
+            margin-bottom: 20px;
+            color: #2d2d2d;
+        }
+        .status {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .info-group {
+            margin-bottom: 18px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-group:last-of-type { border-bottom: none; }
+        .label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .value {
+            font-size: 15px;
+            color: #2d2d2d;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+        }
+        button {
+            flex: 1;
+            padding: 10px 20px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            background: white;
+            color: #2d2d2d;
+        }
+        button:hover {
+            background: #f9f9f9;
+            border-color: #b0b0b0;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: #2d2d2d;
+            color: white;
+            border-color: #2d2d2d;
+        }
+        .btn-primary:hover {
+            background: #1a1a1a;
+            border-color: #1a1a1a;
+        }
+        .btn-danger {
+            color: #dc2626;
+            border-color: #dc2626;
+        }
+        .btn-danger:hover {
+            background: #fef2f2;
+        }
+        .form-group {
+            margin-bottom: 14px;
+        }
+        input {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #2d2d2d;
+        }
+        input:focus {
+            outline: none;
+            border-color: #666;
+        }
+        .hidden { display: none; }
+        .message {
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-bottom: 14px;
+            font-size: 13px;
+        }
+        .success {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .slots-container {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 14px;
+        }
+        .slot-button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            text-align: left;
+            background: white;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .slot-button:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+        .slot-button.selected {
+            background: #2d2d2d;
+            color: white;
+            border-color: #2d2d2d;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gestion de rendez-vous</h1>
+        
+        <span class="status" style="background: ${statusColors[appointment.status]}">
+            ${statusLabels[appointment.status]}
+        </span>
+        
+        <div id="message"></div>
+        
+        <div class="info-group">
+            <div class="label">Date et heure</div>
+            <div class="value">${formattedDate} à ${formattedTime}</div>
+        </div>
+        
+        <div class="info-group">
+            <div class="label">Agent</div>
+            <div class="value">${agentName}</div>
+        </div>
+        
+        <div class="info-group">
+            <div class="label">Contact</div>
+            <div class="value">${appointment.prospect_first_name} ${appointment.prospect_last_name}</div>
+        </div>
+        
+        ${appointment.status === 'confirmed' ? `
+        <div id="normalView">
+            <div class="actions">
+                <button class="btn-primary" onclick="showModifyForm()">Modifier</button>
+                <button class="btn-danger" onclick="showCancelForm()">Annuler</button>
+            </div>
+        </div>
+        
+        <div id="modifyView" class="hidden">
+            <div class="form-group">
+                <div class="label">Choisir un nouveau créneau</div>
+                <div id="loadingSlots" class="loading">Chargement des disponibilités...</div>
+                <div id="slotsContainer" class="slots-container hidden"></div>
+            </div>
+            <div class="actions">
+                <button id="confirmModifyBtn" class="btn-primary" onclick="submitModify()" disabled>Confirmer</button>
+                <button onclick="hideModifyForm()">Annuler</button>
+            </div>
+        </div>
+        
+        <div id="cancelView" class="hidden">
+            <div class="form-group">
+                <label class="label">Raison (optionnelle)</label>
+                <input type="text" id="cancelReason" placeholder="Ex: Imprévu">
+            </div>
+            <div class="actions">
+                <button class="btn-danger" onclick="submitCancel()">Confirmer l'annulation</button>
+                <button onclick="hideCancelForm()">Retour</button>
+            </div>
+        </div>
+        ` : ''}
+    </div>
+    
+    <script>
+        const API_TOKEN = '${safeToken}';
+        const SCHEDULED_AT = '${safeScheduledAt}';
+        const BASE_URL = 'https://coccinelle-api.youssef-amrouche.workers.dev';
+        let selectedSlot = null;
+        let availableSlots = [];
+        
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = 'message ' + type;
+            setTimeout(function() { msg.textContent = ''; }, 5000);
+        }
+        
+        function showModifyForm() {
+            document.getElementById('normalView').classList.add('hidden');
+            document.getElementById('modifyView').classList.remove('hidden');
+            loadAvailableSlots();
+        }
+        
+        function hideModifyForm() {
+            document.getElementById('normalView').classList.remove('hidden');
+            document.getElementById('modifyView').classList.add('hidden');
+            selectedSlot = null;
+        }
+        
+        function showCancelForm() {
+            document.getElementById('normalView').classList.add('hidden');
+            document.getElementById('cancelView').classList.remove('hidden');
+        }
+        
+        function hideCancelForm() {
+            document.getElementById('normalView').classList.remove('hidden');
+            document.getElementById('cancelView').classList.add('hidden');
+        }
+        
+        function loadAvailableSlots() {
+            const currentDate = new Date(SCHEDULED_AT);
+            const tomorrow = new Date(currentDate);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const endDate = new Date(currentDate);
+            endDate.setMonth(endDate.getMonth() + 1);
+            endDate.setDate(0);
+            
+            const startDate = tomorrow.toISOString().split('T')[0];
+            const endDateStr = endDate.toISOString().split('T')[0];
+            
+            fetch(BASE_URL + '/rdv/' + API_TOKEN + '/availability?start_date=' + startDate + '&end_date=' + endDateStr + '&duration=60')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success && data.available_slots) {
+                    availableSlots = data.available_slots;
+                    displaySlots(data.available_slots);
+                } else {
+                    showMessage('Aucun créneau disponible', 'error');
+                    document.getElementById('loadingSlots').classList.add('hidden');
+                }
+            })
+            .catch(function(error) {
+                showMessage('Erreur lors du chargement des créneaux', 'error');
+                document.getElementById('loadingSlots').classList.add('hidden');
+            });
+        }
+        
+        function displaySlots(slots) {
+            document.getElementById('loadingSlots').classList.add('hidden');
+            const container = document.getElementById('slotsContainer');
+            container.classList.remove('hidden');
+            container.innerHTML = '';
+            
+            if (slots.length === 0) {
+                container.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">Aucun créneau disponible ce mois-ci</p>';
+                return;
+            }
+            
+            slots.forEach(function(slot, index) {
+                const date = new Date(slot.start);
+                const dateStr = date.toLocaleDateString('fr-FR', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long'
+                });
+                const timeStr = date.toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                const button = document.createElement('button');
+                button.className = 'slot-button';
+                button.textContent = dateStr + ' à ' + timeStr;
+                button.onclick = function() { selectSlot(index, button); };
+                container.appendChild(button);
+            });
+        }
+        
+        function selectSlot(index, button) {
+            const buttons = document.querySelectorAll('.slot-button');
+            buttons.forEach(function(btn) { btn.classList.remove('selected'); });
+            button.classList.add('selected');
+            selectedSlot = availableSlots[index];
+            document.getElementById('confirmModifyBtn').disabled = false;
+        }
+        
+        function submitModify() {
+            if (!selectedSlot) {
+                showMessage('Veuillez sélectionner un créneau', 'error');
+                return;
+            }
+            
+            fetch(BASE_URL + '/rdv/' + API_TOKEN + '/modify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_datetime: selectedSlot.start })
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showMessage('Rendez-vous modifié avec succès', 'success');
+                    setTimeout(function() { location.reload(); }, 2000);
+                } else {
+                    showMessage(data.error || 'Erreur lors de la modification', 'error');
+                }
+            })
+            .catch(function(error) {
+                showMessage('Erreur de connexion', 'error');
+            });
+        }
+        
+        function submitCancel() {
+            const reason = document.getElementById('cancelReason').value;
+            
+            fetch(BASE_URL + '/rdv/' + API_TOKEN + '/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showMessage('Rendez-vous annulé', 'success');
+                    setTimeout(function() { location.reload(); }, 2000);
+                } else {
+                    showMessage(data.error || 'Erreur lors de l\\'annulation', 'error');
+                }
+            })
+            .catch(function(error) {
+                showMessage('Erreur de connexion', 'error');
+            });
+        }
+    </script>
+</body>
+</html>
+  `;
+  
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders }
+  });
+});
+
+router.post('/rdv/:token/modify', async (request, env) => {
+  const { token } = request.params;
+  const { new_datetime } = await request.json();
+  
+  const appointment = await env.DB.prepare(
+    'SELECT * FROM appointments WHERE management_token = ?'
+  ).bind(token).first();
+  
+  if (!appointment) {
+    return new Response(JSON.stringify({ error: 'Rendez-vous non trouvé' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+  
+  await env.DB.prepare(
+    'UPDATE appointments SET scheduled_at = ? WHERE management_token = ?'
+  ).bind(new_datetime, token).run();
+  
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.post('/rdv/:token/cancel', async (request, env) => {
+  const { token } = request.params;
+  const { reason } = await request.json();
+  
+  const appointment = await env.DB.prepare(
+    'SELECT * FROM appointments WHERE management_token = ?'
+  ).bind(token).first();
+  
+  if (!appointment) {
+    return new Response(JSON.stringify({ error: 'Rendez-vous non trouvé' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+  
+  await env.DB.prepare(
+    'UPDATE appointments SET status = ?, notes = ? WHERE management_token = ?'
+  ).bind('cancelled', reason || 'Annulé par le client', token).run();
+  
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+// ============================================================================
+// ROUTES API
+// ============================================================================
+
+router.get('/api/v1/agents/:agentId/availability', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+  
+  const { agentId } = request.params;
+  const url = new URL(request.url);
+  const startDate = url.searchParams.get('start_date');
+  const endDate = url.searchParams.get('end_date');
+  const duration = parseInt(url.searchParams.get('duration') || '60');
+  
+  if (!startDate || !endDate) {
+    return new Response(JSON.stringify({ error: 'start_date and end_date required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+  
+  const agent = await env.DB.prepare(
+    'SELECT * FROM agents WHERE id = ? AND tenant_id = ?'
+  ).bind(agentId, tenant.id).first();
+  
+  if (!agent) {
+    return new Response(JSON.stringify({ error: 'Agent not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+  
+  const startISO = new Date(startDate).toISOString();
+  const endISO = new Date(endDate + 'T23:59:59').toISOString();
+  
+  const slots = await getAgentAvailability(env, agentId, startISO, endISO, duration);
+  
+  return new Response(JSON.stringify({
+    success: true,
+    agent: {
+      id: agent.id,
+      name: `${agent.first_name} ${agent.last_name}`,
+      buffer_time: agent.buffer_time_minutes,
+      max_appointments_per_day: agent.max_appointments_per_day
+    },
+    available_slots: slots,
+    period: {
+      start: startDate,
+      end: endDate,
+      duration: duration
+    }
+  }), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/prospects', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+  
+  const prospects = await env.DB.prepare(
+    'SELECT * FROM prospects WHERE tenant_id = ?'
+  ).bind(tenant.id).all();
+  
+  return new Response(JSON.stringify(prospects.results), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.get('/api/v1/appointments', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+  
+  const appointments = await env.DB.prepare(
+    'SELECT * FROM appointments WHERE tenant_id = ? ORDER BY scheduled_at DESC'
+  ).bind(tenant.id).all();
+  
+  return new Response(JSON.stringify(appointments.results), {
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.post('/api/v1/appointments', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+  
+  try {
+    const body = await request.json();
+    const { prospect_id, agent_id, property_id, type, scheduled_at } = body;
+    
+    if (!prospect_id || !agent_id || !scheduled_at) {
+      return new Response(JSON.stringify({ 
+        error: 'Missing required fields: prospect_id, agent_id, scheduled_at' 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+    
+    const appointmentId = `appt_${Date.now()}`;
+    const managementToken = generateToken();
+    
+    await env.DB.prepare(`
+      INSERT INTO appointments 
+      (id, tenant_id, prospect_id, agent_id, property_id, type, scheduled_at, status, management_token)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)
+    `).bind(
+      appointmentId, 
+      tenant.id, 
+      prospect_id, 
+      agent_id, 
+      property_id || null,
+      type || 'visit',
+      scheduled_at, 
+      managementToken
+    ).run();
+    
+    const managementUrl = `https://coccinelle-api.youssef-amrouche.workers.dev/rdv/${managementToken}`;
+    
+    const prospect = await env.DB.prepare(
+      'SELECT first_name, phone, email FROM prospects WHERE id = ? AND tenant_id = ?'
+    ).bind(prospect_id, tenant.id).first();
+    
+    if (prospect && (prospect.phone || prospect.email)) {
+      const match = scheduled_at.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (match) {
+        await sendAppointmentNotifications(
+          env,
+          appointmentId,
+          managementToken,
+          prospect.first_name || 'Client',
+          scheduled_at,
+          prospect.phone,
+          prospect.email
+        );
+      }
+    }
+    
+    return new Response(JSON.stringify({
+      success: true,
+      appointment: {
+        id: appointmentId,
+        management_token: managementToken,
+        management_url: managementUrl,
+        scheduled_at
+      }
+    }), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+});
+
+router.options('*', () => new Response(null, { headers: corsHeaders }));
+
+// ============================================================================
+// VAPI LOGS ENDPOINTS - v1.7.0
+// ============================================================================
+
+// GET /api/v1/vapi/calls - Liste des appels avec filtres
+router.get('/api/v1/vapi/calls', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const url = new URL(request.url);
+  const filters = {
+    status: url.searchParams.get('status'),
+    prospect_id: url.searchParams.get('prospect_id'),
+    date_from: url.searchParams.get('date_from'),
+    date_to: url.searchParams.get('date_to')
+  };
+
+  const calls = await getVapiCalls(env, tenant.id, filters);
+
+  return new Response(JSON.stringify({
+    success: true,
+    calls: calls,
+    count: calls.length
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+// GET /api/v1/vapi/calls/:callId - Détails d'un appel
+router.get('/api/v1/vapi/calls/:callId', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const { callId } = request.params;
+  const call = await getVapiCallById(env, tenant.id, callId);
+
+  if (!call) {
+    return new Response(JSON.stringify({ error: 'Call not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+
+  // Parser le JSON des functions_called
+  if (call.functions_called) {
+    try {
+      call.functions_called = JSON.parse(call.functions_called);
+    } catch (e) {
+      call.functions_called = [];
+    }
+  }
+
+  return new Response(JSON.stringify({
+    success: true,
+    call: call
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+// GET /api/v1/vapi/stats - Statistiques globales
+router.get('/api/v1/vapi/stats', async (request, env) => {
+  const tenant = await authenticateApiKey(request, env);
+  if (tenant instanceof Response) return tenant;
+
+  const stats = await getVapiStats(env, tenant.id);
+
+  return new Response(JSON.stringify({
+    success: true,
+    stats: stats
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+  });
+});
+
+router.all('*', () => new Response('Not Found', { status: 404 }));
+
+export default {
+  fetch: router.handle
+};

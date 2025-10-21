@@ -1,0 +1,416 @@
+// ============================================================================
+// COCCINELLE.AI - BACKEND API
+// Version : 1.15.0
+// Phase 4 : Embeddings OpenAI
+// ============================================================================
+
+import { processDocument } from './text-processing.js';
+import { processDocumentEmbeddings, getEmbeddingsStatus } from './embeddings.js';
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const method = request.method;
+
+    // CORS headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
+    if (method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    try {
+      // ========================================
+      // ROUTE PAR DÉFAUT
+      // ========================================
+      if (path === '/' || path === '') {
+        return new Response(JSON.stringify({
+          service: 'Coccinelle.ai API',
+          version: '1.15.0',
+          status: 'operational',
+          phases: {
+            phase1_kb_database: 'completed',
+            phase2_web_crawler: 'completed',
+            phase3_text_processing: 'completed',
+            phase4_embeddings: 'in_progress'
+          },
+          endpoints: {
+            knowledge: '/api/v1/knowledge/*',
+            embeddings: '/api/v1/knowledge/documents/:id/embeddings'
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // KNOWLEDGE BASE - DOCUMENTS
+      // ========================================
+
+      // GET /api/v1/knowledge/documents - Liste tous les documents
+      if (path === '/api/v1/knowledge/documents' && method === 'GET') {
+        const documents = await env.DB.prepare(`
+          SELECT 
+            id, tenant_id, source_type, source_url, title,
+            word_count, chunk_count, status, 
+            crawled_at, indexed_at, created_at
+          FROM knowledge_documents
+          WHERE is_active = 1
+          ORDER BY created_at DESC
+        `).all();
+
+        return new Response(JSON.stringify({
+          success: true,
+          count: documents.results.length,
+          documents: documents.results
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // POST /api/v1/knowledge/documents/:id/process - Process document (chunking)
+      if (path.match(/^\/api\/v1\/knowledge\/documents\/[^\/]+\/process$/) && method === 'POST') {
+        const documentId = path.split('/')[5];
+
+        console.log('[TEXT-PROCESSING] Starting processing for document:', documentId);
+
+        // Lancer le processing en arrière-plan
+        ctx.waitUntil(
+          processDocument(env.DB, documentId)
+            .then(result => {
+              console.log('[TEXT-PROCESSING] Processing completed:', result);
+            })
+            .catch(error => {
+              console.error('[TEXT-PROCESSING] Processing failed:', error);
+            })
+        );
+
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Document processing started',
+          documentId
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // EMBEDDINGS - NOUVEAU (PHASE 4)
+      // ========================================
+
+      // POST /api/v1/knowledge/documents/:id/embeddings - Générer embeddings
+      if (path.match(/^\/api\/v1\/knowledge\/documents\/[^\/]+\/embeddings$/) && method === 'POST') {
+        const documentId = path.split('/')[5];
+
+        console.log('[EMBEDDINGS-API] Starting embeddings generation for:', documentId);
+
+        // Vérifier que l'API key OpenAI est configurée
+        if (!env.OPENAI_API_KEY) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'OpenAI API key not configured'
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Lancer la génération d'embeddings en arrière-plan
+        ctx.waitUntil(
+          processDocumentEmbeddings(env.DB, documentId, env.OPENAI_API_KEY)
+            .then(result => {
+              console.log('[EMBEDDINGS-API] Embeddings generation completed:', result);
+            })
+            .catch(error => {
+              console.error('[EMBEDDINGS-API] Embeddings generation failed:', error);
+            })
+        );
+
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Embeddings generation started',
+          documentId,
+          note: 'Processing in background - check status endpoint'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // GET /api/v1/knowledge/documents/:id/embeddings/status - Status embeddings
+      if (path.match(/^\/api\/v1\/knowledge\/documents\/[^\/]+\/embeddings\/status$/) && method === 'GET') {
+        const documentId = path.split('/')[5];
+
+        console.log('[EMBEDDINGS-API] Checking embeddings status for:', documentId);
+
+        const status = await getEmbeddingsStatus(env.DB, documentId);
+
+        return new Response(JSON.stringify(status), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // PROSPECTS
+      // ========================================
+      
+      if (path === '/api/v1/prospects' && method === 'GET') {
+        const prospects = await env.DB.prepare('SELECT * FROM prospects').all();
+        return new Response(JSON.stringify(prospects.results), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (path === '/api/v1/prospects' && method === 'POST') {
+        const data = await request.json();
+        const id = crypto.randomUUID();
+        
+        await env.DB.prepare(`
+          INSERT INTO prospects (id, nom, prenom, email, telephone, created_at)
+          VALUES (?, ?, ?, ?, ?, datetime('now'))
+        `).bind(id, data.nom, data.prenom, data.email, data.telephone).run();
+
+        return new Response(JSON.stringify({ id, ...data }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // AGENTS
+      // ========================================
+      
+      if (path === '/api/v1/agents' && method === 'GET') {
+        const agents = await env.DB.prepare('SELECT * FROM agents').all();
+        return new Response(JSON.stringify(agents.results), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (path.match(/^\/api\/v1\/agents\/[^\/]+\/availability$/) && method === 'GET') {
+        const agentId = path.split('/')[4];
+        const date = url.searchParams.get('date');
+        
+        const slots = await env.DB.prepare(`
+          SELECT * FROM agent_availability 
+          WHERE agent_id = ? AND date = ? AND is_available = 1
+        `).bind(agentId, date).all();
+
+        return new Response(JSON.stringify(slots.results), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // APPOINTMENTS
+      // ========================================
+      
+      if (path === '/api/v1/appointments' && method === 'GET') {
+        const appointments = await env.DB.prepare(`
+          SELECT a.*, p.nom, p.prenom, p.email
+          FROM appointments a
+          JOIN prospects p ON a.prospect_id = p.id
+          ORDER BY a.datetime_rdv DESC
+        `).all();
+
+        return new Response(JSON.stringify(appointments.results), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (path === '/api/v1/appointments' && method === 'POST') {
+        const data = await request.json();
+        const id = crypto.randomUUID();
+        const token = crypto.randomUUID();
+        
+        await env.DB.prepare(`
+          INSERT INTO appointments (
+            id, prospect_id, agent_id, datetime_rdv, 
+            statut, confirmation_token, created_at
+          )
+          VALUES (?, ?, ?, ?, 'pending', ?, datetime('now'))
+        `).bind(
+          id, 
+          data.prospect_id, 
+          data.agent_id, 
+          data.datetime_rdv,
+          token
+        ).run();
+
+        // TODO: Envoyer email confirmation via Resend
+        
+        return new Response(JSON.stringify({ id, token, ...data }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // VAPI WEBHOOKS
+      // ========================================
+      
+      if (path === '/webhooks/vapi/function-call' && method === 'POST') {
+        const payload = await request.json();
+        console.log('VAPI Function Call:', JSON.stringify(payload, null, 2));
+
+        const functionName = payload.message?.functionCall?.name;
+        const parameters = payload.message?.functionCall?.parameters;
+
+        if (functionName === 'checkAvailability') {
+          const slots = await env.DB.prepare(`
+            SELECT time_slot FROM agent_availability 
+            WHERE agent_id = ? AND date = ? AND is_available = 1
+          `).bind(parameters.agentId, parameters.date).all();
+
+          return new Response(JSON.stringify({
+            results: [{
+              slots: slots.results.map(s => s.time_slot)
+            }]
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        if (functionName === 'bookAppointment') {
+          const appointmentId = crypto.randomUUID();
+          const token = crypto.randomUUID();
+          
+          await env.DB.prepare(`
+            INSERT INTO appointments (
+              id, prospect_id, agent_id, datetime_rdv,
+              statut, confirmation_token, created_at
+            )
+            VALUES (?, ?, ?, ?, 'pending', ?, datetime('now'))
+          `).bind(
+            appointmentId,
+            parameters.prospectId,
+            parameters.agentId,
+            `${parameters.date} ${parameters.time}`,
+            token
+          ).run();
+
+          return new Response(JSON.stringify({
+            results: [{
+              appointmentId,
+              confirmationToken: token,
+              status: 'pending'
+            }]
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        return new Response(JSON.stringify({
+          results: [{ error: 'Unknown function' }]
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // RDV CONFIRMATION
+      // ========================================
+      
+      if (path.match(/^\/rdv\/[^\/]+$/) && method === 'GET') {
+        const token = path.split('/')[2];
+        
+        const appointment = await env.DB.prepare(`
+          SELECT a.*, p.nom, p.prenom, p.email, ag.nom as agent_nom
+          FROM appointments a
+          JOIN prospects p ON a.prospect_id = p.id
+          JOIN agents ag ON a.agent_id = ag.id
+          WHERE a.confirmation_token = ?
+        `).bind(token).first();
+
+        if (!appointment) {
+          return new Response('Rendez-vous non trouvé', { status: 404 });
+        }
+
+        const html = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Confirmation RDV</title>
+            <style>
+              body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; }
+              .btn { padding: 10px 20px; margin: 10px; cursor: pointer; }
+              .confirm { background: green; color: white; }
+              .cancel { background: red; color: white; }
+            </style>
+          </head>
+          <body>
+            <h1>Confirmation de Rendez-vous</h1>
+            <p>Bonjour ${appointment.prenom} ${appointment.nom},</p>
+            <p>Votre rendez-vous avec ${appointment.agent_nom}</p>
+            <p>Date: ${appointment.datetime_rdv}</p>
+            <button class="btn confirm" onclick="confirm()">Confirmer</button>
+            <button class="btn cancel" onclick="cancel()">Annuler</button>
+            <script>
+              function confirm() {
+                fetch('/rdv/${token}', { 
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'confirm' })
+                }).then(() => alert('Rendez-vous confirmé!'));
+              }
+              function cancel() {
+                fetch('/rdv/${token}', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'cancel' })
+                }).then(() => alert('Rendez-vous annulé'));
+              }
+            </script>
+          </body>
+          </html>
+        `;
+
+        return new Response(html, {
+          headers: { 'Content-Type': 'text/html' }
+        });
+      }
+
+      if (path.match(/^\/rdv\/[^\/]+$/) && method === 'POST') {
+        const token = path.split('/')[2];
+        const data = await request.json();
+        
+        const newStatus = data.action === 'confirm' ? 'confirmed' : 'cancelled';
+        
+        await env.DB.prepare(`
+          UPDATE appointments 
+          SET statut = ?, updated_at = datetime('now')
+          WHERE confirmation_token = ?
+        `).bind(newStatus, token).run();
+
+        return new Response(JSON.stringify({ status: newStatus }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // ========================================
+      // 404
+      // ========================================
+      
+      return new Response(JSON.stringify({
+        error: 'Route non trouvée',
+        path,
+        method
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+
+    } catch (error) {
+      console.error('Erreur serveur:', error);
+      return new Response(JSON.stringify({
+        error: 'Erreur serveur',
+        message: error.message
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+};
