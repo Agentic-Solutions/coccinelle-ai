@@ -1,73 +1,45 @@
-# Node modules
+# Dependencies
 node_modules/
-.npm/
+.pnp/
+.pnp.js
 
-# Wrangler
-.wrangler/
-.dev.vars
-.mf/
+# Next.js
+.next/
+out/
+build/
+dist/
 
-# Environment variables
+# Environment
 .env
 .env.local
-*.env
+.env*.local
+.dev.vars
+.wrangler/
 
-# Secrets (CRITIQUE - ne JAMAIS commit)
-wrangler.toml.local
-secrets.json
+# Secrets
+*secret*
+*password*
+*api_key*
+*.pem
+*.key
 
 # OS
 .DS_Store
 Thumbs.db
+*.swp
 
-# Editor
+# IDE
 .vscode/
 .idea/
 
 # Logs
 *.log
-npm-debug.log*
 
-# Dashboard Next.js
-coccinelle-dashboard-new/.next/
-coccinelle-dashboard-new/out/
-coccinelle-dashboard-new/build/
-coccinelle-dashboard-new/node_modules/
+# Database
+*.db
+*.sqlite
 
-# Backups (on ne veut pas polluer Git avec ça)
-*.backup*
-*backup_*
-*.bak
-
-# Fichiers temporaires
-/tmp/
-current_index.txt
-
-# Scripts de développement/debug (optionnel)
-*.sh
-fix_*.py
-fix_*.txt
-
-# Scripts de développement/debug
-*.sh
-fix_*.py
-fix_*.txt
-
-# Environment variables (NEVER commit)
-.env
-.env.local
-.env.*.local
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-ENV/
-
-# Python virtual environment
-venv/
-.venv/
+# Misc
+.cache/
+temp/
+tmp/

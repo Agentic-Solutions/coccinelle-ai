@@ -1,0 +1,350 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { FileText, Upload, Search, Loader2, CheckCircle, XCircle } from 'lucide-react';
+
+interface Document {
+  id: string;
+  title: string;
+  content: string;
+  source_type: string;
+  source_url: string;
+  status: string;
+  chunk_count: number;
+  created_at: string;
+}
+
+export default function KnowledgePage() {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    source_type: 'manual',
+    source_url: ''
+  });
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  const loadDocuments = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents`, {
+        headers: {
+          'x-api-key': 'demo-key-12345'
+        }
+      });
+      const data = await res.json();
+      setDocuments(data.documents || []);
+    } catch (error) {
+      console.error('Erreur chargement documents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploading(true);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': 'demo-key-12345'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (res.ok) {
+        alert('Document ajouté avec succès !');
+        setFormData({ title: '', content: '', source_type: 'manual', source_url: '' });
+        loadDocuments();
+      }
+    } catch (error) {
+      alert('Erreur lors de l\'ajout du document');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleProcess = async (docId: string) => {
+    setProcessing(docId);
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents/${docId}/process`,
+        {
+          method: 'POST',
+          headers: {
+            'x-api-key': 'demo-key-12345'
+          }
+        }
+      );
+
+      if (res.ok) {
+        alert('Document traité avec succès !');
+        loadDocuments();
+      }
+    } catch (error) {
+      alert('Erreur lors du traitement');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setSearching(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': 'demo-key-12345'
+        },
+        body: JSON.stringify({
+          query: searchQuery,
+          limit: 5
+        })
+      });
+
+      const data = await res.json();
+      setSearchResults(data.results || []);
+    } catch (error) {
+      console.error('Erreur recherche:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Knowledge Base</h1>
+        <p className="text-gray-600">Gérez vos documents et la base de connaissances de Sara</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm">Documents</p>
+              <p className="text-2xl font-bold">{documents.length}</p>
+            </div>
+            <FileText className="w-8 h-8 text-gray-400" />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm">Chunks totaux</p>
+              <p className="text-2xl font-bold">
+                {documents.reduce((sum, doc) => sum + (doc.chunk_count || 0), 0)}
+              </p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-green-500" />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm">Traités</p>
+              <p className="text-2xl font-bold">
+                {documents.filter(d => d.status === 'indexed' || d.status === 'processed').length}
+              </p>
+            </div>
+            <Upload className="w-8 h-8 text-blue-500" />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <Search className="w-5 h-5" />
+          Recherche dans la KB
+        </h2>
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher dans les documents..."
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+          />
+          <button
+            type="submit"
+            disabled={searching}
+            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
+          >
+            {searching ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Recherche...
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4" />
+                Rechercher
+              </>
+            )}
+          </button>
+        </form>
+
+        {searchResults.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <h3 className="font-semibold text-sm text-gray-600">Résultats ({searchResults.length})</h3>
+            {searchResults.map((result, idx) => (
+              <div key={idx} className="p-4 bg-gray-50 rounded border border-gray-200">
+                <p className="text-sm font-medium mb-1">{result.title}</p>
+                <p className="text-xs text-gray-600 line-clamp-2">{result.content}</p>
+                <p className="text-xs text-gray-400 mt-2">Score: {result.score?.toFixed(3)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <Upload className="w-5 h-5" />
+          Ajouter un document
+        </h2>
+        <form onSubmit={handleUpload} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Titre</label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Contenu</label>
+            <textarea
+              value={formData.content}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              required
+              rows={6}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Source URL (optionnel)</label>
+            <input
+              type="text"
+              value={formData.source_url}
+              onChange={(e) => setFormData({ ...formData, source_url: e.target.value })}
+              placeholder="https://..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={uploading}
+            className="w-full px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Ajout en cours...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                Ajouter le document
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white p-6 rounded-lg border border-gray-200">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <FileText className="w-5 h-5" />
+          Documents ({documents.length})
+        </h2>
+
+        <div className="space-y-3">
+          {documents.map((doc) => (
+            <div key={doc.id} className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold mb-1">{doc.title}</h3>
+                  <p className="text-sm text-gray-600 line-clamp-2 mb-2">{doc.content}</p>
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <span>Type: {doc.source_type}</span>
+                    <span>Chunks: {doc.chunk_count || 0}</span>
+                    <span>Créé: {new Date(doc.created_at).toLocaleDateString('fr-FR')}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 ml-4">
+                  {(doc.status === 'indexed' || doc.status === 'processed') ? (
+                    <span className="flex items-center gap-1 text-green-600 text-sm">
+                      <CheckCircle className="w-4 h-4" />
+                      Traité
+                    </span>
+                  ) : doc.status === 'pending' ? (
+                    <button
+                      onClick={() => handleProcess(doc.id)}
+                      disabled={processing === doc.id}
+                      className="px-4 py-2 bg-black text-white text-sm rounded hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {processing === doc.id ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Traitement...
+                        </>
+                      ) : (
+                        'Traiter'
+                      )}
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-1 text-gray-500 text-sm">
+                      <XCircle className="w-4 h-4" />
+                      {doc.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {documents.length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Aucun document dans la base de connaissances</p>
+              <p className="text-sm">Ajoutez votre premier document ci-dessus</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
