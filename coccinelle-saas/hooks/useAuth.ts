@@ -18,6 +18,8 @@ interface Tenant {
   subscription_plan: string;
 }
 
+const API_BASE_URL = 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
 export function useAuth() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -37,14 +39,13 @@ export function useAuth() {
     }
 
     try {
-      const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/auth/me', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
       if (!response.ok) {
-        // Token invalide, nettoyer et rediriger
         logout();
         return;
       }
@@ -54,8 +55,6 @@ export function useAuth() {
       if (data.success) {
         setUser(data.user);
         setTenant(data.tenant);
-        
-        // Mettre à jour localStorage
         localStorage.setItem('user', JSON.stringify(data.user));
         localStorage.setItem('tenant', JSON.stringify(data.tenant));
       } else {
@@ -74,7 +73,7 @@ export function useAuth() {
     
     if (token) {
       try {
-        await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/auth/logout', {
+        await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -85,7 +84,6 @@ export function useAuth() {
       }
     }
 
-    // Nettoyer localStorage
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
     localStorage.removeItem('tenant');
@@ -93,7 +91,6 @@ export function useAuth() {
     setUser(null);
     setTenant(null);
     
-    // Rediriger vers login
     router.push('/login');
   };
 
