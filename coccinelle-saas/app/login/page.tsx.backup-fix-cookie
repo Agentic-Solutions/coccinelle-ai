@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Cookies from 'js-cookie';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,20 +42,10 @@ export default function LoginPage() {
         return;
       }
 
-      // Stocker le token dans localStorage (pour le frontend)
+      // Stocker le token et les infos user
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('tenant', JSON.stringify(data.tenant));
-
-      // 🔥 CRITIQUE : Stocker AUSSI le token dans un cookie (pour le middleware)
-      Cookies.set('auth_token', data.token, {
-        expires: 7, // 7 jours
-        path: '/',
-        sameSite: 'strict',
-        secure: false // true en production HTTPS
-      });
-
-      console.log('✅ Token stocké dans localStorage ET cookie');
 
       // Redirection vers le dashboard
       router.push('/dashboard');
