@@ -263,7 +263,7 @@ export default {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
             docId,
-            'default-tenant',
+            'tenant_demo_001',
             filename,
             textContent,
             'upload',
