@@ -1,7 +1,9 @@
-// Coccinelle.ai - Backend API v1.14.0
+// Coccinelle.ai - Backend API v2.7.2
 // Phase 1: KB Database ✅
 // Phase 2: Web Crawler ✅  
 // Phase 3: Text Processing ✅ (MODULE SÉPARÉ)
+// Phase 4: KB Advanced Endpoints ✅ (DELETE, UPLOAD, LIST CRAWLS)
+// Fix: tenant_id ajouté à l'endpoint UPLOAD
 
 // Import du module text processing
 import { processDocument } from './text-processing.js';
@@ -32,7 +34,7 @@ export default {
 
     try {
       // ========================================
-      // ROUTES KNOWLEDGE BASE (Phase 1 + 2 + 3)
+      // ROUTES KNOWLEDGE BASE (Phase 1 + 2 + 3 + 4)
       // ========================================
 
       // POST /api/v1/knowledge/crawl - Lancer un crawl
@@ -47,28 +49,30 @@ export default {
           });
         }
 
-        // Créer un job de crawl
-        const jobId = crypto.randomUUID();
+        const jobId = `crawl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const now = new Date().toISOString();
 
         await env.DB.prepare(`
-          INSERT INTO crawl_jobs (id, agent_id, service_id, start_url, status, created_at)
-          VALUES (?, ?, ?, ?, 'pending', ?)
-        `).bind(jobId, agentId, serviceId || null, targetUrl, now).run();
+          INSERT INTO knowledge_crawl_jobs (id, url, agent_id, service_id, status, include_patterns, exclude_patterns, max_pages, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          jobId,
+          targetUrl,
+          agentId,
+          serviceId || null,
+          'pending',
+          includePatterns ? JSON.stringify(includePatterns) : null,
+          excludePatterns ? JSON.stringify(excludePatterns) : null,
+          maxPages || 50,
+          now
+        ).run();
 
-        // Lancer le crawl en arrière-plan
-        ctx.waitUntil(
-          crawlWebsite(env.DB, jobId, targetUrl, agentId, serviceId, {
-            includePatterns: includePatterns || [],
-            excludePatterns: excludePatterns || [],
-            maxPages: maxPages || 50
-          })
-        );
+        ctx.waitUntil(runCrawl(jobId, targetUrl, agentId, env.DB, maxPages || 50));
 
         return new Response(JSON.stringify({
           success: true,
           jobId,
-          message: 'Crawl started in background'
+          message: 'Crawl started'
         }), {
           status: 202,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -79,9 +83,9 @@ export default {
       if (path.match(/^\/api\/v1\/knowledge\/crawl\/[^/]+$/) && method === 'GET') {
         const jobId = path.split('/').pop();
 
-        const job = await env.DB.prepare(`
-          SELECT * FROM crawl_jobs WHERE id = ?
-        `).bind(jobId).first();
+        const job = await env.DB.prepare(
+          'SELECT * FROM knowledge_crawl_jobs WHERE id = ?'
+        ).bind(jobId).first();
 
         if (!job) {
           return new Response(JSON.stringify({ error: 'Job not found' }), {
@@ -90,45 +94,43 @@ export default {
           });
         }
 
-        return new Response(JSON.stringify(job), {
-          status: 200,
+        return new Response(JSON.stringify({ job }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       // GET /api/v1/knowledge/documents - Liste des documents
       if (path === '/api/v1/knowledge/documents' && method === 'GET') {
-        const agentId = url.searchParams.get('agentId');
-        const serviceId = url.searchParams.get('serviceId');
-
+        const { searchParams } = new URL(request.url);
+        const source_type = searchParams.get('source_type');
         let query = 'SELECT * FROM knowledge_documents WHERE 1=1';
         const params = [];
 
-        if (agentId) {
-          query += ' AND agent_id = ?';
-          params.push(agentId);
-        }
-
-        if (serviceId) {
-          query += ' AND service_id = ?';
-          params.push(serviceId);
+        if (source_type) {
+          query += ' AND source_type = ?';
+          params.push(source_type);
         }
 
         query += ' ORDER BY created_at DESC LIMIT 100';
 
-        const { results } = await env.DB.prepare(query).bind(...params).all();
+        const result = await env.DB.prepare(query).bind(...params).all();
+
+        for (const doc of result.results || []) {
+          const chunkCount = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM knowledge_chunks WHERE document_id = ?'
+          ).bind(doc.id).first();
+          doc.chunk_count = chunkCount?.count || 0;
+        }
 
         return new Response(JSON.stringify({
           success: true,
-          count: results.length,
-          documents: results
+          documents: result.results || []
         }), {
-          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
-      // POST /api/v1/knowledge/documents/:id/process - Process un document (PHASE 3 - NOUVEAU)
+      // POST /api/v1/knowledge/documents/:id/process - Process un document (PHASE 3)
       if (path.match(/^\/api\/v1\/knowledge\/documents\/[^/]+\/process$/) && method === 'POST') {
         const docId = path.split('/')[5];
 
@@ -143,6 +145,217 @@ export default {
           status: 202,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
+      }
+
+      // DELETE /api/v1/knowledge/documents/:id - Supprimer un document (PHASE 4)
+      if (path.match(/^\/api\/v1\/knowledge\/documents\/[^/]+$/) && method === 'DELETE') {
+        const docId = path.split('/').pop();
+        
+        try {
+          // 1. Récupérer les chunks pour supprimer de Vectorize
+          const chunks = await env.DB.prepare(
+            'SELECT id FROM knowledge_chunks WHERE document_id = ?'
+          ).bind(docId).all();
+
+          // 2. Supprimer de Vectorize
+          if (chunks.results && chunks.results.length > 0) {
+            const vectorIds = chunks.results.map(c => c.id);
+            try {
+              await env.VECTORIZE_INDEX.deleteByIds(vectorIds);
+            } catch (e) {
+              console.error('Erreur suppression Vectorize:', e);
+            }
+          }
+
+          // 3. Supprimer les chunks
+          await env.DB.prepare(
+            'DELETE FROM knowledge_chunks WHERE document_id = ?'
+          ).bind(docId).run();
+
+          // 4. Supprimer le document
+          await env.DB.prepare(
+            'DELETE FROM knowledge_documents WHERE id = ?'
+          ).bind(docId).run();
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Document supprimé avec succès',
+            deleted: {
+              document_id: docId,
+              chunks_count: chunks.results?.length || 0
+            }
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: error.message
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
+      // POST /api/v1/knowledge/documents/upload - Upload fichier (PHASE 4 - CORRIGÉ)
+      if (path === '/api/v1/knowledge/documents/upload' && method === 'POST') {
+        try {
+          const body = await request.json();
+          const { filename, content, fileType } = body;
+
+          // Vérifier le type de fichier
+          const allowedTypes = ['text/plain', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+          if (!allowedTypes.includes(fileType)) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Type de fichier non supporté. Utilisez TXT, PDF ou DOCX.'
+            }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Décoder le contenu base64
+          let textContent = '';
+          
+          if (fileType === 'text/plain') {
+            // Pour TXT, décoder directement
+            textContent = atob(content);
+          } else if (fileType === 'application/pdf') {
+            // Pour PDF, on va juste stocker et marquer comme "à traiter"
+            textContent = '[PDF - Traitement requis] ' + filename;
+          } else {
+            // Pour DOCX, pareil
+            textContent = '[DOCX - Traitement requis] ' + filename;
+          }
+
+          // Créer le hash du contenu
+          const encoder = new TextEncoder();
+          const data = encoder.encode(textContent);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+          // Vérifier si déjà existant
+          const existing = await env.DB.prepare(
+            'SELECT id FROM knowledge_documents WHERE content_hash = ?'
+          ).bind(contentHash).first();
+
+          if (existing) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Ce document existe déjà dans la base'
+            }), {
+              status: 409,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Insérer le document (AVEC tenant_id)
+          const docId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          await env.DB.prepare(`
+            INSERT INTO knowledge_documents (
+              id, tenant_id, title, content, source_type, source_url, 
+              content_hash, metadata, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            docId,
+            'default-tenant',
+            filename,
+            textContent,
+            'upload',
+            '',
+            contentHash,
+            JSON.stringify({ 
+              filename: filename,
+              fileType: fileType,
+              uploadedAt: new Date().toISOString()
+            }),
+            'pending',
+            new Date().toISOString(),
+            new Date().toISOString()
+          ).run();
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Fichier uploadé avec succès',
+            document: {
+              id: docId,
+              title: filename,
+              status: 'pending',
+              type: fileType
+            }
+          }), {
+            status: 201,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: error.message
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
+      // GET /api/v1/knowledge/crawls - Liste des crawls (PHASE 4)
+      if (path === '/api/v1/knowledge/crawls' && method === 'GET') {
+        try {
+          const { searchParams } = new URL(request.url);
+          const status = searchParams.get('status');
+          const limit = parseInt(searchParams.get('limit') || '20');
+          const offset = parseInt(searchParams.get('offset') || '0');
+
+          let query = 'SELECT * FROM knowledge_crawl_jobs WHERE 1=1';
+          const params = [];
+
+          if (status) {
+            query += ' AND status = ?';
+            params.push(status);
+          }
+
+          query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+          params.push(limit, offset);
+
+          const crawls = await env.DB.prepare(query).bind(...params).all();
+
+          // Compter le total
+          let countQuery = 'SELECT COUNT(*) as total FROM knowledge_crawl_jobs WHERE 1=1';
+          const countParams = [];
+          if (status) {
+            countQuery += ' AND status = ?';
+            countParams.push(status);
+          }
+          
+          const countResult = await env.DB.prepare(countQuery).bind(...countParams).first();
+
+          return new Response(JSON.stringify({
+            success: true,
+            crawls: crawls.results || [],
+            pagination: {
+              total: countResult?.total || 0,
+              limit,
+              offset,
+              hasMore: (countResult?.total || 0) > (offset + limit)
+            }
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: error.message
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
       }
 
       // ========================================
@@ -197,28 +410,26 @@ export default {
         });
       }
 
-      if (path.match(/^\/api\/v1\/agents\/[^/]+\/availability$/) && method === 'GET') {
-        const agentId = path.split('/')[4];
-        const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+      // ========================================
+      // ROUTES SERVICES
+      // ========================================
 
-        const { results } = await env.DB.prepare(`
-          SELECT * FROM agent_availability 
-          WHERE agent_id = ? AND date = ?
-          ORDER BY start_time
-        `).bind(agentId, date).all();
-
-        return new Response(JSON.stringify({ availability: results }), {
+      if (path === '/api/v1/services' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM services WHERE is_active = 1').all();
+        return new Response(JSON.stringify({ services: results }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       // ========================================
-      // ROUTES APPOINTMENTS
+      // ROUTES APPOINTMENTS (RDV)
       // ========================================
 
       if (path === '/api/v1/appointments' && method === 'GET') {
-        const agentId = url.searchParams.get('agentId');
-        const prospectId = url.searchParams.get('prospectId');
+        const { searchParams } = new URL(request.url);
+        const agentId = searchParams.get('agent_id');
+        const prospectId = searchParams.get('prospect_id');
+        const status = searchParams.get('status');
 
         let query = 'SELECT * FROM appointments WHERE 1=1';
         const params = [];
@@ -233,7 +444,12 @@ export default {
           params.push(prospectId);
         }
 
-        query += ' ORDER BY appointment_date DESC LIMIT 100';
+        if (status) {
+          query += ' AND status = ?';
+          params.push(status);
+        }
+
+        query += ' ORDER BY appointment_date DESC, appointment_time DESC LIMIT 100';
 
         const { results } = await env.DB.prepare(query).bind(...params).all();
 
@@ -244,9 +460,9 @@ export default {
 
       if (path === '/api/v1/appointments' && method === 'POST') {
         const body = await request.json();
-        const { prospectId, agentId, appointmentDate, duration, type, notes } = body;
+        const { prospectId, agentId, serviceId, appointmentDate, appointmentTime, duration, notes } = body;
 
-        if (!prospectId || !agentId || !appointmentDate) {
+        if (!prospectId || !agentId || !serviceId || !appointmentDate || !appointmentTime) {
           return new Response(JSON.stringify({ error: 'Missing required fields' }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -254,13 +470,12 @@ export default {
         }
 
         const id = crypto.randomUUID();
-        const token = crypto.randomUUID();
         const now = new Date().toISOString();
 
         await env.DB.prepare(`
-          INSERT INTO appointments (id, prospect_id, agent_id, appointment_date, duration_minutes, type, status, notes, confirmation_token, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?)
-        `).bind(id, prospectId, agentId, appointmentDate, duration || 30, type || 'visit', notes || null, token, now).run();
+          INSERT INTO appointments (id, prospect_id, agent_id, service_id, appointment_date, appointment_time, duration, notes, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, prospectId, agentId, serviceId, appointmentDate, appointmentTime, duration || 30, notes || null, 'scheduled', now).run();
 
         const appointment = await env.DB.prepare('SELECT * FROM appointments WHERE id = ?').bind(id).first();
 
@@ -271,285 +486,231 @@ export default {
       }
 
       // ========================================
-      // ROUTES VAPI
+      // ROUTES VAPI (Agent vocal Sara)
       // ========================================
 
+      // GET /api/v1/vapi/calls - Liste des appels
       if (path === '/api/v1/vapi/calls' && method === 'GET') {
-        const { results } = await env.DB.prepare(
-          'SELECT * FROM vapi_calls ORDER BY created_at DESC LIMIT 100'
-        ).all();
+        const { searchParams } = new URL(request.url);
+        const status = searchParams.get('status');
+        const agentId = searchParams.get('agent_id');
+        const limit = parseInt(searchParams.get('limit') || '50');
 
-        return new Response(JSON.stringify({ calls: results }), {
+        let query = 'SELECT * FROM vapi_call_logs WHERE 1=1';
+        const params = [];
+
+        if (status) {
+          query += ' AND status = ?';
+          params.push(status);
+        }
+
+        if (agentId) {
+          query += ' AND agent_id = ?';
+          params.push(agentId);
+        }
+
+        query += ' ORDER BY created_at DESC LIMIT ?';
+        params.push(limit);
+
+        const { results } = await env.DB.prepare(query).bind(...params).all();
+
+        return new Response(JSON.stringify({
+          success: true,
+          calls: results
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
+      // GET /api/v1/vapi/stats - Statistiques des appels
       if (path === '/api/v1/vapi/stats' && method === 'GET') {
-        const stats = await env.DB.prepare(`
-          SELECT 
-            COUNT(*) as total_calls,
-            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_calls,
-            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_calls,
-            AVG(duration_seconds) as avg_duration
-          FROM vapi_calls
-        `).first();
+        const totalCalls = await env.DB.prepare('SELECT COUNT(*) as count FROM vapi_call_logs').first();
+        const completedCalls = await env.DB.prepare('SELECT COUNT(*) as count FROM vapi_call_logs WHERE status = ?').bind('completed').first();
+        const avgDuration = await env.DB.prepare('SELECT AVG(duration) as avg FROM vapi_call_logs WHERE duration IS NOT NULL').first();
 
-        return new Response(JSON.stringify(stats), {
+        return new Response(JSON.stringify({
+          success: true,
+          stats: {
+            total_calls: totalCalls?.count || 0,
+            completed_calls: completedCalls?.count || 0,
+            avg_duration: Math.round(avgDuration?.avg || 0)
+          }
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
-      // ========================================
-      // WEBHOOK VAPI
-      // ========================================
-
+      // POST /webhooks/vapi/function-call - Handler pour les tool calls de VAPI
       if (path === '/webhooks/vapi/function-call' && method === 'POST') {
         const body = await request.json();
         const { message } = body;
 
-        if (!message || !message.functionCall) {
-          return new Response(JSON.stringify({ error: 'Invalid webhook payload' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        const { name, parameters } = message.functionCall;
-
-        if (name === 'checkAvailability') {
-          const { agentId, date } = parameters;
-
-          if (!agentId || !date) {
-            return new Response(JSON.stringify({
-              results: [{
-                functionName: 'checkAvailability',
-                result: { error: 'agentId and date are required' }
-              }]
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          const { results } = await env.DB.prepare(`
-            SELECT start_time, end_time FROM agent_availability 
-            WHERE agent_id = ? AND date = ? AND is_available = 1
-            ORDER BY start_time
-          `).bind(agentId, date).all();
-
+        if (!message?.toolCalls || message.toolCalls.length === 0) {
           return new Response(JSON.stringify({
-            results: [{
-              functionName: 'checkAvailability',
-              result: {
-                available: results.length > 0,
-                slots: results.map(slot => ({
-                  start: slot.start_time,
-                  end: slot.end_time
-                }))
-              }
-            }]
+            results: []
           }), {
-            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
 
-        if (name === 'createAppointment') {
-          const { prospectData, agentId, date, time } = parameters;
+        const results = [];
 
-          if (!prospectData || !agentId || !date || !time) {
-            return new Response(JSON.stringify({
-              results: [{
-                functionName: 'createAppointment',
-                result: { error: 'Missing required parameters' }
-              }]
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
+        for (const toolCall of message.toolCalls) {
+          const { function: func, id: toolCallId } = toolCall;
+          const functionName = func.name;
+          const args = func.arguments;
 
-          const prospectId = crypto.randomUUID();
-          const appointmentId = crypto.randomUUID();
-          const token = crypto.randomUUID();
-          const now = new Date().toISOString();
-          const appointmentDateTime = `${date}T${time}:00`;
+          console.log(`[VAPI Tool Call] ${functionName}`, args);
 
-          await env.DB.prepare(`
-            INSERT INTO prospects (id, first_name, last_name, phone, email, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `).bind(
-            prospectId,
-            prospectData.firstName,
-            prospectData.lastName,
-            prospectData.phone,
-            prospectData.email || null,
-            now
-          ).run();
+          try {
+            let result = null;
 
-          await env.DB.prepare(`
-            INSERT INTO appointments (id, prospect_id, agent_id, appointment_date, duration_minutes, type, status, confirmation_token, created_at)
-            VALUES (?, ?, ?, ?, 30, 'call', 'confirmed', ?, ?)
-          `).bind(appointmentId, prospectId, agentId, appointmentDateTime, token, now).run();
+            // 1. searchKnowledgeBase
+            if (functionName === 'searchKnowledgeBase') {
+              const { query } = args;
+              
+              const searchResult = await env.DB.prepare(`
+                SELECT title, content, source_url 
+                FROM knowledge_documents 
+                WHERE content LIKE ? 
+                LIMIT 3
+              `).bind(`%${query}%`).all();
 
-          const confirmUrl = `https://coccinelle-api.youssef-amrouche.workers.dev/rdv/${token}`;
+              result = {
+                found: searchResult.results.length > 0,
+                results: searchResult.results,
+                count: searchResult.results.length
+              };
 
-          return new Response(JSON.stringify({
-            results: [{
-              functionName: 'createAppointment',
-              result: {
+              await env.DB.prepare(`
+                INSERT INTO knowledge_search_logs (id, query, agent_id, created_at)
+                VALUES (?, ?, ?, ?)
+              `).bind(crypto.randomUUID(), query, 'sara', new Date().toISOString()).run();
+            }
+
+            // 2. checkAvailability
+            else if (functionName === 'checkAvailability') {
+              const { agentId, date } = args;
+              
+              const appointments = await env.DB.prepare(`
+                SELECT appointment_time, duration 
+                FROM appointments 
+                WHERE agent_id = ? AND appointment_date = ?
+              `).bind(agentId, date).all();
+
+              const availableSlots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
+              const bookedSlots = appointments.results.map(a => a.appointment_time);
+              const freeSlots = availableSlots.filter(slot => !bookedSlots.includes(slot));
+
+              result = {
+                agentId,
+                date,
+                available: freeSlots.length > 0,
+                slots: freeSlots
+              };
+            }
+
+            // 3. createAppointment
+            else if (functionName === 'createAppointment') {
+              const { prospectName, prospectPhone, agentId, serviceId, date, time, notes } = args;
+
+              let prospectId = null;
+              const existingProspect = await env.DB.prepare(
+                'SELECT id FROM prospects WHERE phone = ?'
+              ).bind(prospectPhone).first();
+
+              if (existingProspect) {
+                prospectId = existingProspect.id;
+              } else {
+                prospectId = crypto.randomUUID();
+                const [firstName, ...lastNameParts] = prospectName.split(' ');
+                const lastName = lastNameParts.join(' ') || firstName;
+
+                await env.DB.prepare(`
+                  INSERT INTO prospects (id, first_name, last_name, phone, created_at)
+                  VALUES (?, ?, ?, ?, ?)
+                `).bind(prospectId, firstName, lastName, prospectPhone, new Date().toISOString()).run();
+              }
+
+              const appointmentId = crypto.randomUUID();
+              await env.DB.prepare(`
+                INSERT INTO appointments (id, prospect_id, agent_id, service_id, appointment_date, appointment_time, duration, notes, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                appointmentId,
+                prospectId,
+                agentId,
+                serviceId,
+                date,
+                time,
+                30,
+                notes || null,
+                'scheduled',
+                new Date().toISOString()
+              ).run();
+
+              result = {
                 success: true,
                 appointmentId,
-                confirmationUrl: confirmUrl,
-                message: `Rendez-vous confirmé pour le ${date} à ${time}`
+                prospectId,
+                date,
+                time
+              };
+            }
+
+            results.push({
+              toolCallId,
+              result
+            });
+
+          } catch (error) {
+            console.error(`Error executing ${functionName}:`, error);
+            results.push({
+              toolCallId,
+              result: {
+                error: error.message
               }
-            }]
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        if (name === 'searchKnowledge') {
-          const { query, agentId } = parameters;
-
-          if (!query) {
-            return new Response(JSON.stringify({
-              results: [{
-                functionName: 'searchKnowledge',
-                result: { error: 'query is required' }
-              }]
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
           }
-
-          // Log de recherche
-          await env.DB.prepare(`
-            INSERT INTO knowledge_search_logs (id, query, agent_id, created_at)
-            VALUES (?, ?, ?, ?)
-          `).bind(crypto.randomUUID(), query, agentId || null, new Date().toISOString()).run();
-
-          // Recherche simple dans documents (sera améliorée avec embeddings Phase 4)
-          const { results } = await env.DB.prepare(`
-            SELECT title, url, content_preview FROM knowledge_documents
-            WHERE agent_id = ? AND (title LIKE ? OR content_preview LIKE ?)
-            LIMIT 3
-          `).bind(agentId, `%${query}%`, `%${query}%`).all();
-
-          return new Response(JSON.stringify({
-            results: [{
-              functionName: 'searchKnowledge',
-              result: {
-                found: results.length > 0,
-                results: results
-              }
-            }]
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
         }
 
         return new Response(JSON.stringify({
-          results: [{
-            functionName: name,
-            result: { error: 'Unknown function' }
-          }]
+          results
         }), {
-          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
-      // ========================================
-      // ROUTES CONFIRMATION RDV
-      // ========================================
+      // POST /webhooks/vapi/call-events - Webhook pour les événements d'appels
+      if (path === '/webhooks/vapi/call-events' && method === 'POST') {
+        const body = await request.json();
+        const { message } = body;
 
-      if (path.match(/^\/rdv\/[^/]+$/) && method === 'GET') {
-        const token = path.split('/').pop();
+        console.log('[VAPI Event]', message?.type || 'unknown', body);
 
-        const appointment = await env.DB.prepare(`
-          SELECT a.*, p.first_name, p.last_name, p.phone, ag.name as agent_name
-          FROM appointments a
-          JOIN prospects p ON a.prospect_id = p.id
-          JOIN agents ag ON a.agent_id = ag.id
-          WHERE a.confirmation_token = ?
-        `).bind(token).first();
+        if (message?.type === 'end-of-call-report') {
+          const callId = message.call?.id || crypto.randomUUID();
+          const duration = message.call?.duration || 0;
+          const cost = message.call?.cost || 0;
+          const transcript = message.transcript || '';
 
-        if (!appointment) {
-          return new Response('Rendez-vous non trouvé', { status: 404 });
-        }
-
-        const html = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Confirmation Rendez-vous</title>
-            <style>
-              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-              .card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; }
-              .status { padding: 10px; border-radius: 4px; margin: 20px 0; }
-              .confirmed { background: #d4edda; color: #155724; }
-              .cancelled { background: #f8d7da; color: #721c24; }
-              button { padding: 10px 20px; margin: 10px 5px; border: none; border-radius: 4px; cursor: pointer; }
-              .btn-modify { background: #007bff; color: white; }
-              .btn-cancel { background: #dc3545; color: white; }
-            </style>
-          </head>
-          <body>
-            <div class="card">
-              <h1>🗓️ Confirmation de Rendez-vous</h1>
-              <div class="status ${appointment.status === 'confirmed' ? 'confirmed' : 'cancelled'}">
-                Statut: ${appointment.status === 'confirmed' ? '✅ Confirmé' : '❌ Annulé'}
-              </div>
-              <p><strong>Avec:</strong> ${appointment.agent_name}</p>
-              <p><strong>Date:</strong> ${new Date(appointment.appointment_date).toLocaleString('fr-FR')}</p>
-              <p><strong>Durée:</strong> ${appointment.duration_minutes} minutes</p>
-              <p><strong>Contact:</strong> ${appointment.first_name} ${appointment.last_name} (${appointment.phone})</p>
-              
-              ${appointment.status === 'confirmed' ? `
-                <form method="POST" style="display: inline;">
-                  <input type="hidden" name="action" value="modify">
-                  <button type="submit" class="btn-modify">Modifier</button>
-                </form>
-                <form method="POST" style="display: inline;">
-                  <input type="hidden" name="action" value="cancel">
-                  <button type="submit" class="btn-cancel">Annuler</button>
-                </form>
-              ` : ''}
-            </div>
-          </body>
-          </html>
-        `;
-
-        return new Response(html, {
-          headers: { 'Content-Type': 'text/html' }
-        });
-      }
-
-      if (path.match(/^\/rdv\/[^/]+$/) && method === 'POST') {
-        const token = path.split('/').pop();
-        const formData = await request.formData();
-        const action = formData.get('action');
-
-        if (action === 'cancel') {
           await env.DB.prepare(`
-            UPDATE appointments SET status = 'cancelled' WHERE confirmation_token = ?
-          `).bind(token).run();
-
-          return new Response('Rendez-vous annulé', {
-            status: 302,
-            headers: { 'Location': `/rdv/${token}` }
-          });
+            INSERT INTO vapi_call_logs (id, call_id, status, duration, cost, transcript, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            crypto.randomUUID(),
+            callId,
+            'completed',
+            duration,
+            cost,
+            transcript,
+            new Date().toISOString()
+          ).run();
         }
 
-        if (action === 'modify') {
-          return new Response('Fonctionnalité de modification à venir', { status: 501 });
-        }
-
-        return new Response('Action invalide', { status: 400 });
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       // ========================================
@@ -557,23 +718,19 @@ export default {
       // ========================================
 
       return new Response(JSON.stringify({
-        service: 'Coccinelle.ai API',
-        version: '1.14.0',
-        status: 'operational',
-        phases: {
-          phase1_kb_database: 'completed',
-          phase2_web_crawler: 'completed',
-          phase3_text_processing: 'completed'
-        }
+        error: 'Route not found',
+        path,
+        method
       }), {
+        status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
 
     } catch (error) {
       console.error('Error:', error);
       return new Response(JSON.stringify({
-        error: 'Internal server error',
-        message: error.message
+        error: error.message,
+        stack: error.stack
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -582,267 +739,98 @@ export default {
   }
 };
 
-// ============================================
-// FONCTIONS CRAWLER (Phase 2)
-// ============================================
+// ========================================
+// FONCTION CRAWLER (Background)
+// ========================================
 
-// 1. Extraction de texte depuis HTML
-function extractTextFromHTML(html) {
-  // Supprimer les scripts et styles
-  let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-  
-  // Supprimer les balises HTML
-  text = text.replace(/<[^>]+>/g, ' ');
-  
-  // Décoder les entités HTML
-  text = text.replace(/&nbsp;/g, ' ');
-  text = text.replace(/&amp;/g, '&');
-  text = text.replace(/&lt;/g, '<');
-  text = text.replace(/&gt;/g, '>');
-  text = text.replace(/&quot;/g, '"');
-  
-  // Nettoyer les espaces
-  text = text.replace(/\s+/g, ' ').trim();
-  
-  return text;
-}
-
-// 2. Extraction de métadonnées
-function extractMetadata(html, url) {
-  const metadata = {
-    title: '',
-    description: '',
-    h1: [],
-    h2: []
-  };
-
-  // Title
-  const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
-  if (titleMatch) {
-    metadata.title = titleMatch[1].trim();
-  }
-
-  // Meta description
-  const descMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i);
-  if (descMatch) {
-    metadata.description = descMatch[1].trim();
-  }
-
-  // H1
-  const h1Matches = html.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi);
-  for (const match of h1Matches) {
-    const h1Text = match[1].replace(/<[^>]+>/g, '').trim();
-    if (h1Text) metadata.h1.push(h1Text);
-  }
-
-  // H2
-  const h2Matches = html.matchAll(/<h2[^>]*>(.*?)<\/h2>/gi);
-  for (const match of h2Matches) {
-    const h2Text = match[1].replace(/<[^>]+>/g, '').trim();
-    if (h2Text) metadata.h2.push(h2Text);
-  }
-
-  return metadata;
-}
-
-// 3. Extraction des liens
-function extractLinks(html, baseUrl) {
-  const links = [];
-  const linkMatches = html.matchAll(/<a\s+(?:[^>]*?\s+)?href=["']([^"']+)["']/gi);
-
-  for (const match of linkMatches) {
-    try {
-      const href = match[1];
-      const absoluteUrl = new URL(href, baseUrl).href;
-      
-      // Nettoyer les ancres et paramètres inutiles
-      const cleanUrl = absoluteUrl.split('#')[0];
-      
-      if (cleanUrl && !links.includes(cleanUrl)) {
-        links.push(cleanUrl);
-      }
-    } catch (e) {
-      // URL invalide, ignorer
-    }
-  }
-
-  return links;
-}
-
-// 4. Vérifier si URL est du même domaine
-function isSameDomain(url1, url2) {
+async function runCrawl(jobId, startUrl, agentId, db, maxPages = 50) {
   try {
-    const domain1 = new URL(url1).hostname;
-    const domain2 = new URL(url2).hostname;
-    return domain1 === domain2;
-  } catch (e) {
-    return false;
-  }
-}
+    await db.prepare(`
+      UPDATE knowledge_crawl_jobs 
+      SET status = 'running', 
+          started_at = ?
+      WHERE id = ?
+    `).bind(new Date().toISOString(), jobId).run();
 
-// 5. Vérifier si URL doit être crawlée
-function shouldCrawlUrl(url, includePatterns, excludePatterns) {
-  // Exclure certains types de fichiers
-  const excludedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.zip', '.exe', '.mp4', '.mp3'];
-  if (excludedExtensions.some(ext => url.toLowerCase().endsWith(ext))) {
-    return false;
-  }
+    const visited = new Set();
+    const toVisit = [startUrl];
+    let pagesCrawled = 0;
 
-  // Vérifier les patterns d'exclusion
-  if (excludePatterns.length > 0) {
-    if (excludePatterns.some(pattern => url.includes(pattern))) {
-      return false;
-    }
-  }
+    while (toVisit.length > 0 && pagesCrawled < maxPages) {
+      const currentUrl = toVisit.shift();
 
-  // Vérifier les patterns d'inclusion (si spécifiés)
-  if (includePatterns.length > 0) {
-    return includePatterns.some(pattern => url.includes(pattern));
-  }
-
-  return true;
-}
-
-// 6. Générer un hash pour le contenu
-async function hashString(str) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(str);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// 7. Sauvegarder un document dans la DB
-async function saveDocument(db, url, content, metadata, agentId, serviceId, jobId) {
-  const contentHash = await hashString(content);
-  
-  // Vérifier si le document existe déjà
-  const existing = await db.prepare(
-    'SELECT id FROM knowledge_documents WHERE content_hash = ?'
-  ).bind(contentHash).first();
-
-  if (existing) {
-    console.log(`Document déjà existant (hash): ${url}`);
-    return { saved: false, reason: 'duplicate_hash' };
-  }
-
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const contentPreview = content.substring(0, 500);
-
-  await db.prepare(`
-    INSERT INTO knowledge_documents (
-      id, agent_id, service_id, crawl_job_id, 
-      url, title, content, content_preview, 
-      content_hash, metadata, word_count, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id,
-    agentId,
-    serviceId || null,
-    jobId,
-    url,
-    metadata.title || 'Sans titre',
-    content,
-    contentPreview,
-    contentHash,
-    JSON.stringify(metadata),
-    content.split(/\s+/).length,
-    now
-  ).run();
-
-  return { saved: true, id };
-}
-
-// 8. Fonction principale de crawl BFS
-async function crawlWebsite(db, jobId, startUrl, agentId, serviceId, options = {}) {
-  const {
-    includePatterns = [],
-    excludePatterns = [],
-    maxPages = 50,
-    delay = 500 // 500ms entre chaque requête
-  } = options;
-
-  const visited = new Set();
-  const queue = [startUrl];
-  let pagesCrawled = 0;
-
-  // Update job status
-  await db.prepare(
-    'UPDATE crawl_jobs SET status = ?, started_at = ? WHERE id = ?'
-  ).bind('running', new Date().toISOString(), jobId).run();
-
-  try {
-    while (queue.length > 0 && pagesCrawled < maxPages) {
-      const currentUrl = queue.shift();
-
-      if (visited.has(currentUrl)) {
-        continue;
-      }
-
+      if (visited.has(currentUrl)) continue;
       visited.add(currentUrl);
 
       try {
-        console.log(`Crawling: ${currentUrl}`);
-
         const response = await fetch(currentUrl, {
           headers: {
-            'User-Agent': 'Coccinelle.ai Bot/1.0'
+            'User-Agent': 'Coccinelle-Bot/1.0'
           }
         });
 
-        if (!response.ok) {
-          console.log(`Failed to fetch ${currentUrl}: ${response.status}`);
-          continue;
-        }
-
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('text/html')) {
-          console.log(`Skipping non-HTML: ${currentUrl}`);
-          continue;
-        }
+        if (!response.ok) continue;
 
         const html = await response.text();
+        const text = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-        // Extraire contenu et métadonnées
-        const text = extractTextFromHTML(html);
-        const metadata = extractMetadata(html, currentUrl);
-
-        // Sauvegarder le document
-        const saveResult = await saveDocument(
-          db,
-          currentUrl,
-          text,
-          metadata,
-          agentId,
-          serviceId,
-          jobId
-        );
-
-        if (saveResult.saved) {
-          pagesCrawled++;
+        if (text.length > 100) {
+          const docId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           
-          // Update crawl stats
-          await db.prepare(
-            'UPDATE crawl_jobs SET pages_crawled = ? WHERE id = ?'
-          ).bind(pagesCrawled, jobId).run();
-        }
+          const encoder = new TextEncoder();
+          const data = encoder.encode(text);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-        // Extraire et ajouter les liens à la queue
-        const links = extractLinks(html, currentUrl);
-        for (const link of links) {
-          if (
-            !visited.has(link) &&
-            isSameDomain(startUrl, link) &&
-            shouldCrawlUrl(link, includePatterns, excludePatterns)
-          ) {
-            queue.push(link);
+          const existing = await db.prepare(
+            'SELECT id FROM knowledge_documents WHERE content_hash = ?'
+          ).bind(contentHash).first();
+
+          if (!existing) {
+            await db.prepare(`
+              INSERT INTO knowledge_documents (
+                id, title, content, source_type, source_url, 
+                content_hash, metadata, status, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              docId,
+              currentUrl.split('/').pop() || 'Page',
+              text.substring(0, 50000),
+              'crawl',
+              currentUrl,
+              contentHash,
+              JSON.stringify({ crawl_job_id: jobId }),
+              'pending',
+              new Date().toISOString(),
+              new Date().toISOString()
+            ).run();
           }
         }
 
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, delay));
+        const links = [...html.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)]
+          .map(match => {
+            try {
+              const linkUrl = new URL(match[1], currentUrl);
+              return linkUrl.href;
+            } catch {
+              return null;
+            }
+          })
+          .filter(link => {
+            if (!link) return false;
+            const linkUrl = new URL(link);
+            const startUrlObj = new URL(startUrl);
+            return linkUrl.hostname === startUrlObj.hostname && !visited.has(link);
+          });
+
+        toVisit.push(...links);
+        pagesCrawled++;
 
       } catch (error) {
         console.error(`Error crawling ${currentUrl}:`, error.message);
@@ -851,7 +839,7 @@ async function crawlWebsite(db, jobId, startUrl, agentId, serviceId, options = {
 
     // Job terminé avec succès
     await db.prepare(`
-      UPDATE crawl_jobs 
+      UPDATE knowledge_crawl_jobs 
       SET status = 'completed', 
           completed_at = ?,
           pages_crawled = ?
@@ -861,7 +849,7 @@ async function crawlWebsite(db, jobId, startUrl, agentId, serviceId, options = {
   } catch (error) {
     // Job en erreur
     await db.prepare(`
-      UPDATE crawl_jobs 
+      UPDATE knowledge_crawl_jobs 
       SET status = 'failed', 
           error_message = ?,
           completed_at = ?
