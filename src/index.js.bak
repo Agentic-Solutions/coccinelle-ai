@@ -8,6 +8,8 @@
 // Import du module text processing
 import { processDocument } from './text-processing.js';
 import { handleAuthRoutes } from './auth-routes.js';
+import { searchKnowledge } from './search.js';
+import { generateEmbedding, generateBatchEmbeddings } from './embeddings.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -718,18 +720,9 @@ export default {
       // ========================================
 
       return new Response(JSON.stringify({
-        error: 'Route not found',
-        path,
-        method
-      }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    const method = request.method;
 
-    } catch (error) {
-      console.error('Error:', error);
-      return new Response(JSON.stringify({
-        error: error.message,
+    // ============================================
         stack: error.stack
       }), {
         status: 500,
