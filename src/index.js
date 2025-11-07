@@ -218,7 +218,7 @@ export default {
         });
 
         const claudeData = await claudeResponse.json();
-        const answer = claudeData.content[0].text;
+        const answer = claudeData?.content?.[0]?.text || "Erreur lors de la génération de la réponse.";
 
         return new Response(JSON.stringify({
           success: true,
