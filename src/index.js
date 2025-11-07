@@ -1172,6 +1172,68 @@ async function runCrawl(jobId, startUrl, agentId, env, maxPages = 50) {
       WHERE id = ?
     `).bind(new Date().toISOString(), jobId).run();
 
+
+    // ========================================
+    // AUTO-GENERATION EMBEDDINGS (ajouté le 7 nov 2025)
+    // ========================================
+    try {
+      console.log('[runCrawl] 🔄 Génération automatique des embeddings...');
+      const chunksResult = await env.DB.prepare(`
+        SELECT id, content FROM knowledge_chunks
+        WHERE document_id = ? AND embedding_status != 'completed'
+        ORDER BY chunk_index ASC
+      `).bind(documentId).all();
+
+      if (chunksResult.results.length > 0) {
+        console.log(`[runCrawl] Found ${chunksResult.results.length} chunks to embed`);
+        
+        for (const chunk of chunksResult.results) {
+          const embResp = await fetch('https://api.openai.com/v1/embeddings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+              model: 'text-embedding-3-small',
+              input: chunk.content
+            })
+          });
+          
+          if (embResp.ok) {
+            const embData = await embResp.json();
+            const embedding = embData.data[0].embedding;
+            
+            // Sauvegarder dans D1
+            await env.DB.prepare(`
+              UPDATE knowledge_chunks
+              SET embedding = ?, embedding_status = 'completed', updated_at = ?
+              WHERE id = ?
+            `).bind(JSON.stringify(embedding), new Date().toISOString(), chunk.id).run();
+            
+            // Uploader dans Vectorize
+            await env.VECTORIZE.upsert([{
+              id: chunk.id,
+              values: embedding,
+              metadata: { documentId: documentId }
+            }]);
+            
+            console.log(`[runCrawl] ✅ Embedding generated for chunk ${chunk.id}`);
+          }
+        }
+        
+        // Mettre à jour le statut du document
+        await env.DB.prepare(`
+          UPDATE knowledge_documents
+          SET status = 'indexed'
+          WHERE id = ?
+        `).bind(documentId).run();
+        
+        console.log('[runCrawl] ✅ All embeddings generated successfully');
+      }
+    } catch (embError) {
+      console.error('[runCrawl] ⚠️  Embedding generation failed:', embError.message);
+    }
     console.log('✅ [runCrawl] Job completed');
 
   } catch (error) {
