@@ -36,6 +36,267 @@ export default {
       // ========================================
       // ROUTES KNOWLEDGE BASE (Phase 1 + 2 + 3 + 4)
       // ========================================
+    // ========================================
+    // ROUTES RAG (Phase 5: Search + Ask + Embeddings)
+    // ========================================
+    
+    // POST /api/v1/knowledge/search - Recherche sémantique
+    if (path === '/api/v1/knowledge/search' && method === 'POST') {
+      try {
+        const body = await request.json();
+        const { query, topK = 5, tenantId = 'tenant_demo_001' } = body;
+        
+        if (!query) {
+          return new Response(JSON.stringify({ error: 'query is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // 1. Générer embedding de la query
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: query
+          })
+        });
+
+        if (!embeddingResponse.ok) {
+          throw new Error('Failed to generate query embedding');
+        }
+
+        const embeddingData = await embeddingResponse.json();
+        const queryEmbedding = embeddingData.data[0].embedding;
+
+        // 2. Recherche vectorielle dans Vectorize
+        const searchResults = await env.VECTORIZE.query(queryEmbedding, {
+          topK: topK,
+          returnMetadata: true,
+          filter: { tenantId: tenantId }
+        });
+
+        // 3. Récupérer les chunks depuis D1
+        const chunkIds = searchResults.matches.map(m => m.id);
+        
+        if (chunkIds.length === 0) {
+          return new Response(JSON.stringify({
+            success: true,
+            query: query,
+            results: [],
+            count: 0
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const placeholders = chunkIds.map(() => '?').join(',');
+        const chunksResult = await env.DB.prepare(`
+          SELECT 
+            kc.id, kc.content, kc.chunk_index, kc.token_count,
+            kd.id as doc_id, kd.title, kd.url, kd.source_type
+          FROM knowledge_chunks kc
+          LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
+          WHERE kc.id IN (${placeholders})
+        `).bind(...chunkIds).all();
+
+        const results = chunksResult.results.map((chunk, idx) => ({
+          chunkId: chunk.id,
+          content: chunk.content,
+          score: searchResults.matches[idx]?.score || 0,
+          document: {
+            id: chunk.doc_id,
+            title: chunk.title,
+            url: chunk.url,
+            sourceType: chunk.source_type
+          }
+        }));
+
+        return new Response(JSON.stringify({
+          success: true,
+          query: query,
+          results: results,
+          count: results.length
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+
+      } catch (error) {
+        console.error('Error in /knowledge/search:', error);
+        return new Response(JSON.stringify({
+          error: 'Search failed',
+          message: error.message
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // POST /api/v1/knowledge/ask - Question/Réponse RAG
+    if (path === '/api/v1/knowledge/ask' && method === 'POST') {
+      try {
+        const body = await request.json();
+        const { question, topK = 5, tenantId = 'tenant_demo_001' } = body;
+        
+        if (!question) {
+          return new Response(JSON.stringify({ error: 'question is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // 1. Recherche sémantique (même code que /search)
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: question
+          })
+        });
+
+        const embeddingData = await embeddingResponse.json();
+        const queryEmbedding = embeddingData.data[0].embedding;
+
+        const searchResults = await env.VECTORIZE.query(queryEmbedding, {
+          topK: topK,
+          returnMetadata: true
+        });
+
+        const chunkIds = searchResults.matches.map(m => m.id);
+        
+        if (chunkIds.length === 0) {
+          return new Response(JSON.stringify({
+            success: true,
+            question: question,
+            answer: "Je n'ai pas trouvé d'informations pertinentes dans la base de connaissances pour répondre à cette question.",
+            sources: []
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const placeholders = chunkIds.map(() => '?').join(',');
+        const chunksResult = await env.DB.prepare(`
+          SELECT kc.content, kd.title, kd.url
+          FROM knowledge_chunks kc
+          LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
+          WHERE kc.id IN (${placeholders})
+          LIMIT 5
+        `).bind(...chunkIds).all();
+
+        // 2. Construire le contexte
+        const context = chunksResult.results.map(r => r.content).join('\n\n');
+
+        // 3. Générer la réponse avec Claude
+        const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            messages: [{
+              role: 'user',
+              content: `Contexte:\n${context}\n\nQuestion: ${question}\n\nRéponds à la question en te basant uniquement sur le contexte fourni. Si tu ne trouves pas la réponse dans le contexte, dis-le clairement.`
+            }]
+          })
+        });
+
+        const claudeData = await claudeResponse.json();
+        const answer = claudeData.content[0].text;
+
+        return new Response(JSON.stringify({
+          success: true,
+          question: question,
+          answer: answer,
+          sources: chunksResult.results.map(r => ({
+            title: r.title,
+            url: r.url
+          }))
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+
+      } catch (error) {
+        console.error('Error in /knowledge/ask:', error);
+        return new Response(JSON.stringify({
+          error: 'RAG query failed',
+          message: error.message
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // POST /api/v1/embeddings/generate - Générer un embedding
+    if (path === '/api/v1/embeddings/generate' && method === 'POST') {
+      try {
+        const body = await request.json();
+        const { text } = body;
+        
+        if (!text) {
+          return new Response(JSON.stringify({ error: 'text is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: text
+          })
+        });
+
+        if (!embeddingResponse.ok) {
+          throw new Error('Failed to generate embedding');
+        }
+
+        const embeddingData = await embeddingResponse.json();
+
+        return new Response(JSON.stringify({
+          success: true,
+          embedding: embeddingData.data[0].embedding,
+          model: 'text-embedding-3-small',
+          dimensions: 1536
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+
+      } catch (error) {
+        console.error('Error in /embeddings/generate:', error);
+        return new Response(JSON.stringify({
+          error: 'Embedding generation failed',
+          message: error.message
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
 
       // POST /api/v1/knowledge/crawl - Lancer un crawl
       if (path === '/api/v1/knowledge/crawl' && method === 'POST') {
