@@ -401,7 +401,7 @@ export default {
         return new Response(JSON.stringify({
           success: true,
           message: 'Document processing started',
-          documentId: docId
+          docId: docId
         }), {
           status: 202,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -1182,7 +1182,7 @@ async function runCrawl(jobId, startUrl, agentId, env, maxPages = 50) {
         SELECT id, content FROM knowledge_chunks
         WHERE document_id = ? AND embedding_status != 'completed'
         ORDER BY chunk_index ASC
-      `).bind(documentId).all();
+      `).bind(docId).all();
 
       if (chunksResult.results.length > 0) {
         console.log(`[runCrawl] Found ${chunksResult.results.length} chunks to embed`);
@@ -1215,7 +1215,7 @@ async function runCrawl(jobId, startUrl, agentId, env, maxPages = 50) {
             await env.VECTORIZE.upsert([{
               id: chunk.id,
               values: embedding,
-              metadata: { documentId: documentId }
+              metadata: { docId: docId }
             }]);
             
             console.log(`[runCrawl] ✅ Embedding generated for chunk ${chunk.id}`);
@@ -1227,7 +1227,7 @@ async function runCrawl(jobId, startUrl, agentId, env, maxPages = 50) {
           UPDATE knowledge_documents
           SET status = 'indexed'
           WHERE id = ?
-        `).bind(documentId).run();
+        `).bind(docId).run();
         
         console.log('[runCrawl] ✅ All embeddings generated successfully');
       }
