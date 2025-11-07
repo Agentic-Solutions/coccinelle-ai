@@ -8,7 +8,7 @@
 // Import du module text processing
 import { processDocument } from './text-processing.js';
 import { handleAuthRoutes } from './auth-routes.js';
-import { registerRagRoutes } from './rag-routes.js';
+import { initRagRoutes } from './rag-init.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -18,9 +18,8 @@ export default {
 
     // CORS headers
     const corsHeaders = {
-
-// Register RAG routes
-registerRagRoutes(router);
+initRagRoutes(router);
+      'Access-Control-Allow-Origin': 'http://localhost:5173',
   'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key',
