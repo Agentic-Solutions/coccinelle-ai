@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import ProgressBar from '@/components/onboarding/ProgressBar';
 import WelcomeStep from '@/components/onboarding/WelcomeStep';
 import BusinessInfoStep from '@/components/onboarding/BusinessInfoStep';
-import AgentsStep from '@/components/onboarding/AgentsStep';
-import VapiStep from '@/components/onboarding/VapiStep';
+import SaraConfigStep from '@/components/onboarding/SaraConfigStep';
 import KnowledgeBaseStep from '@/components/onboarding/KnowledgeBaseStep';
 import CompletionStep from '@/components/onboarding/CompletionStep';
 
@@ -20,23 +19,16 @@ export default function Onboarding() {
   const [error, setError] = useState(null);
 
   const [businessData, setBusinessData] = useState(null);
-  const [agentsData, setAgentsData] = useState(null);
-  const [vapiData, setVapiData] = useState(null);
+  const [saraConfig, setSaraConfig] = useState(null);
   const [kbData, setKbData] = useState(null);
-
-  // DÉSACTIVÉ : Ne plus appeler l'API au démarrage
-  // useEffect(() => {
-  //   startOnboardingSession();
-  // }, []);
 
   const handleNext = async (stepData) => {
     try {
       setLoading(true);
 
       if (currentStep === 2) setBusinessData(stepData);
-      if (currentStep === 3) setAgentsData(stepData);
-      if (currentStep === 4) setVapiData(stepData);
-      if (currentStep === 5) setKbData(stepData);
+      if (currentStep === 3) setSaraConfig(stepData);
+      if (currentStep === 4) setKbData(stepData);
 
       setCurrentStep(currentStep + 1);
     } catch (err) {
@@ -60,7 +52,7 @@ export default function Onboarding() {
   return (
     <div className="min-h-screen bg-white py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <ProgressBar currentStep={currentStep} totalSteps={6} />
+        <ProgressBar currentStep={currentStep} totalSteps={5} />
 
         <div className="mt-8 bg-white border border-gray-200 rounded-lg p-8">
           {error && (
@@ -82,8 +74,7 @@ export default function Onboarding() {
           )}
 
           {currentStep === 3 && (
-            <AgentsStep
-              businessData={businessData}
+            <SaraConfigStep
               sessionId={sessionId}
               onNext={handleNext}
               onBack={handleBack}
@@ -92,7 +83,7 @@ export default function Onboarding() {
           )}
 
           {currentStep === 4 && (
-            <VapiStep
+            <KnowledgeBaseStep
               sessionId={sessionId}
               onNext={handleNext}
               onBack={handleBack}
@@ -101,16 +92,6 @@ export default function Onboarding() {
           )}
 
           {currentStep === 5 && (
-            <KnowledgeBaseStep
-              sessionId={sessionId}
-              businessData={businessData}
-              onNext={handleNext}
-              onBack={handleBack}
-              loading={loading}
-            />
-          )}
-
-          {currentStep === 6 && (
             <CompletionStep
               onComplete={handleComplete}
               loading={loading}

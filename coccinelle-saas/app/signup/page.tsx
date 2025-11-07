@@ -3,22 +3,26 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { INDUSTRIES } from '@/constants/industries';
 
 export default function SignupPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    company_name: '',
+    companyName: '',
+    name: '',
     email: '',
     password: '',
-    name: '',
     phone: '',
-    sector: 'real_estate'
+    sector: ''
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,17 +30,44 @@ export default function SignupPage() {
     setErrors([]);
     setLoading(true);
 
+    // Validation
+    const newErrors = [];
+    if (!formData.companyName) newErrors.push('Le nom de l\'entreprise est requis');
+    if (!formData.name) newErrors.push('Votre nom est requis');
+    if (!formData.email) newErrors.push('L\'email est requis');
+    if (!formData.password || formData.password.length < 8) {
+      newErrors.push('Le mot de passe doit contenir au moins 8 caractères');
+    }
+    if (!formData.phone) newErrors.push('Le téléphone est requis');
+    if (!formData.sector) newErrors.push('Le secteur d\'activité est requis');
+
+    if (newErrors.length > 0) {
+      setErrors(newErrors);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/signup`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company_name: formData.companyName,
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            phone: formData.phone,
+            sector: formData.sector
+          })
+        }
+      );
 
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
-        setErrors(data.errors || [data.error || 'Erreur lors de l\'inscription']);
+      if (!response.ok) {
+        setErrors([data.error || 'Erreur lors de l\'inscription']);
         setLoading(false);
         return;
       }
@@ -46,8 +77,8 @@ export default function SignupPage() {
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('tenant', JSON.stringify(data.tenant));
 
-      // Redirection vers le dashboard
-      router.push('/dashboard');
+      // Redirection vers l'onboarding (CORRECTION ✅)
+      router.push('/onboarding');
     } catch (err) {
       setErrors(['Erreur réseau. Vérifiez votre connexion.']);
       setLoading(false);
@@ -72,33 +103,42 @@ export default function SignupPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {errors.length > 0 && (
             <div className="rounded-md bg-red-50 p-4">
-              <ul className="list-disc list-inside text-sm text-red-800">
-                {errors.map((error, idx) => (
-                  <li key={idx}>{error}</li>
-                ))}
-              </ul>
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    Erreur(s) dans le formulaire :
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <ul className="list-disc pl-5 space-y-1">
+                      {errors.map((error, idx) => (
+                        <li key={idx}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="company_name" className="block text-sm font-medium text-gray-700">
-                Nom de l'entreprise *
+              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
+                Nom de votre entreprise *
               </label>
               <input
-                id="company_name"
-                name="company_name"
+                id="companyName"
+                name="companyName"
                 type="text"
                 required
-                value={formData.company_name}
+                value={formData.companyName}
                 onChange={handleChange}
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-900 focus:border-gray-900 sm:text-sm"
-                placeholder="Agence Immobilière Dupont"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
+                placeholder="Ex: Agence Immobilière Dupont"
               />
             </div>
 
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                 Votre nom complet *
               </label>
               <input
@@ -108,30 +148,29 @@ export default function SignupPage() {
                 required
                 value={formData.name}
                 onChange={handleChange}
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-900 focus:border-gray-900 sm:text-sm"
-                placeholder="Jean Dupont"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
+                placeholder="Ex: Jean Dupont"
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email professionnel *
               </label>
               <input
                 id="email"
                 name="email"
                 type="email"
-                autoComplete="email"
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-900 focus:border-gray-900 sm:text-sm"
-                placeholder="contact@agence-dupont.fr"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
+                placeholder="contact@entreprise.fr"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Mot de passe *
               </label>
               <input
@@ -141,46 +180,45 @@ export default function SignupPage() {
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-900 focus:border-gray-900 sm:text-sm"
-                placeholder="Min 8 caractères, 1 majuscule, 1 chiffre"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
+                placeholder="Minimum 8 caractères"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Minimum 8 caractères avec 1 majuscule, 1 minuscule et 1 chiffre
-              </p>
             </div>
 
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                Téléphone
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                Téléphone *
               </label>
               <input
                 id="phone"
                 name="phone"
                 type="tel"
+                required
                 value={formData.phone}
                 onChange={handleChange}
-                className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-900 focus:border-gray-900 sm:text-sm"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
                 placeholder="+33 6 12 34 56 78"
               />
             </div>
 
             <div>
-              <label htmlFor="sector" className="block text-sm font-medium text-gray-700">
-                Secteur d'activité
+              <label htmlFor="sector" className="block text-sm font-medium text-gray-700 mb-1">
+                Secteur d'activité *
               </label>
               <select
                 id="sector"
                 name="sector"
+                required
                 value={formData.sector}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-900 focus:border-gray-900 sm:text-sm"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
               >
-                <option value="real_estate">Immobilier</option>
-                <option value="hair_salon">Salon de coiffure</option>
-                <option value="restaurant">Restaurant</option>
-                <option value="retail">Commerce de détail</option>
-                <option value="services">Services</option>
-                <option value="other">Autre</option>
+                <option value="">Sélectionnez votre secteur</option>
+                {INDUSTRIES.map((industry) => (
+                  <option key={industry.value} value={industry.value}>
+                    {industry.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -189,14 +227,21 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Création du compte...' : 'Créer mon compte'}
             </button>
           </div>
 
           <p className="text-xs text-center text-gray-500">
-            En créant un compte, vous acceptez nos conditions d'utilisation et notre politique de confidentialité.
+            En créant un compte, vous acceptez nos{' '}
+            <a href="#" className="text-gray-700 hover:text-black">
+              Conditions d'utilisation
+            </a>{' '}
+            et notre{' '}
+            <a href="#" className="text-gray-700 hover:text-black">
+              Politique de confidentialité
+            </a>
           </p>
         </form>
       </div>
