@@ -99,7 +99,7 @@ export default {
         const chunksResult = await env.DB.prepare(`
           SELECT 
             kc.id, kc.content, kc.chunk_index, kc.token_count,
-            kd.id as doc_id, kd.title, kd.url, kd.source_type
+            kd.id as doc_id, kd.title, kd.source_url, kd.source_type
           FROM knowledge_chunks kc
           LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
           WHERE kc.id IN (${placeholders})
@@ -189,7 +189,7 @@ export default {
 
         const placeholders = chunkIds.map(() => '?').join(',');
         const chunksResult = await env.DB.prepare(`
-          SELECT kc.content, kd.title, kd.url
+          SELECT kc.content, kd.title, kd.source_url
           FROM knowledge_chunks kc
           LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
           WHERE kc.id IN (${placeholders})
