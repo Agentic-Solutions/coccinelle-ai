@@ -1,5 +1,5 @@
 // src/auth-routes.js - Routes d'authentification complètes
-import * as auth from './auth.js';
+import * as auth from './helpers.js';
 
 /**
  * Gère toutes les routes d'authentification
