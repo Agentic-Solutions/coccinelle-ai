@@ -16,6 +16,10 @@ import { handleAgentsRoutes } from './modules/agents/routes.js';
 import { handleAppointmentsRoutes } from './modules/appointments/routes.js';
 import { handleVapiRoutes } from './modules/vapi/routes.js';
 
+// Modules temporaires (à modulariser)
+import { handleOnboardingRoutes } from './onboarding-routes.js';
+import { handleKnowledgeManualRoutes } from './knowledge-manual-routes.js';
+
 // ========================================
 // WORKER PRINCIPAL
 // ========================================
@@ -42,8 +46,20 @@ export default {
         if (response) return response;
       }
       
+      // Module Onboarding (temporaire)
+      if (path.startsWith('/api/v1/onboarding/')) {
+        response = await handleOnboardingRoutes(request, env, ctx, corsHeaders);
+        if (response) return response;
+      }
+      
       // Module Knowledge
       if (path.startsWith('/api/v1/knowledge/')) {
+        // Vérifier d'abord les routes manuelles (FAQ/Snippets)
+        if (path.includes('/faq') || path.includes('/snippets')) {
+          response = await handleKnowledgeManualRoutes(request, env, ctx, corsHeaders);
+          if (response) return response;
+        }
+        // Sinon routes normales
         response = await handleKnowledgeRoutes(request, env, path, method);
         if (response) return response;
       }
