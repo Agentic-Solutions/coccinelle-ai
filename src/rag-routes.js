@@ -169,7 +169,7 @@ export function registerRagRoutes(router) {
   });
 
   // Endpoint 4: Générer embedding
-  router.post('/api/v1/embeddings/generate', async (request, env) => {
+  router.post('/api/v1/knowledge/embeddings/generate', async (request, env) => {
     try {
       const { text } = await request.json();
       
@@ -205,7 +205,7 @@ export function registerRagRoutes(router) {
   });
 
   // Endpoint 5: Process document
-  router.post('/api/v1/embeddings/process-document/:id', async (request, env) => {
+  router.post('/api/v1/knowledge/embeddings/process-document/:id', async (request, env) => {
     try {
       const documentId = request.params.id;
 
@@ -238,7 +238,7 @@ export function registerRagRoutes(router) {
   });
 
   // Endpoint 6: Check status
-  router.get('/api/v1/embeddings/status/:documentId', async (request, env) => {
+  router.get('/api/v1/knowledge/embeddings/status/:documentId', async (request, env) => {
     try {
       const documentId = request.params.documentId;
 

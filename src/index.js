@@ -245,8 +245,52 @@ export default {
       }
     }
 
-    // POST /api/v1/embeddings/generate - Générer un embedding
-    if (path === '/api/v1/embeddings/generate' && method === 'POST') {
+    
+  // POST /api/v1/knowledge/vectorize/upsert - Insérer embedding dans Vectorize
+  if (path === '/api/v1/knowledge/vectorize/upsert' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const { chunkId, embedding, metadata } = body;
+      
+      if (!chunkId || !embedding) {
+        return new Response(JSON.stringify({ error: 'chunkId and embedding are required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Insérer dans Vectorize
+      await env.VECTORIZE.upsert([{
+        id: chunkId,
+        values: embedding,
+        metadata: metadata || {}
+      }]);
+
+      console.log(`✅ [Vectorize] Inserted chunk ${chunkId}`);
+
+      return new Response(JSON.stringify({
+        success: true,
+        chunkId: chunkId,
+        dimensions: embedding.length
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+
+    } catch (error) {
+      console.error('[Vectorize] Error:', error);
+      return new Response(JSON.stringify({
+        error: 'Failed to insert into Vectorize',
+        message: error.message
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+// POST /api/v1/embeddings/generate - Générer un embedding
+    if (path === '/api/v1/knowledge/embeddings/generate' && method === 'POST') {
       try {
         const body = await request.json();
         const { text } = body;
@@ -401,7 +445,7 @@ export default {
         return new Response(JSON.stringify({
           success: true,
           message: 'Document processing started',
-          docId: docId
+          documentId: docId
         }), {
           status: 202,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -1172,68 +1216,6 @@ async function runCrawl(jobId, startUrl, agentId, env, maxPages = 50) {
       WHERE id = ?
     `).bind(new Date().toISOString(), jobId).run();
 
-
-    // ========================================
-    // AUTO-GENERATION EMBEDDINGS (ajouté le 7 nov 2025)
-    // ========================================
-    try {
-      console.log('[runCrawl] 🔄 Génération automatique des embeddings...');
-      const chunksResult = await env.DB.prepare(`
-        SELECT id, content FROM knowledge_chunks
-        WHERE document_id = ? AND embedding_status != 'completed'
-        ORDER BY chunk_index ASC
-      `).bind(docId).all();
-
-      if (chunksResult.results.length > 0) {
-        console.log(`[runCrawl] Found ${chunksResult.results.length} chunks to embed`);
-        
-        for (const chunk of chunksResult.results) {
-          const embResp = await fetch('https://api.openai.com/v1/embeddings', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${env.OPENAI_API_KEY}`
-            },
-            body: JSON.stringify({
-              model: 'text-embedding-3-small',
-              input: chunk.content
-            })
-          });
-          
-          if (embResp.ok) {
-            const embData = await embResp.json();
-            const embedding = embData.data[0].embedding;
-            
-            // Sauvegarder dans D1
-            await env.DB.prepare(`
-              UPDATE knowledge_chunks
-              SET embedding = ?, embedding_status = 'completed', updated_at = ?
-              WHERE id = ?
-            `).bind(JSON.stringify(embedding), new Date().toISOString(), chunk.id).run();
-            
-            // Uploader dans Vectorize
-            await env.VECTORIZE.upsert([{
-              id: chunk.id,
-              values: embedding,
-              metadata: { docId: docId }
-            }]);
-            
-            console.log(`[runCrawl] ✅ Embedding generated for chunk ${chunk.id}`);
-          }
-        }
-        
-        // Mettre à jour le statut du document
-        await env.DB.prepare(`
-          UPDATE knowledge_documents
-          SET status = 'indexed'
-          WHERE id = ?
-        `).bind(docId).run();
-        
-        console.log('[runCrawl] ✅ All embeddings generated successfully');
-      }
-    } catch (embError) {
-      console.error('[runCrawl] ⚠️  Embedding generation failed:', embError.message);
-    }
     console.log('✅ [runCrawl] Job completed');
 
   } catch (error) {

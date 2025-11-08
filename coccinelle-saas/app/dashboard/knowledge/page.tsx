@@ -1,349 +1,297 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FileText, Upload, Search, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Database, Upload, MessageSquare, Send, Loader2, BookOpen, CheckCircle, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 
-interface Document {
-  id: string;
-  title: string;
-  content: string;
-  source_type: string;
-  source_url: string;
-  status: string;
-  chunk_count: number;
-  created_at: string;
-}
+const API_URL = 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function KnowledgePage() {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [activeTab, setActiveTab] = useState<'upload' | 'test'>('upload');
+  
+  // Upload states
+  const [uploadMode, setUploadMode] = useState<'crawl' | 'manual'>('crawl');
+  const [url, setUrl] = useState('');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  
+  // Test states
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState<any>(null);
+  const [testLoading, setTestLoading] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
 
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    source_type: 'manual',
-    source_url: ''
-  });
-
-  useEffect(() => {
-    loadDocuments();
-  }, []);
-
-  const loadDocuments = async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents`, {
-        headers: {
-          'x-api-key': 'demo-key-12345'
-        }
-      });
-      const data = await res.json();
-      setDocuments(data.documents || []);
-    } catch (error) {
-      console.error('Erreur chargement documents:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setUploading(true);
+  const handleCrawl = async () => {
+    if (!url.trim()) return;
+    setUploadLoading(true);
+    setUploadStatus(null);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents`, {
+      const response = await fetch(`${API_URL}/api/v1/knowledge/crawl`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': 'demo-key-12345'
-        },
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startUrl: url, tenantId: 'agent-demo-001', maxPages: 10, maxDepth: 2 })
       });
 
-      if (res.ok) {
-        alert('Document ajouté avec succès !');
-        setFormData({ title: '', content: '', source_type: 'manual', source_url: '' });
-        loadDocuments();
-      }
+      if (!response.ok) throw new Error('Erreur crawl');
+      const data = await response.json();
+      setUploadStatus({ type: 'success', message: `Crawl démarré ! ID: ${data.jobId}` });
+      setUrl('');
     } catch (error) {
-      alert('Erreur lors de l\'ajout du document');
+      setUploadStatus({ type: 'error', message: 'Erreur lors du crawl' });
     } finally {
-      setUploading(false);
+      setUploadLoading(false);
     }
   };
 
-  const handleProcess = async (docId: string) => {
-    setProcessing(docId);
+  const handleManualUpload = async () => {
+    if (!title.trim() || !content.trim()) return;
+    setUploadLoading(true);
+    setUploadStatus(null);
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents/${docId}/process`,
-        {
-          method: 'POST',
-          headers: {
-            'x-api-key': 'demo-key-12345'
-          }
-        }
-      );
-
-      if (res.ok) {
-        alert('Document traité avec succès !');
-        loadDocuments();
-      }
-    } catch (error) {
-      alert('Erreur lors du traitement');
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    setSearching(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/search`, {
+      const response = await fetch(`${API_URL}/api/v1/knowledge/documents`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': 'demo-key-12345'
-        },
-        body: JSON.stringify({
-          query: searchQuery,
-          limit: 5
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, tenantId: 'agent-demo-001', sourceType: 'manual' })
       });
 
-      const data = await res.json();
-      setSearchResults(data.results || []);
+      if (!response.ok) throw new Error('Erreur ajout');
+      setUploadStatus({ type: 'success', message: 'Document ajouté avec succès !' });
+      setTitle('');
+      setContent('');
     } catch (error) {
-      console.error('Erreur recherche:', error);
+      setUploadStatus({ type: 'error', message: 'Erreur lors de l\'ajout' });
     } finally {
-      setSearching(false);
+      setUploadLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    );
-  }
+  const handleAsk = async () => {
+    if (!question.trim()) return;
+    setTestLoading(true);
+    const currentQuestion = question;
+    setQuestion('');
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/knowledge/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: currentQuestion, tenantId: 'agent-demo-001', maxResults: 3 })
+      });
+
+      if (!response.ok) throw new Error('Erreur API');
+      const data = await response.json();
+      setAnswer(data);
+      setHistory(prev => [{ question: currentQuestion, answer: data }, ...prev].slice(0, 3));
+    } catch (error) {
+      console.error('Erreur:', error);
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Knowledge Base</h1>
-        <p className="text-gray-600">Gérez vos documents et la base de connaissances de Sara</p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-600 text-sm">Documents</p>
-              <p className="text-2xl font-bold">{documents.length}</p>
-            </div>
-            <FileText className="w-8 h-8 text-gray-400" />
-          </div>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-8">
+          <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="w-5 h-5" />
+            Dashboard
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900">Knowledge Base</h1>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-600 text-sm">Chunks totaux</p>
-              <p className="text-2xl font-bold">
-                {documents.reduce((sum, doc) => sum + (doc.chunk_count || 0), 0)}
-              </p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-500" />
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-600 text-sm">Traités</p>
-              <p className="text-2xl font-bold">
-                {documents.filter(d => d.status === 'indexed' || d.status === 'processed').length}
-              </p>
-            </div>
-            <Upload className="w-8 h-8 text-blue-500" />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Search className="w-5 h-5" />
-          Recherche dans la KB
-        </h2>
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Rechercher dans les documents..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-          />
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
           <button
-            type="submit"
-            disabled={searching}
-            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
+            onClick={() => setActiveTab('upload')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'upload' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            }`}
           >
-            {searching ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Recherche...
-              </>
-            ) : (
-              <>
-                <Search className="w-4 h-4" />
-                Rechercher
-              </>
-            )}
+            <Upload className="w-4 h-4" />
+            Ajouter des documents
           </button>
-        </form>
+          <button
+            onClick={() => setActiveTab('test')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'test' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Tester le RAG
+          </button>
+        </div>
 
-        {searchResults.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <h3 className="font-semibold text-sm text-gray-600">Résultats ({searchResults.length})</h3>
-            {searchResults.map((result, idx) => (
-              <div key={idx} className="p-4 bg-gray-50 rounded border border-gray-200">
-                <p className="text-sm font-medium mb-1">{result.title}</p>
-                <p className="text-xs text-gray-600 line-clamp-2">{result.content}</p>
-                <p className="text-xs text-gray-400 mt-2">Score: {result.score?.toFixed(3)}</p>
+        {/* Content Upload */}
+        {activeTab === 'upload' && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Ajouter un document</h3>
+            
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => setUploadMode('crawl')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  uploadMode === 'crawl' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Database className="w-4 h-4" />
+                Crawler une URL
+              </button>
+              <button
+                onClick={() => setUploadMode('manual')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  uploadMode === 'manual' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Upload className="w-4 h-4" />
+                Ajouter manuellement
+              </button>
+            </div>
+
+            {uploadMode === 'crawl' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">URL à crawler</label>
+                  <input
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://example.com"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">Le système va crawler cette page et les pages liées (max 3 pages)</p>
+                </div>
+                <button
+                  onClick={handleCrawl}
+                  disabled={uploadLoading || !url.trim()}
+                  className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {uploadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {uploadLoading ? 'Crawl en cours...' : 'Démarrer le crawl'}
+                </button>
               </div>
-            ))}
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Titre</label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Titre du document"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Contenu</label>
+                  <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Contenu du document..."
+                    rows={8}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">URL (optionnel)</p>
+                </div>
+                <button
+                  onClick={handleManualUpload}
+                  disabled={uploadLoading || !title.trim() || !content.trim()}
+                  className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {uploadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {uploadLoading ? 'Ajout en cours...' : 'Ajouter le document'}
+                </button>
+              </div>
+            )}
+
+            {uploadStatus && (
+              <div className={`mt-4 p-4 rounded-lg border ${uploadStatus.type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className={`w-5 h-5 ${uploadStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`} />
+                  <p className={`text-sm ${uploadStatus.type === 'success' ? 'text-green-900' : 'text-red-900'}`}>{uploadStatus.message}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
-      </div>
 
-      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Upload className="w-5 h-5" />
-          Ajouter un document
-        </h2>
-        <form onSubmit={handleUpload} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Titre</label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Contenu</label>
-            <textarea
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              required
-              rows={6}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Source URL (optionnel)</label>
-            <input
-              type="text"
-              value={formData.source_url}
-              onChange={(e) => setFormData({ ...formData, source_url: e.target.value })}
-              placeholder="https://..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={uploading}
-            className="w-full px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {uploading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Ajout en cours...
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4" />
-                Ajouter le document
-              </>
-            )}
-          </button>
-        </form>
-      </div>
-
-      <div className="bg-white p-6 rounded-lg border border-gray-200">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <FileText className="w-5 h-5" />
-          Documents ({documents.length})
-        </h2>
-
-        <div className="space-y-3">
-          {documents.map((doc) => (
-            <div key={doc.id} className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-semibold mb-1">{doc.title}</h3>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-2">{doc.content}</p>
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span>Type: {doc.source_type}</span>
-                    <span>Chunks: {doc.chunk_count || 0}</span>
-                    <span>Créé: {new Date(doc.created_at).toLocaleDateString('fr-FR')}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 ml-4">
-                  {(doc.status === 'indexed' || doc.status === 'processed') ? (
-                    <span className="flex items-center gap-1 text-green-600 text-sm">
-                      <CheckCircle className="w-4 h-4" />
-                      Traité
-                    </span>
-                  ) : doc.status === 'pending' ? (
-                    <button
-                      onClick={() => handleProcess(doc.id)}
-                      disabled={processing === doc.id}
-                      className="px-4 py-2 bg-black text-white text-sm rounded hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {processing === doc.id ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          Traitement...
-                        </>
-                      ) : (
-                        'Traiter'
-                      )}
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-gray-500 text-sm">
-                      <XCircle className="w-4 h-4" />
-                      {doc.status}
-                    </span>
-                  )}
-                </div>
+        {/* Content Test */}
+        {activeTab === 'test' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Posez une question</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAsk()}
+                  placeholder="Ex: Quels sont les biens disponibles ?"
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  disabled={testLoading}
+                />
+                <button
+                  onClick={handleAsk}
+                  disabled={testLoading || !question.trim()}
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {testLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
               </div>
             </div>
-          ))}
 
-          {documents.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Aucun document dans la base de connaissances</p>
-              <p className="text-sm">Ajoutez votre premier document ci-dessus</p>
-            </div>
-          )}
-        </div>
+            {answer && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-1 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900 mb-2">Réponse</h3>
+                    <p className="text-gray-700 whitespace-pre-wrap">{answer.answer}</p>
+                    {answer.sources && answer.sources.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Sources ({answer.sources.length}) :</p>
+                        <div className="space-y-2">
+                          {answer.sources.map((source: any, idx: number) => (
+                            <div key={idx} className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
+                              <BookOpen className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-600">{source.content.substring(0, 100)}...</p>
+                                {source.url && (
+                                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                                    <ExternalLink className="w-3 h-3" />{source.url}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {history.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="font-medium text-gray-900 mb-4">Historique récent</h3>
+                <div className="space-y-3">
+                  {history.map((item, idx) => (
+                    <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <p className="text-sm font-medium text-gray-900 mb-1">Q: {item.question}</p>
+                      <p className="text-sm text-gray-600">{item.answer.answer.substring(0, 150)}...</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
