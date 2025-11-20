@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Phone, Download, Filter, X, Calendar, TrendingUp, Clock, ArrowLeft } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import Logo from '../../../src/components/Logo';
+import { isDemoMode, mockCalls, mockStats } from '../../../lib/mockData';
 
 const API_URL = 'https://coccinelle-api.youssef-amrouche.workers.dev';
 const API_KEY = 'demo-key-12345';
@@ -51,7 +53,17 @@ export default function AppelsPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // Récupérer les stats
+        // Mode démo - utiliser mockData
+        if (isDemoMode()) {
+          await new Promise(resolve => setTimeout(resolve, 500)); // Simule délai réseau
+          setStats(mockStats);
+          setCalls(mockCalls);
+          setFilteredCalls(mockCalls);
+          setLoading(false);
+          return;
+        }
+
+        // Mode production - fetch API
         const statsRes = await fetch(`${API_URL}/api/v1/vapi/stats`, {
           headers: { 'x-api-key': API_KEY }
         });
@@ -177,16 +189,18 @@ export default function AppelsPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <div>
-            <Link 
+          <div className="flex items-center gap-4">
+            <Link
               href="/dashboard"
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-2 transition-colors"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Retour au dashboard
             </Link>
-            <h1 className="text-3xl font-semibold text-gray-900">Appels Sara</h1>
-            <p className="text-gray-600 mt-1">Historique complet des appels téléphoniques</p>
+            <Logo size={48} />
+            <div>
+              <h1 className="text-3xl font-semibold text-gray-900">Appels Sara</h1>
+              <p className="text-gray-600 mt-1">Historique complet des appels téléphoniques</p>
+            </div>
           </div>
         </div>
 
@@ -347,7 +361,7 @@ export default function AppelsPage() {
           </div>
           <button
             onClick={exportToExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             <Download className="w-4 h-4" />
             Exporter Excel

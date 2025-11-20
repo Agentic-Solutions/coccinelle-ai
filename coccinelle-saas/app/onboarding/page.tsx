@@ -4,12 +4,9 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProgressBar from '@/components/onboarding/ProgressBar';
 import WelcomeStep from '@/components/onboarding/WelcomeStep';
-import BusinessInfoStep from '@/components/onboarding/BusinessInfoStep';
 import SaraConfigStep from '@/components/onboarding/SaraConfigStep';
 import KnowledgeBaseStep from '@/components/onboarding/KnowledgeBaseStep';
 import CompletionStep from '@/components/onboarding/CompletionStep';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function Onboarding() {
   const router = useRouter();
@@ -18,7 +15,6 @@ export default function Onboarding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const [businessData, setBusinessData] = useState(null);
   const [saraConfig, setSaraConfig] = useState(null);
   const [kbData, setKbData] = useState(null);
 
@@ -26,9 +22,8 @@ export default function Onboarding() {
     try {
       setLoading(true);
 
-      if (currentStep === 2) setBusinessData(stepData);
-      if (currentStep === 3) setSaraConfig(stepData);
-      if (currentStep === 4) setKbData(stepData);
+      if (currentStep === 2) setSaraConfig(stepData);
+      if (currentStep === 3) setKbData(stepData);
 
       setCurrentStep(currentStep + 1);
     } catch (err) {
@@ -52,7 +47,7 @@ export default function Onboarding() {
   return (
     <div className="min-h-screen bg-white py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <ProgressBar currentStep={currentStep} totalSteps={5} />
+        <ProgressBar currentStep={currentStep} totalSteps={4} />
 
         <div className="mt-8 bg-white border border-gray-200 rounded-lg p-8">
           {error && (
@@ -66,14 +61,6 @@ export default function Onboarding() {
           )}
 
           {currentStep === 2 && (
-            <BusinessInfoStep
-              onNext={handleNext}
-              onBack={handleBack}
-              loading={loading}
-            />
-          )}
-
-          {currentStep === 3 && (
             <SaraConfigStep
               sessionId={sessionId}
               onNext={handleNext}
@@ -82,7 +69,7 @@ export default function Onboarding() {
             />
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 3 && (
             <KnowledgeBaseStep
               sessionId={sessionId}
               onNext={handleNext}
@@ -91,8 +78,10 @@ export default function Onboarding() {
             />
           )}
 
-          {currentStep === 5 && (
+          {currentStep === 4 && (
             <CompletionStep
+              kbData={kbData}
+              saraConfig={saraConfig}
               onComplete={handleComplete}
               loading={loading}
             />

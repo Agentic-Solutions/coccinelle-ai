@@ -1,37 +1,41 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Calendar, 
-  DollarSign, 
-  Clock, 
+import {
+  Brain,
+  BarChart3,
+  TrendingUp,
+  Calendar,
+  DollarSign,
+  Clock,
   FileText,
   Phone,
   Download,
   ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
-import { 
-  LineChart, 
-  Line, 
-  BarChart, 
-  Bar, 
-  PieChart, 
-  Pie, 
-  AreaChart, 
+import Logo from '../../../src/components/Logo';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  AreaChart,
   Area,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
-  Cell 
+  Cell
 } from 'recharts';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { isDemoMode, mockCalls, mockAppointments, mockStats, mockDocuments } from '../../../lib/mockData';
+import AIInsightsPanel from '../../../src/components/dashboard/AIInsightsPanel';
 
 // Types
 interface Stats {
@@ -77,6 +81,7 @@ interface AgentPerformance {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function AnalyticsPage() {
+  const [activeTab, setActiveTab] = useState<'ai-insights' | 'analytics'>('analytics');
   const [period, setPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [loading, setLoading] = useState(true);
   
@@ -98,6 +103,11 @@ export default function AnalyticsPage() {
   const [topQuestions, setTopQuestions] = useState<TopQuestion[]>([]);
   const [agentPerformance, setAgentPerformance] = useState<AgentPerformance[]>([]);
 
+  // Données pour AI Insights
+  const [calls, setCalls] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+
   // Charger les données
   useEffect(() => {
     loadAnalytics();
@@ -106,7 +116,48 @@ export default function AnalyticsPage() {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      // Paralléliser les requêtes
+      // Mode démo - utiliser mockData
+      if (isDemoMode()) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simule délai réseau
+
+        const documentsData = { documents: mockDocuments };
+        const callsData = { calls: mockCalls };
+        const appointmentsData = { appointments: mockAppointments };
+        const vapiStats = mockStats;
+
+        // Store raw data for AI Insights
+        setCalls(callsData.calls || []);
+        setAppointments(appointmentsData.appointments || []);
+        setDocuments(documentsData.documents || []);
+
+        // Calculer les stats globales
+        const totalDocs = documentsData.documents?.length || 0;
+        const totalCalls = callsData.calls?.length || 0;
+        const totalAppts = appointmentsData.appointments?.length || 0;
+        const convRate = totalCalls > 0 ? (totalAppts / totalCalls) * 100 : 0;
+
+        setStats({
+          totalDocuments: totalDocs,
+          totalCalls: totalCalls,
+          totalAppointments: totalAppts,
+          conversionRate: parseFloat(vapiStats.conversion_rate) || convRate,
+          totalCost: parseFloat(vapiStats.total_cost_usd) || 0,
+          avgDuration: vapiStats.avg_duration_seconds || 0
+        });
+
+        // Traiter les données pour les graphiques
+        processCallsByDay(callsData.calls || []);
+        processAppointmentsByWeekday(appointmentsData.appointments || []);
+        processStatusDistribution(appointmentsData.appointments || []);
+        processCostData(callsData.calls || []);
+        processTopQuestions(callsData.calls || []);
+        processAgentPerformance(appointmentsData.appointments || []);
+
+        setLoading(false);
+        return;
+      }
+
+      // Mode production - fetch API
       const [documentsRes, callsRes, appointmentsRes, statsRes] = await Promise.all([
         fetch(`${API_URL}/api/v1/knowledge/documents`),
         fetch(`${API_URL}/api/v1/vapi/calls`),
@@ -114,15 +165,20 @@ export default function AnalyticsPage() {
         fetch(`${API_URL}/api/v1/vapi/stats`)
       ]);
 
-      const documents = await documentsRes.json();
-      const calls = await callsRes.json();
-      const appointments = await appointmentsRes.json();
+      const documentsData = await documentsRes.json();
+      const callsData = await callsRes.json();
+      const appointmentsData = await appointmentsRes.json();
       const vapiStats = await statsRes.json();
 
+      // Store raw data for AI Insights
+      setCalls(callsData.calls || []);
+      setAppointments(appointmentsData.appointments || []);
+      setDocuments(documentsData.documents || []);
+
       // Calculer les stats globales
-      const totalDocs = documents.documents?.length || 0;
-      const totalCalls = calls.calls?.length || 0;
-      const totalAppts = appointments.appointments?.length || 0;
+      const totalDocs = documentsData.documents?.length || 0;
+      const totalCalls = callsData.calls?.length || 0;
+      const totalAppts = appointmentsData.appointments?.length || 0;
       const convRate = totalCalls > 0 ? (totalAppts / totalCalls) * 100 : 0;
 
       setStats({
@@ -135,12 +191,12 @@ export default function AnalyticsPage() {
       });
 
       // Traiter les données pour les graphiques
-      processCallsByDay(calls.calls || []);
-      processAppointmentsByWeekday(appointments.appointments || []);
-      processStatusDistribution(appointments.appointments || []);
-      processCostData(calls.calls || []);
-      processTopQuestions(calls.calls || []);
-      processAgentPerformance(appointments.appointments || []);
+      processCallsByDay(callsData.calls || []);
+      processAppointmentsByWeekday(appointmentsData.appointments || []);
+      processStatusDistribution(appointmentsData.appointments || []);
+      processCostData(callsData.calls || []);
+      processTopQuestions(callsData.calls || []);
+      processAgentPerformance(appointmentsData.appointments || []);
 
     } catch (error) {
       console.error('Erreur chargement analytics:', error);
@@ -365,42 +421,89 @@ export default function AnalyticsPage() {
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="w-5 h-5" />
-              Dashboard
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
+            <Logo size={48} />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Filtres période */}
-            <div className="flex gap-2">
-              {(['7d', '30d', '90d', '1y'] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    period === p
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                  }`}
-                >
-                  {p === '7d' ? '7 jours' : p === '30d' ? '30 jours' : p === '90d' ? '90 jours' : '1 an'}
-                </button>
-              ))}
-            </div>
+            {/* Filtres période - uniquement pour onglet Analytics */}
+            {activeTab === 'analytics' && (
+              <div className="flex gap-2">
+                {(['7d', '30d', '90d', '1y'] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      period === p
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    {p === '7d' ? '7 jours' : p === '30d' ? '30 jours' : p === '90d' ? '90 jours' : '1 an'}
+                  </button>
+                ))}
+              </div>
+            )}
 
-            {/* Bouton Export */}
-            <button
-              onClick={exportPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Exporter PDF
-            </button>
+            {/* Bouton Export - uniquement pour onglet Analytics */}
+            {activeTab === 'analytics' && (
+              <button
+                onClick={exportPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Exporter PDF
+              </button>
+            )}
           </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {/* Onglets */}
+        <div className="flex gap-2 mb-8">
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'analytics'
+                ? 'bg-gray-900 text-white shadow-lg'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('ai-insights')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'ai-insights'
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+            }`}
+          >
+            <Brain className="w-5 h-5" />
+            AI Insights
+          </button>
+        </div>
+
+        {/* Contenu des onglets */}
+        {activeTab === 'ai-insights' && (
+          <div>
+            {!loading && (
+              <AIInsightsPanel
+                calls={calls}
+                appointments={appointments}
+                documents={documents}
+              />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'analytics' && (
+          <div>
+            {/* KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {/* Documents KB */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -601,6 +704,8 @@ export default function AnalyticsPage() {
             </div>
           </div>
         </div>
+          </div>
+        )}
       </div>
     </div>
   );

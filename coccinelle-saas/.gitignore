@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# SonarCloud
+.scannerwork/
+.sonar/
+
+# Cloudflare
+.wrangler/
+wrangler.toml
+
+# Documentation
+*.backup

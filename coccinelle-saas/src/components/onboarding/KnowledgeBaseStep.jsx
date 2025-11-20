@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Globe, Upload, MessageSquare, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Globe, Upload, MessageSquare, Loader2, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { getQuestionsForSector, generateDocumentsFromAnswers, calculateInitialScore } from '../../../lib/kb-assistant-questions';
+import { isDemoMode } from '../../../lib/mockData';
+import { buildApiUrl, getAuthHeaders, getCurrentTenantId, getTenantStorageKey } from '../../../lib/config';
+import { processLocalCrawl } from '../../../lib/crawl-processor';
 
 export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }) {
   const [selectedMethod, setSelectedMethod] = useState(null);
@@ -10,38 +14,94 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
 
+  // Assistant guidé states
+  const [assistantStep, setAssistantStep] = useState('intro'); // intro | questions | generating
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [questions, setQuestions] = useState([]);
+  const [generating, setGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState('');
+
+  // Warning modal state
+  const [showSkipWarning, setShowSkipWarning] = useState(false);
+
+  // Charger les questions quand l'assistant est sélectionné
+  useEffect(() => {
+    if (selectedMethod === 'assistant' && questions.length === 0) {
+      // Récupérer le secteur depuis localStorage (sauvegardé au signup)
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const sector = user.sector || 'default';
+      const sectorQuestions = getQuestionsForSector(sector);
+      setQuestions(sectorQuestions.questions);
+    }
+  }, [selectedMethod]);
+
   // Option 1 : Crawler site web
   const handleWebsiteCrawl = async () => {
     if (!websiteUrl) return;
-    
+
     setCrawling(true);
-    
+
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/crawl`,
+        buildApiUrl('/api/knowledge/crawl'),
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
-            url: websiteUrl,
-            max_pages: 50
+            startUrl: websiteUrl,
+            maxPages: 10,
+            maxDepth: 2,
+            tenantId: getCurrentTenantId()
           })
         }
       );
 
       const data = await response.json();
-      
+
       if (data.success) {
-        onNext({ method: 'website', url: websiteUrl, crawl_job_id: data.job_id });
+        // Filtrer les pages valides
+        const validPages = data.pages.filter((page) => page.content && page.content.trim().length > 20);
+
+        if (validPages.length === 0) {
+          alert('Aucun contenu valide trouvé sur ce site.');
+          setCrawling(false);
+          return;
+        }
+
+        // Traiter les pages pour créer des documents structurés
+        const structuredDocs = processLocalCrawl(validPages);
+
+        // Convertir en format de document avec IDs et dates
+        const finalDocs = structuredDocs.map((doc, index) => ({
+          id: `doc_crawl_${Date.now()}_${index}`,
+          title: doc.title,
+          content: doc.content,
+          category: doc.category,
+          created_at: new Date().toISOString(),
+          sourceType: 'crawl'
+        }));
+
+        // Sauvegarder dans localStorage
+        if (finalDocs.length > 0) {
+          const existingDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
+          localStorage.setItem(getTenantStorageKey('kb_documents'), JSON.stringify([...existingDocs, ...finalDocs]));
+        }
+
+        onNext({
+          method: 'website',
+          url: websiteUrl,
+          crawl_job_id: data.jobId,
+          documents_count: finalDocs.length,
+          pages_analyzed: validPages.length
+        });
       } else {
         alert('Erreur lors du crawl : ' + data.error);
         setCrawling(false);
       }
     } catch (error) {
-      alert('Erreur réseau');
+      console.error('Erreur crawl:', error);
+      alert('Erreur réseau. Vérifiez que votre URL est correcte.');
       setCrawling(false);
     }
   };
@@ -56,21 +116,22 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
 
   const handleContinueWithFiles = async () => {
     if (uploadedFiles.length === 0) return;
-    
+
     setUploading(true);
-    
+
     try {
       const formData = new FormData();
       uploadedFiles.forEach(file => {
         formData.append('files', file);
       });
 
+      const authToken = localStorage.getItem('auth_token');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents/upload`,
+        buildApiUrl('/api/v1/knowledge/documents/upload'),
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            'Authorization': `Bearer ${authToken}`
           },
           body: formData
         }
@@ -91,13 +152,136 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
   };
 
   // Option 3 : Assistant guidé
-  const handleAssistant = () => {
-    // Pour l'instant, on skip (sera implémenté plus tard)
-    onNext({ method: 'assistant', status: 'skipped' });
+  const handleStartAssistant = () => {
+    setAssistantStep('questions');
   };
 
-  // Skip
+  const handleAnswerChange = (questionId, value) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      // Toutes les questions répondues, générer les documents
+      handleGenerateDocuments();
+    }
+  };
+
+  const handlePreviousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  };
+
+  const handleGenerateDocuments = async () => {
+    setAssistantStep('generating');
+    setGenerating(true);
+
+    try {
+      // Récupérer infos utilisateur
+      setGenerationProgress('Analyse de vos réponses...');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const tenant = JSON.parse(localStorage.getItem('tenant') || '{}');
+      const companyName = tenant.company_name || user.company_name || 'Votre entreprise';
+      const sector = user.sector || 'default';
+
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Générer les documents
+      setGenerationProgress('Génération de documents structurés...');
+      const documents = generateDocumentsFromAnswers(sector, companyName, answers);
+
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Calculer score initial
+      const initialScore = calculateInitialScore(answers, questions);
+
+      // Mode démo : Sauvegarder dans localStorage
+      setGenerationProgress('Sauvegarde dans votre Knowledge Base...');
+      if (isDemoMode()) {
+        // Récupérer les documents existants ou créer un tableau vide
+        const existingDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
+
+        // Ajouter les nouveaux documents avec IDs et dates
+        const newDocs = documents.map((doc, index) => ({
+          id: `doc_assistant_${Date.now()}_${index}`,
+          title: doc.title,
+          content: doc.content,
+          created_at: new Date().toISOString(),
+          sourceType: 'assistant'
+        }));
+
+        // Sauvegarder dans localStorage
+        localStorage.setItem(getTenantStorageKey('kb_documents'), JSON.stringify([...existingDocs, ...newDocs]));
+
+        console.log('📚 Documents sauvegardés en localStorage (mode démo):', newDocs.length);
+      } else {
+        // Mode production : Envoyer à l'API
+        const authToken = localStorage.getItem('auth_token');
+
+        for (const doc of documents) {
+          try {
+            await fetch(
+              buildApiUrl('/api/v1/knowledge/documents'),
+              {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                  title: doc.title,
+                  content: doc.content,
+                  tenantId: tenant.id,
+                  sourceType: 'assistant'
+                })
+              }
+            );
+          } catch (error) {
+            console.error('Erreur upload document:', error);
+            // Continue même en cas d'erreur
+          }
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      // Message de succès
+      setGenerationProgress(`✓ ${documents.length} documents créés avec succès !`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Passer à l'étape suivante avec les résultats
+      onNext({
+        method: 'assistant',
+        status: 'completed',
+        documents_generated: documents.length,
+        initial_score: initialScore,
+        answers: answers
+      });
+
+    } catch (error) {
+      console.error('Erreur génération documents:', error);
+      alert('Erreur lors de la génération. Nous avons quand même enregistré vos réponses.');
+      onNext({
+        method: 'assistant',
+        status: 'partial',
+        answers: answers
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Skip - Affiche modal warning
   const handleSkip = () => {
+    setShowSkipWarning(true);
+  };
+
+  // Confirmation skip après warning
+  const confirmSkip = () => {
+    setShowSkipWarning(false);
     onNext({ method: 'skip' });
   };
 
@@ -296,39 +480,291 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
 
   // Vue Assistant
   if (selectedMethod === 'assistant') {
-    return (
-      <div>
-        <h2 className="text-2xl font-bold text-black mb-2">
-          Assistant guidé
-        </h2>
-        <p className="text-gray-600 mb-8">
-          Sara vous pose quelques questions essentielles.
-        </p>
-
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
-          <p className="text-gray-700 mb-4">Cette fonctionnalité sera disponible prochainement.</p>
-          <p className="text-sm text-gray-600">
-            En attendant, vous pouvez enrichir la base de connaissances depuis le dashboard.
+    // Intro - Présentation
+    if (assistantStep === 'intro') {
+      return (
+        <div>
+          <h2 className="text-2xl font-bold text-black mb-2">
+            Sara va vous poser quelques questions
+          </h2>
+          <p className="text-gray-600 mb-8">
+            En 3 minutes, Sara va construire automatiquement votre base de connaissances.
           </p>
-        </div>
 
-        <div className="flex gap-4">
-          <button
-            onClick={() => setSelectedMethod(null)}
-            className="px-6 py-2 border border-gray-300 text-black rounded-md hover:bg-gray-50 transition-colors"
-          >
-            ← Retour
-          </button>
-          <button
-            onClick={handleAssistant}
-            className="flex-1 px-6 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
-          >
-            Continuer →
-          </button>
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <MessageSquare className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-black mb-2">Comment ça marche ?</h3>
+                <ul className="space-y-2 text-sm text-gray-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 font-bold">1.</span>
+                    <span>Sara vous pose {questions.length} questions sur votre activité</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 font-bold">2.</span>
+                    <span>Vous répondez librement en quelques phrases</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 font-bold">3.</span>
+                    <span>Sara génère automatiquement 3-5 documents structurés</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 font-bold">4.</span>
+                    <span>Votre Knowledge Base est prête à l'emploi !</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={() => setSelectedMethod(null)}
+              className="px-6 py-2 border border-gray-300 text-black rounded-md hover:bg-gray-50 transition-colors"
+            >
+              ← Retour
+            </button>
+            <button
+              onClick={handleStartAssistant}
+              className="flex-1 px-6 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
+            >
+              Commencer →
+            </button>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    // Questions - Interface conversationnelle
+    if (assistantStep === 'questions' && questions.length > 0) {
+      const currentQuestion = questions[currentQuestionIndex];
+      const isLastQuestion = currentQuestionIndex === questions.length - 1;
+      const currentAnswer = answers[currentQuestion.id] || '';
+      const canContinue = currentQuestion.required ? currentAnswer.trim().length > 0 : true;
+
+      return (
+        <div>
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-black">
+                Question {currentQuestionIndex + 1} / {questions.length}
+              </h2>
+              <div className="text-sm text-gray-600">
+                {Math.round(((currentQuestionIndex + 1) / questions.length) * 100)}% complété
+              </div>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-black transition-all duration-300"
+                style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Message Sara */}
+          <div className="bg-gray-100 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">S</span>
+              </div>
+              <div className="flex-1">
+                <div className="font-medium text-black mb-1">Sara</div>
+                <p className="text-gray-900 mb-2">{currentQuestion.text}</p>
+                {currentQuestion.hint && (
+                  <p className="text-sm text-gray-600 italic">💡 {currentQuestion.hint}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Zone de réponse */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-black mb-2">
+              Votre réponse {currentQuestion.required && <span className="text-red-600">*</span>}
+            </label>
+            <textarea
+              value={currentAnswer}
+              onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+              placeholder={currentQuestion.placeholder}
+              rows={4}
+              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black resize-none"
+            />
+            {currentQuestion.required && !currentAnswer.trim() && (
+              <p className="text-sm text-red-600 mt-1">Cette question est obligatoire</p>
+            )}
+          </div>
+
+          {/* Questions précédentes répondues */}
+          {currentQuestionIndex > 0 && (
+            <details className="mb-6">
+              <summary className="text-sm text-blue-600 cursor-pointer hover:underline">
+                Voir mes réponses précédentes ({currentQuestionIndex})
+              </summary>
+              <div className="mt-3 space-y-3">
+                {questions.slice(0, currentQuestionIndex).map((q, idx) => (
+                  <div key={q.id} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{q.text}</p>
+                        <p className="text-sm text-gray-700 mt-1">{answers[q.id]}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Boutons navigation */}
+          <div className="flex gap-4">
+            <button
+              onClick={currentQuestionIndex === 0 ? () => setSelectedMethod(null) : handlePreviousQuestion}
+              className="px-6 py-2 border border-gray-300 text-black rounded-md hover:bg-gray-50 transition-colors"
+            >
+              ← {currentQuestionIndex === 0 ? 'Retour' : 'Précédent'}
+            </button>
+            <button
+              onClick={handleNextQuestion}
+              disabled={!canContinue}
+              className="flex-1 px-6 py-2 bg-black text-white rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            >
+              {isLastQuestion ? (
+                <>
+                  <Send className="w-4 h-4" />
+                  Générer ma Knowledge Base
+                </>
+              ) : (
+                <>
+                  Question suivante
+                  <Send className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Génération - Loader avec animation et progrès dynamique
+    if (assistantStep === 'generating') {
+      const isSuccess = generationProgress.includes('✓');
+
+      return (
+        <div className="text-center py-12">
+          <div className="mb-6">
+            {isSuccess ? (
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full">
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              </div>
+            ) : (
+              <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-black"></div>
+            )}
+          </div>
+          <h2 className="text-2xl font-bold text-black mb-3">
+            {isSuccess ? 'Knowledge Base créée !' : 'Sara génère votre Knowledge Base...'}
+          </h2>
+          <p className="text-gray-600 mb-8">
+            {isSuccess ? 'Redirection vers le récapitulatif' : 'Création automatique de vos documents en cours'}
+          </p>
+          <div className="max-w-md mx-auto">
+            <div className={`flex items-center gap-3 text-left p-4 rounded-lg ${
+              isSuccess ? 'bg-green-50 border border-green-200' : 'bg-purple-50 border border-purple-200'
+            }`}>
+              {!isSuccess && <Loader2 className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />}
+              <span className={`text-sm font-medium ${isSuccess ? 'text-green-900' : 'text-purple-900'}`}>
+                {generationProgress || 'Initialisation...'}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
   }
 
-  return null;
+  // Modal Warning Skip
+  return (
+    <>
+      {showSkipWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg max-w-md w-full mx-4 p-6 shadow-xl">
+            {/* Icon warning */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+            </div>
+
+            {/* Titre */}
+            <h3 className="text-xl font-bold text-center text-black mb-3">
+              Êtes-vous sûr de vouloir passer cette étape ?
+            </h3>
+
+            {/* Message warning */}
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-red-900 font-medium mb-3">
+                ⚠️ Sans Knowledge Base, Sara ne pourra pas :
+              </p>
+              <ul className="space-y-2 text-sm text-red-800">
+                <li className="flex items-start gap-2">
+                  <span className="text-red-600">✗</span>
+                  <span>Répondre aux questions sur vos services</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-red-600">✗</span>
+                  <span>Donner vos horaires d'ouverture</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-red-600">✗</span>
+                  <span>Qualifier correctement les prospects</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-red-600">✗</span>
+                  <span>Prendre des rendez-vous efficacement</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Incitation */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-blue-900">
+                <strong>💡 C'est rapide !</strong> Configurez votre KB en seulement <strong>2 minutes</strong> avec l'option "J'ai un site web".
+              </p>
+            </div>
+
+            {/* Info Auto-Builder */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-6">
+              <p className="text-sm text-purple-900">
+                <strong>🤖 Auto-Builder</strong> : Si vous passez maintenant, Sara utilisera l'Auto-Builder pour apprendre de vos premiers appels et construire sa KB automatiquement.
+              </p>
+            </div>
+
+            {/* Boutons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSkipWarning(false)}
+                className="flex-1 px-4 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+              >
+                ← Retour
+              </button>
+              <button
+                onClick={confirmSkip}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Passer (Auto-Builder)
+              </button>
+            </div>
+
+            {/* Note */}
+            <p className="text-xs text-center text-gray-500 mt-4">
+              L'Auto-Builder analysera vos appels pour détecter les lacunes et suggérer du contenu
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }

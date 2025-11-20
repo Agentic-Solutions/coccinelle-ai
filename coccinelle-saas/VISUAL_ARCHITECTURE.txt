@@ -1,0 +1,441 @@
+COCCINELLE.AI SAAS - APPLICATION ARCHITECTURE DIAGRAM
+
+================================================================================
+ENTRY POINTS & AUTHENTICATION FLOW
+================================================================================
+
+                                    ┌─────────────────┐
+                                    │  Landing Page   │
+                                    │   /index.tsx    │
+                                    └────────┬────────┘
+                                             │
+                    ┌────────────────────────┼────────────────────────┐
+                    │                        │                        │
+            ┌───────▼────────┐      ┌───────▼────────┐      ┌────────▼──────┐
+            │   Login Page    │      │  Signup Page   │      │ Public Book   │
+            │  /login/page    │      │ /signup/page   │      │/book/[tenant] │
+            └────────┬────────┘      └────────┬───────┘      └───────────────┘
+                     │                        │
+        ┌────────────┴────────┐               │
+        │                     │               │
+   ┌────▼──────┐        ┌────▼──────┐   ┌───▼──────────┐
+   │ localStorage       │ localStorage   │Onboarding    │
+   │ auth_token│       │ auth_token │   │ /onboarding/ │
+   │ + cookie  │       │ + cookie   │   │ 5-step flow  │
+   │           │       │            │   └───┬──────────┘
+   └────┬──────┘       └────┬───────┘       │
+        │                   │               │
+        └───────────┬───────┴───────────────┘
+                    │
+                    ▼
+            ┌──────────────────┐
+            │    Middleware    │
+            │  Token Validation│
+            └────────┬─────────┘
+                     │
+                     │ Valid Token
+                     ▼
+            ┌──────────────────┐
+            │  /dashboard/*    │
+            │  (Protected)     │
+            └──────────────────┘
+
+
+================================================================================
+DASHBOARD ARCHITECTURE
+================================================================================
+
+                          ┌─────────────────────────────┐
+                          │   /dashboard/page.tsx       │
+                          │   DASHBOARD HUB             │
+                          │   - Stats Cards (3)          │
+                          │   - Module Cards (7)         │
+                          │   - Live Updates             │
+                          │   - Notifications           │
+                          └────────────┬────────────────┘
+                                       │
+                ┌──────────────────────┼──────────────────────┐
+                │                      │                      │
+        ┌───────▼────────┐     ┌──────▼──────┐     ┌────────▼────────┐
+        │  Top-Right     │     │  Dashboard  │     │    Settings     │
+        │  Actions       │     │   Header    │     │   /dashboard/   │
+        │- Settings link │     │- Logo       │     │  settings/page  │
+        │- Notifications│     │- Live       │     │  (7-tab page)   │
+        │- Logout       │     │- Indicators │     └────────────────┘
+        └────────────────┘     └─────┬──────┘
+                                     │
+        ┌────────────────────────────┴────────────────────────┐
+        │                                                      │
+        │  DASHBOARD MODULE GRID (2 cols × 4 rows)            │
+        │                                                      │
+        │  ┌──────────────┐  ┌──────────────┐                │
+        │  │ Agent Vocal  │  │   Knowledge  │                │
+        │  │ /appels ───────► /knowledge ───────►  ┌─────┐   │
+        │  │              │  │              │      │ Auto│   │
+        │  └──────────────┘  └──────────────┘      │Buldr│   │
+        │  ┌──────────────┐  ┌──────────────┐      │+ RAG│   │
+        │  │ Rendez-vous  │  │ Properties   │      │Test│   │
+        │  │ /rdv ─────────► /properties ──────►  └─────┘   │
+        │  │              │  │              │                │
+        │  └──────────────┘  └──────────────┘                │
+        │  ┌──────────────┐  ┌──────────────┐                │
+        │  │  Analytics   │  │ Sara Config  │                │
+        │  │ /analytics ──────► /sara      │                │
+        │  │              │  │ (4-tabs)     │                │
+        │  └──────────────┘  └──────────────┘                │
+        │  ┌──────────────┐                                  │
+        │  │ Sara         │                                  │
+        │  │ Analytics    │                                  │
+        │  │ /sara-      │                                  │
+        │  │  analytics   │                                  │
+        │  │ (3-tabs)     │                                  │
+        │  └──────────────┘                                  │
+        └────────────────────────────────────────────────────┘
+
+
+================================================================================
+DETAILED MODULE VIEWS
+================================================================================
+
+MODULE 1: AGENT VOCAL (CALLS)
+┌─────────────────────────────────┐
+│ /dashboard/appels/page.tsx      │
+├─────────────────────────────────┤
+│ ├─ Stats Cards (4)              │
+│ │  ├─ Total Calls               │
+│ │  ├─ RDV Created               │
+│ │  ├─ Conversion Rate           │
+│ │  └─ Avg Duration              │
+│ ├─ Filters (8)                  │
+│ │  ├─ Status, Date, Duration    │
+│ │  └─ Cost, Prospect, RDV       │
+│ ├─ Table (Paginated, 20/page)   │
+│ │  ├─ Click Row ──► Details     │
+│ │  └─ Export Excel              │
+│ └─ Detail Page (callId)         │
+│    ├─ Call Info (8 fields)      │
+│    ├─ Summary                   │
+│    └─ Full Transcript           │
+└─────────────────────────────────┘
+
+MODULE 2: RENDEZ-VOUS (APPOINTMENTS)
+┌─────────────────────────────────┐
+│ /dashboard/rdv/page.tsx         │
+├─────────────────────────────────┤
+│ ├─ Stats Cards (4)              │
+│ │  ├─ Total RDV                 │
+│ │  ├─ Upcoming                  │
+│ │  ├─ Confirmed                 │
+│ │  └─ Attendance Rate           │
+│ ├─ Filters (4)                  │
+│ │  ├─ Status, Agent             │
+│ │  ├─ Date Period, Search       │
+│ │  └─ "+ New RDV" Modal         │
+│ ├─ Table (Paginated)            │
+│ │  ├─ Click Row ──► Details     │
+│ │  └─ Export Excel              │
+│ └─ Detail Page (appointmentId)  │
+│    ├─ Appointment Info          │
+│    ├─ Prospect Info             │
+│    ├─ Agent Info                │
+│    ├─ Notes                     │
+│    ├─ Edit Modal                │
+│    └─ Delete Button             │
+└─────────────────────────────────┘
+
+MODULE 3: KNOWLEDGE BASE
+┌─────────────────────────────────┐
+│ /dashboard/knowledge/page.tsx    │
+├─────────────────────────────────┤
+│ ├─ Tab 1: Auto-Builder          │
+│ │  └─ KnowledgeBuilder Component │
+│ │     (Auto-generates from data) │
+│ ├─ Tab 2: Upload Documents      │
+│ │  ├─ Mode: Crawl URL           │
+│ │  │  └─ URL input (3 pages max)│
+│ │  └─ Mode: Manual              │
+│ │     ├─ Title                  │
+│ │     └─ Content textarea       │
+│ └─ Tab 3: Test RAG              │
+│    ├─ Q&A testing              │
+│    ├─ Source attribution        │
+│    └─ History (3 recent)        │
+└─────────────────────────────────┘
+
+MODULE 4: PROPERTIES CATALOG
+┌─────────────────────────────────┐
+│ /dashboard/properties/page.tsx   │
+├─────────────────────────────────┤
+│ ├─ Stats Cards (6)              │
+│ │  ├─ Total, Available          │
+│ │  ├─ Under Offer, Sold         │
+│ │  ├─ Avg Price, IA Matches     │
+│ │  └─ All with color coding     │
+│ ├─ Filters                      │
+│ │  ├─ Search (title/location)   │
+│ │  ├─ Type (4 options)          │
+│ │  └─ Status (3 options)        │
+│ ├─ Grid View (3 columns)        │
+│ │  ├─ Property Cards            │
+│ │  ├─ Price, Specs (bed/bath)   │
+│ │  ├─ IA Matches badge          │
+│ │  └─ Actions: View/Edit/Delete │
+│ └─ + Add button                 │
+└─────────────────────────────────┘
+
+MODULE 5: ANALYTICS
+┌─────────────────────────────────┐
+│ /dashboard/analytics/page.tsx    │
+├─────────────────────────────────┤
+│ ├─ Tab 1: Analytics             │
+│ │  ├─ Period selector (7d-1y)   │
+│ │  ├─ 6 KPI Cards               │
+│ │  ├─ 4 Charts                  │
+│ │  │  ├─ Line (calls evolution) │
+│ │  │  ├─ Bar (RDV by weekday)   │
+│ │  │  ├─ Pie (status distrib)   │
+│ │  │  └─ Area (costs)           │
+│ │  ├─ Top 5 Questions           │
+│ │  ├─ Agent Performance         │
+│ │  ├─ ROI Section (3 metrics)   │
+│ │  └─ Export PDF button         │
+│ └─ Tab 2: AI Insights           │
+│    └─ AIInsightsPanel Component │
+└─────────────────────────────────┘
+
+MODULE 6: SARA CONFIGURATION
+┌─────────────────────────────────┐
+│ /dashboard/sara/page.tsx         │
+├─────────────────────────────────┤
+│ ├─ Stats (4 cards)              │
+│ │  ├─ Status, Calls today       │
+│ │  ├─ Qualification rate        │
+│ │  └─ Avg duration              │
+│ ├─ Tab 1: Voice & Audio         │
+│ │  ├─ Voice selector (4 options)│
+│ │  ├─ Speed slider              │
+│ │  ├─ Pitch slider              │
+│ │  └─ Test voice button         │
+│ ├─ Tab 2: Personality           │
+│ │  ├─ Tone selector             │
+│ │  ├─ Formality level           │
+│ │  └─ Enthusiasm slider         │
+│ ├─ Tab 3: Scripts               │
+│ │  ├─ Main script textarea      │
+│ │  └─ Template variables help   │
+│ ├─ Tab 4: Qualification         │
+│ │  └─ Checkboxes for criteria   │
+│ └─ Save button                  │
+└─────────────────────────────────┘
+
+MODULE 7: SARA ANALYTICS
+┌─────────────────────────────────┐
+│ /dashboard/sara-analytics/page   │
+├─────────────────────────────────┤
+│ ├─ Overall Score Display        │
+│ │  ├─ Score/100 with badge      │
+│ │  ├─ Circular visualization    │
+│ │  └─ 3 quick metrics           │
+│ ├─ Tab 1: Funnel                │
+│ │  └─ Call flow analysis        │
+│ ├─ Tab 2: Performance           │
+│ │  └─ Performance metrics       │
+│ ├─ Tab 3: Recommendations       │
+│ │  ├─ Insights list             │
+│ │  └─ Badge with count          │
+│ └─ Refresh button               │
+└─────────────────────────────────┘
+
+MODULE 8: SETTINGS
+┌─────────────────────────────────┐
+│ /dashboard/settings/page.tsx     │
+├─────────────────────────────────┤
+│ Left Sidebar                 │
+│ ├─ Disponibilités (1)        │ -> AvailabilitySettings
+│ ├─ Équipe (2)                │ -> TeamManagement
+│ ├─ Calendriers (3)           │ -> CalendarIntegration
+│ ├─ Profil (4)                │ -> ProfileForm
+│ ├─ Clés API (5)              │ -> APIKeysForm
+│ ├─ Notifications (6)         │ -> NotificationsSettings
+│ └─ Sécurité (7)              │ -> SecuritySettings
+│                              │
+│ Right Panel (Tab Content)    │
+│ └─ Component based on tab    │
+└─────────────────────────────┘
+
+
+================================================================================
+DATA FLOW & API INTEGRATION
+================================================================================
+
+CLIENT (Browser)                    SERVER (Backend)
+   │                                   │
+   ├─ POST /api/v1/auth/login ─────────► Validate credentials
+   │                        ◄────────── Return: token, user, tenant
+   │
+   ├─ Store in localStorage            ├─ Store in cookie
+   │  (auth_token, user, tenant)        │ (auth_token)
+   │
+   ├─ Request /dashboard
+   │  (middleware checks token)
+   │
+   ├─ GET /api/v1/vapi/calls ─────────► Database query
+   │                        ◄────────── Return: calls[]
+   │
+   ├─ GET /api/v1/vapi/stats ─────────► Database aggregation
+   │                        ◄────────── Return: stats object
+   │
+   ├─ GET /api/v1/appointments ───────► Database query
+   │                        ◄────────── Return: appointments[]
+   │
+   ├─ GET /api/v1/knowledge/documents ─► Database query
+   │                        ◄────────── Return: documents[]
+   │
+   ├─ POST /api/v1/knowledge/ask ─────► RAG processing
+   │                        ◄────────── Return: answer + sources
+   │
+   └─ Live Updates (5s polling)
+      ├─ Poll for new data
+      └─ Update UI with toast notifications
+
+
+================================================================================
+COMPONENT DEPENDENCY TREE
+================================================================================
+
+Dashboard Pages
+├── SmartAlerts (appels + rdv)
+├── NotificationCenter
+├── ToastNotification
+├── Callbacks from useLiveUpdates
+│
+Dashboard Modules
+├── CallFunnel (sara-analytics)
+├── CallPerformance (sara-analytics)
+├── CallInsights (sara-analytics)
+├── AIInsightsPanel (analytics)
+├── KnowledgeBuilder (knowledge)
+├── Logo (header in all pages)
+│
+Settings Components
+├── ProfileForm
+├── APIKeysForm
+├── NotificationsSettings
+├── SecuritySettings
+├── AvailabilitySettings
+├── TeamManagement
+├── CalendarIntegration
+└── Shared: AvailabilitySettings, etc.
+
+
+================================================================================
+AUTHENTICATION FLOW DETAILED
+================================================================================
+
+1. USER VISITS /
+   ↓
+2. LANDING PAGE (public)
+   ├─ "Sign Up" button → /signup
+   └─ "Login" button → /login
+   ↓
+3a. SIGNUP FLOW
+   │  ├─ POST /api/v1/auth/signup
+   │  ├─ Create user account
+   │  ├─ Create tenant
+   │  └─ Return token
+   │  ↓
+   │  TOKEN STORAGE
+   │  ├─ localStorage.setItem('auth_token')
+   │  ├─ localStorage.setItem('user')
+   │  ├─ localStorage.setItem('tenant')
+   │  └─ Cookies.set('auth_token', 7 days)
+   │  ↓
+   │  REDIRECT TO /onboarding
+   │
+3b. LOGIN FLOW
+   │  ├─ POST /api/v1/auth/login
+   │  ├─ Validate credentials
+   │  └─ Return token
+   │  ↓
+   │  TOKEN STORAGE (same as above)
+   │  ↓
+   │  REDIRECT TO /dashboard
+   │
+4. MIDDLEWARE PROTECTION
+   │  ├─ Check cookie auth_token
+   │  ├─ Decode JWT (no signature check)
+   │  ├─ Verify expiration (now < exp)
+   │  └─ Allow/Deny route access
+   │
+5. DASHBOARD ACCESS
+   └─ Protected routes require valid token
+      ├─ /dashboard/* (all sub-routes)
+      └─ /onboarding
+
+
+================================================================================
+STATE MANAGEMENT ARCHITECTURE
+================================================================================
+
+CLIENT-SIDE STATE (React Hooks)
+
+Global Page State
+├── useState(loading, error)
+├── useState(data)
+├── useState(filters)
+└── useState(pagination)
+
+Component State
+├── Form state (inputs, validation)
+├── Modal/Dropdown state (open/close)
+├── Tab state (active tab)
+└── Sorting state
+
+Custom Hooks
+├── useLiveUpdates()
+│  └─ Polls API, returns new data + notifications
+│
+├── useRouter()
+│  └─ Navigation between pages
+│
+└── useParams()
+   └─ Dynamic route params ([callId], [appointmentId], etc.)
+
+LOCAL STORAGE
+├── auth_token (JWT)
+├── user (JSON)
+└── tenant (JSON)
+
+COOKIES
+└── auth_token (7-day expiry, secure)
+
+
+================================================================================
+USER FLOWS SUMMARY
+================================================================================
+
+NEW USER JOURNEY:
+Landing (/) → Signup (/signup) → Onboarding (/onboarding) → Dashboard (/dashboard)
+                  │                    │                         │
+                  └─ Company info      └─ 5-step wizard          └─ 7 modules
+                  └─ Contact info      └─ Business details       └─ Real-time data
+                  └─ Password          └─ Sara setup             └─ Live updates
+                                       └─ KB setup               └─ Notifications
+
+EXISTING USER JOURNEY:
+Landing (/) → Login (/login) → Dashboard (/dashboard)
+                  │                 │
+                  └─ Email           └─ 7 modules
+                  └─ Password        └─ Real-time data
+                                     └─ Live updates
+                                     └─ Notifications
+
+PUBLIC BOOKING JOURNEY:
+External Link → Book Page (/book/[tenantId]) → Confirmation
+                    │
+                    ├─ Step 1: Date Selection
+                    ├─ Step 2: Time Selection
+                    ├─ Step 3: Service Selection (optional)
+                    ├─ Step 4: Contact Info
+                    └─ Step 5: Confirmation + Sara Callback
+

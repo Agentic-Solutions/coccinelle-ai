@@ -1,20 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  Users, 
-  CheckCircle2, 
-  Filter, 
+import Link from 'next/link';
+import {
+  Calendar,
+  Clock,
+  Users,
+  CheckCircle2,
+  Filter,
   Download,
   Plus,
   Search,
   ChevronLeft,
   ChevronRight,
-  User
+  User,
+  ArrowLeft,
+  Settings
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import Logo from '../../../src/components/Logo';
+import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '../../../lib/mockData';
 
 interface Appointment {
   id: string;
@@ -95,6 +100,37 @@ export default function RdvPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Mode démo - utiliser mockData
+      if (isDemoMode()) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simule délai réseau
+
+        setAppointments(mockAppointments);
+        const total = mockAppointments.length;
+        const upcoming = mockAppointments.filter((a: Appointment) =>
+          new Date(a.scheduled_at) >= new Date() && a.status === 'scheduled'
+        ).length;
+        const confirmed = mockAppointments.filter((a: Appointment) =>
+          a.status === 'confirmed'
+        ).length;
+        const completed = mockAppointments.filter((a: Appointment) =>
+          a.status === 'completed'
+        ).length;
+        const attendance = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        setStats({
+          total_appointments: total,
+          upcoming_appointments: upcoming,
+          confirmed_appointments: confirmed,
+          attendance_rate: attendance
+        });
+
+        setProspects(mockProspects);
+        setAgents(mockAgents);
+        setLoading(false);
+        return;
+      }
+
+      // Mode production - fetch API
       const rdvResponse = await fetch(`${API_URL}/api/v1/appointments`, {
         headers: { 'x-api-key': 'demo-key-12345' }
       });
@@ -102,13 +138,13 @@ export default function RdvPage() {
       setAppointments(rdvData.appointments || []);
 
       const total = rdvData.appointments?.length || 0;
-      const upcoming = rdvData.appointments?.filter((a: Appointment) => 
+      const upcoming = rdvData.appointments?.filter((a: Appointment) =>
         new Date(a.scheduled_at) >= new Date() && a.status === 'scheduled'
       ).length || 0;
-      const confirmed = rdvData.appointments?.filter((a: Appointment) => 
+      const confirmed = rdvData.appointments?.filter((a: Appointment) =>
         a.status === 'confirmed'
       ).length || 0;
-      const completed = rdvData.appointments?.filter((a: Appointment) => 
+      const completed = rdvData.appointments?.filter((a: Appointment) =>
         a.status === 'completed'
       ).length || 0;
       const attendance = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -224,7 +260,7 @@ export default function RdvPage() {
       });
 
       if (response.ok) {
-        alert('✅ Rendez-vous créé avec succès !');
+        alert('Rendez-vous créé avec succès !');
         setShowCreateModal(false);
         setNewAppointment({
           prospect_id: '',
@@ -235,11 +271,11 @@ export default function RdvPage() {
         });
         fetchData();
       } else {
-        alert('❌ Erreur lors de la création du rendez-vous');
+        alert('Erreur lors de la création du rendez-vous');
       }
     } catch (error) {
       console.error('Erreur création RDV:', error);
-      alert('❌ Erreur lors de la création du rendez-vous');
+      alert('Erreur lors de la création du rendez-vous');
     }
   };
 
@@ -289,19 +325,43 @@ export default function RdvPage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Rendez-vous</h1>
-          <p className="text-gray-600 mt-1">Gérez tous vos rendez-vous prospects</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-8 py-4">
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard">
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            </Link>
+            <Logo size={48} />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Rendez-vous</h1>
+              <p className="text-sm text-gray-600">Gérez tous vos rendez-vous prospects</p>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus size={20} />
-          Nouveau RDV
-        </button>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="mb-6 flex justify-between items-center">
+        <div></div>
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/rdv/settings">
+            <button className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-2">
+              <Settings size={20} />
+              Paramètres RDV
+            </button>
+          </Link>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
+          >
+            <Plus size={20} />
+            Nouveau RDV
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
@@ -428,7 +488,7 @@ export default function RdvPage() {
         </p>
         <button
           onClick={exportToExcel}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+          className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
         >
           <Download size={20} />
           Exporter Excel
@@ -541,6 +601,7 @@ export default function RdvPage() {
           </button>
         </div>
       )}
+      </div>
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
