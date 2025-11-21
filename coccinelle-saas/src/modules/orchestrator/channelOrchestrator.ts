@@ -204,150 +204,26 @@ export class ChannelOrchestrator {
     cost: number;
     deliveryTime: number;
   }> {
-    let score = 0;
-    const reasons: string[] = [];
-    let cost = 0;
-    let deliveryTime = 0;
+    const { calculateTotalScore } = await import('./channelScoringHelpers');
 
-    // 1. Préférences utilisateur (poids fort: +30)
-    if (context.preferences?.preferredChannels.includes(channel)) {
-      score += 30;
-      reasons.push('Preferred channel');
-    }
+    // Calculer le score total avec toutes les règles
+    const result = calculateTotalScore(channel, context, content);
 
-    // 2. Urgence du message
-    if (context.priority.level === 'urgent') {
-      if (channel === 'sms') {
-        score += 25;
-        reasons.push('SMS best for urgent messages (98% open rate)');
-        deliveryTime = 10; // 10 seconds
-      } else if (channel === 'whatsapp') {
-        score += 20;
-        reasons.push('WhatsApp good for urgent messages');
-        deliveryTime = 30;
-      } else if (channel === 'email') {
-        score += 5;
-        reasons.push('Email slower for urgent messages');
-        deliveryTime = 300; // 5 minutes
-      }
-    } else if (context.priority.level === 'normal') {
-      if (channel === 'email') {
-        score += 20;
-        reasons.push('Email ideal for normal priority');
-        deliveryTime = 60;
-      } else if (channel === 'sms') {
-        score += 15;
-        reasons.push('SMS works for normal priority');
-        deliveryTime = 10;
-      }
-    } else if (context.priority.level === 'low') {
-      if (channel === 'email') {
-        score += 25;
-        reasons.push('Email best for low priority (cost-effective)');
-        deliveryTime = 120;
-      }
-    }
-
-    // 3. Type de message
-    if (content.html || content.attachments) {
-      if (channel === 'email') {
-        score += 25;
-        reasons.push('Email supports rich content and attachments');
-      } else if (channel === 'whatsapp') {
-        score += 15;
-        reasons.push('WhatsApp supports rich media');
-      } else if (channel === 'sms') {
-        score -= 20;
-        reasons.push('SMS limited for rich content');
-      }
-    }
-
-    // 4. Longueur du message
-    const messageLength = content.body.length;
-    if (messageLength > 160) {
-      if (channel === 'email') {
-        score += 20;
-        reasons.push('Email better for long messages');
-      } else if (channel === 'sms') {
-        score -= 10;
-        reasons.push('SMS expensive for long messages');
-      }
-    }
-
-    // 5. Coût
-    switch (channel) {
-      case 'sms':
-        cost = 0.05; // ~5 centimes
-        if (context.priority.level === 'low') {
-          score -= 10;
-          reasons.push('SMS costly for low priority');
-        }
-        break;
-      case 'email':
-        cost = 0.0006; // ~0.06 centimes
-        score += 15;
-        reasons.push('Email very cost-effective');
-        break;
-      case 'whatsapp':
-        cost = 0.01; // ~1 centime
-        score += 10;
-        reasons.push('WhatsApp affordable');
-        break;
-      case 'telegram':
-        cost = 0; // Gratuit
-        score += 20;
-        reasons.push('Telegram free');
-        break;
-    }
-
-    // 6. Heures de silence
-    if (this.isQuietHours(context.preferences)) {
-      if (channel === 'sms' && !context.preferences?.allowSMSDuringQuietHours) {
-        score -= 30;
-        reasons.push('Quiet hours - SMS intrusive');
-      } else if (channel === 'email') {
-        score += 10;
-        reasons.push('Email respectful during quiet hours');
-      }
-    }
-
-    // 7. Type de message vs canal
-    if (context.messageType === 'appointment') {
-      if (channel === 'sms') {
-        score += 15;
-        reasons.push('SMS excellent for appointments');
-      }
-    } else if (context.messageType === 'marketing') {
-      if (channel === 'email') {
-        score += 20;
-        reasons.push('Email ideal for marketing');
-      } else if (channel === 'sms') {
-        score -= 15;
-        reasons.push('SMS intrusive for marketing');
-      }
-    } else if (context.messageType === 'notification') {
-      if (channel === 'sms' || channel === 'whatsapp') {
-        score += 15;
-        reasons.push('Instant channel good for notifications');
-      }
-    }
-
-    // 8. Disponibilité des coordonnées
+    // Vérifier la disponibilité des coordonnées (règle finale)
     const hasContact = this.hasContactInfo(channel, context);
     if (!hasContact) {
-      score = 0;
-      reasons.push('Contact info not available');
+      return {
+        channel,
+        score: 0,
+        reasons: ['Contact info not available'],
+        cost: result.cost,
+        deliveryTime: result.deliveryTime,
+      };
     }
-
-    // Normaliser le score entre 0 et 1
-    const normalizedScore = Math.max(0, Math.min(1, score / 100));
 
     return {
       channel,
-      score: normalizedScore,
-      reasons,
-      cost,
-      deliveryTime,
+      ...result,
     };
   }
 
@@ -479,31 +355,9 @@ export class ChannelOrchestrator {
   }
 
   /**
-   * Vérifier si on est en heures de silence
+   * Note: isQuietHours() a été déplacé vers channelScoringHelpers.ts
+   * Cette fonction est maintenant appelée depuis les helpers de scoring
    */
-  private isQuietHours(preferences?: ChannelPreferences): boolean {
-    if (!preferences?.quietHoursStart || !preferences?.quietHoursEnd) {
-      return false;
-    }
-
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTime = currentHour * 60 + currentMinute;
-
-    const [startHour, startMinute] = preferences.quietHoursStart.split(':').map(Number);
-    const [endHour, endMinute] = preferences.quietHoursEnd.split(':').map(Number);
-
-    const startTime = startHour * 60 + startMinute;
-    const endTime = endHour * 60 + endMinute;
-
-    // Gérer le cas où les heures de silence passent minuit
-    if (startTime > endTime) {
-      return currentTime >= startTime || currentTime <= endTime;
-    } else {
-      return currentTime >= startTime && currentTime <= endTime;
-    }
-  }
 
   /**
    * Vérifier si les coordonnées sont disponibles

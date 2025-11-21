@@ -43,65 +43,19 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
     setCrawling(true);
 
     try {
-      const response = await fetch(
-        buildApiUrl('/api/knowledge/crawl'),
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            startUrl: websiteUrl,
-            maxPages: 10,
-            maxDepth: 2,
-            tenantId: getCurrentTenantId()
-          })
-        }
-      );
+      const { crawlWebsiteForOnboarding } = await import('../../../lib/onboarding-kb-handlers');
+      const result = await crawlWebsiteForOnboarding(websiteUrl);
 
-      const data = await response.json();
-
-      if (data.success) {
-        // Filtrer les pages valides
-        const validPages = data.pages.filter((page) => page.content && page.content.trim().length > 20);
-
-        if (validPages.length === 0) {
-          alert('Aucun contenu valide trouvé sur ce site.');
-          setCrawling(false);
-          return;
-        }
-
-        // Traiter les pages pour créer des documents structurés
-        const structuredDocs = processLocalCrawl(validPages);
-
-        // Convertir en format de document avec IDs et dates
-        const finalDocs = structuredDocs.map((doc, index) => ({
-          id: `doc_crawl_${Date.now()}_${index}`,
-          title: doc.title,
-          content: doc.content,
-          category: doc.category,
-          created_at: new Date().toISOString(),
-          sourceType: 'crawl'
-        }));
-
-        // Sauvegarder dans localStorage
-        if (finalDocs.length > 0) {
-          const existingDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
-          localStorage.setItem(getTenantStorageKey('kb_documents'), JSON.stringify([...existingDocs, ...finalDocs]));
-        }
-
-        onNext({
-          method: 'website',
-          url: websiteUrl,
-          crawl_job_id: data.jobId,
-          documents_count: finalDocs.length,
-          pages_analyzed: validPages.length
-        });
-      } else {
-        alert('Erreur lors du crawl : ' + data.error);
-        setCrawling(false);
-      }
+      onNext({
+        method: 'website',
+        url: websiteUrl,
+        crawl_job_id: result.jobId,
+        documents_count: result.documentsCount,
+        pages_analyzed: result.pagesAnalyzed
+      });
     } catch (error) {
       console.error('Erreur crawl:', error);
-      alert('Erreur réseau. Vérifiez que votre URL est correcte.');
+      alert(error instanceof Error ? error.message : 'Erreur réseau. Vérifiez que votre URL est correcte.');
       setCrawling(false);
     }
   };
@@ -120,33 +74,12 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      uploadedFiles.forEach(file => {
-        formData.append('files', file);
-      });
+      const { uploadFilesForOnboarding } = await import('../../../lib/onboarding-kb-handlers');
+      const result = await uploadFilesForOnboarding(uploadedFiles);
 
-      const authToken = localStorage.getItem('auth_token');
-      const response = await fetch(
-        buildApiUrl('/api/v1/knowledge/documents/upload'),
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          },
-          body: formData
-        }
-      );
-
-      const data = await response.json();
-      
-      if (data.success) {
-        onNext({ method: 'upload', files_count: uploadedFiles.length });
-      } else {
-        alert('Erreur lors de l\'upload : ' + data.error);
-        setUploading(false);
-      }
+      onNext({ method: 'upload', files_count: result.filesCount });
     } catch (error) {
-      alert('Erreur réseau');
+      alert(error instanceof Error ? error.message : 'Erreur réseau');
       setUploading(false);
     }
   };
@@ -183,82 +116,21 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
     setGenerating(true);
 
     try {
-      // Récupérer infos utilisateur
-      setGenerationProgress('Analyse de vos réponses...');
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const tenant = JSON.parse(localStorage.getItem('tenant') || '{}');
-      const companyName = tenant.company_name || user.company_name || 'Votre entreprise';
-      const sector = user.sector || 'default';
+      const { generateDocumentsFromAssistant } = await import('../../../lib/onboarding-kb-handlers');
 
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Générer les documents
-      setGenerationProgress('Génération de documents structurés...');
-      const documents = generateDocumentsFromAnswers(sector, companyName, answers);
-
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Calculer score initial
-      const initialScore = calculateInitialScore(answers, questions);
-
-      // Mode démo : Sauvegarder dans localStorage
-      setGenerationProgress('Sauvegarde dans votre Knowledge Base...');
-      if (isDemoMode()) {
-        // Récupérer les documents existants ou créer un tableau vide
-        const existingDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
-
-        // Ajouter les nouveaux documents avec IDs et dates
-        const newDocs = documents.map((doc, index) => ({
-          id: `doc_assistant_${Date.now()}_${index}`,
-          title: doc.title,
-          content: doc.content,
-          created_at: new Date().toISOString(),
-          sourceType: 'assistant'
-        }));
-
-        // Sauvegarder dans localStorage
-        localStorage.setItem(getTenantStorageKey('kb_documents'), JSON.stringify([...existingDocs, ...newDocs]));
-
-        console.log('📚 Documents sauvegardés en localStorage (mode démo):', newDocs.length);
-      } else {
-        // Mode production : Envoyer à l'API
-        const authToken = localStorage.getItem('auth_token');
-
-        for (const doc of documents) {
-          try {
-            await fetch(
-              buildApiUrl('/api/v1/knowledge/documents'),
-              {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({
-                  title: doc.title,
-                  content: doc.content,
-                  tenantId: tenant.id,
-                  sourceType: 'assistant'
-                })
-              }
-            );
-          } catch (error) {
-            console.error('Erreur upload document:', error);
-            // Continue même en cas d'erreur
-          }
-        }
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 400));
-
-      // Message de succès
-      setGenerationProgress(`✓ ${documents.length} documents créés avec succès !`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const result = await generateDocumentsFromAssistant(
+        answers,
+        questions,
+        setGenerationProgress
+      );
 
       // Passer à l'étape suivante avec les résultats
       onNext({
         method: 'assistant',
         status: 'completed',
-        documents_generated: documents.length,
-        initial_score: initialScore,
-        answers: answers
+        documents_generated: result.documentsGenerated,
+        initial_score: result.initialScore,
+        answers: result.answers
       });
 
     } catch (error) {

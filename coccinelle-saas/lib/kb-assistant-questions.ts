@@ -322,37 +322,32 @@ export function generateDocumentsFromAnswers(
   companyName: string,
   answers: Record<string, string>
 ): Array<{ title: string; content: string }> {
-  const documents = [];
+  const documents: Array<{ title: string; content: string }> = [];
   const sectorInfo = getQuestionsForSector(sector);
+
+  // Import helpers
+  const {
+    createPresentationDocument,
+    createLocationDocument,
+    createPricingDocument,
+    createRealEstateDocument,
+    createHealthDocument,
+    createBeautyDocument,
+    createFitnessDocument,
+    createEducationDocument
+  } = require('./kb-assistant-helpers');
 
   // Document 1: Présentation générale
   const services = answers.services || answers.activities || answers.programs || answers.cuisine || '';
   if (services) {
-    documents.push({
-      title: `${companyName} - Présentation et services`,
-      content: `# ${companyName}
-
-## À propos de nous
-
-${companyName} est spécialisé dans le secteur ${sectorInfo.sector.toLowerCase()}.
-
-## Nos services
-
-${services}
-
-${answers.specificities ? `## Ce qui nous différencie\n\n${answers.specificities}\n` : ''}
-## Questions fréquentes
-
-**Puis-je vous contacter pour plus d'informations ?**
-Bien sûr ! N'hésitez pas à nous contacter pour toute question sur nos services.
-
-**Comment puis-je prendre rendez-vous ?**
-${answers.booking || answers.process || 'Contactez-nous par téléphone ou consultez nos horaires ci-dessous.'}
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
+    documents.push(createPresentationDocument(
+      companyName,
+      sectorInfo.sector,
+      services,
+      answers.specificities,
+      answers.booking,
+      answers.process
+    ));
   }
 
   // Document 2: Informations pratiques
@@ -360,218 +355,86 @@ ${answers.booking || answers.process || 'Contactez-nous par téléphone ou consu
   const hours = answers.hours || answers.schedule || '';
 
   if (location || hours) {
-    documents.push({
-      title: `${companyName} - Coordonnées et horaires`,
-      content: `# ${companyName} - Nous trouver
-
-${location ? `## 📍 Notre localisation\n\n${location}\n` : ''}
-${hours ? `## ⏰ Nos horaires\n\n${hours}\n` : ''}
-${answers.booking ? `## 📅 Prendre rendez-vous\n\n${answers.booking}\n` : ''}
-${answers.process ? `## 🤝 Premier contact\n\n${answers.process}\n\nNous sommes à votre écoute pour répondre à toutes vos questions et vous accompagner dans votre démarche.\n` : ''}
-## Questions pratiques
-
-**Êtes-vous facilement accessible ?**
-${location ? `Oui, nous sommes situés à ${location.split(',')[0] || 'une localisation pratique'}.` : 'Oui, nous sommes facilement accessibles.'}
-
-**Puis-je venir sans rendez-vous ?**
-${hours ? 'Consultez nos horaires ci-dessus. ' : ''}Nous recommandons de prendre rendez-vous pour un meilleur service.
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
+    documents.push(createLocationDocument(
+      companyName,
+      location,
+      hours,
+      answers.booking,
+      answers.process
+    ));
   }
 
-  // Document 3: Tarifs et offres (si disponible)
+  // Document 3: Tarifs et offres
   const pricing = answers.pricing || answers.subscriptions || answers.menu || '';
   if (pricing) {
-    documents.push({
-      title: `${companyName} - Tarifs et modalités`,
-      content: `# ${companyName} - Tarifs
-
-## 💰 Nos tarifs
-
-${pricing}
-
-${answers.trial ? `## 🎁 Offre spéciale\n\n${answers.trial}\n` : ''}
-${answers.insurance ? `## 💳 Modalités de paiement et remboursement\n\n${answers.insurance}\n` : ''}
-## Questions sur les tarifs
-
-**Les tarifs sont-ils négociables ?**
-Nos tarifs sont transparents et compétitifs. Contactez-nous pour discuter de vos besoins spécifiques.
-
-**Proposez-vous des forfaits ou abonnements ?**
-${answers.subscriptions || answers.pricing ? 'Consultez nos offres ci-dessus pour plus de détails.' : 'Contactez-nous pour découvrir nos formules adaptées à vos besoins.'}
-
-**Puis-je obtenir un devis personnalisé ?**
-Absolument ! N'hésitez pas à nous contacter pour une étude gratuite et sans engagement.
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
+    documents.push(createPricingDocument(
+      companyName,
+      pricing,
+      answers.trial,
+      answers.insurance,
+      answers.subscriptions
+    ));
   }
 
-  // Document 4: Spécificités secteur
-
-  // Immobilier
-  if (sector === 'real_estate' && (answers.services || answers.zone)) {
-    documents.push({
-      title: `${companyName} - Guide acheteur et vendeur`,
-      content: `# ${companyName} - Guide complet immobilier
-
-## 🏡 Types de biens et services
-
-${answers.services || 'Nous proposons une large gamme de biens immobiliers.'}
-
-${answers.zone ? `## 📍 Zone d'intervention\n\n${answers.zone}\n` : ''}
-
-## Questions fréquentes immobilier
-
-**Comment organiser une visite ?**
-${answers.process || 'Contactez-nous par téléphone ou via notre formulaire. Nous organiserons une visite selon vos disponibilités.'}
-
-**Proposez-vous un accompagnement pour les démarches ?**
-Oui, nous vous accompagnons de A à Z : recherche, visites, négociation, dossier de financement, signature chez le notaire.
-
-**Puis-je vendre et acheter en même temps ?**
-Absolument ! Nous coordonnons les deux opérations pour sécuriser votre projet immobilier.
-
-**Vos biens sont-ils à jour ?**
-${answers.specificities && answers.specificities.toLowerCase().includes('exclusivité') ? 'Nous disposons de biens en exclusivité, mis à jour quotidiennement.' : 'Notre catalogue est actualisé quotidiennement avec les dernières opportunités du marché.'}
-
-**Faites-vous des estimations gratuites ?**
-Oui, nous réalisons des estimations gratuites et sans engagement pour votre bien immobilier.
-
-**Quels quartiers couvrez-vous ?**
-${answers.zone ? `Nous intervenons principalement sur ${answers.zone.split(',')[0]}.` : 'Contactez-nous pour connaître notre zone d\'intervention précise.'}
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
-  }
-
-  // Santé
-  if (sector === 'health' && answers.urgencies) {
-    documents.push({
-      title: `${companyName} - Urgences et consultations`,
-      content: `# ${companyName} - Urgences et consultations rapides
-
-## 🚨 Gestion des urgences
-
-${answers.urgencies}
-
-## Questions urgentes
-
-**Comment contacter en cas d'urgence ?**
-En cas d'urgence, veuillez nous contacter directement par téléphone. Un professionnel de santé vous répondra rapidement.
-
-**Les urgences sont-elles prises en charge immédiatement ?**
-${answers.urgencies.toLowerCase().includes('urgent') || answers.urgencies.toLowerCase().includes('rapide') ? 'Oui, nous disposons de créneaux réservés aux urgences.' : 'Nous faisons notre possible pour vous recevoir dans les meilleurs délais. Appelez-nous pour évaluer votre situation.'}
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
-  }
-
-  // Beauté & Bien-être
-  if (sector === 'beauty' && answers.services) {
-    documents.push({
-      title: `${companyName} - Nos soins et prestations`,
-      content: `# ${companyName} - Carte des soins
-
-## 💅 Nos prestations
-
-${answers.services}
-
-${answers.pricing ? `## 💰 Forfaits et tarifs\n\n${answers.pricing}\n` : ''}
-
-## Questions beauté
-
-**Dois-je prendre rendez-vous obligatoirement ?**
-${answers.booking || 'Nous recommandons de prendre rendez-vous pour garantir votre créneau, mais nous acceptons aussi les clients sans RDV selon nos disponibilités.'}
-
-**Utilisez-vous des produits bio/naturels ?**
-Nous sélectionnons des produits de qualité professionnelle. N'hésitez pas à nous faire part de vos préférences lors de la prise de RDV.
-
-**Proposez-vous des forfaits ou cartes de fidélité ?**
-${answers.pricing && answers.pricing.toLowerCase().includes('forfait') ? 'Oui, consultez nos forfaits ci-dessus.' : 'Contactez-nous pour découvrir nos offres et programmes de fidélité.'}
-
-**Puis-je offrir un soin en carte cadeau ?**
-Oui, nous proposons des cartes cadeaux pour tous nos soins, valables 1 an.
-
-**Combien de temps dure un soin ?**
-La durée varie selon la prestation (30min à 2h). Nous vous précisons la durée lors de la réservation.
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
-  }
-
-  // Fitness & Sport
-  if (sector === 'fitness' && answers.activities) {
-    documents.push({
-      title: `${companyName} - Activités et abonnements`,
-      content: `# ${companyName} - Programme sportif
-
-## 💪 Nos activités
-
-${answers.activities}
-
-${answers.subscriptions ? `## 🎟️ Formules d'abonnement\n\n${answers.subscriptions}\n` : ''}
-
-## Questions fitness
-
-**Proposez-vous un cours d'essai gratuit ?**
-${answers.trial || 'Oui, venez tester nos installations et cours gratuitement lors d\'une séance découverte !'}
-
-**Puis-je venir sans abonnement ?**
-${answers.subscriptions && answers.subscriptions.toLowerCase().includes('carte') ? 'Oui, nous proposons des cartes à l\'unité en plus des abonnements.' : 'Nous proposons à la fois des abonnements et des entrées à l\'unité.'}
-
-**Y a-t-il un coach pour m'accompagner ?**
-Oui, nos coachs diplômés sont disponibles pour vous conseiller et créer des programmes personnalisés.
-
-**Dois-je apporter mon matériel ?**
-${answers.equipment || 'Non, tout le matériel nécessaire est fourni sur place. Prévoyez simplement votre tenue de sport et votre serviette.'}
-
-**Quels sont les horaires d'affluence ?**
-En général, 12h-14h et 18h-20h sont les créneaux les plus fréquentés. Pour plus de tranquillité, privilégiez les matinées ou milieu d'après-midi.
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
-  }
-
-  // Education
-  if (sector === 'education' && answers.levels) {
-    documents.push({
-      title: `${companyName} - Programmes et niveaux`,
-      content: `# ${companyName} - Nos programmes de formation
-
-## 📚 Niveaux proposés
-
-${answers.levels}
-
-${answers.format ? `## 🎓 Format des cours\n\n${answers.format}\n` : ''}
-## Questions pédagogiques
-
-**Quel niveau dois-je avoir pour commencer ?**
-Nos formations s'adaptent à tous les niveaux mentionnés ci-dessus. Un test de positionnement peut être proposé.
-
-**Les cours sont-ils personnalisés ?**
-${answers.format && answers.format.toLowerCase().includes('personnalisé') ? 'Oui, nos cours sont personnalisés selon vos besoins.' : 'Nous adaptons notre pédagogie à chaque élève pour un apprentissage optimal.'}
-
----
-
-*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*`
-    });
-  }
+  // Document 4: Spécificités par secteur
+  addSectorSpecificDocuments(sector, companyName, answers, documents);
 
   return documents;
+}
+
+function addSectorSpecificDocuments(
+  sector: string,
+  companyName: string,
+  answers: Record<string, string>,
+  documents: Array<{ title: string; content: string }>
+) {
+  const {
+    createRealEstateDocument,
+    createHealthDocument,
+    createBeautyDocument,
+    createFitnessDocument,
+    createEducationDocument
+  } = require('./kb-assistant-helpers');
+
+  if (sector === 'real_estate' && (answers.services || answers.zone)) {
+    documents.push(createRealEstateDocument(
+      companyName,
+      answers.services,
+      answers.zone,
+      answers.process,
+      answers.specificities
+    ));
+  }
+
+  if (sector === 'health' && answers.urgencies) {
+    documents.push(createHealthDocument(companyName, answers.urgencies));
+  }
+
+  if (sector === 'beauty' && answers.services) {
+    documents.push(createBeautyDocument(
+      companyName,
+      answers.services,
+      answers.pricing,
+      answers.booking
+    ));
+  }
+
+  if (sector === 'fitness' && answers.activities) {
+    documents.push(createFitnessDocument(
+      companyName,
+      answers.activities,
+      answers.subscriptions,
+      answers.trial
+    ));
+  }
+
+  if (sector === 'education' && answers.levels) {
+    documents.push(createEducationDocument(
+      companyName,
+      answers.levels,
+      answers.format
+    ));
+  }
 }
 
 /**

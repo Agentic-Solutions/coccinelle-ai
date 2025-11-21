@@ -1,12 +1,6 @@
 // Utilitaire pour accéder à la base de données D1 depuis les API Routes
-export function getDB() {
-  // En développement local, on simule
-  // En production, Cloudflare Workers fournira la vraie DB
-  if (process.env.NODE_ENV === 'development') {
-    return null; // On gérera ça après
-  }
-  return null;
-}
+// Note: getDB() a été supprimée car inutilisée. En mode démo, on utilise localStorage.
+// En production, on utilisera queryDB() pour appeler l'API Cloudflare.
 
 // Pour les API Routes Next.js, on doit appeler l'API Cloudflare
 export async function queryDB(query: string, params: any[] = []) {

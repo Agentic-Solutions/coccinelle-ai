@@ -53,48 +53,9 @@ export default function KnowledgePage() {
   }, []);
 
   const loadData = async () => {
-    console.log('🔄 loadData() appelé');
     try {
-      if (isDemoMode()) {
-        console.log('📍 Mode démo activé');
-        // Migrer les anciens documents vers le tenant actuel si nécessaire
-        migrateOldDocuments();
-
-        // Mode démo - Charger documents depuis localStorage ou fallback vers mockDocuments
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const storageKey = getTenantStorageKey('kb_documents');
-        console.log('🔑 Lecture depuis:', storageKey);
-
-        const kbDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        console.log('📚 Documents chargés depuis localStorage:', kbDocs.length);
-
-        const docsToUse = kbDocs.length > 0 ? kbDocs : mockDocuments;
-        console.log('📚 Documents à afficher:', docsToUse.length);
-
-        setDocuments(docsToUse);
-        console.log('✅ setDocuments() appelé avec', docsToUse.length, 'documents');
-
-        setCalls(mockCalls);
-        setAppointments(mockAppointments);
-        setDataLoading(false);
-        return;
-      }
-
-      // Mode production
-      const [docsRes, callsRes, apptsRes] = await Promise.all([
-        fetch(buildApiUrl('/api/v1/knowledge/documents')),
-        fetch(buildApiUrl('/api/v1/vapi/calls')),
-        fetch(buildApiUrl('/api/v1/appointments'))
-      ]);
-
-      const docsData = await docsRes.json();
-      const callsData = await callsRes.json();
-      const apptsData = await apptsRes.json();
-
-      setDocuments(docsData.documents || []);
-      setCalls(callsData.calls || []);
-      setAppointments(apptsData.appointments || []);
+      const { loadKnowledgeData } = await import('../../../lib/knowledge-handlers');
+      await loadKnowledgeData(setDocuments, setCalls, setAppointments);
     } catch (error) {
       console.error('Erreur chargement données:', error);
     } finally {
@@ -102,10 +63,9 @@ export default function KnowledgePage() {
     }
   };
 
-  const handleDeleteDocument = (docId: string) => {
-    const existingDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
-    const updatedDocs = existingDocs.filter((doc: any) => doc.id !== docId);
-    localStorage.setItem(getTenantStorageKey('kb_documents'), JSON.stringify(updatedDocs));
+  const handleDeleteDocument = async (docId: string) => {
+    const { deleteDocument } = await import('../../../lib/knowledge-handlers');
+    deleteDocument(docId);
     loadData();
   };
 
@@ -128,34 +88,12 @@ export default function KnowledgePage() {
     setDataLoading(true);
 
     try {
-      const response = await fetch(buildApiUrl('/api/knowledge/structure-ai'), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          documents: documents,
-          tenantId: getCurrentTenantId()
-        })
-      });
+      const { structureWithAI } = await import('../../../lib/knowledge-handlers');
+      const data = await structureWithAI(documents);
 
-      if (!response.ok) {
-        throw new Error(`Erreur API ${response.status}`);
-      }
+      alert(`✅ Succès !\n\n${data.structuredDocuments.length} document(s) structuré(s) créé(s) depuis ${data.originalCount} page(s).\n\nVous pouvez maintenant voir vos informations business organisées par catégorie !`);
 
-      const data = await response.json();
-
-      if (data.success && data.structuredDocuments) {
-        // Ajouter les nouveaux documents structurés
-        const storageKey = getTenantStorageKey('kb_documents');
-        const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        const updatedDocs = [...existingDocs, ...data.structuredDocuments];
-        localStorage.setItem(storageKey, JSON.stringify(updatedDocs));
-
-        alert(`✅ Succès !\n\n${data.structuredDocuments.length} document(s) structuré(s) créé(s) depuis ${data.originalCount} page(s).\n\nVous pouvez maintenant voir vos informations business organisées par catégorie !`);
-
-        await loadData();
-      } else {
-        throw new Error(data.error || 'Erreur inconnue');
-      }
+      await loadData();
     } catch (error) {
       console.error('❌ Erreur structuration:', error);
       alert(`❌ Erreur lors de la structuration:\n${error instanceof Error ? error.message : 'Erreur inconnue'}`);
@@ -164,157 +102,49 @@ export default function KnowledgePage() {
     }
   };
 
-  const handleAddInformation = (category: string, data: any) => {
-    const timestamp = Date.now();
-    let content = '';
-    let title = '';
-
-    // Formater le contenu selon la catégorie
-    if (category === 'contact') {
-      title = `Contact - ${data.type || 'Information'}`;
-      content = `# ${data.type || 'Contact'}\n\n**${data.type}**: ${data.value}\n\n`;
-    } else if (category === 'schedule') {
-      title = `Horaires - ${data.day || 'Jour'}`;
-      content = `# Horaires\n\n**${data.day}**: ${data.hours}\n\n`;
-    } else if (category === 'services') {
-      title = `Service`;
-      content = `# Services\n\n- ${data.service}\n`;
-    } else if (category === 'about') {
-      title = `À propos`;
-      content = `# À propos\n\n${data.description}\n\n`;
-    }
-
-    // Créer le nouveau document
-    const newDoc = {
-      id: `doc_manual_${timestamp}`,
-      title,
-      content,
-      category,
-      sourceType: 'manual',
-      created_at: new Date().toISOString()
-    };
-
-    // Sauvegarder dans localStorage
-    const storageKey = getTenantStorageKey('kb_documents');
-    const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    const updatedDocs = [...existingDocs, newDoc];
-    localStorage.setItem(storageKey, JSON.stringify(updatedDocs));
-
-    // Recharger les données
+  const handleAddInformation = async (category: string, data: any) => {
+    const { saveManualInformation } = await import('../../../lib/knowledge-handlers');
+    saveManualInformation(category, data);
     loadData();
-
-    // Confirmation
     alert(`✅ Information ajoutée avec succès !`);
   };
 
   const handleCrawl = async () => {
     if (!url.trim()) return;
+
     setUploadLoading(true);
-    setUploadStatus({
-      type: 'success',
-      message: '🔍 Exploration du site en cours...'
-    });
+    setUploadStatus({ type: 'success', message: '🔍 Exploration du site en cours...' });
     setCrawlProgress({ status: 'crawling', pages: [], currentPage: 0, totalPages: 0 });
 
     try {
-      const response = await fetch(buildApiUrl('/api/knowledge/crawl'), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ startUrl: url, tenantId: getCurrentTenantId(), maxPages, maxDepth })
+      const { crawlWebsite, saveCrawledPages } = await import('../../../lib/knowledge-handlers');
+
+      const validPages = await crawlWebsite(url, maxPages, maxDepth);
+
+      setUploadStatus({
+        type: 'success',
+        message: `📊 ${validPages.length} pages analysées. Structuration en cours...`
       });
 
-      if (!response.ok) {
-        throw new Error(`Erreur API ${response.status}`);
-      }
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      const data = await response.json();
+      const finalDocs = saveCrawledPages(validPages);
+      console.log('🔄 Données rechargées');
 
-      if (data.success && data.pages) {
-        const validPages = data.pages.filter((page: any) => page.content && page.content.trim().length > 20);
+      setUploadStatus({
+        type: 'success',
+        message: `✅ ${finalDocs.length} document(s) créé(s) depuis ${validPages.length} pages`
+      });
+      setUrl('');
+      setCrawlProgress({ status: 'done', pages: [], currentPage: 0, totalPages: 0 });
 
-        if (validPages.length === 0) {
-          setUploadStatus({
-            type: 'error',
-            message: 'Aucun contenu valide trouvé. Vérifiez que le site est accessible.'
-          });
-          setCrawlProgress({ status: 'idle', pages: [], currentPage: 0, totalPages: 0 });
-          setUploadLoading(false);
-          return;
-        }
+      await loadData();
+      setActiveTab('builder');
 
-        // Structurer automatiquement au lieu de passer en mode preview
-        setUploadStatus({
-          type: 'success',
-          message: `📊 ${validPages.length} pages analysées. Structuration en cours...`
-        });
-
-        // Simuler un court délai pour afficher le message
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Traiter les pages pour créer des documents structurés
-        console.log('🔄 Début du traitement de', validPages.length, 'pages');
-        const structuredDocs = processLocalCrawl(validPages);
-        console.log('📚 processLocalCrawl retourné:', structuredDocs.length, 'documents');
-
-        if (structuredDocs.length === 0) {
-          console.warn('⚠️ Aucun document structuré créé!');
-          setUploadStatus({
-            type: 'error',
-            message: 'Aucun contenu structuré trouvé. Les pages ne contiennent peut-être pas assez d\'informations.'
-          });
-          setCrawlProgress({ status: 'idle', pages: [], currentPage: 0, totalPages: 0 });
-          setUploadLoading(false);
-          return;
-        }
-
-        // Convertir en format de document
-        const finalDocs = structuredDocs.map((doc: any, index: number) => ({
-          id: `doc_crawl_${Date.now()}_${index}`,
-          title: doc.title,
-          content: doc.content,
-          category: doc.category,
-          created_at: new Date().toISOString(),
-          sourceType: 'crawl'
-        }));
-
-        console.log('📚 Documents finaux créés:', finalDocs);
-
-        const storageKey = getTenantStorageKey('kb_documents');
-        console.log('🔑 Clé localStorage:', storageKey);
-
-        const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        console.log('📦 Documents existants:', existingDocs.length);
-
-        const allDocs = [...existingDocs, ...finalDocs];
-        console.log('📦 Total de documents à sauvegarder:', allDocs.length);
-
-        localStorage.setItem(storageKey, JSON.stringify(allDocs));
-        console.log('💾 Documents sauvegardés dans localStorage');
-
-        // Vérification immédiate
-        const verification = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        console.log('✅ Vérification - documents dans localStorage:', verification.length);
-
-        setUploadStatus({
-          type: 'success',
-          message: `✅ ${finalDocs.length} document(s) créé(s) depuis ${validPages.length} pages`
-        });
-        setUrl('');
-        setCrawlProgress({ status: 'done', pages: [], currentPage: 0, totalPages: 0 });
-
-        // Recharger les données immédiatement
-        await loadData();
-        console.log('🔄 Données rechargées');
-
-        // Basculer vers l'onglet Auto-Builder pour voir les documents
-        setActiveTab('builder');
-
-        // Reset après 4 secondes
-        setTimeout(() => {
-          setCrawlProgress({ status: 'idle', pages: [], currentPage: 0, totalPages: 0 });
-          setUploadStatus(null);
-        }, 4000);
-      }
+      setTimeout(() => {
+        setCrawlProgress({ status: 'idle', pages: [], currentPage: 0, totalPages: 0 });
+        setUploadStatus(null);
+      }, 4000);
     } catch (error) {
       console.error('❌ Erreur crawl:', error);
       setUploadStatus({
@@ -401,48 +231,18 @@ export default function KnowledgePage() {
 
   const handleManualUpload = async () => {
     if (!title.trim() || !content.trim()) return;
+
     setUploadLoading(true);
     setUploadStatus(null);
 
     try {
-      // Mode démo : Sauvegarder localement
-      if (isDemoMode()) {
-        console.log('📦 Mode démo - Sauvegarde locale du document');
+      const { uploadManualDocument } = await import('../../../lib/knowledge-handlers');
+      await uploadManualDocument(title, content);
 
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const newDoc = {
-          id: `doc_manual_${Date.now()}`,
-          title: title,
-          content: content,
-          created_at: new Date().toISOString(),
-          sourceType: 'manual'
-        };
-
-        const existingDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
-        localStorage.setItem(getTenantStorageKey('kb_documents'), JSON.stringify([...existingDocs, newDoc]));
-
-        console.log('✅ Document sauvegardé localement');
-        setUploadStatus({ type: 'success', message: 'Document ajouté avec succès !' });
-        setTitle('');
-        setContent('');
-
-        // Recharger les données
-        await loadData();
-        return;
-      }
-
-      // Mode production : Appel API
-      const response = await fetch(buildApiUrl('/api/v1/knowledge/documents'), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ title, content, tenantId: getCurrentTenantId(), sourceType: 'manual' })
-      });
-
-      if (!response.ok) throw new Error('Erreur ajout');
       setUploadStatus({ type: 'success', message: 'Document ajouté avec succès !' });
       setTitle('');
       setContent('');
+      await loadData();
     } catch (error) {
       setUploadStatus({ type: 'error', message: 'Erreur lors de l\'ajout' });
     } finally {
@@ -452,67 +252,24 @@ export default function KnowledgePage() {
 
   const handleGoogleImport = async () => {
     if (!url.trim()) return;
+
     setUploadLoading(true);
-    setUploadStatus({
-      type: 'success',
-      message: '📍 Import depuis Google en cours...'
-    });
+    setUploadStatus({ type: 'success', message: '📍 Import depuis Google en cours...' });
 
     try {
-      console.log('📍 Import Google Business:', url);
+      const { importFromGoogle } = await import('../../../lib/knowledge-handlers');
+      const { documents, businessData } = await importFromGoogle(url);
 
-      const response = await fetch(buildApiUrl('/api/knowledge/import-google'), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ url, tenantId: getCurrentTenantId() })
+      setUploadStatus({
+        type: 'success',
+        message: `✅ ${documents.length} document(s) importé(s) depuis ${businessData?.name || 'Google'}`
       });
+      setUrl('');
 
-      if (!response.ok) {
-        throw new Error(`Erreur API ${response.status}`);
-      }
+      await loadData();
+      setActiveTab('builder');
 
-      const data = await response.json();
-
-      if (data.success && data.documents) {
-        console.log('✅ Données Google extraites:', data.businessData?.name);
-        console.log('📚 Documents créés:', data.documents.length);
-
-        // Convertir en format de document et sauvegarder
-        const finalDocs = data.documents.map((doc: any, index: number) => ({
-          id: `doc_google_${Date.now()}_${index}`,
-          title: doc.title,
-          content: doc.content,
-          category: doc.category,
-          created_at: new Date().toISOString(),
-          sourceType: 'google'
-        }));
-
-        const storageKey = getTenantStorageKey('kb_documents');
-        const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        const allDocs = [...existingDocs, ...finalDocs];
-        localStorage.setItem(storageKey, JSON.stringify(allDocs));
-
-        console.log('💾 Documents Google sauvegardés');
-
-        setUploadStatus({
-          type: 'success',
-          message: `✅ ${finalDocs.length} document(s) importé(s) depuis ${data.businessData?.name || 'Google'}`
-        });
-        setUrl('');
-
-        // Recharger les données
-        await loadData();
-
-        // Basculer vers l'onglet Auto-Builder
-        setActiveTab('builder');
-
-        // Reset après 3 secondes
-        setTimeout(() => {
-          setUploadStatus(null);
-        }, 3000);
-      } else {
-        throw new Error(data.error || 'Erreur d\'import');
-      }
+      setTimeout(() => setUploadStatus(null), 3000);
     } catch (error) {
       console.error('❌ Erreur import Google:', error);
       setUploadStatus({
@@ -576,44 +333,22 @@ export default function KnowledgePage() {
 
   const handleAsk = async () => {
     if (!question.trim()) return;
+
     setTestLoading(true);
     const currentQuestion = question;
     setQuestion('');
 
     try {
-      // Envoyer les documents au backend pour la recherche
-      const response = await fetch(buildApiUrl('/api/knowledge/ask'), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          question: currentQuestion,
-          tenantId: getCurrentTenantId(),
-          maxResults: 3,
-          documents: documents,
-          useAI: useAI // Activer/désactiver l'IA
-        })
-      });
+      const { askKnowledgeBase } = await import('../../../lib/knowledge-handlers');
+      const data = await askKnowledgeBase(currentQuestion, documents, useAI);
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          const data = await response.json();
-          setAnswer({
-            success: false,
-            error: `⏱️ ${data.error}`
-          });
-          return;
-        }
-        throw new Error('Erreur API');
-      }
-
-      const data = await response.json();
       setAnswer(data);
       setRateLimit(data.rateLimit);
       setHistory(prev => [{ question: currentQuestion, answer: data }, ...prev].slice(0, 5));
     } catch (error) {
       setAnswer({
         success: false,
-        error: 'Erreur lors de la recherche'
+        error: error instanceof Error ? error.message : 'Erreur lors de la recherche'
       });
     } finally {
       setTestLoading(false);
