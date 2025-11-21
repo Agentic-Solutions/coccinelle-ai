@@ -18,6 +18,16 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
 
+  // Configuration des alias pour Turbopack
+  webpack: (config) => {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@/services': './src/services',
+    };
+    return config;
+  },
+
   // Configuration pour développement local avec Turbopack (désactivée pour build Cloudflare)
   // experimental: {
   //   turbo: {

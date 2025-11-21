@@ -32,6 +32,9 @@
       ],
       "@/modules/*": [
         "./src/modules/*"
+      ],
+      "@/services/*": [
+        "./src/services/*"
       ]
     },
     "strictNullChecks": true
