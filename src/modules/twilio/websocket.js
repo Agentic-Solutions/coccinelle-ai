@@ -4,18 +4,25 @@ import { logger } from '../../utils/logger.js';
 import { ConversationManager } from './conversation.js';
 
 export async function handleConversationWebSocket(request, env) {
-  // Vérifier que c'est bien une demande WebSocket
-  const upgradeHeader = request.headers.get('Upgrade');
-  if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
-    return new Response('Expected WebSocket', { status: 426 });
-  }
-
   // Extraire les paramètres de l'URL
   const url = new URL(request.url);
   const callId = url.searchParams.get('callId');
   const tenantId = url.searchParams.get('tenantId');
 
-  logger.info('WebSocket connection request', { callId, tenantId });
+  // Vérifier que c'est bien une demande WebSocket
+  const upgradeHeader = request.headers.get('Upgrade');
+
+  logger.info('WebSocket connection request', {
+    callId,
+    tenantId,
+    upgrade: upgradeHeader,
+    headers: Object.fromEntries(request.headers.entries())
+  });
+
+  if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
+    logger.warn('Not a WebSocket request', { upgradeHeader });
+    return new Response('Expected WebSocket. Headers: ' + JSON.stringify(Object.fromEntries(request.headers.entries())), { status: 426 });
+  }
 
   // Créer la paire WebSocket
   const webSocketPair = new WebSocketPair();

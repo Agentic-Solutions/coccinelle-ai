@@ -12,6 +12,11 @@ export async function handleTwilioRoutes(request, env, path, method) {
       return await handleIncomingCall(request, env);
     }
 
+    // POST /webhooks/twilio/gather - Traitement de la réponse vocale (Gather)
+    if (path.startsWith('/webhooks/twilio/gather') && method === 'POST') {
+      return await handleGatherResponse(request, env);
+    }
+
     // POST /webhooks/twilio/status - Callback de statut d'appel
     if (path === '/webhooks/twilio/status' && method === 'POST') {
       return await handleCallStatus(request, env);
@@ -85,32 +90,18 @@ async function handleIncomingCall(request, env) {
   });
 }
 
-// Générer le TwiML pour ConversationRelay
+// Générer le TwiML - Version Gather/Say (en attendant ConversationRelay)
 function generateConversationRelayTwiML(wsUrl, tenantConfig) {
-  const voice = tenantConfig.voice_id || 'Polly.Lea-Neural'; // Voix FR par défaut
-  const language = tenantConfig.language || 'fr-FR';
   const welcomeMessage = tenantConfig.welcome_message || 'Bonjour, comment puis-je vous aider ?';
+  const gatherUrl = `https://coccinelle-api.youssef-amrouche.workers.dev/webhooks/twilio/gather?tenantId=${tenantConfig.tenant_id}`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Connect>
-    <ConversationRelay
-      url="${wsUrl}"
-      voice="${voice}"
-      language="${language}"
-      transcriptionProvider="deepgram"
-      speechModel="nova-2"
-      ttsProvider="elevenlabs"
-      welcomeGreeting="${escapeXml(welcomeMessage)}"
-      interruptible="true"
-      interruptByDtmf="true"
-      dtmfDetection="true"
-    >
-      <Parameter name="tenantId" value="${tenantConfig.tenant_id}" />
-      <Parameter name="agentId" value="${tenantConfig.agent_id || ''}" />
-      <Parameter name="agentName" value="${escapeXml(tenantConfig.agent_name || 'Sara')}" />
-    </ConversationRelay>
-  </Connect>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">${escapeXml(welcomeMessage)}</Say>
+  <Gather input="speech" language="fr-FR" speechTimeout="2" action="${gatherUrl}" method="POST">
+    <Say voice="Polly.Lea-Neural" language="fr-FR">Je vous écoute.</Say>
+  </Gather>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">Je n'ai pas entendu votre réponse. Au revoir.</Say>
 </Response>`;
 }
 
@@ -121,6 +112,92 @@ function generateErrorTwiML(message) {
   <Say language="fr-FR" voice="Polly.Lea-Neural">${escapeXml(message)}. Au revoir.</Say>
   <Hangup/>
 </Response>`;
+}
+
+// Traiter la réponse vocale de l'utilisateur (Gather)
+async function handleGatherResponse(request, env) {
+  const formData = await request.formData();
+  const speechResult = formData.get('SpeechResult');
+  const callSid = formData.get('CallSid');
+  const confidence = formData.get('Confidence');
+
+  logger.info('Speech received', { callSid, speechResult, confidence });
+
+  // Extraire les paramètres de l'URL
+  const url = new URL(request.url);
+  const callId = url.searchParams.get('callId') || `call_${Date.now()}`;
+  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
+
+  if (!speechResult || speechResult.trim() === '') {
+    // Pas de réponse, redemander
+    return new Response(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">Je n'ai pas compris. Pouvez-vous répéter ?</Say>
+  <Gather input="speech" language="fr-FR" speechTimeout="auto" action="${url.href}" method="POST">
+    <Say voice="Polly.Lea-Neural" language="fr-FR">Je vous écoute.</Say>
+  </Gather>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">Au revoir.</Say>
+</Response>`, { headers: { 'Content-Type': 'application/xml' } });
+  }
+
+  // Générer une réponse avec Claude
+  try {
+    const aiResponse = await generateAIResponse(speechResult, tenantId, env);
+
+    // Continuer la conversation
+    return new Response(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">${escapeXml(aiResponse)}</Say>
+  <Gather input="speech" language="fr-FR" speechTimeout="auto" action="${url.href}" method="POST">
+    <Say voice="Polly.Lea-Neural" language="fr-FR">Avez-vous une autre question ?</Say>
+  </Gather>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">Merci de votre appel. Au revoir !</Say>
+</Response>`, { headers: { 'Content-Type': 'application/xml' } });
+
+  } catch (error) {
+    logger.error('AI response error', { error: error.message });
+    return new Response(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Lea-Neural" language="fr-FR">Je suis désolée, j'ai rencontré un problème technique. Veuillez réessayer plus tard.</Say>
+  <Hangup/>
+</Response>`, { headers: { 'Content-Type': 'application/xml' } });
+  }
+}
+
+// Générer une réponse IA avec Claude
+async function generateAIResponse(userMessage, tenantId, env) {
+  const apiKey = env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY;
+
+  if (!apiKey) {
+    return "Je suis désolée, le service est temporairement indisponible.";
+  }
+
+  const systemPrompt = `Tu es Sara, une assistante vocale IA professionnelle et chaleureuse pour Coccinelle.
+Tu réponds en français, de manière naturelle et concise (2-3 phrases max).
+Tu es empathique, patiente et tu t'assures de bien comprendre les besoins de l'appelant.
+Si tu ne connais pas la réponse, propose de transférer à un conseiller.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Claude API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.content[0]?.text || "Je n'ai pas compris, pouvez-vous reformuler ?";
 }
 
 // Callback de statut d'appel
