@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
     const body: CrawlRequest = await request.json();
     const { startUrl, maxPages = 10, maxDepth = 2 } = body;
 
+    console.log(`🌐 Crawl demandé pour: ${startUrl} (max ${maxPages} pages, depth ${maxDepth})`);
+
     if (!startUrl) {
       return NextResponse.json(
         { success: false, error: 'URL manquante' },
@@ -43,10 +45,10 @@ export async function POST(request: NextRequest) {
     const urlsToCrawl: { url: string; depth: number }[] = [{ url: startUrl, depth: 0 }];
 
     // Fonction pour crawler une page
-    const crawlPage = async (pageUrl: string): Promise<{ title: string; content: string; links: string[] }> => {
+    const crawlPage = async (pageUrl: string, retries = 0): Promise<{ title: string; content: string; links: string[] }> => {
       try {
         const response = await axios.get(pageUrl, {
-          timeout: 10000,
+          timeout: 20000, // Augmenté à 20 secondes
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; CoccinelleBot/1.0; +http://coccinelle.ai)'
           }
@@ -149,12 +151,20 @@ export async function POST(request: NextRequest) {
 
         return { title, content, links };
       } catch (error) {
+        // Retry logic pour le premier essai en cas de timeout
+        if (retries < 1 && (error as any).code === 'ECONNABORTED') {
+          console.log(`🔄 Retry crawl ${pageUrl} (tentative ${retries + 1}/1)`);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Attendre 2s avant retry
+          return crawlPage(pageUrl, retries + 1);
+        }
+
         console.error(`❌ Erreur crawl ${pageUrl}:`, error);
         return { title: 'Erreur', content: '', links: [] };
       }
     };
 
     // Boucle de crawling
+    let attemptedUrls = 0;
     while (urlsToCrawl.length > 0 && crawledPages.length < maxPages) {
       const { url: currentUrl, depth } = urlsToCrawl.shift()!;
 
@@ -162,15 +172,21 @@ export async function POST(request: NextRequest) {
       if (visitedUrls.has(currentUrl)) continue;
       visitedUrls.add(currentUrl);
 
+      attemptedUrls++;
+      console.log(`📄 Crawling [${attemptedUrls}]: ${currentUrl}`);
+
       const { title, content, links } = await crawlPage(currentUrl);
 
       if (content) {
+        console.log(`✅ Page récupérée: "${title}" (${content.length} chars, ${links.length} liens)`);
         crawledPages.push({
           url: currentUrl,
           title,
           content,
           depth
         });
+      } else {
+        console.log(`⚠️  Page vide ou erreur pour ${currentUrl}`);
       }
 
       // Ajouter les liens trouvés si on n'a pas atteint la profondeur max
@@ -181,6 +197,17 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+    }
+
+    console.log(`✅ Crawl terminé: ${crawledPages.length}/${attemptedUrls} pages réussies`);
+    if (crawledPages.length > 0) {
+      crawledPages.forEach((page, idx) => {
+        console.log(`  [${idx + 1}] ${page.title} - ${page.content.length} chars`);
+      });
+    } else if (attemptedUrls > 0) {
+      console.log(`⚠️  Aucune page n'a pu être crawlée sur ${attemptedUrls} tentatives`);
+    } else {
+      console.log(`⚠️  Aucune URL à crawler`);
     }
 
     return NextResponse.json({

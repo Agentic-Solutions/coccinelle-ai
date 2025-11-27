@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { ArrowLeft, Phone, MessageSquare, Mail, CheckCircle, AlertCircle, Settings, ChevronRight } from 'lucide-react';
 import Logo from '@/components/Logo';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
-
 interface ChannelStatus {
   enabled: boolean;
   configured: boolean;
@@ -19,108 +17,70 @@ export default function ChannelsPage() {
     email: { enabled: false, configured: false } as ChannelStatus,
     whatsapp: { enabled: false, configured: false } as ChannelStatus
   });
-  const [loading, setLoading] = useState(true);
 
-  // Charger le statut de tous les canaux depuis l'API
+  // Charger le statut de tous les canaux depuis localStorage
   useEffect(() => {
-    const fetchChannels = async () => {
+    // Phone (Voix) - géré par l'admin
+    const phoneConfig = localStorage.getItem('phone_client_config');
+    if (phoneConfig) {
       try {
-        const token = localStorage.getItem('auth_token');
-        const response = await fetch(`${API_URL}/api/v1/channels`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.channels) {
-            const channelsMap: any = {};
-            data.channels.forEach((ch: any) => {
-              channelsMap[ch.type] = {
-                enabled: ch.enabled,
-                configured: ch.configured
-              };
-            });
-            setChannels(prev => ({ ...prev, ...channelsMap }));
-          }
-        } else {
-          // Fallback sur localStorage
-          loadFromLocalStorage();
-        }
-      } catch (e) {
-        console.error('Error loading channels from API:', e);
-        loadFromLocalStorage();
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const loadFromLocalStorage = () => {
-      // Phone (Voix) - géré par l'admin
-      const phoneConfig = localStorage.getItem('phone_client_config');
-      if (phoneConfig) {
-        try {
-          const parsed = JSON.parse(phoneConfig);
-          setChannels(prev => ({
-            ...prev,
-            phone: { enabled: parsed.enabled || false, configured: true }
-          }));
-        } catch (e) {
-          console.error('Error loading phone config:', e);
-        }
-      } else {
+        const parsed = JSON.parse(phoneConfig);
         setChannels(prev => ({
           ...prev,
-          phone: { enabled: false, configured: true }
+          phone: { enabled: parsed.enabled || false, configured: true }
         }));
+      } catch (e) {
+        console.error('Error loading phone config:', e);
       }
+    } else {
+      // Par défaut, Phone est toujours configuré (géré par l'admin)
+      setChannels(prev => ({
+        ...prev,
+        phone: { enabled: false, configured: true }
+      }));
+    }
 
-      // SMS
-      const smsConfig = localStorage.getItem('sms_client_config');
-      if (smsConfig) {
-        try {
-          const parsed = JSON.parse(smsConfig);
-          setChannels(prev => ({
-            ...prev,
-            sms: { enabled: parsed.enabled || false, configured: parsed.configured || false }
-          }));
-        } catch (e) {
-          console.error('Error loading SMS config:', e);
-        }
+    // SMS - géré par l'admin
+    const smsConfig = localStorage.getItem('sms_client_config');
+    if (smsConfig) {
+      try {
+        const parsed = JSON.parse(smsConfig);
+        setChannels(prev => ({
+          ...prev,
+          sms: { enabled: parsed.enabled || false, configured: parsed.configured || false }
+        }));
+      } catch (e) {
+        console.error('Error loading SMS config:', e);
       }
+    }
 
-      // Email
-      const emailConfig = localStorage.getItem('email_client_config');
-      if (emailConfig) {
-        try {
-          const parsed = JSON.parse(emailConfig);
-          setChannels(prev => ({
-            ...prev,
-            email: { enabled: parsed.enabled || false, configured: parsed.configured || false }
-          }));
-        } catch (e) {
-          console.error('Error loading email config:', e);
-        }
+    // Email - géré par le client
+    const emailConfig = localStorage.getItem('email_client_config');
+    if (emailConfig) {
+      try {
+        const parsed = JSON.parse(emailConfig);
+        setChannels(prev => ({
+          ...prev,
+          email: { enabled: parsed.enabled || false, configured: parsed.configured || false }
+        }));
+      } catch (e) {
+        console.error('Error loading email config:', e);
       }
+    }
 
-      // WhatsApp
-      const whatsappConfig = localStorage.getItem('whatsapp_client_config');
-      if (whatsappConfig) {
-        try {
-          const parsed = JSON.parse(whatsappConfig);
-          setChannels(prev => ({
-            ...prev,
-            whatsapp: { enabled: parsed.enabled || false, configured: parsed.configured || false }
-          }));
-        } catch (e) {
-          console.error('Error loading WhatsApp config:', e);
-        }
+    // WhatsApp - géré par le client
+    const whatsappConfig = localStorage.getItem('whatsapp_client_config');
+    if (whatsappConfig) {
+      try {
+        const parsed = JSON.parse(whatsappConfig);
+        setChannels(prev => ({
+          ...prev,
+          whatsapp: { enabled: parsed.enabled || false, configured: parsed.configured || false }
+        }));
+      } catch (e) {
+        console.error('Error loading WhatsApp config:', e);
       }
-    };
-
-    fetchChannels();
+    }
   }, []);
 
   const channelsList = [
@@ -137,13 +97,12 @@ export default function ChannelsPage() {
     {
       id: 'sms',
       name: 'SMS',
-      description: 'Bientôt disponible',
+      description: 'Messages texte automatisés via Twilio',
       icon: MessageSquare,
-      color: 'gray',
+      color: 'green',
       path: '/dashboard/settings/channels/sms',
-      status: { enabled: false, configured: false },
-      managedBy: 'admin',
-      comingSoon: true
+      status: channels.sms,
+      managedBy: 'admin'
     },
     {
       id: 'email',
@@ -188,11 +147,6 @@ export default function ChannelsPage() {
         bg: 'bg-emerald-100',
         text: 'text-emerald-600',
         border: 'border-emerald-200'
-      },
-      gray: {
-        bg: 'bg-gray-100',
-        text: 'text-gray-400',
-        border: 'border-gray-200'
       }
     };
     return colors[color as keyof typeof colors][variant];
@@ -279,21 +233,18 @@ export default function ChannelsPage() {
             const Icon = channel.icon;
             const isConfigured = channel.status.configured;
             const isEnabled = channel.status.enabled;
-            const isComingSoon = (channel as any).comingSoon;
 
             return (
               <Link key={channel.id} href={channel.path}>
-                <div className={`bg-white rounded-lg shadow-sm border-2 transition-all p-6 cursor-pointer group ${
-                  isComingSoon ? 'border-gray-200 opacity-75' : 'border-gray-200 hover:border-gray-300'
-                }`}>
+                <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200 hover:border-gray-300 transition-all p-6 cursor-pointer group">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
                       {/* Icon */}
                       <div className={`w-16 h-16 rounded-lg flex items-center justify-center ${
-                        isComingSoon ? 'bg-gray-100' : (isEnabled ? getColorClasses(channel.color, 'bg') : 'bg-gray-100')
+                        isEnabled ? getColorClasses(channel.color, 'bg') : 'bg-gray-100'
                       }`}>
                         <Icon className={`w-8 h-8 ${
-                          isComingSoon ? 'text-gray-400' : (isEnabled ? getColorClasses(channel.color, 'text') : 'text-gray-400')
+                          isEnabled ? getColorClasses(channel.color, 'text') : 'text-gray-400'
                         }`} />
                       </div>
 
@@ -303,11 +254,7 @@ export default function ChannelsPage() {
                           <h3 className="text-lg font-bold text-gray-900">{channel.name}</h3>
 
                           {/* Status badges */}
-                          {isComingSoon ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
-                              Bientôt disponible
-                            </span>
-                          ) : isEnabled ? (
+                          {isEnabled ? (
                             <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
                               <CheckCircle className="w-3 h-3" />
                               Activé
@@ -323,8 +270,8 @@ export default function ChannelsPage() {
                             </span>
                           )}
 
-                          {/* Managed by badge - hide for coming soon */}
-                          {!isComingSoon && (channel.managedBy === 'admin' ? (
+                          {/* Managed by badge */}
+                          {channel.managedBy === 'admin' ? (
                             <span className="px-2 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">
                               Géré par Coccinelle.AI
                             </span>
@@ -332,17 +279,13 @@ export default function ChannelsPage() {
                             <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
                               Vous gérez
                             </span>
-                          ))}
+                          )}
                         </div>
 
                         <p className="text-sm text-gray-600 mb-2">{channel.description}</p>
 
                         {/* Configuration status */}
-                        {isComingSoon ? (
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-500 font-medium">En cours de développement</span>
-                          </div>
-                        ) : isConfigured ? (
+                        {isConfigured ? (
                           <div className="flex items-center gap-2 text-xs">
                             <CheckCircle className="w-4 h-4 text-green-600" />
                             <span className="text-green-700 font-medium">Configuration terminée</span>

@@ -10,7 +10,6 @@ import { handleAppointmentsRoutes } from './modules/appointments/routes.js';
 import { handleVapiRoutes } from './modules/vapi/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
 import { handleKnowledgeManualRoutes } from './modules/knowledge/manual.js';
-import { handleChannelsRoutes } from './modules/channels/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -71,12 +70,7 @@ export default {
         response = await handleVapiRoutes(request, env, path, method);
         if (response) return response;
       }
-
-      if (path.startsWith('/api/v1/channels')) {
-        response = await handleChannelsRoutes(request, env, path, method);
-        if (response) return response;
-      }
-
+      
       response = errorResponse('Route not found', 404);
 
       const duration = Date.now() - startTime;

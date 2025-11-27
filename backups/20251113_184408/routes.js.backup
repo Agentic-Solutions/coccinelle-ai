@@ -101,15 +101,15 @@ async function handleSearch(request, env) {
 
   const placeholders = chunkIds.map(() => '?').join(',');
   const chunksResult = await env.DB.prepare(`
-    SELECT
+    SELECT 
       c.id,
       c.content,
       c.chunk_index,
-      d.source_url as url,
+      d.url,
       d.title,
-      d.source_type as doc_type
-    FROM knowledge_chunks c
-    JOIN knowledge_documents d ON c.document_id = d.id
+      d.doc_type
+    FROM kb_chunks c
+    JOIN kb_documents d ON c.doc_id = d.id
     WHERE c.id IN (${placeholders})
   `).bind(...chunkIds).all();
 
@@ -206,8 +206,8 @@ async function handleListDocuments(request, env) {
   const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
   
   const result = await env.DB.prepare(`
-    SELECT id, title, source_url as url, source_type as doc_type, created_at
-    FROM knowledge_documents
+    SELECT id, title, url, doc_type, created_at
+    FROM kb_documents
     WHERE tenant_id = ?
     ORDER BY created_at DESC
   `).bind(tenantId).all();
@@ -229,7 +229,7 @@ async function handleListCrawls(request, env) {
   
   const result = await env.DB.prepare(`
     SELECT id, url, status, pages_crawled, created_at
-    FROM knowledge_crawl_jobs
+    FROM kb_crawls
     WHERE tenant_id = ?
     ORDER BY created_at DESC
   `).bind(tenantId).all();

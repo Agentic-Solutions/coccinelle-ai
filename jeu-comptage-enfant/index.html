@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apprends les Nombres</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: #f6f9fc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 16px;
+            color: #1a1f36;
+        }
+
+        .game-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            color: #1a1f36;
+            font-size: 1.5em;
+            margin-bottom: 12px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .sound-toggle {
+            background: #635bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .sound-toggle:hover {
+            background: #5449d4;
+        }
+
+        .sound-toggle.muted {
+            background: #e3e8ee;
+            color: #1a1f36;
+        }
+
+        .level-selector {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .level-btn {
+            background: white;
+            border: 2px solid #e3e8ee;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .level-btn.active {
+            background: #635bff;
+            color: white;
+            border-color: #635bff;
+        }
+
+        .level-btn:hover:not(.active) {
+            border-color: #635bff;
+            background: #f6f9fc;
+        }
+
+        .score-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f6f9fc;
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1em;
+            color: #635bff;
+            font-weight: 500;
+            gap: 20px;
+        }
+
+        .rank-badge {
+            background: linear-gradient(135deg, #635bff 0%, #7a73ff 100%);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(99, 91, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .rank-badge.ninja {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff8b8b 100%);
+        }
+
+        .rank-badge.master {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            color: #1a1f36;
+        }
+
+        .rank-badge.legend {
+            background: linear-gradient(135deg, #00d084 0%, #20e3a0 100%);
+        }
+
+        .rank-badge.rank-up {
+            animation: rankUp 1s ease;
+        }
+
+        @keyframes rankUp {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.3) rotate(5deg);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .problem-area {
+            background: #f6f9fc;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .operation {
+            font-size: 2em;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #1a1f36;
+            letter-spacing: 0.02em;
+        }
+
+        .visual-representation {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .number-visual {
+            text-align: center;
+        }
+
+        .number-label {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1a1f36;
+        }
+
+        .blocks-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 300px;
+            min-height: 80px;
+            align-items: center;
+        }
+
+        .hundred-block {
+            width: 75px;
+            height: 75px;
+            background: #f6f9fc;
+            border: 3px solid #635bff;
+            border-radius: 6px;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            gap: 0;
+            row-gap: 2px;
+            padding: 3px;
+            box-shadow: 0 2px 8px rgba(99, 91, 255, 0.2);
+            opacity: 0;
+            transform: scale(0.5) translateY(20px);
+            transition: all 0.5s ease;
+            position: relative;
+        }
+
+        .hundred-block::after {
+            content: '100';
+            position: absolute;
+            top: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7em;
+            font-weight: 600;
+            color: #635bff;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .hundred-block.counting {
+            opacity: 1;
+            transform: scale(1.15);
+            box-shadow: 0 4px 16px rgba(99, 91, 255, 0.8);
+            border-color: #5449d4;
+        }
+
+        .hundred-block.counted {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .hundred-block-cell {
+            background: #00d084;
+            border-radius: 2px;
+            border: 0.5px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .ten-block {
+            width: 75px;
+            height: 20px;
+            background: #f6f9fc;
+            border: 3px solid #00d084;
+            border-radius: 4px;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 1px;
+            padding: 2px;
+            box-shadow: 0 2px 8px rgba(0, 208, 132, 0.2);
+            opacity: 0;
+            transform: scale(0.5) translateY(20px);
+            transition: all 0.5s ease;
+            position: relative;
+        }
+
+        .ten-block::after {
+            content: '10';
+            position: absolute;
+            top: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7em;
+            font-weight: 600;
+            color: #00d084;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .ten-block.counting {
+            opacity: 1;
+            transform: scale(1.2);
+            box-shadow: 0 4px 16px rgba(0, 208, 132, 0.8);
+            border-color: #00a868;
+        }
+
+        .ten-block.counted {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .ten-block-cell {
+            background: #ff6b6b;
+            border-radius: 2px;
+            border: 0.5px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .unit-block {
+            width: 6px;
+            height: 14px;
+            background: #ff6b6b;
+            border: 0.5px solid rgba(255, 255, 255, 0.6);
+            border-radius: 2px;
+            box-shadow: 0 2px 6px rgba(255, 107, 107, 0.2);
+            opacity: 0;
+            transform: scale(0.5) translateY(20px);
+            transition: all 0.5s ease;
+        }
+
+        .unit-block.counting {
+            opacity: 1;
+            transform: scale(1.5);
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.8);
+        }
+
+        .unit-block.counted {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .operator-symbol {
+            font-size: 2em;
+            font-weight: 600;
+            color: #1a1f36;
+            align-self: center;
+        }
+
+        .answers {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .answer-btn {
+            background: white;
+            border: 2px solid #e3e8ee;
+            border-radius: 8px;
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #1a1f36;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            border-color: #635bff;
+            background: #f6f9fc;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 91, 255, 0.15);
+        }
+
+        .answer-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .answer-btn.correct {
+            background: #00d084;
+            color: white;
+            border-color: #00d084;
+        }
+
+        .answer-btn.incorrect {
+            background: #ff6b6b;
+            color: white;
+            border-color: #ff6b6b;
+        }
+
+        .feedback {
+            font-size: 1.2em;
+            font-weight: 500;
+            margin-top: 16px;
+            min-height: 30px;
+            text-align: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .feedback.correct {
+            color: #00d084;
+        }
+
+        .feedback.incorrect {
+            color: #635bff;
+        }
+
+        .explanation {
+            background: white;
+            border: 2px solid #635bff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .explanation.show {
+            display: block;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .explanation-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #635bff;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .decomposition-step {
+            margin: 16px 0;
+            padding: 12px;
+            background: #f6f9fc;
+            border-radius: 8px;
+            opacity: 0.3;
+            transition: all 0.5s ease;
+        }
+
+        .decomposition-step.active {
+            opacity: 1;
+            background: #fff9e6;
+            border: 2px solid #635bff;
+            transform: scale(1.02);
+        }
+
+        .step-blocks {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            align-items: center;
+            margin: 12px 0;
+            flex-wrap: wrap;
+        }
+
+        .step-label {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #1a1f36;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .next-btn {
+            background: #635bff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 500;
+            color: white;
+            padding: 12px 24px;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .next-btn:hover {
+            background: #5449d4;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 91, 255, 0.4);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .celebration {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            animation: fall 3s linear;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .game-container { padding: 16px; }
+            h1 { font-size: 1.3em; }
+            .operation { font-size: 1.6em; }
+            .answer-btn { font-size: 1.3em; padding: 12px; }
+            .number-label { font-size: 1.3em; }
+            .visual-representation { gap: 16px; }
+            .answers { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>Apprends les nombres</h1>
+        </div>
+
+        <div class="controls">
+            <button class="sound-toggle" id="soundToggle" onclick="toggleSound()">Son</button>
+            <div class="level-selector">
+                <button class="level-btn active" onclick="changeLevel('tens')">Dizaines (10, 20...)</button>
+                <button class="level-btn" onclick="changeLevel('hundreds')">Centaines (100, 200...)</button>
+                <button class="level-btn" onclick="changeLevel('mixed')">Tout mélangé</button>
+            </div>
+        </div>
+
+        <div class="score-bar">
+            <div class="rank-badge" id="rankBadge">
+                <span id="rankIcon">🌱</span>
+                <span id="rankName">Débutant</span>
+            </div>
+            <div>
+                Score: <span id="score">0</span>
+            </div>
+        </div>
+
+        <div class="problem-area">
+            <div class="operation" id="operation"></div>
+            <div class="visual-representation" id="visualRepresentation"></div>
+        </div>
+
+        <div class="answers" id="answersContainer"></div>
+        <div class="feedback" id="feedback"></div>
+
+        <div class="explanation" id="explanation">
+            <div class="explanation-title">Voici comment on fait :</div>
+            <div id="explanationSteps"></div>
+        </div>
+
+        <button class="next-btn hidden" id="nextBtn" onclick="nextQuestion()">Question suivante</button>
+    </div>
+    <div class="celebration" id="celebration"></div>
+
+    <script>
+        let score = 0;
+        let currentAnswer = 0;
+        let currentLevel = 'tens';
+        let num1 = 0;
+        let num2 = 0;
+        let isAddition = true;
+        let soundEnabled = true;
+        let backgroundMusic = null;
+        let audioContext = null;
+
+        const synth = window.speechSynthesis;
+
+        // Système de rangs
+        const ranks = [
+            { minScore: 0, name: 'Débutant', icon: '🌱', className: '' },
+            { minScore: 30, name: 'Apprenti', icon: '⭐', className: '' },
+            { minScore: 60, name: 'Ninja', icon: '🥷', className: 'ninja' },
+            { minScore: 100, name: 'Maître', icon: '🏆', className: 'master' },
+            { minScore: 150, name: 'Légende', icon: '👑', className: 'legend' }
+        ];
+
+        function updateRank(animate = false) {
+            let currentRank = ranks[0];
+            for (let rank of ranks) {
+                if (score >= rank.minScore) {
+                    currentRank = rank;
+                }
+            }
+
+            const rankBadge = document.getElementById('rankBadge');
+            const rankIcon = document.getElementById('rankIcon');
+            const rankName = document.getElementById('rankName');
+
+            rankIcon.textContent = currentRank.icon;
+            rankName.textContent = currentRank.name;
+
+            // Retirer toutes les classes de rang
+            rankBadge.className = 'rank-badge';
+            if (currentRank.className) {
+                rankBadge.classList.add(currentRank.className);
+            }
+
+            // Animation de montée de rang
+            if (animate) {
+                rankBadge.classList.add('rank-up');
+                setTimeout(() => {
+                    rankBadge.classList.remove('rank-up');
+                }, 1000);
+            }
+        }
+
+        // Initialiser la musique de fond
+        function initBackgroundMusic() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            if (backgroundMusic) return;
+
+            // Créer une mélodie douce et répétitive
+            const melody = [
+                { note: 523.25, duration: 0.4 }, // C5
+                { note: 587.33, duration: 0.4 }, // D5
+                { note: 659.25, duration: 0.4 }, // E5
+                { note: 587.33, duration: 0.4 }, // D5
+                { note: 523.25, duration: 0.4 }, // C5
+                { note: 392.00, duration: 0.4 }, // G4
+                { note: 440.00, duration: 0.4 }, // A4
+                { note: 523.25, duration: 0.8 }, // C5
+            ];
+
+            function playMelody() {
+                if (!soundEnabled) {
+                    setTimeout(playMelody, 1000);
+                    return;
+                }
+
+                let currentTime = audioContext.currentTime;
+
+                melody.forEach(({ note, duration }, index) => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+
+                    oscillator.frequency.value = note;
+                    oscillator.type = 'sine';
+
+                    gainNode.gain.setValueAtTime(0.08, currentTime); // Volume très bas
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+
+                    oscillator.start(currentTime);
+                    oscillator.stop(currentTime + duration);
+
+                    currentTime += duration;
+                });
+
+                setTimeout(playMelody, melody.reduce((acc, m) => acc + m.duration, 0) * 1000 + 2000);
+            }
+
+            playMelody();
+            backgroundMusic = true;
+        }
+
+        function speak(text, callback) {
+            if (!soundEnabled || !synth) {
+                if (callback) setTimeout(callback, 100);
+                return;
+            }
+            synth.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'fr-FR';
+            utterance.rate = 0.9; // Un peu plus lent pour être plus clair
+            utterance.pitch = 1.15; // Pitch plus élevé pour une voix plus douce
+            utterance.volume = 1.0;
+
+            // Essayer de trouver une voix française plus naturelle
+            const voices = synth.getVoices();
+            const frenchVoice = voices.find(voice =>
+                voice.lang.startsWith('fr') &&
+                (voice.name.includes('Google') || voice.name.includes('Enhanced') || voice.name.includes('Premium'))
+            ) || voices.find(voice => voice.lang.startsWith('fr'));
+
+            if (frenchVoice) {
+                utterance.voice = frenchVoice;
+            }
+
+            // Callback quand la narration est terminée
+            if (callback) {
+                utterance.onend = callback;
+            }
+
+            synth.speak(utterance);
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('soundToggle');
+            if (soundEnabled) {
+                btn.textContent = 'Son';
+                btn.classList.remove('muted');
+                initBackgroundMusic();
+            } else {
+                btn.textContent = 'Son coupé';
+                btn.classList.add('muted');
+                synth.cancel();
+            }
+        }
+
+        function changeLevel(level) {
+            currentLevel = level;
+            document.querySelectorAll('.level-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            generateQuestion();
+        }
+
+        function generateQuestion() {
+            synth.cancel();
+            document.getElementById('feedback').textContent = '';
+            document.getElementById('nextBtn').classList.add('hidden');
+
+            if (currentLevel === 'tens') {
+                // SEULEMENT dizaines (10, 20, 30, 40, 50...)
+                num1 = (Math.floor(Math.random() * 5) + 1) * 10;
+                num2 = (Math.floor(Math.random() * 4) + 1) * 10;
+            } else if (currentLevel === 'hundreds') {
+                // SEULEMENT centaines (100, 200, 300, 400...)
+                num1 = (Math.floor(Math.random() * 4) + 1) * 100;
+                num2 = (Math.floor(Math.random() * 3) + 1) * 100;
+            } else {
+                // MÉLANGÉ : centaines + dizaines + unités (ex: 234, 156)
+                num1 = (Math.floor(Math.random() * 2) + 1) * 100 + (Math.floor(Math.random() * 9)) * 10 + Math.floor(Math.random() * 10);
+                num2 = (Math.floor(Math.random() * 1) + 1) * 100 + (Math.floor(Math.random() * 9)) * 10 + Math.floor(Math.random() * 10);
+            }
+
+            isAddition = Math.random() > 0.5;
+
+            if (!isAddition && num1 < num2) {
+                [num1, num2] = [num2, num1];
+            }
+
+            currentAnswer = isAddition ? num1 + num2 : num1 - num2;
+
+            const operator = isAddition ? '+' : '−';
+            document.getElementById('operation').textContent = `${num1} ${operator} ${num2} = ?`;
+
+            speak(`${num1} ${isAddition ? 'plus' : 'moins'} ${num2}`);
+
+            displayVisualRepresentation();
+            generateAnswerButtons();
+        }
+
+        function displayVisualRepresentation() {
+            const container = document.getElementById('visualRepresentation');
+            container.innerHTML = '';
+
+            const visual1 = createNumberVisual(num1);
+            container.appendChild(visual1);
+
+            const opSymbol = document.createElement('div');
+            opSymbol.className = 'operator-symbol';
+            opSymbol.textContent = isAddition ? '+' : '−';
+            container.appendChild(opSymbol);
+
+            const visual2 = createNumberVisual(num2);
+            container.appendChild(visual2);
+
+            // Animer l'apparition des blocs dans l'énoncé
+            animateInitialBlocks(visual1, num1, () => {
+                setTimeout(() => {
+                    animateInitialBlocks(visual2, num2);
+                }, 800);
+            });
+        }
+
+        function animateInitialBlocks(visualElement, num, callback) {
+            const hundredBlocks = visualElement.querySelectorAll('.hundred-block');
+            const tenBlocks = visualElement.querySelectorAll('.ten-block');
+            const unitBlocks = visualElement.querySelectorAll('.unit-block');
+            const decomp = decomposeNumber(num);
+
+            const hundreds = decomp.hundreds / 100;
+            const tens = decomp.tens / 10;
+            const units = decomp.units;
+
+            // Description du nombre
+            let parts = [];
+            if (hundreds > 0) parts.push(`${hundreds} centaine${hundreds > 1 ? 's' : ''}`);
+            if (tens > 0) parts.push(`${tens} dizaine${tens > 1 ? 's' : ''}`);
+            if (units > 0) parts.push(`${units} unité${units > 1 ? 's' : ''}`);
+
+            speak(`${num}, c'est ${parts.join(' et ')}`, () => {
+                countCategory(hundredBlocks, 'centaine', hundreds, () => {
+                    countCategory(tenBlocks, 'dizaine', tens, () => {
+                        countCategory(unitBlocks, 'unité', units, () => {
+                            if (callback) setTimeout(callback, 500);
+                        });
+                    });
+                });
+            });
+        }
+
+        function countCategory(blocks, label, count, callback) {
+            if (blocks.length === 0) {
+                if (callback) callback();
+                return;
+            }
+
+            let blockIndex = 0;
+
+            function showNextBlock() {
+                if (blockIndex >= blocks.length) {
+                    if (callback) setTimeout(callback, 400);
+                    return;
+                }
+
+                const block = blocks[blockIndex];
+                block.classList.add('counting');
+
+                speak(`${blockIndex + 1}`, () => {
+                    setTimeout(() => {
+                        block.classList.remove('counting');
+                        block.classList.add('counted');
+                        blockIndex++;
+                        showNextBlock();
+                    }, 300);
+                });
+            }
+
+            speak('Je compte', () => {
+                setTimeout(showNextBlock, 300);
+            });
+        }
+
+        function createNumberVisual(num) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'number-visual';
+
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'number-label';
+            labelDiv.textContent = num;
+            wrapper.appendChild(labelDiv);
+
+            const blocksContainer = document.createElement('div');
+            blocksContainer.className = 'blocks-container';
+
+            const decomp = decomposeNumber(num);
+            const hundreds = decomp.hundreds / 100;
+            const tens = decomp.tens / 10;
+            const units = decomp.units;
+
+            for (let i = 0; i < hundreds; i++) {
+                const hundredBlock = document.createElement('div');
+                hundredBlock.className = 'hundred-block';
+                for (let j = 0; j < 100; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'hundred-block-cell';
+                    hundredBlock.appendChild(cell);
+                }
+                blocksContainer.appendChild(hundredBlock);
+            }
+
+            for (let i = 0; i < tens; i++) {
+                const tenBlock = document.createElement('div');
+                tenBlock.className = 'ten-block';
+                for (let j = 0; j < 10; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'ten-block-cell';
+                    tenBlock.appendChild(cell);
+                }
+                blocksContainer.appendChild(tenBlock);
+            }
+
+            for (let i = 0; i < units; i++) {
+                const unitBlock = document.createElement('div');
+                unitBlock.className = 'unit-block';
+                blocksContainer.appendChild(unitBlock);
+            }
+
+            wrapper.appendChild(blocksContainer);
+            return wrapper;
+        }
+
+        function decomposeNumber(num) {
+            const hundreds = Math.floor(num / 100) * 100;
+            const tens = Math.floor((num % 100) / 10) * 10;
+            const units = num % 10;
+            return { hundreds, tens, units };
+        }
+
+        function generateAnswerButtons() {
+            const container = document.getElementById('answersContainer');
+            container.innerHTML = '';
+
+            let answers = [currentAnswer];
+
+            // Générer des réponses proches pour rendre le jeu plus pédagogique
+            while (answers.length < 4) {
+                const offset = (Math.floor(Math.random() * 20) + 1) * (Math.random() > 0.5 ? 1 : -1);
+                const newAnswer = currentAnswer + offset;
+                if (newAnswer > 0 && !answers.includes(newAnswer)) {
+                    answers.push(newAnswer);
+                }
+            }
+
+            answers.sort((a, b) => a - b);
+
+            answers.forEach(num => {
+                const btn = document.createElement('button');
+                btn.className = 'answer-btn';
+                btn.textContent = num;
+                btn.onclick = () => checkAnswer(num, btn);
+                container.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selected, btn) {
+            synth.cancel();
+            const feedback = document.getElementById('feedback');
+            const buttons = document.querySelectorAll('.answer-btn');
+            buttons.forEach(b => b.disabled = true);
+
+            if (selected === currentAnswer) {
+                btn.classList.add('correct');
+                feedback.textContent = 'Bravo !';
+                feedback.className = 'feedback correct';
+
+                const oldRank = ranks.find(r => score >= r.minScore && score < (ranks.find(rank => rank.minScore > r.minScore)?.minScore || Infinity));
+                score += 10;
+                document.getElementById('score').textContent = score;
+                const newRank = ranks.find(r => score >= r.minScore && score < (ranks.find(rank => rank.minScore > r.minScore)?.minScore || Infinity));
+
+                const hasRankUp = oldRank && newRank && oldRank.name !== newRank.name;
+                updateRank(hasRankUp);
+
+                // Annonce du nouveau rang
+                if (hasRankUp) {
+                    setTimeout(() => {
+                        speak(`Félicitations ! Tu es maintenant ${newRank.name} ${newRank.icon}`);
+                    }, 2000);
+                }
+
+                speak(`Bravo ! C'est ${currentAnswer}`);
+                createConfetti();
+                playSuccessSound();
+            } else {
+                btn.classList.add('incorrect');
+                buttons.forEach(b => {
+                    if (parseInt(b.textContent) === currentAnswer) {
+                        b.classList.add('correct');
+                    }
+                });
+                feedback.textContent = `La réponse est ${currentAnswer}`;
+                feedback.className = 'feedback incorrect';
+                speak(`Non, c'est ${currentAnswer}`);
+            }
+
+            // Afficher l'explication après un court délai
+            setTimeout(() => {
+                showExplanation();
+            }, 1500);
+        }
+
+        function showExplanation() {
+            const explanation = document.getElementById('explanation');
+            const stepsContainer = document.getElementById('explanationSteps');
+            stepsContainer.innerHTML = '';
+
+            explanation.classList.add('show');
+
+            const decomp1 = decomposeNumber(num1);
+            const decomp2 = decomposeNumber(num2);
+            const decompResult = decomposeNumber(currentAnswer);
+
+            let steps = [];
+
+            // MÉTHODE DE CALCUL MENTAL
+
+            // Étape 1: Identifier les paquets dans le premier nombre
+            const count1Hundreds = decomp1.hundreds / 100;
+            const count1Tens = decomp1.tens / 10;
+            const count1Units = decomp1.units;
+
+            let label1 = `${num1} c'est `;
+            let parts1 = [];
+            if (count1Hundreds > 0) parts1.push(`${count1Hundreds} centaine${count1Hundreds > 1 ? 's' : ''}`);
+            if (count1Tens > 0) parts1.push(`${count1Tens} dizaine${count1Tens > 1 ? 's' : ''}`);
+            if (count1Units > 0) parts1.push(`${count1Units} unité${count1Units > 1 ? 's' : ''}`);
+
+            steps.push({
+                label: label1 + parts1.join(' + '),
+                blocks: createDecompositionBlocks(num1),
+                speech: `${num1}, c'est ${parts1.join(' et ')}`
+            });
+
+            // Étape 2: Identifier les paquets dans le deuxième nombre
+            const count2Hundreds = decomp2.hundreds / 100;
+            const count2Tens = decomp2.tens / 10;
+            const count2Units = decomp2.units;
+
+            let label2 = `${num2} c'est `;
+            let parts2 = [];
+            if (count2Hundreds > 0) parts2.push(`${count2Hundreds} centaine${count2Hundreds > 1 ? 's' : ''}`);
+            if (count2Tens > 0) parts2.push(`${count2Tens} dizaine${count2Tens > 1 ? 's' : ''}`);
+            if (count2Units > 0) parts2.push(`${count2Units} unité${count2Units > 1 ? 's' : ''}`);
+
+            steps.push({
+                label: label2 + parts2.join(' + '),
+                blocks: createDecompositionBlocks(num2),
+                speech: `${num2}, c'est ${parts2.join(' et ')}`
+            });
+
+            // Étape 3+: Calcul mental par catégorie
+            if (isAddition) {
+                // CENTAINES
+                if (count1Hundreds > 0 || count2Hundreds > 0) {
+                    const resultH = count1Hundreds + count2Hundreds;
+                    steps.push({
+                        label: `${count1Hundreds} + ${count2Hundreds} = ${resultH} centaine${resultH > 1 ? 's' : ''}`,
+                        blocks: createResultBlocks(resultH * 100, 0, 0),
+                        speech: `${count1Hundreds} centaine${count1Hundreds > 1 ? 's' : ''} plus ${count2Hundreds} centaine${count2Hundreds > 1 ? 's' : ''}, ça fait ${resultH} centaine${resultH > 1 ? 's' : ''}`
+                    });
+                }
+                // DIZAINES
+                if (count1Tens > 0 || count2Tens > 0) {
+                    const resultT = count1Tens + count2Tens;
+                    steps.push({
+                        label: `${count1Tens} + ${count2Tens} = ${resultT} dizaine${resultT > 1 ? 's' : ''}`,
+                        blocks: createResultBlocks(0, resultT * 10, 0),
+                        speech: `${count1Tens} dizaine${count1Tens > 1 ? 's' : ''} plus ${count2Tens} dizaine${count2Tens > 1 ? 's' : ''}, ça fait ${resultT} dizaine${resultT > 1 ? 's' : ''}`
+                    });
+                }
+                // UNITÉS
+                if (count1Units > 0 || count2Units > 0) {
+                    const resultU = count1Units + count2Units;
+                    steps.push({
+                        label: `${count1Units} + ${count2Units} = ${resultU} unité${resultU > 1 ? 's' : ''}`,
+                        blocks: createResultBlocks(0, 0, resultU),
+                        speech: `${count1Units} unité${count1Units > 1 ? 's' : ''} plus ${count2Units} unité${count2Units > 1 ? 's' : ''}, ça fait ${resultU} unité${resultU > 1 ? 's' : ''}`
+                    });
+                }
+            } else {
+                // SOUSTRACTION
+                // CENTAINES
+                if (count1Hundreds > 0 || count2Hundreds > 0) {
+                    const resultH = count1Hundreds - count2Hundreds;
+                    steps.push({
+                        label: `${count1Hundreds} − ${count2Hundreds} = ${resultH} centaine${resultH > 1 ? 's' : ''}`,
+                        blocks: createResultBlocks(resultH * 100, 0, 0),
+                        speech: `${count1Hundreds} centaine${count1Hundreds > 1 ? 's' : ''} moins ${count2Hundreds} centaine${count2Hundreds > 1 ? 's' : ''}, ça fait ${resultH} centaine${resultH > 1 ? 's' : ''}`
+                    });
+                }
+                // DIZAINES
+                if (count1Tens > 0 || count2Tens > 0) {
+                    const resultT = count1Tens - count2Tens;
+                    steps.push({
+                        label: `${count1Tens} − ${count2Tens} = ${resultT} dizaine${resultT > 1 ? 's' : ''}`,
+                        blocks: createResultBlocks(0, resultT * 10, 0),
+                        speech: `${count1Tens} dizaine${count1Tens > 1 ? 's' : ''} moins ${count2Tens} dizaine${count2Tens > 1 ? 's' : ''}, ça fait ${resultT} dizaine${resultT > 1 ? 's' : ''}`
+                    });
+                }
+                // UNITÉS
+                if (count1Units > 0 || count2Units > 0) {
+                    const resultU = count1Units - count2Units;
+                    steps.push({
+                        label: `${count1Units} − ${count2Units} = ${resultU} unité${resultU > 1 ? 's' : ''}`,
+                        blocks: createResultBlocks(0, 0, resultU),
+                        speech: `${count1Units} unité${count1Units > 1 ? 's' : ''} moins ${count2Units} unité${count2Units > 1 ? 's' : ''}, ça fait ${resultU} unité${resultU > 1 ? 's' : ''}`
+                    });
+                }
+            }
+
+            // Étape finale: Assembler le résultat
+            const finalParts = [];
+            if (decompResult.hundreds > 0) finalParts.push(`${decompResult.hundreds / 100} centaine${decompResult.hundreds > 100 ? 's' : ''}`);
+            if (decompResult.tens > 0) finalParts.push(`${decompResult.tens / 10} dizaine${decompResult.tens > 10 ? 's' : ''}`);
+            if (decompResult.units > 0) finalParts.push(`${decompResult.units} unité${decompResult.units > 1 ? 's' : ''}`);
+
+            steps.push({
+                label: `Total : ${currentAnswer}`,
+                blocks: createDecompositionBlocks(currentAnswer),
+                speech: finalParts.length > 0
+                    ? `En tout, ça fait ${finalParts.join(' et ')}, c'est à dire ${currentAnswer}`
+                    : `Le résultat est ${currentAnswer}`
+            });
+
+            // Afficher les étapes
+            steps.forEach((step, index) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = 'decomposition-step';
+
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'step-label';
+                labelDiv.textContent = step.label;
+                stepDiv.appendChild(labelDiv);
+
+                const blocksDiv = document.createElement('div');
+                blocksDiv.className = 'step-blocks';
+                blocksDiv.appendChild(step.blocks);
+                stepDiv.appendChild(blocksDiv);
+
+                stepsContainer.appendChild(stepDiv);
+            });
+
+            // Animer les étapes une par une
+            animateExplanationSteps(steps);
+        }
+
+        function formatDecomposition(decomp) {
+            let parts = [];
+            if (decomp.hundreds > 0) parts.push(decomp.hundreds);
+            if (decomp.tens > 0) parts.push(decomp.tens);
+            if (decomp.units > 0) parts.push(decomp.units);
+            return parts.join(' + ') || '0';
+        }
+
+        function createDecompositionBlocks(num) {
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.gap = '8px';
+            wrapper.style.flexWrap = 'wrap';
+            wrapper.style.justifyContent = 'center';
+            wrapper.style.alignItems = 'center';
+
+            const decomp = decomposeNumber(num);
+            const hundreds = decomp.hundreds / 100;
+            const tens = decomp.tens / 10;
+            const units = decomp.units;
+
+            for (let i = 0; i < hundreds; i++) {
+                const block = createHundredBlock();
+                wrapper.appendChild(block);
+            }
+            for (let i = 0; i < tens; i++) {
+                const block = createTenBlock();
+                wrapper.appendChild(block);
+            }
+            for (let i = 0; i < units; i++) {
+                const block = createUnitBlock();
+                wrapper.appendChild(block);
+            }
+
+            return wrapper;
+        }
+
+        function createResultBlocks(hundreds, tens, units) {
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.gap = '8px';
+            wrapper.style.flexWrap = 'wrap';
+            wrapper.style.justifyContent = 'center';
+            wrapper.style.alignItems = 'center';
+
+            for (let i = 0; i < hundreds / 100; i++) {
+                wrapper.appendChild(createHundredBlock());
+            }
+            for (let i = 0; i < tens / 10; i++) {
+                wrapper.appendChild(createTenBlock());
+            }
+            for (let i = 0; i < units; i++) {
+                wrapper.appendChild(createUnitBlock());
+            }
+
+            return wrapper;
+        }
+
+        function createHundredBlock() {
+            const block = document.createElement('div');
+            block.className = 'hundred-block';
+            for (let j = 0; j < 100; j++) {
+                const cell = document.createElement('div');
+                cell.className = 'hundred-block-cell';
+                block.appendChild(cell);
+            }
+            return block;
+        }
+
+        function createTenBlock() {
+            const block = document.createElement('div');
+            block.className = 'ten-block';
+            for (let j = 0; j < 10; j++) {
+                const cell = document.createElement('div');
+                cell.className = 'ten-block-cell';
+                block.appendChild(cell);
+            }
+            return block;
+        }
+
+        function createUnitBlock() {
+            const block = document.createElement('div');
+            block.className = 'unit-block';
+            return block;
+        }
+
+        function animateExplanationSteps(steps) {
+            const stepElements = document.querySelectorAll('.decomposition-step');
+            let currentStepIndex = 0;
+
+            function showNextStep() {
+                if (currentStepIndex >= stepElements.length) {
+                    document.getElementById('nextBtn').classList.remove('hidden');
+                    return;
+                }
+
+                const stepElement = stepElements[currentStepIndex];
+                stepElement.classList.add('active');
+
+                // Auto-scroll pour garder l'étape active visible
+                stepElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+
+                // Animation de comptage des blocs par catégorie
+                const hundredBlocks = stepElement.querySelectorAll('.hundred-block');
+                const tenBlocks = stepElement.querySelectorAll('.ten-block');
+                const unitBlocks = stepElement.querySelectorAll('.unit-block');
+
+                function animateBlocks() {
+                    const step = steps[currentStepIndex];
+
+                    // Pour les 2 premières étapes (décomposition)
+                    if (currentStepIndex < 2) {
+                        speak(step.speech || step.label, () => {
+                            countCategorySeparately(hundredBlocks, tenBlocks, unitBlocks, () => {
+                                currentStepIndex++;
+                                setTimeout(showNextStep, 800);
+                            });
+                        });
+                    }
+                    // Pour les étapes de calcul
+                    else if (currentStepIndex < steps.length - 1) {
+                        speak(step.speech, () => {
+                            countCategorySeparately(hundredBlocks, tenBlocks, unitBlocks, () => {
+                                currentStepIndex++;
+                                setTimeout(showNextStep, 800);
+                            });
+                        });
+                    }
+                    // Pour la dernière étape (résultat final)
+                    else {
+                        speak(step.speech, () => {
+                            countCategorySeparately(hundredBlocks, tenBlocks, unitBlocks, () => {
+                                currentStepIndex++;
+                                setTimeout(showNextStep, 800);
+                            });
+                        });
+                    }
+                }
+
+                function countCategorySeparately(hBlocks, tBlocks, uBlocks, finalCallback) {
+                    countCategoryBlocks(hBlocks, () => {
+                        countCategoryBlocks(tBlocks, () => {
+                            countCategoryBlocks(uBlocks, finalCallback);
+                        });
+                    });
+                }
+
+                function countCategoryBlocks(blocks, callback) {
+                    if (blocks.length === 0) {
+                        if (callback) callback();
+                        return;
+                    }
+
+                    let blockIndex = 0;
+
+                    function countNextBlock() {
+                        if (blockIndex >= blocks.length) {
+                            if (callback) setTimeout(callback, 400);
+                            return;
+                        }
+
+                        const block = blocks[blockIndex];
+                        block.classList.add('counting');
+
+                        speak(`${blockIndex + 1}`, () => {
+                            setTimeout(() => {
+                                block.classList.remove('counting');
+                                block.classList.add('counted');
+                                blockIndex++;
+                                countNextBlock();
+                            }, 300);
+                        });
+                    }
+
+                    speak('Je compte', () => {
+                        setTimeout(countNextBlock, 300);
+                    });
+                }
+
+                // Vérifier s'il y a des blocs à animer
+                const totalBlocks = hundredBlocks.length + tenBlocks.length + unitBlocks.length;
+
+                if (totalBlocks === 0) {
+                    const step = steps[currentStepIndex];
+                    if (step.speech) {
+                        speak(step.speech, () => {
+                            currentStepIndex++;
+                            setTimeout(showNextStep, 800);
+                        });
+                    } else {
+                        currentStepIndex++;
+                        setTimeout(showNextStep, 800);
+                    }
+                } else {
+                    animateBlocks();
+                }
+            }
+
+            speak('Voici comment on fait', () => {
+                setTimeout(showNextStep, 500);
+            });
+        }
+
+        function nextQuestion() {
+            const buttons = document.querySelectorAll('.answer-btn');
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                btn.classList.remove('correct', 'incorrect');
+            });
+
+            // Cacher l'explication
+            document.getElementById('explanation').classList.remove('show');
+
+            generateQuestion();
+        }
+
+        function createConfetti() {
+            const celebration = document.getElementById('celebration');
+            const colors = ['#635bff', '#00d084', '#7a73ff', '#0a2540', '#96f2d7'];
+
+            for (let i = 0; i < 30; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + '%';
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                    celebration.appendChild(confetti);
+                    setTimeout(() => confetti.remove(), 3000);
+                }, i * 30);
+            }
+        }
+
+        function playSuccessSound() {
+            if (!soundEnabled) return;
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+
+            const now = audioContext.currentTime;
+            gainNode.gain.setValueAtTime(0.3, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+            oscillator.start(now);
+            oscillator.stop(now + 0.5);
+        }
+
+        // Initialiser les voix
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = () => {};
+        }
+
+        // Démarrer le jeu et la musique
+        generateQuestion();
+        initBackgroundMusic();
+    </script>
+</body>
+</html>

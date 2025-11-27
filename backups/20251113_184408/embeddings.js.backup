@@ -46,7 +46,7 @@ export async function generateEmbedding(text, openaiApiKey, model = EMBEDDING_MO
     throw lastError;
   } catch (error) {
     console.error('Error in generateEmbedding:', error);
-    throw new Error(`Failed to generate embedding: ${error.message}`);
+    throw new Error(`Failed to generate embedding: ${error.message});
   }
 }
 
@@ -133,7 +133,7 @@ export async function processDocumentEmbeddings(db, vectorize, documentId, opena
     await db.prepare(`
       UPDATE knowledge_documents SET embedding_status = 'error', updated_at = datetime('now') WHERE id = ?
     `).bind(documentId).run();
-    throw new Error(`Failed to process document embeddings: ${error.message}`);
+    throw new Error(`Failed to process document embeddings: ${error.message});
   }
 }
 
@@ -194,7 +194,7 @@ export async function batchGenerateEmbeddings(texts, openaiApiKey, model = EMBED
     return allEmbeddings;
   } catch (error) {
     console.error('Error in batchGenerateEmbeddings:', error);
-    throw new Error(`Failed to generate batch embeddings: ${error.message}`);
+    throw new Error(`Failed to generate batch embeddings: ${error.message});
   }
 }
 
@@ -239,6 +239,6 @@ export async function checkEmbeddingStatus(db, documentId) {
     };
   } catch (error) {
     console.error('Error in checkEmbeddingStatus:', error);
-    throw new Error(`Failed to check embedding status: ${error.message}`);
+    throw new Error(`Failed to check embedding status: ${error.message});
   }
 }

@@ -15,64 +15,93 @@ export async function crawlWebsiteForOnboarding(
   websiteUrl: string,
   setProgressCallback?: (message: string) => void
 ) {
-  const response = await fetch(
-    buildApiUrl('/api/knowledge/crawl'),
-    {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        startUrl: websiteUrl,
-        maxPages: 10,
-        maxDepth: 2,
-        tenantId: getCurrentTenantId()
-      })
+  // Créer un contrôleur pour timeout (augmenté pour correspondre au timeout backend + retry)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 secondes timeout
+
+  try {
+    const response = await fetch(
+      buildApiUrl('/api/knowledge/crawl'),
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          startUrl: websiteUrl,
+          maxPages: 10,
+          maxDepth: 2,
+          tenantId: getCurrentTenantId()
+        }),
+        signal: controller.signal
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Erreur HTTP: ${response.status}`);
     }
-  );
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (!data.success) {
-    throw new Error(data.error || 'Erreur lors du crawl');
-  }
+    if (!data.success) {
+      throw new Error(data.error || 'Erreur lors du crawl');
+    }
 
-  // Filtrer les pages valides
-  const validPages = data.pages.filter((page: any) =>
-    page.content && page.content.trim().length > 20
-  );
-
-  if (validPages.length === 0) {
-    throw new Error('Aucun contenu valide trouvé sur ce site.');
-  }
-
-  // Traiter les pages pour créer des documents structurés
-  const structuredDocs = processLocalCrawl(validPages);
-
-  // Convertir en format de document avec IDs et dates
-  const finalDocs = structuredDocs.map((doc: any, index: number) => ({
-    id: `doc_crawl_${Date.now()}_${index}`,
-    title: doc.title,
-    content: doc.content,
-    category: doc.category,
-    created_at: new Date().toISOString(),
-    sourceType: 'crawl'
-  }));
-
-  // Sauvegarder dans localStorage
-  if (finalDocs.length > 0) {
-    const existingDocs = JSON.parse(
-      localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]'
+    // Filtrer les pages valides
+    const validPages = data.pages.filter((page: any) =>
+      page.content && page.content.trim().length > 20
     );
-    localStorage.setItem(
-      getTenantStorageKey('kb_documents'),
-      JSON.stringify([...existingDocs, ...finalDocs])
-    );
-  }
 
-  return {
-    jobId: data.jobId,
-    documentsCount: finalDocs.length,
-    pagesAnalyzed: validPages.length
-  };
+    console.log(`📊 Pages crawlées: ${data.pages.length}, valides: ${validPages.length}`);
+
+    if (validPages.length === 0) {
+      const totalPages = data.pages.length;
+      if (totalPages === 0) {
+        throw new Error(`Le site "${websiteUrl}" ne répond pas assez rapidement ou bloque notre crawler. Vérifiez l'URL ou essayez une autre méthode (import de fichiers ou assistant IA).`);
+      } else {
+        throw new Error(`Le site "${websiteUrl}" a été crawlé (${totalPages} page${totalPages > 1 ? 's' : ''}) mais aucun contenu textuel n'a été trouvé. Le site utilise peut-être beaucoup de JavaScript. Essayez une autre méthode.`);
+      }
+    }
+
+    // Traiter les pages pour créer des documents structurés
+    const structuredDocs = processLocalCrawl(validPages);
+
+    // Convertir en format de document avec IDs et dates
+    const finalDocs = structuredDocs.map((doc: any, index: number) => ({
+      id: `doc_crawl_${Date.now()}_${index}`,
+      title: doc.title,
+      content: doc.content,
+      category: doc.category,
+      created_at: new Date().toISOString(),
+      sourceType: 'crawl'
+    }));
+
+    // Sauvegarder dans localStorage
+    if (finalDocs.length > 0) {
+      const existingDocs = JSON.parse(
+        localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]'
+      );
+      localStorage.setItem(
+        getTenantStorageKey('kb_documents'),
+        JSON.stringify([...existingDocs, ...finalDocs])
+      );
+    }
+
+    return {
+      jobId: data.jobId,
+      documentsCount: finalDocs.length,
+      pagesAnalyzed: validPages.length
+    };
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    // Gérer spécifiquement les erreurs de timeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Le crawl a pris trop de temps (>45s). Le site est peut-être trop lent. Essayez une autre méthode (import de fichiers ou assistant IA).');
+    }
+
+    throw error;
+  }
 }
 
 /**

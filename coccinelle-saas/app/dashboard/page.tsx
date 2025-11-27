@@ -41,11 +41,12 @@ export default function DashboardPage() {
   // Check if right sidebar should be visible
   const [showRightSidebar, setShowRightSidebar] = useState(true);
 
-  // Menu sections collapse state
-  const [menuSections, setMenuSections] = useState({
-    analytics: true,
+  // Dashboard sections collapse state
+  const [dashboardSections, setDashboardSections] = useState({
     crm: true,
-    configuration: true
+    canaux: false,
+    knowledge: false,
+    analytics: false
   });
 
   useEffect(() => {
@@ -54,20 +55,20 @@ export default function DashboardPage() {
     // Plus tard on pourra ajouter d'autres conditions (alertes, etc.)
     setShowRightSidebar(!checklistDismissed);
 
-    // Load menu sections state from localStorage
-    const savedSections = localStorage.getItem('menu_sections');
-    if (savedSections) {
-      setMenuSections(JSON.parse(savedSections));
+    // Load dashboard sections state from localStorage
+    const savedDashboardSections = localStorage.getItem('dashboard_sections');
+    if (savedDashboardSections) {
+      setDashboardSections(JSON.parse(savedDashboardSections));
     }
   }, []);
 
-  const toggleMenuSection = (section: keyof typeof menuSections) => {
+  const toggleDashboardSection = (section: keyof typeof dashboardSections) => {
     const newSections = {
-      ...menuSections,
-      [section]: !menuSections[section]
+      ...dashboardSections,
+      [section]: !dashboardSections[section]
     };
-    setMenuSections(newSections);
-    localStorage.setItem('menu_sections', JSON.stringify(newSections));
+    setDashboardSections(newSections);
+    localStorage.setItem('dashboard_sections', JSON.stringify(newSections));
   };
 
   // Live updates
@@ -229,158 +230,103 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Navigation Links */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {/* Dashboard */}
-          <Link href="/dashboard" title="Dashboard">
-            <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg bg-gray-900 text-white font-medium`}>
-              <Home className="w-5 h-5" />
-              {!sidebarCollapsed && 'Dashboard'}
-            </div>
-          </Link>
-
-          {/* Paramètres */}
-          <Link href="/dashboard/settings" title="Paramètres">
-            <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-              <Settings className="w-5 h-5" />
-              {!sidebarCollapsed && 'Paramètres'}
-            </div>
-          </Link>
-
-          {/* Section Analytics */}
-          {!sidebarCollapsed && (
+        {/* Navigation Accordéon */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {/* CRM & Clients */}
+          <div>
             <div
-              className="pt-4 pb-2 px-4 flex items-center justify-between cursor-pointer group"
-              onClick={() => toggleMenuSection('analytics')}
+              className="text-sm font-semibold px-3 py-2 flex items-center justify-between text-gray-900 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
+              onClick={() => toggleDashboardSection('crm')}
             >
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Analytics
-              </span>
-              {menuSections.analytics ? (
-                <ChevronUp className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+              {!sidebarCollapsed ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-gray-700" />
+                    CRM & Clients
+                  </div>
+                  {dashboardSections.crm ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  )}
+                </>
               ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+                <Users className="w-5 h-5 text-gray-700" />
               )}
             </div>
-          )}
-          {(sidebarCollapsed || menuSections.analytics) && (
-            <>
-              <Link href="/dashboard/appels" title="Historique des appels">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <Phone className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Historique des appels'}
-                </div>
-              </Link>
-              <Link href="/dashboard/analytics" title="Analytics générales">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <BarChart3 className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Analytics'}
-                </div>
-              </Link>
-              <Link href="/dashboard/sara-analytics" title="Sara Analytics">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <TrendingUp className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Sara Analytics'}
-                </div>
-              </Link>
-            </>
-          )}
+          </div>
 
-          {/* Section CRM & Clients */}
-          {!sidebarCollapsed && (
+          {/* Canaux de communication */}
+          <div>
             <div
-              className="pt-4 pb-2 px-4 flex items-center justify-between cursor-pointer group"
-              onClick={() => toggleMenuSection('crm')}
+              className="text-sm font-semibold px-3 py-2 flex items-center justify-between text-gray-900 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
+              onClick={() => toggleDashboardSection('canaux')}
             >
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                CRM & Clients
-              </span>
-              {menuSections.crm ? (
-                <ChevronUp className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+              {!sidebarCollapsed ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-gray-700" />
+                    Canaux de communication
+                  </div>
+                  {dashboardSections.canaux ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  )}
+                </>
               ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+                <MessageSquare className="w-5 h-5 text-gray-700" />
               )}
             </div>
-          )}
-          {(sidebarCollapsed || menuSections.crm) && (
-            <>
-              <Link href="/dashboard/customers" title="Clients">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <Users className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Clients'}
-                </div>
-              </Link>
-              <Link href="/dashboard/rdv" title="Rendez-vous">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <Calendar className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Rendez-vous'}
-                </div>
-              </Link>
-              <Link href="/dashboard/properties" title="Biens immobiliers">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <Building2 className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Biens immobiliers'}
-                </div>
-              </Link>
-            </>
-          )}
+          </div>
 
-          {/* Section Configuration */}
-          {!sidebarCollapsed && (
+          {/* Base de connaissances */}
+          <div>
             <div
-              className="pt-4 pb-2 px-4 flex items-center justify-between cursor-pointer group"
-              onClick={() => toggleMenuSection('configuration')}
+              className="text-sm font-semibold px-3 py-2 flex items-center justify-between text-gray-900 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
+              onClick={() => toggleDashboardSection('knowledge')}
             >
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Configuration
-              </span>
-              {menuSections.configuration ? (
-                <ChevronUp className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+              {!sidebarCollapsed ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-700" />
+                    Base de connaissances
+                  </div>
+                  {dashboardSections.knowledge ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  )}
+                </>
               ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+                <FileText className="w-5 h-5 text-gray-700" />
               )}
             </div>
-          )}
-          {(sidebarCollapsed || menuSections.configuration) && (
-            <>
-              <Link href="/dashboard/knowledge" title="Base de connaissances">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <FileText className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Base de connaissances'}
-                </div>
-              </Link>
-              <Link href="/dashboard/sara" title="Paramètres Sara">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <Settings className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Paramètres Sara'}
-                </div>
-              </Link>
-              <Link href="/dashboard/settings/channels?channel=sms" title="SMS">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <MessageCircle className="w-5 h-5" />
-                  {!sidebarCollapsed && 'SMS'}
-                </div>
-              </Link>
-              <Link href="/dashboard/settings/channels?channel=whatsapp" title="WhatsApp">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <MessageSquare className="w-5 h-5" />
-                  {!sidebarCollapsed && 'WhatsApp'}
-                </div>
-              </Link>
-              <Link href="/dashboard/settings/channels?channel=email" title="Email">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <Mail className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Email'}
-                </div>
-              </Link>
-              <Link href="/dashboard/settings/integrations" title="Intégrations">
-                <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'justify-center px-3' : 'px-4'} py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors`}>
-                  <Zap className="w-5 h-5" />
-                  {!sidebarCollapsed && 'Intégrations'}
-                </div>
-              </Link>
-            </>
-          )}
+          </div>
+
+          {/* Analytics & Rapports */}
+          <div>
+            <div
+              className="text-sm font-semibold px-3 py-2 flex items-center justify-between text-gray-900 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
+              onClick={() => toggleDashboardSection('analytics')}
+            >
+              {!sidebarCollapsed ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-gray-700" />
+                    Analytics & Rapports
+                  </div>
+                  {dashboardSections.analytics ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                  )}
+                </>
+              ) : (
+                <BarChart3 className="w-5 h-5 text-gray-700" />
+              )}
+            </div>
+          </div>
         </nav>
 
         {/* Footer */}
@@ -404,12 +350,11 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className={`flex-1 ${sidebarCollapsed ? 'ml-20' : 'ml-64'} transition-all duration-300`}>
-        {/* Header */}
+        {/* Header - Version compacte */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-8 py-4 flex items-center justify-between">
+          <div className="px-6 py-2 flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Tableau de bord</h2>
-              <p className="text-sm text-gray-600">Vue d'ensemble de votre plateforme</p>
+              <h2 className="text-xl font-bold">Tableau de bord</h2>
             </div>
 
             <div className="flex items-center gap-3">
@@ -428,7 +373,7 @@ export default function DashboardPage() {
 
         <div className="flex">
           {/* Main Dashboard Content */}
-          <div className="flex-1 p-8">
+          <div className="flex-1 p-4">
             {/* Welcome Banner */}
             {showWelcomeBanner && (
               <div className="mb-6 bg-gray-100 border-2 border-gray-300 rounded-lg p-5">
@@ -458,186 +403,250 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Stats principales en hero */}
-            <div className="grid grid-cols-3 gap-6 mb-8">
-              <div className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-700">Appels Sara</h3>
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <Phone className="w-6 h-6 text-gray-700" />
+            {/* Stats principales en hero - Version compacte */}
+            <div className="grid grid-cols-3 gap-4 mb-5">
+              <div className="bg-white border-2 border-gray-200 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-700 text-sm">Appels Sara</h3>
+                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <Phone className="w-4 h-4 text-gray-700" />
                   </div>
                 </div>
-                <p className="text-4xl font-bold mb-1 text-gray-900">{stats.appels}</p>
-                <p className="text-sm text-gray-600">Total des appels</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.appels}</p>
               </div>
 
-              <div className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-700">Documents KB</h3>
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-gray-700" />
+              <div className="bg-white border-2 border-gray-200 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-700 text-sm">Documents KB</h3>
+                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-gray-700" />
                   </div>
                 </div>
-                <p className="text-4xl font-bold mb-1 text-gray-900">{stats.documents}</p>
-                <p className="text-sm text-gray-600">Base de connaissances</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.documents}</p>
               </div>
 
-              <div className="bg-white border-2 border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-700">Rendez-vous</h3>
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-gray-700" />
+              <div className="bg-white border-2 border-gray-200 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-700 text-sm">Rendez-vous</h3>
+                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <Calendar className="w-4 h-4 text-gray-700" />
                   </div>
                 </div>
-                <p className="text-4xl font-bold mb-1 text-gray-900">{stats.rdv}</p>
-                <p className="text-sm text-gray-600">Confirmés</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.rdv}</p>
               </div>
             </div>
 
-            {/* Actions rapides par catégorie */}
-            <div className="space-y-8">
+            {/* Actions rapides par catégorie - Grid 2x2 uniforme - Version compacte */}
+            <div className="space-y-5">
               {/* CRM & Clients */}
-              <div>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900">
-                  <Users className="w-5 h-5 text-gray-700" />
-                  CRM & Clients
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
+              {dashboardSections.crm && (
+                <div>
+                  <h3 className="text-base font-bold mb-3 flex items-center gap-2 text-gray-900">
+                    <Users className="w-4 h-4 text-gray-700" />
+                    CRM & Clients
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
                   <Link href="/dashboard/customers">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
-                          <Users className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <Users className="w-4 h-4 text-gray-700 group-hover:text-white transition-colors" />
                         </div>
-                        <h4 className="font-bold text-gray-900">Gestion des clients</h4>
+                        <h4 className="font-bold text-gray-900 text-sm">Clients & Prospects</h4>
                       </div>
-                      <p className="text-sm text-gray-600">Gérez votre base clients et prospects</p>
-                    </div>
-                  </Link>
-
-                  <Link href="/dashboard/settings/integrations">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
-                          <Zap className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
-                        </div>
-                        <h4 className="font-bold text-gray-900">Intégrations CRM</h4>
-                      </div>
-                      <p className="text-sm text-gray-600">HubSpot, Salesforce, et plus</p>
-                    </div>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Agent IA Sara */}
-              <div>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900">
-                  <Phone className="w-5 h-5 text-gray-700" />
-                  Agent IA Sara
-                </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <Link href="/dashboard/appels">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
-                          <Phone className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
-                        </div>
-                        <h4 className="font-bold text-gray-900">Appels</h4>
-                      </div>
-                      <p className="text-sm text-gray-600">Historique et statistiques</p>
-                    </div>
-                  </Link>
-
-                  <Link href="/dashboard/sara">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
-                          <Settings className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
-                        </div>
-                        <h4 className="font-bold text-gray-900">Configuration</h4>
-                      </div>
-                      <p className="text-sm text-gray-600">Voix et personnalité</p>
-                    </div>
-                  </Link>
-
-                  <Link href="/dashboard/sara-analytics">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-900 hover:shadow-md transition-all cursor-pointer group relative">
-                      <span className="absolute top-2 right-2 px-2 py-0.5 bg-gray-900 text-white text-xs font-bold rounded">NEW</span>
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="w-5 h-5 text-white" />
-                        </div>
-                        <h4 className="font-bold text-gray-900">Analytics</h4>
-                      </div>
-                      <p className="text-sm text-gray-600">Analyse des performances</p>
-                    </div>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Gestion & Contenu */}
-              <div>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900">
-                  <FileText className="w-5 h-5 text-gray-700" />
-                  Gestion & Contenu
-                </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <Link href="/dashboard/knowledge">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
-                          <FileText className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
-                        </div>
-                        <h4 className="font-bold text-gray-900">Knowledge Base</h4>
-                      </div>
-                      <p className="text-sm text-gray-600">Documents et contenus</p>
+                      <p className="text-xs text-gray-600">Base clients et leads</p>
                     </div>
                   </Link>
 
                   <Link href="/dashboard/rdv">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
                           <Calendar className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
                         </div>
-                        <h4 className="font-bold text-gray-900">Rendez-vous</h4>
+                        <h4 className="font-bold text-gray-900 text-sm">Rendez-vous</h4>
                       </div>
-                      <p className="text-sm text-gray-600">Calendrier et planification</p>
+                      <p className="text-xs text-gray-600">Calendrier et planification</p>
                     </div>
                   </Link>
 
                   <Link href="/dashboard/properties">
-                    <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
-                          <Building2 className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <ShoppingCart className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
                         </div>
-                        <h4 className="font-bold text-gray-900">Biens</h4>
+                        <h4 className="font-bold text-gray-900 text-sm">Catalogue</h4>
                       </div>
-                      <p className="text-sm text-gray-600">Catalogue immobilier</p>
+                      <p className="text-xs text-gray-600">Produits et services</p>
+                    </div>
+                  </Link>
+
+                  <Link href="/dashboard/settings/integrations">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <Zap className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">Intégrations CRM</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">HubSpot, Salesforce...</p>
                     </div>
                   </Link>
                 </div>
-              </div>
+                </div>
+              )}
 
-              {/* Analytics */}
-              <div>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900">
-                  <BarChart3 className="w-5 h-5 text-gray-700" />
-                  Analytics & Rapports
-                </h3>
-                <Link href="/dashboard/analytics">
-                  <div className="bg-white p-5 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
-                        <BarChart3 className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
-                      </div>
-                      <h4 className="font-bold text-gray-900">Tableau de bord Analytics</h4>
+              {/* Canaux de communication */}
+              {dashboardSections.canaux && (
+                <div>
+                  <h3 className="text-base font-bold mb-3 flex items-center gap-2 text-gray-900">
+                    <MessageSquare className="w-4 h-4 text-gray-700" />
+                    Canaux de communication
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                  {/* Canal Voix - Groupé */}
+                  <div className="col-span-2 bg-gray-50 p-3 rounded-lg border-2 border-gray-300">
+                    <h4 className="font-bold text-gray-900 text-sm mb-2 flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      Canal Voix
+                    </h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Link href="/dashboard/appels">
+                        <div className="bg-white p-2 rounded-lg border border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                          <div className="flex flex-col items-center gap-1">
+                            <Phone className="w-4 h-4 text-gray-700 group-hover:text-gray-900" />
+                            <span className="text-xs font-medium text-gray-900">Historique</span>
+                          </div>
+                        </div>
+                      </Link>
+                      <Link href="/dashboard/sara">
+                        <div className="bg-white p-2 rounded-lg border border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                          <div className="flex flex-col items-center gap-1">
+                            <Settings className="w-4 h-4 text-gray-700 group-hover:text-gray-900" />
+                            <span className="text-xs font-medium text-gray-900">Config Sara</span>
+                          </div>
+                        </div>
+                      </Link>
+                      <Link href="/dashboard/sara-analytics">
+                        <div className="bg-white p-2 rounded-lg border border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                          <div className="flex flex-col items-center gap-1">
+                            <TrendingUp className="w-4 h-4 text-gray-700 group-hover:text-gray-900" />
+                            <span className="text-xs font-medium text-gray-900">Analytics</span>
+                          </div>
+                        </div>
+                      </Link>
                     </div>
-                    <p className="text-sm text-gray-600">Métriques globales et analyses détaillées</p>
                   </div>
-                </Link>
-              </div>
+
+                  <Link href="/dashboard/settings/channels">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <MessageCircle className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">SMS</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">Configuration SMS</p>
+                    </div>
+                  </Link>
+
+                  <Link href="/dashboard/settings/channels">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <Mail className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">Email</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">Configuration Email</p>
+                    </div>
+                  </Link>
+
+                  <Link href="/dashboard/settings/channels">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <MessageSquare className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">WhatsApp</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">Configuration WhatsApp</p>
+                    </div>
+                  </Link>
+                </div>
+                </div>
+              )}
+
+              {/* Base de connaissances */}
+              {dashboardSections.knowledge && (
+                <div>
+                  <h3 className="text-base font-bold mb-3 flex items-center gap-2 text-gray-900">
+                    <FileText className="w-4 h-4 text-gray-700" />
+                    Base de connaissances
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                  <Link href="/dashboard/knowledge">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <FileText className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">Knowledge Base</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">Base documentaire</p>
+                    </div>
+                  </Link>
+
+                  <Link href="/dashboard/knowledge">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <FileText className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">Documents</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">Gestion des fichiers</p>
+                    </div>
+                  </Link>
+                </div>
+                </div>
+              )}
+
+              {/* Analytics & Rapports */}
+              {dashboardSections.analytics && (
+                <div>
+                  <h3 className="text-base font-bold mb-3 flex items-center gap-2 text-gray-900">
+                    <BarChart3 className="w-4 h-4 text-gray-700" />
+                    Analytics & Rapports
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                  <Link href="/dashboard/analytics">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <BarChart3 className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">Dashboard Global</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">Vue d'ensemble complète</p>
+                    </div>
+                  </Link>
+
+                  <Link href="/dashboard/analytics">
+                    <div className="bg-white p-3 rounded-lg border-2 border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-8 h-8 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors">
+                          <TrendingUp className="w-5 h-5 text-gray-700 group-hover:text-white transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm">Conversion & Stats</h4>
+                      </div>
+                      <p className="text-xs text-gray-600">Taux et entonnoirs</p>
+                    </div>
+                  </Link>
+                </div>
+                </div>
+              )}
             </div>
           </div>
 

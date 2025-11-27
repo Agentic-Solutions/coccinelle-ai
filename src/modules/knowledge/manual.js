@@ -1,7 +1,7 @@
 // Routes pour la saisie manuelle : FAQ et Snippets
 // Auth : JWT via requireAuth()
 
-import * as auth from './modules/auth/helpers.js';
+import * as auth from '../auth/helpers.js';
 
 export async function handleKnowledgeManualRoutes(request, env, ctx, corsHeaders) {
   const url = new URL(request.url);

@@ -28,7 +28,7 @@ export async function semanticSearch(vectorize, queryEmbedding, topK = 5, filter
     }));
   } catch (error) {
     console.error('Error in semanticSearch:', error);
-    throw new Error(`Semantic search failed: ${error.message}`);
+    throw new Error(`Semantic search failed: ${error.message});
   }
 }
 
@@ -68,7 +68,7 @@ export async function retrieveChunks(db, chunkIds) {
     }));
   } catch (error) {
     console.error('Error in retrieveChunks:', error);
-    throw new Error(`Failed to retrieve chunks: ${error.message}`);
+    throw new Error(`Failed to retrieve chunks: ${error.message});
   }
 }
 
@@ -103,7 +103,7 @@ export function buildContext(chunks, maxTokens = 2000) {
     };
   } catch (error) {
     console.error('Error in buildContext:', error);
-    throw new Error(`Failed to build context: ${error.message}`);
+    throw new Error(`Failed to build context: ${error.message});
   }
 }
 
@@ -156,42 +156,11 @@ export async function generateAnswer(question, context, apiKey, model = 'claude-
     }
   } catch (error) {
     console.error('Error in generateAnswer:', error);
-    throw new Error(`Failed to generate answer: ${error.message}`);
+    throw new Error(`Failed to generate answer: ${error.message});
   }
 }
 
-// FONCTION 5: Upsert vers Vectorize
-export async function upsertToVectorize(vectorize, chunks) {
-  try {
-    if (!chunks || chunks.length === 0) {
-      return { inserted: 0 };
-    }
-
-    const vectors = chunks.map(chunk => ({
-      id: chunk.id,
-      values: chunk.embedding,
-      metadata: {
-        documentId: chunk.documentId || chunk.document_id,
-        chunkIndex: chunk.chunkIndex || chunk.chunk_index,
-        tokenCount: chunk.tokenCount || chunk.token_count,
-        tenantId: chunk.tenantId || chunk.tenant_id,
-        agentId: chunk.agentId || chunk.agent_id
-      }
-    }));
-
-    await vectorize.upsert(vectors);
-
-    return {
-      inserted: vectors.length,
-      success: true
-    };
-  } catch (error) {
-    console.error('Error in upsertToVectorize:', error);
-    throw new Error(`Failed to upsert to Vectorize: ${error.message}`);
-  }
-}
-
-// FONCTION 6: Pipeline RAG complet
+// FONCTION 5: Pipeline RAG complet
 export async function ragPipeline({ question, db, vectorize, openaiApiKey, llmApiKey, tenantId, agentId = null, topK = 5 }) {
   try {
     const startTime = Date.now();
@@ -247,6 +216,6 @@ export async function ragPipeline({ question, db, vectorize, openaiApiKey, llmAp
     };
   } catch (error) {
     console.error('Error in ragPipeline:', error);
-    throw new Error(`RAG pipeline failed: ${error.message}`);
+    throw new Error(`RAG pipeline failed: ${error.message});
   }
 }

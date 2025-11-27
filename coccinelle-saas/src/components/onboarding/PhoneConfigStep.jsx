@@ -35,18 +35,20 @@ const VOICES = [
   { value: 'male', label: 'Masculine', description: 'Voix masculine naturelle' }
 ];
 
-export default function SaraConfigStep({ sessionId, onNext, onBack, loading }) {
+export default function PhoneConfigStep({ onNext, onBack, loading }) {
   const [agentType, setAgentType] = useState('');
   const [voice, setVoice] = useState('female');
   const [assistantName, setAssistantName] = useState('Sara');
 
   const handleSubmit = () => {
     if (!agentType) return;
-    
+
     onNext({
-      agent_type: agentType,
-      voice: voice,
-      assistant_name: assistantName
+      phone: {
+        agent_type: agentType,
+        voice: voice,
+        assistant_name: assistantName
+      }
     });
   };
 
@@ -55,23 +57,17 @@ export default function SaraConfigStep({ sessionId, onNext, onBack, loading }) {
   return (
     <div>
       <h2 className="text-2xl font-bold text-black mb-2">
-        Configuration de Sara
+        Configuration du canal Téléphone
       </h2>
-      <p className="text-gray-600 mb-4">
-        Choisissez le rôle principal de votre assistant IA et sa voix.
+      <p className="text-gray-600 mb-8">
+        Configurez Sara pour les appels vocaux.
       </p>
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
-        <p className="text-sm text-blue-900">
-          💡 <strong>Note:</strong> Sara pourra communiquer par téléphone, SMS, email et WhatsApp.
-          Vous configurerez ces canaux plus tard dans Paramètres {'>'} Canaux.
-        </p>
-      </div>
 
       <div className="space-y-8">
         {/* Type d'agent */}
         <div>
           <label className="block text-sm font-medium text-black mb-4">
-            Rôle principal de Sara *
+            Rôle de Sara *
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {AGENT_TYPES.map((type) => {
