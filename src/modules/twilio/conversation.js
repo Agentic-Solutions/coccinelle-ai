@@ -21,9 +21,11 @@ export class ConversationManager {
     try {
       // Charger la config du tenant et de l'agent
       const tenant = await this.env.DB.prepare(`
-        SELECT t.*, a.name as agent_name, a.personality, a.system_prompt, a.id as agent_id
+        SELECT t.*,
+          (a.first_name || ' ' || a.last_name) as agent_name,
+          a.id as agent_id
         FROM tenants t
-        LEFT JOIN agents a ON t.id = a.tenant_id AND a.is_default = 1
+        LEFT JOIN agents a ON t.id = a.tenant_id AND a.is_active = 1
         WHERE t.id = ?
       `).bind(this.tenantId).first();
 
@@ -33,10 +35,10 @@ export class ConversationManager {
           companyName: tenant.company_name,
           agentName: tenant.agent_name || 'Sara',
           agentId: tenant.agent_id,
-          personality: tenant.personality || 'professional',
-          systemPrompt: tenant.system_prompt,
-          transferNumber: tenant.transfer_number,
-          smsNumber: tenant.sms_number
+          personality: 'professional',
+          systemPrompt: null,
+          transferNumber: null,
+          smsNumber: null
         };
       } else {
         // Config par défaut

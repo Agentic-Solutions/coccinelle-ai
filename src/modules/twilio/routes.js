@@ -210,11 +210,12 @@ async function getTenantByPhoneNumber(env, phoneNumber) {
       tc.voice_id,
       tc.language,
       tc.welcome_message,
+      tc.transfer_number,
       a.id as agent_id,
-      a.name as agent_name
+      (a.first_name || ' ' || a.last_name) as agent_name
     FROM tenants t
     LEFT JOIN tenant_channels tc ON t.id = tc.tenant_id AND tc.channel_type = 'phone'
-    LEFT JOIN agents a ON t.id = a.tenant_id AND a.is_default = 1
+    LEFT JOIN agents a ON t.id = a.tenant_id AND a.is_active = 1
     WHERE tc.phone_number = ? OR tc.phone_number = ?
     LIMIT 1
   `).bind(phoneNumber, normalizedNumber).first();
