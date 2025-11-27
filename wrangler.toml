@@ -6,8 +6,16 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ENVIRONMENT = "production"
 N8N_WEBHOOK_URL = "https://votre-n8n.com/webhook/coccinelle"
-TWILIO_PHONE_NUMBER = "+33939035761"
+TWILIO_PHONE_NUMBER = "+33939035760"
+TWILIO_PHONE_NUMBER_2 = "+33939035761"
 RESEND_FROM_EMAIL = "onboarding@resend.dev"
+
+# Note: Les secrets suivants doivent être configurés via wrangler secret put:
+# - TWILIO_ACCOUNT_SID
+# - TWILIO_AUTH_TOKEN
+# - ANTHROPIC_API_KEY
+# - OPENAI_API_KEY
+# - ELEVENLABS_API_KEY (optionnel)
 
 [[d1_databases]]
 binding = "DB"

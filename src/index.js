@@ -8,6 +8,7 @@ import { handleProspectsRoutes } from './modules/prospects/routes.js';
 import { handleAgentsRoutes } from './modules/agents/routes.js';
 import { handleAppointmentsRoutes } from './modules/appointments/routes.js';
 import { handleVapiRoutes } from './modules/vapi/routes.js';
+import { handleTwilioRoutes } from './modules/twilio/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
 import { handleKnowledgeManualRoutes } from './modules/knowledge/manual.js';
 import { handleChannelsRoutes } from './modules/channels/routes.js';
@@ -69,6 +70,12 @@ export default {
       
       if (path.startsWith('/api/v1/vapi') || path.startsWith('/webhooks/vapi')) {
         response = await handleVapiRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Twilio ConversationRelay routes
+      if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio')) {
+        response = await handleTwilioRoutes(request, env, path, method);
         if (response) return response;
       }
 
