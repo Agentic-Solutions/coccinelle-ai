@@ -10,6 +10,7 @@ import SecuritySettings from '@/components/settings/SecuritySettings';
 import AvailabilitySettings from '@/components/settings/AvailabilitySettings';
 import TeamManagement from '@/components/settings/TeamManagement';
 import CalendarIntegration from '@/components/settings/CalendarIntegration';
+import EmailConfiguration from '@/components/settings/EmailConfiguration';
 import Logo from '@/components/Logo';
 
 export default function SettingsPage() {
@@ -26,6 +27,7 @@ export default function SettingsPage() {
     { id: 'section2', label: 'CONFIGURATION BUSINESS', isSection: true },
     { id: 'availability', label: 'Disponibilités' },
     { id: 'calendar', label: 'Calendriers' },
+    { id: 'email', label: 'Email' },
     { id: 'channels', label: 'Canaux de communication', link: '/dashboard/settings/channels' },
 
     // Équipe & Développement
@@ -108,6 +110,7 @@ export default function SettingsPage() {
             {activeTab === 'availability' && <AvailabilitySettings />}
             {activeTab === 'team' && <TeamManagement />}
             {activeTab === 'calendar' && <CalendarIntegration />}
+            {activeTab === 'email' && <EmailConfiguration />}
             {activeTab === 'profile' && <ProfileForm />}
             {activeTab === 'api' && <APIKeysForm />}
             {activeTab === 'notifications' && <NotificationsSettings />}
