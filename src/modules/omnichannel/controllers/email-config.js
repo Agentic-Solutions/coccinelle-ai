@@ -441,33 +441,8 @@ export async function detectDNSProvider(request, env) {
       forwardingAddress
     );
 
-    // Sauvegarder la config en DB (status = pending)
-    const now = new Date().toISOString();
-    const configId = `emailcfg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    const existing = await env.DB.prepare(`
-      SELECT id FROM omni_email_configs WHERE tenant_id = ?
-    `).bind(tenantId).first();
-
-    if (existing) {
-      await env.DB.prepare(`
-        UPDATE omni_email_configs
-        SET domain = ?,
-            email_address = ?,
-            forwarding_address = ?,
-            dns_provider = ?,
-            status = 'pending',
-            updated_at = ?
-        WHERE tenant_id = ?
-      `).bind(domain, emailAddress, forwardingAddress, providerInfo.provider, now, tenantId).run();
-    } else {
-      await env.DB.prepare(`
-        INSERT INTO omni_email_configs (
-          id, tenant_id, domain, email_address, forwarding_address,
-          dns_provider, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-      `).bind(configId, tenantId, domain, emailAddress, forwardingAddress, providerInfo.provider, now, now).run();
-    }
+    // NOTE: La sauvegarde en DB se fera lors de l'auto-configuration
+    // Pour la détection simple, on ne sauvegarde pas pour éviter les erreurs de FK
 
     omniLogger.info('DNS provider detected', {
       tenantId,
