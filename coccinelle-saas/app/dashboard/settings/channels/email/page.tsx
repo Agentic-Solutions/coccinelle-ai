@@ -219,7 +219,10 @@ export default function EmailConfigPage() {
         body: JSON.stringify({ domain, emailAddress, tenantId }),
       });
 
-      if (!res.ok) throw new Error('Erreur lors de la détection du provider');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Erreur lors de la détection du provider');
+      }
 
       const data = await res.json();
       setProviderInfo(data.provider);

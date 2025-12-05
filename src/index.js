@@ -1,4 +1,4 @@
-import { handleCORS, corsHeaders } from './config/cors.js';
+import { handleCORS, corsHeaders, getCorsHeaders } from './config/cors.js';
 import { logger } from './utils/logger.js';
 import { errorResponse } from './utils/response.js';
 import { handlePublicRoutes } from './modules/public/routes.js';
@@ -12,6 +12,9 @@ import { handleTwilioRoutes } from './modules/twilio/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
 import { handleKnowledgeManualRoutes } from './modules/knowledge/manual.js';
 import { handleChannelsRoutes } from './modules/channels/routes.js';
+import { handleIntegrationsRoutes } from './modules/integrations/routes.js';
+// Module Omnichannel (indépendant, activable via OMNICHANNEL_ENABLED)
+import { handleOmnichannelRoutes } from './modules/omnichannel/index.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -79,8 +82,32 @@ export default {
         if (response) return response;
       }
 
+      // MODULE OMNICHANNEL (indépendant, plug-and-play)
+      // Activer avec OMNICHANNEL_ENABLED=true dans wrangler.toml
+      if (path.startsWith('/api/v1/omnichannel') || path.startsWith('/webhooks/omnichannel')) {
+        response = await handleOmnichannelRoutes(request, env, path, method);
+        if (response) {
+          // Ajouter les en-têtes CORS à la réponse
+          const corsHeaders = getCorsHeaders(request);
+          const headers = new Headers(response.headers);
+          Object.entries(corsHeaders).forEach(([key, value]) => {
+            headers.set(key, value);
+          });
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers
+          });
+        }
+      }
+
       if (path.startsWith('/api/v1/channels')) {
         response = await handleChannelsRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      if (path.startsWith('/api/v1/integrations') || path.startsWith('/webhooks/integrations')) {
+        response = await handleIntegrationsRoutes(request, env, path, method);
         if (response) return response;
       }
 
