@@ -113,22 +113,8 @@ export default function EmailConfigPage() {
   // Load Inbound Config
   const loadInboundConfig = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      let tenantId = 'test_tenant_001'; // Fallback pour développement
-
-      // Essayer de récupérer le tenantId depuis l'auth
-      try {
-        const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          tenantId = userData.tenant_id;
-        }
-      } catch {
-        // Utiliser le fallback si l'auth échoue
-      }
+      // Utiliser directement le tenantId de fallback pour le développement
+      const tenantId = 'test_tenant_001';
 
       const configRes = await fetch(`${API_URL}/api/v1/omnichannel/email/config?tenantId=${tenantId}`);
 
@@ -209,23 +195,8 @@ export default function EmailConfigPage() {
     setInboundMessage(null);
 
     try {
-      const token = localStorage.getItem('auth_token');
-      let tenantId = 'test_tenant_001'; // Fallback pour développement
-
-      // Essayer de récupérer le tenantId depuis l'auth
-      try {
-        const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          tenantId = userData.tenant_id;
-        }
-      } catch {
-        // Utiliser le fallback si l'auth échoue
-      }
-
+      // Utiliser directement le tenantId de fallback pour le développement
+      const tenantId = 'test_tenant_001';
       const domain = extractDomain(emailAddress);
 
       const res = await fetch(`${API_URL}/api/v1/omnichannel/email/detect-provider`, {
