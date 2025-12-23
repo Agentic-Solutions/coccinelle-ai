@@ -53,7 +53,7 @@ export async function handleIncomingEmail(request, env) {
     // Chercher ou créer une conversation pour cet email
     let conversation = await env.DB.prepare(`
       SELECT * FROM omni_conversations
-      WHERE client_email = ? AND current_channel = 'email' AND status = 'active'
+      WHERE customer_email = ? AND current_channel = 'email' AND status = 'active'
       ORDER BY created_at DESC
       LIMIT 1
     `).bind(senderEmail).first();

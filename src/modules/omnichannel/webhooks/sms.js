@@ -30,7 +30,7 @@ export async function handleIncomingSMS(request, env) {
     // Chercher ou créer une conversation pour ce numéro
     let conversation = await env.DB.prepare(`
       SELECT * FROM omni_conversations
-      WHERE client_phone = ? AND current_channel = 'sms' AND status = 'active'
+      WHERE customer_phone = ? AND current_channel = 'sms' AND status = 'active'
       ORDER BY created_at DESC
       LIMIT 1
     `).bind(from).first();

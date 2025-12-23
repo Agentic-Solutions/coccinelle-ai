@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS omni_agent_configs (
 
   -- Identité agent
   agent_name TEXT DEFAULT 'Sara',
+  agent_type TEXT DEFAULT 'multi_purpose', -- Type d'agent : 'real_estate_reception', 'appointment_booking', etc.
   agent_personality TEXT DEFAULT 'professional', -- 'professional', 'friendly', 'casual'
 
   -- Configuration vocale
@@ -47,10 +48,10 @@ CREATE TABLE IF NOT EXISTS omni_conversations (
   conversation_sid TEXT UNIQUE, -- Twilio Conversation SID
   tenant_id TEXT NOT NULL,
 
-  -- Client info
-  client_phone TEXT,
-  client_email TEXT,
-  client_name TEXT,
+  -- Customer info
+  customer_phone TEXT,
+  customer_email TEXT,
+  customer_name TEXT,
 
   -- Canaux actifs
   active_channels TEXT, -- JSON: ["voice", "sms"]

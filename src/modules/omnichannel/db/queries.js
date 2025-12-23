@@ -15,17 +15,17 @@ export const queries = {
 
   createAgentConfig: `
     INSERT INTO omni_agent_configs (
-      id, tenant_id, agent_name, agent_personality,
+      id, tenant_id, agent_name, agent_type, agent_personality,
       voice_provider, voice_id, voice_settings, voice_language,
       system_prompt, greeting_message, fallback_message, transfer_message,
       channels_config, max_conversation_duration,
       interruption_enabled, auto_noise_detection, sentiment_analysis_enabled
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
 
   updateAgentConfig: `
     UPDATE omni_agent_configs
-    SET agent_name = ?, agent_personality = ?,
+    SET agent_name = ?, agent_type = ?, agent_personality = ?,
         voice_provider = ?, voice_id = ?, voice_settings = ?, voice_language = ?,
         system_prompt = ?, greeting_message = ?, fallback_message = ?, transfer_message = ?,
         channels_config = ?, max_conversation_duration = ?,
@@ -45,7 +45,7 @@ export const queries = {
   createConversation: `
     INSERT INTO omni_conversations (
       id, conversation_sid, tenant_id,
-      client_phone, client_email, client_name,
+      customer_phone, customer_email, customer_name,
       active_channels, current_channel, conversation_context,
       call_sid, first_message_at, last_message_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
