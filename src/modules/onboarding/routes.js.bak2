@@ -32,21 +32,6 @@ export async function startOnboarding(request, env, tenantId, userId) {
     const sessionId = generateId('onb');
     const now = new Date().toISOString();
 
-    // Vérifier si le tenant existe, sinon le créer
-    const tenant = await env.DB.prepare(`
-      SELECT id FROM tenants WHERE id = ?
-    `).bind(tenantId).first();
-
-    if (!tenant) {
-      // Créer un tenant temporaire pour l'onboarding
-      const apiKey = generateId('key');
-      await env.DB.prepare(`
-        INSERT INTO tenants (id, name, email, api_key, created_at)
-        VALUES (?, 'Tenant Temporaire', ?, ?, ?)
-      `).bind(tenantId, `${tenantId}@temp.local`, apiKey, now).run();
-      console.log(`[Onboarding] Tenant temporaire créé: ${tenantId}`);
-    }
-
     await env.DB.prepare(`
       INSERT INTO onboarding_sessions (
         id, tenant_id, user_id, current_step, status, started_at, last_updated_at, updated_at
@@ -190,9 +175,9 @@ export async function autoGenerateAgents(request, env, sessionId, tenantId) {
     statements.push(
       env.DB.prepare(`
         UPDATE onboarding_sessions
-        SET current_step = 4, last_updated_at = ?, updated_at = ?
+        SET current_step = 4, updated_at = ?
         WHERE id = ?
-      `).bind(now, now, sessionId)
+      `).bind(now, sessionId)
     );
 
     await env.DB.batch(statements);
@@ -306,9 +291,9 @@ export async function saveAssistantConfig(request, env, sessionId, tenantId) {
     statements.push(
       env.DB.prepare(`
         UPDATE onboarding_sessions
-        SET current_step = 5, last_updated_at = ?, updated_at = ?
+        SET current_step = 5, updated_at = ?
         WHERE id = ?
-      `).bind(now, now, sessionId)
+      `).bind(now, sessionId)
     );
 
     await env.DB.batch(statements);
@@ -351,9 +336,9 @@ export async function initializeKnowledgeBase(request, env, sessionId, tenantId)
       const now = new Date().toISOString();
       await env.DB.prepare(`
         UPDATE onboarding_sessions
-        SET current_step = 6, last_updated_at = ?, updated_at = ?
+        SET current_step = 6, updated_at = ?
         WHERE id = ?
-      `).bind(now, now, sessionId).run();
+      `).bind(now, sessionId).run();
 
       return {
         success: true,
@@ -384,9 +369,9 @@ export async function initializeKnowledgeBase(request, env, sessionId, tenantId)
     statements.push(
       env.DB.prepare(`
         UPDATE onboarding_sessions
-        SET current_step = 6, last_updated_at = ?, updated_at = ?
+        SET current_step = 6, updated_at = ?
         WHERE id = ?
-      `).bind(now, now, sessionId)
+      `).bind(now, sessionId)
     );
 
     await env.DB.batch(statements);

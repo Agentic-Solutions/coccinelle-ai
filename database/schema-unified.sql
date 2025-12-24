@@ -155,7 +155,7 @@ CREATE INDEX IF NOT EXISTS idx_omni_msg_conv ON omni_messages(conversation_id);
 -- SECTION 4 : AGENTS COMMERCIAUX
 -- ================================================================
 
-CREATE TABLE IF NOT EXISTS agents (
+CREATE TABLE IF NOT EXISTS commercial_agents (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   user_id TEXT,
@@ -183,11 +183,11 @@ CREATE TABLE IF NOT EXISTS availability_slots (
   end_time TEXT NOT NULL,
   is_available INTEGER DEFAULT 1,
 
-  FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+  FOREIGN KEY (agent_id) REFERENCES commercial_agents(id) ON DELETE CASCADE
 );
 
 -- Index
-CREATE INDEX IF NOT EXISTS idx_agents_tenant ON agents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_commercial_agents_tenant ON commercial_agents(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_availability_agent ON availability_slots(agent_id);
 
 -- ================================================================
@@ -212,7 +212,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
   FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-  FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL
+  FOREIGN KEY (agent_id) REFERENCES commercial_agents(id) ON DELETE SET NULL
 );
 
 -- Index

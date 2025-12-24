@@ -114,7 +114,7 @@ async function handleGetAvailability(request, env, path, url) {
     // Récupérer tous les agents actifs du tenant
     const agents = await env.DB.prepare(`
       SELECT id, first_name, last_name, email
-      FROM agents
+      FROM commercial_agents
       WHERE tenant_id = ? AND is_active = 1
     `).bind(tenantId).all();
 

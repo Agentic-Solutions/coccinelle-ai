@@ -404,7 +404,7 @@ export default {
       // ========================================
 
       if (path === '/api/v1/agents' && method === 'GET') {
-        const { results } = await env.DB.prepare('SELECT * FROM agents WHERE is_active = 1').all();
+        const { results } = await env.DB.prepare('SELECT * FROM commercial_agents WHERE is_active = 1').all();
         return new Response(JSON.stringify({ agents: results }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });

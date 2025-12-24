@@ -12,7 +12,7 @@ VALUES (
 );
 
 -- Agents immobiliers avec gestion d'agenda
-INSERT INTO agents (id, tenant_id, first_name, last_name, email, phone, default_appointment_duration, buffer_time_minutes, max_appointments_per_day, is_active, created_at)
+INSERT INTO commercial_agents (id, tenant_id, first_name, last_name, email, phone, default_appointment_duration, buffer_time_minutes, max_appointments_per_day, is_active, created_at)
 VALUES 
   ('agent_001', 'tenant_demo_001', 'Sophie', 'Dubois', 'sophie.dubois@agence-demo.fr', '+33601020304', 60, 15, 8, 1, datetime('now')),
   ('agent_002', 'tenant_demo_001', 'Marc', 'Leroy', 'marc.leroy@agence-demo.fr', '+33605060708', 45, 10, 10, 1, datetime('now'));

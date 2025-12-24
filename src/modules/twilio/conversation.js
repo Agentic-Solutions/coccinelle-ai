@@ -25,7 +25,7 @@ export class ConversationManager {
           (a.first_name || ' ' || a.last_name) as agent_name,
           a.id as agent_id
         FROM tenants t
-        LEFT JOIN agents a ON t.id = a.tenant_id AND a.is_active = 1
+        LEFT JOIN commercial_agents a ON t.id = a.tenant_id AND a.is_active = 1
         WHERE t.id = ?
       `).bind(this.tenantId).first();
 
@@ -149,6 +149,7 @@ INSTRUCTIONS VOCALES:
 
 CAPACITÉS:
 - Répondre aux questions sur l'entreprise et ses services (via la base de connaissances)
+- Rechercher des produits, biens immobiliers, articles ou services disponibles selon les critères du client
 - Vérifier les disponibilités pour des rendez-vous
 - Prendre des rendez-vous
 - Transférer à un conseiller humain si nécessaire
@@ -157,6 +158,7 @@ COMPORTEMENT:
 - Si tu ne connais pas la réponse, propose de transférer à un conseiller
 - Si l'utilisateur semble frustré, propose le transfert immédiat
 - Confirme toujours les rendez-vous pris avec un récapitulatif
+- Quand tu présentes des produits, mentionne les détails clés: prix, localisation (si immobilier), et caractéristiques principales
 
 LANGUE: Français exclusivement`;
 
@@ -180,6 +182,40 @@ LANGUE: Français exclusivement`;
         }
       },
       {
+        name: 'search_products',
+        description: 'Chercher des produits, biens immobiliers, articles, services ou autres offres disponibles selon des critères',
+        input_schema: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              description: 'Catégorie de produit: real_estate, shoes, services, food, etc.'
+            },
+            keywords: {
+              type: 'string',
+              description: 'Mots-clés à rechercher dans le titre ou la description'
+            },
+            min_price: {
+              type: 'number',
+              description: 'Prix minimum'
+            },
+            max_price: {
+              type: 'number',
+              description: 'Prix maximum'
+            },
+            attributes: {
+              type: 'object',
+              description: 'Attributs spécifiques (taille, couleur, surface, etc.)'
+            },
+            limit: {
+              type: 'number',
+              description: 'Nombre maximum de résultats (défaut: 5)'
+            }
+          },
+          required: []
+        }
+      },
+      {
         name: 'check_availability',
         description: 'Vérifier les créneaux disponibles pour un rendez-vous',
         input_schema: {
@@ -199,7 +235,7 @@ LANGUE: Français exclusivement`;
       },
       {
         name: 'book_appointment',
-        description: 'Réserver un rendez-vous pour le client',
+        description: 'Réserver un rendez-vous pour le client avec un agent spécifique (ex: visite d\'un bien immobilier)',
         input_schema: {
           type: 'object',
           properties: {
@@ -219,9 +255,17 @@ LANGUE: Français exclusivement`;
               type: 'string',
               description: 'Téléphone du client'
             },
+            property_id: {
+              type: 'string',
+              description: 'ID du bien/produit concerné (pour identifier l\'agent responsable)'
+            },
+            agent_id: {
+              type: 'string',
+              description: 'ID de l\'agent avec qui prendre RDV (si connu)'
+            },
             service_type: {
               type: 'string',
-              description: 'Type de rendez-vous'
+              description: 'Type de rendez-vous (ex: visite, estimation, conseil)'
             },
             notes: {
               type: 'string',
@@ -334,6 +378,9 @@ LANGUE: Français exclusivement`;
       case 'search_knowledge':
         return await this.toolSearchKnowledge(input, env);
 
+      case 'search_products':
+        return await this.toolSearchProducts(input, env);
+
       case 'check_availability':
         return await this.toolCheckAvailability(input, env);
 
@@ -380,6 +427,148 @@ LANGUE: Français exclusivement`;
     }
   }
 
+  async toolSearchProducts(input, env) {
+    try {
+      const { category, keywords, min_price, max_price, attributes, limit = 5 } = input;
+
+      // Construire la requête SQL dynamiquement
+      let query = `
+        SELECT
+          p.id,
+          p.title,
+          p.description,
+          p.price,
+          p.price_currency,
+          p.category,
+          p.type,
+          p.stock_quantity,
+          p.stock_status,
+          p.location,
+          p.attributes,
+          p.images,
+          p.agent_id,
+          (a.first_name || ' ' || a.last_name) as agent_name
+        FROM products p
+        LEFT JOIN commercial_agents a ON p.agent_id = a.id
+        WHERE p.tenant_id = ?
+          AND p.available = 1
+          AND p.status = 'active'
+      `;
+
+      // Paramètres de requête
+      const params = [this.tenantId];
+
+      // Filtrer par catégorie
+      if (category) {
+        query += ' AND p.category = ?';
+        params.push(category);
+      }
+
+      // Filtrer par mots-clés (recherche dans titre, description, keywords)
+      if (keywords) {
+        query += ' AND (p.title LIKE ? OR p.description LIKE ? OR p.keywords LIKE ?)';
+        const keywordPattern = `%${keywords}%`;
+        params.push(keywordPattern, keywordPattern, keywordPattern);
+      }
+
+      // Filtrer par prix
+      if (min_price !== undefined) {
+        query += ' AND p.price >= ?';
+        params.push(min_price);
+      }
+
+      if (max_price !== undefined) {
+        query += ' AND p.price <= ?';
+        params.push(max_price);
+      }
+
+      // Limiter les résultats
+      query += ' LIMIT ?';
+      params.push(limit);
+
+      const results = await env.DB.prepare(query).bind(...params).all();
+
+      if (!results.results || results.results.length === 0) {
+        return {
+          context: "Je n'ai trouvé aucun produit correspondant à ces critères.",
+          products: [],
+          count: 0
+        };
+      }
+
+      // Formatter les résultats pour Claude
+      const products = results.results.map(p => {
+        const product = {
+          id: p.id,
+          title: p.title,
+          price: p.price,
+          currency: p.price_currency || 'EUR',
+          category: p.category,
+          type: p.type
+        };
+
+        // Ajouter description si présente
+        if (p.description) {
+          product.description = p.description.substring(0, 200);
+        }
+
+        // Parser et ajouter location pour immobilier
+        if (p.location) {
+          try {
+            const loc = JSON.parse(p.location);
+            if (loc.city || loc.address) {
+              product.location = `${loc.address || ''}, ${loc.city || ''}`.trim();
+            }
+          } catch (e) {
+            // Ignore JSON parse errors
+          }
+        }
+
+        // Parser et ajouter attributs spécifiques
+        if (p.attributes) {
+          try {
+            const attrs = JSON.parse(p.attributes);
+            if (Object.keys(attrs).length > 0) {
+              product.attributes = attrs;
+            }
+          } catch (e) {
+            // Ignore JSON parse errors
+          }
+        }
+
+        // Stock info
+        if (p.stock_status) {
+          product.stock_status = p.stock_status;
+        }
+
+        return product;
+      });
+
+      // Construire un contexte textuel pour Claude
+      const productDescriptions = products.map((p, idx) => {
+        let desc = `${idx + 1}. ${p.title} - ${p.price} ${p.currency}`;
+        if (p.location) desc += ` (${p.location})`;
+        if (p.description) desc += ` - ${p.description}`;
+        return desc;
+      }).join('\n');
+
+      return {
+        context: `J'ai trouvé ${products.length} produit(s):\n${productDescriptions}`,
+        products: products,
+        count: products.length
+      };
+
+    } catch (error) {
+      logger.error('Product search error', { error: error.message });
+      return {
+        context: "Désolé, une erreur s'est produite lors de la recherche de produits.",
+        products: [],
+        count: 0,
+        error: error.message
+      };
+    }
+  }
+
   async toolCheckAvailability(input, env) {
     try {
       const { date, service_type } = input;
@@ -418,18 +607,72 @@ LANGUE: Français exclusivement`;
 
   async toolBookAppointment(input, env) {
     try {
-      const { date, time, client_name, client_phone, service_type, notes } = input;
+      const { date, time, client_name, client_phone, property_id, agent_id, service_type, notes } = input;
+
+      let finalAgentId = agent_id;
+      let agentName = null;
+      let propertyTitle = null;
+
+      // Si un bien est spécifié, récupérer l'agent responsable
+      if (property_id) {
+        const product = await env.DB.prepare(`
+          SELECT p.agent_id, p.title, a.first_name, a.last_name
+          FROM products p
+          LEFT JOIN commercial_agents a ON p.agent_id = a.id
+          WHERE p.id = ? AND p.tenant_id = ?
+        `).bind(property_id, this.tenantId).first();
+
+        if (product) {
+          finalAgentId = product.agent_id;
+          propertyTitle = product.title;
+          agentName = product.first_name && product.last_name
+            ? `${product.first_name} ${product.last_name}`
+            : null;
+        }
+      }
+
+      // Si on a un agent, vérifier ses disponibilités
+      if (finalAgentId) {
+        const appointmentDate = new Date(`${date}T${time}:00`);
+        const dayOfWeek = appointmentDate.getDay(); // 0=Dimanche, 1=Lundi, etc.
+
+        const availability = await env.DB.prepare(`
+          SELECT * FROM availability_slots
+          WHERE agent_id = ? AND day_of_week = ? AND is_available = 1
+            AND time(?) >= time(start_time) AND time(?) < time(end_time)
+        `).bind(finalAgentId, dayOfWeek, time, time).first();
+
+        if (!availability) {
+          // Récupérer le nom de l'agent pour le message d'erreur
+          if (!agentName && finalAgentId) {
+            const agent = await env.DB.prepare(`
+              SELECT first_name, last_name FROM commercial_agents WHERE id = ?
+            `).bind(finalAgentId).first();
+
+            if (agent) {
+              agentName = `${agent.first_name} ${agent.last_name}`;
+            }
+          }
+
+          return {
+            success: false,
+            error: `L'agent ${agentName || 'concerné'} n'est pas disponible à cette date et heure. Souhaitez-vous un autre créneau ?`
+          };
+        }
+      }
 
       const appointmentId = `apt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const scheduledAt = `${date}T${time}:00`;
 
-      // Créer le rendez-vous en DB
+      // Créer le rendez-vous en DB avec l'agent
       await env.DB.prepare(`
-        INSERT INTO appointments (id, tenant_id, client_name, client_phone, scheduled_at, service_type, notes, status, created_at, call_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+        INSERT INTO appointments (id, tenant_id, agent_id, property_id, client_name, client_phone, scheduled_at, service_type, notes, status, created_at, call_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
       `).bind(
         appointmentId,
         this.tenantId,
+        finalAgentId,
+        property_id || null,
         client_name,
         client_phone || this.sessionInfo.fromNumber,
         scheduledAt,
@@ -439,7 +682,17 @@ LANGUE: Français exclusivement`;
         this.callId
       ).run();
 
-      logger.info('Appointment booked', { appointmentId, date, time, client_name });
+      logger.info('Appointment booked', { appointmentId, date, time, client_name, agent_id: finalAgentId, property_id });
+
+      // Construire le message de confirmation
+      let confirmationMessage = `Votre rendez-vous est confirmé pour le ${this.formatDate(date)} à ${time}`;
+      if (agentName) {
+        confirmationMessage += ` avec ${agentName}`;
+      }
+      if (propertyTitle) {
+        confirmationMessage += ` pour ${propertyTitle}`;
+      }
+      confirmationMessage += '.';
 
       return {
         success: true,
@@ -447,14 +700,16 @@ LANGUE: Français exclusivement`;
         date,
         time,
         client_name,
-        confirmation: `Votre rendez-vous est confirmé pour le ${this.formatDate(date)} à ${time}.`
+        agent_name: agentName,
+        property_title: propertyTitle,
+        confirmation: confirmationMessage
       };
 
     } catch (error) {
       logger.error('Book appointment error', { error: error.message });
       return {
         success: false,
-        error: 'Unable to book appointment'
+        error: 'Désolé, je n\'ai pas pu créer le rendez-vous. Pouvez-vous réessayer ?'
       };
     }
   }

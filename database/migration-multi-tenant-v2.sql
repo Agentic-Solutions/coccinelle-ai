@@ -101,19 +101,19 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 -- ==========================================
 -- Ajouter colonnes manquantes
 
-ALTER TABLE agents ADD COLUMN user_id TEXT;
-ALTER TABLE agents ADD COLUMN avatar_url TEXT;
-ALTER TABLE agents ADD COLUMN title TEXT;
-ALTER TABLE agents ADD COLUMN bio TEXT;
-ALTER TABLE agents ADD COLUMN specialties TEXT;
-ALTER TABLE agents ADD COLUMN calendar_provider TEXT DEFAULT 'internal';
-ALTER TABLE agents ADD COLUMN calendar_config TEXT;
-ALTER TABLE agents ADD COLUMN default_availability TEXT;
-ALTER TABLE agents ADD COLUMN total_appointments INTEGER DEFAULT 0;
-ALTER TABLE agents ADD COLUMN total_calls_received INTEGER DEFAULT 0;
-ALTER TABLE agents ADD COLUMN avg_rating REAL DEFAULT 0.0;
-ALTER TABLE agents ADD COLUMN is_available INTEGER DEFAULT 1;
-ALTER TABLE agents ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE commercial_agents ADD COLUMN user_id TEXT;
+ALTER TABLE commercial_agents ADD COLUMN avatar_url TEXT;
+ALTER TABLE commercial_agents ADD COLUMN title TEXT;
+ALTER TABLE commercial_agents ADD COLUMN bio TEXT;
+ALTER TABLE commercial_agents ADD COLUMN specialties TEXT;
+ALTER TABLE commercial_agents ADD COLUMN calendar_provider TEXT DEFAULT 'internal';
+ALTER TABLE commercial_agents ADD COLUMN calendar_config TEXT;
+ALTER TABLE commercial_agents ADD COLUMN default_availability TEXT;
+ALTER TABLE commercial_agents ADD COLUMN total_appointments INTEGER DEFAULT 0;
+ALTER TABLE commercial_agents ADD COLUMN total_calls_received INTEGER DEFAULT 0;
+ALTER TABLE commercial_agents ADD COLUMN avg_rating REAL DEFAULT 0.0;
+ALTER TABLE commercial_agents ADD COLUMN is_available INTEGER DEFAULT 1;
+ALTER TABLE commercial_agents ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;
 
 -- Créer index
 CREATE INDEX IF NOT EXISTS idx_agents_user_id ON agents(user_id);

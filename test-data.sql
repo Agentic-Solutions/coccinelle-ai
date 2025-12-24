@@ -25,7 +25,7 @@ INSERT OR REPLACE INTO tenants (
 );
 
 -- 2. AGENTS
-INSERT OR REPLACE INTO agents (
+INSERT OR REPLACE INTO commercial_agents (
   id, tenant_id, first_name, last_name, email, phone,
   role, is_active, created_at
 ) VALUES

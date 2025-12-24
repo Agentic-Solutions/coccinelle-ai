@@ -8,7 +8,7 @@ INSERT OR IGNORE INTO tenants (id, name, email, created_at) VALUES
   ('tenant_001', 'Salon Marie - Test', 'contact@salon-marie.fr', CURRENT_TIMESTAMP);
 
 -- 2. Créer agent de test si n'existe pas
-INSERT OR IGNORE INTO agents (id, tenant_id, name, email, phone, created_at) VALUES
+INSERT OR IGNORE INTO commercial_agents (id, tenant_id, name, email, phone, created_at) VALUES
   ('agent_001', 'tenant_001', 'Sara Martinez', 'sara@salon-marie.fr', '+33612345678', CURRENT_TIMESTAMP);
 
 -- 3. Services

@@ -51,14 +51,17 @@ async function handleIncomingCall(request, env) {
   const callSid = formData.get('CallSid');
   const from = formData.get('From');
   const to = formData.get('To');
+  const forwardedFrom = formData.get('ForwardedFrom'); // Numéro original si renvoi d'appel
 
-  logger.info('Incoming call received', { callSid, from, to });
+  logger.info('Incoming call received', { callSid, from, to, forwardedFrom });
 
   // Récupérer la config du tenant basée sur le numéro appelé
-  const tenantConfig = await getTenantByPhoneNumber(env, to);
+  // Si ForwardedFrom existe, c'est que l'appel a été renvoyé depuis le numéro pro du client
+  const phoneToIdentify = forwardedFrom || to;
+  const tenantConfig = await getTenantByPhoneNumber(env, phoneToIdentify);
 
   if (!tenantConfig) {
-    logger.warn('No tenant found for number', { to });
+    logger.warn('No tenant found for number', { to, forwardedFrom, phoneToIdentify });
     return new Response(generateErrorTwiML('Numéro non configuré'), {
       headers: { 'Content-Type': 'application/xml' }
     });
@@ -78,7 +81,8 @@ async function handleIncomingCall(request, env) {
   }
 
   // Construire l'URL WebSocket pour ConversationRelay
-  const wsUrl = `wss://${new URL(request.url).host}/webhooks/twilio/conversation?callId=${callId}&tenantId=${tenantConfig.tenant_id}`;
+  // IMPORTANT : Utiliser &amp; pour encoder le & dans le XML
+  const wsUrl = `wss://${new URL(request.url).host}/webhooks/twilio/conversation?callId=${callId}&amp;tenantId=${tenantConfig.tenant_id}`;
 
   // Générer TwiML avec ConversationRelay
   const twiml = generateConversationRelayTwiML(wsUrl, tenantConfig);
@@ -90,18 +94,45 @@ async function handleIncomingCall(request, env) {
   });
 }
 
-// Générer le TwiML - Version Gather/Say (en attendant ConversationRelay)
+// Générer le TwiML avec ConversationRelay (IA conversationnelle en temps réel)
 function generateConversationRelayTwiML(wsUrl, tenantConfig) {
-  const welcomeMessage = tenantConfig.welcome_message || 'Bonjour, comment puis-je vous aider ?';
-  const gatherUrl = `https://coccinelle-api.youssef-amrouche.workers.dev/webhooks/twilio/gather?tenantId=${tenantConfig.tenant_id}`;
+  const welcomeMessage = tenantConfig.welcome_message ||
+    'Bonjour, bienvenue chez Coccinelle. Je suis Sara, votre assistante virtuelle. Comment puis-je vous aider ?';
+
+  // Configuration TTS (synthèse vocale)
+  const ttsProvider = tenantConfig.ttsProvider || 'amazon'; // amazon | elevenlabs | google
+  const ttsVoice = tenantConfig.ttsVoice || 'Lea-Neural';
+  const ttsVoiceId = tenantConfig.ttsVoiceId; // Pour ElevenLabs
+
+  // Configuration STT (transcription)
+  const transcriptionProvider = tenantConfig.transcriptionProvider || 'Deepgram';
+  const transcriptionLanguage = tenantConfig.transcriptionLanguage || 'fr-FR';
+  const speechModel = tenantConfig.speechModel || 'nova-2-conversationalai';
+
+  // Déterminer quel attribut voice utiliser selon le provider
+  const voiceAttr = ttsProvider === 'elevenlabs' && ttsVoiceId
+    ? ttsVoiceId  // Voice ID ElevenLabs (ex: "a5n9pJUnAhX4fn7lx3uo")
+    : ttsVoice;   // Nom de voix Amazon/Google (ex: "Lea-Neural")
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Lea-Neural" language="fr-FR">${escapeXml(welcomeMessage)}</Say>
-  <Gather input="speech" language="fr-FR" speechTimeout="2" action="${gatherUrl}" method="POST">
-    <Say voice="Polly.Lea-Neural" language="fr-FR">Je vous écoute.</Say>
-  </Gather>
-  <Say voice="Polly.Lea-Neural" language="fr-FR">Je n'ai pas entendu votre réponse. Au revoir.</Say>
+  <Connect>
+    <ConversationRelay
+      url="${wsUrl}"
+      voice="${voiceAttr}"
+      ttsProvider="${ttsProvider}"
+      transcriptionLanguage="${transcriptionLanguage}"
+      transcriptionProvider="${transcriptionProvider}"
+      speechModel="${speechModel}"
+      dtmfDetection="true"
+      interruptible="speech"
+      interruptSensitivity="high"
+      welcomeGreeting="${escapeXml(welcomeMessage)}"
+      welcomeGreetingInterruptible="speech"
+      preemptible="true">
+      <Language code="${transcriptionLanguage}" ttsProvider="${ttsProvider}" voice="${voiceAttr}" transcriptionProvider="${transcriptionProvider}" />
+    </ConversationRelay>
+  </Connect>
 </Response>`;
 }
 
@@ -280,7 +311,52 @@ async function getTenantByPhoneNumber(env, phoneNumber) {
   // Normaliser le numéro (enlever le +)
   const normalizedNumber = phoneNumber.replace(/^\+/, '');
 
-  const result = await env.DB.prepare(`
+  // Essayer d'abord avec la nouvelle table channel_configurations
+  // Cherche dans le JSON config_public le champ phoneNumber qui correspond au numéro du client
+  const configResult = await env.DB.prepare(`
+    SELECT
+      t.id as tenant_id,
+      t.company_name,
+      cc.config_public,
+      a.id as agent_id,
+      (a.first_name || ' ' || a.last_name) as agent_name
+    FROM tenants t
+    INNER JOIN channel_configurations cc ON t.id = cc.tenant_id AND cc.channel_type = 'phone'
+    LEFT JOIN commercial_agents a ON t.id = a.tenant_id AND a.is_active = 1
+    WHERE cc.enabled = 1
+      AND (
+        JSON_EXTRACT(cc.config_public, '$.phoneNumber') = ?
+        OR JSON_EXTRACT(cc.config_public, '$.phoneNumber') = ?
+      )
+    LIMIT 1
+  `).bind(phoneNumber, normalizedNumber).first();
+
+  if (configResult && configResult.config_public) {
+    const config = JSON.parse(configResult.config_public);
+    const saraConfig = config.sara || {};
+
+    return {
+      tenant_id: configResult.tenant_id,
+      company_name: configResult.company_name,
+      agent_id: configResult.agent_id,
+      agent_name: configResult.agent_name,
+      // Configuration vocale
+      ttsProvider: saraConfig.ttsProvider || 'amazon',
+      ttsVoice: saraConfig.ttsVoice || 'Lea-Neural',
+      ttsVoiceId: saraConfig.ttsVoiceId || null,
+      transcriptionProvider: saraConfig.transcriptionProvider || 'Deepgram',
+      transcriptionLanguage: saraConfig.transcriptionLanguage || 'fr-FR',
+      speechModel: saraConfig.speechModel || 'nova-2-conversationalai',
+      // Message de bienvenue
+      welcome_message: saraConfig.welcomeMessage || 'Bonjour, bienvenue chez Coccinelle. Je suis Sara, votre assistante virtuelle. Comment puis-je vous aider ?',
+      // Autre config
+      language: saraConfig.language || 'fr-FR',
+      transfer_number: config.transferNumber || null
+    };
+  }
+
+  // Fallback : essayer l'ancienne table tenant_channels (rétrocompatibilité)
+  const legacyResult = await env.DB.prepare(`
     SELECT
       t.id as tenant_id,
       t.company_name,
@@ -292,25 +368,71 @@ async function getTenantByPhoneNumber(env, phoneNumber) {
       (a.first_name || ' ' || a.last_name) as agent_name
     FROM tenants t
     LEFT JOIN tenant_channels tc ON t.id = tc.tenant_id AND tc.channel_type = 'phone'
-    LEFT JOIN agents a ON t.id = a.tenant_id AND a.is_active = 1
+    LEFT JOIN commercial_agents a ON t.id = a.tenant_id AND a.is_active = 1
     WHERE tc.phone_number = ? OR tc.phone_number = ?
     LIMIT 1
   `).bind(phoneNumber, normalizedNumber).first();
 
-  // Fallback sur config par défaut pour le développement
-  if (!result) {
+  if (legacyResult) {
     return {
-      tenant_id: 'tenant_demo_001',
-      company_name: 'Demo Company',
-      voice_id: 'Polly.Lea-Neural',
-      language: 'fr-FR',
-      welcome_message: 'Bonjour, bienvenue chez Coccinelle. Comment puis-je vous aider ?',
-      agent_id: 'agent_sara_001',
-      agent_name: 'Sara'
+      ...legacyResult,
+      // Valeurs par défaut pour les nouveaux paramètres
+      ttsProvider: 'amazon',
+      ttsVoice: 'Lea-Neural',
+      ttsVoiceId: null,
+      transcriptionProvider: 'Deepgram',
+      transcriptionLanguage: legacyResult.language || 'fr-FR',
+      speechModel: 'nova-2-conversationalai'
     };
   }
 
-  return result;
+  // Nouveau fallback : chercher directement dans tenants.twilio_phone_number
+  const directResult = await env.DB.prepare(`
+    SELECT
+      t.id as tenant_id,
+      t.name as company_name,
+      a.id as agent_id,
+      (a.first_name || ' ' || a.last_name) as agent_name
+    FROM tenants t
+    LEFT JOIN commercial_agents a ON t.id = a.tenant_id AND a.is_active = 1
+    WHERE t.twilio_phone_number = ? OR t.twilio_phone_number = ?
+    LIMIT 1
+  `).bind(phoneNumber, normalizedNumber).first();
+
+  if (directResult) {
+    return {
+      tenant_id: directResult.tenant_id,
+      company_name: directResult.company_name,
+      agent_id: directResult.agent_id,
+      agent_name: directResult.agent_name,
+      language: 'fr-FR',
+      ttsProvider: 'amazon',
+      ttsVoice: 'Lea-Neural',
+      ttsVoiceId: null,
+      transcriptionProvider: 'Deepgram',
+      transcriptionLanguage: 'fr-FR',
+      speechModel: 'nova-2-conversationalai',
+      welcome_message: `Bonjour, bienvenue chez ${directResult.company_name}. Je suis Sara, votre assistante virtuelle. Comment puis-je vous aider ?`,
+      transfer_number: null
+    };
+  }
+
+  // Fallback sur config par défaut pour le développement
+  return {
+    tenant_id: 'tenant_demo_001',
+    company_name: 'Demo Company',
+    agent_id: 'agent_sara_001',
+    agent_name: 'Sara',
+    language: 'fr-FR',
+    ttsProvider: 'amazon',
+    ttsVoice: 'Lea-Neural',
+    ttsVoiceId: null,
+    transcriptionProvider: 'Deepgram',
+    transcriptionLanguage: 'fr-FR',
+    speechModel: 'nova-2-conversationalai',
+    welcome_message: 'Bonjour, bienvenue chez Coccinelle. Comment puis-je vous aider ?',
+    transfer_number: null
+  };
 }
 
 // Escape XML pour éviter les injections
