@@ -317,8 +317,45 @@ CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 
 -- ================================================================
--- SECTION 8 : CRM & PROSPECTS
+-- SECTION 8 : CRM & CUSTOMERS
 -- ================================================================
+
+CREATE TABLE IF NOT EXISTS customers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+
+  -- Informations personnelles
+  first_name TEXT,
+  last_name TEXT,
+  email TEXT,
+  phone TEXT,
+
+  -- Métadonnées
+  status TEXT DEFAULT 'active', -- 'active', 'inactive', 'lead', 'prospect', 'customer'
+  source TEXT, -- 'phone', 'email', 'sms', 'whatsapp', 'website', 'referral', etc.
+  tags TEXT, -- JSON array: ["vip", "urgent", etc.]
+
+  -- Préférences
+  preferred_contact_method TEXT, -- 'phone', 'email', 'sms', 'whatsapp'
+  language TEXT DEFAULT 'fr',
+  timezone TEXT DEFAULT 'Europe/Paris',
+
+  -- Statistiques
+  total_appointments INTEGER DEFAULT 0,
+  total_conversations INTEGER DEFAULT 0,
+  last_contact_at DATETIME,
+
+  -- Timestamps
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+  -- Foreign Keys
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+
+  -- Constraints
+  UNIQUE(tenant_id, email),
+  UNIQUE(tenant_id, phone)
+);
 
 CREATE TABLE IF NOT EXISTS prospects (
   id TEXT PRIMARY KEY,
@@ -356,6 +393,11 @@ CREATE TABLE IF NOT EXISTS crm_integrations (
 );
 
 -- Index
+CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
+CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status);
+CREATE INDEX IF NOT EXISTS idx_customers_last_contact ON customers(last_contact_at);
 CREATE INDEX IF NOT EXISTS idx_prospects_tenant ON prospects(tenant_id);
 
 -- ================================================================
