@@ -666,7 +666,7 @@ LANGUE: Français exclusivement`;
 
       // Créer le rendez-vous en DB avec l'agent
       await env.DB.prepare(`
-        INSERT INTO appointments (id, tenant_id, agent_id, property_id, client_name, client_phone, scheduled_at, service_type, notes, status, created_at, call_id)
+        INSERT INTO appointments (id, tenant_id, agent_id, property_id, customer_name, customer_phone, scheduled_at, service_type, notes, status, created_at, call_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
       `).bind(
         appointmentId,

@@ -46,7 +46,17 @@ export async function getAgentConfig(request, env) {
       config.channels_config = JSON.parse(config.channels_config);
     }
 
-    omniLogger.info('Agent config retrieved', { tenantId });
+    // Récupérer aussi le phone mapping pour inclure le numéro de téléphone du client
+    const phoneMapping = await env.DB.prepare(`
+      SELECT phone_number FROM omni_phone_mappings
+      WHERE tenant_id = ?
+      LIMIT 1
+    `).bind(tenantId).first();
+
+    // Ajouter le numéro de téléphone à la config
+    config.phone_number = phoneMapping?.phone_number || null;
+
+    omniLogger.info('Agent config retrieved', { tenantId, hasPhoneNumber: !!config.phone_number });
 
     return new Response(JSON.stringify({ success: true, config }), {
       status: 200,
@@ -106,6 +116,7 @@ export async function updateAgentConfig(request, env) {
       // UPDATE
       await env.DB.prepare(queries.updateAgentConfig).bind(
         config.agent_name || 'Sara',
+        config.agent_type || 'multi_purpose',
         config.agent_personality || 'professional',
         config.voice_provider || 'elevenlabs',
         config.voice_id || null,
@@ -130,6 +141,7 @@ export async function updateAgentConfig(request, env) {
         configId,
         tenantId,
         config.agent_name || 'Sara',
+        config.agent_type || 'multi_purpose',
         config.agent_personality || 'professional',
         config.voice_provider || 'elevenlabs',
         config.voice_id || null,
