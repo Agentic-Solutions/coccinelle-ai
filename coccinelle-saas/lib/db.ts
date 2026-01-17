@@ -5,13 +5,18 @@
 // Pour les API Routes Next.js, on doit appeler l'API Cloudflare
 export async function queryDB(query: string, params: any[] = []) {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
-  
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+
+  if (!internalSecret) {
+    throw new Error('INTERNAL_API_SECRET environment variable is required for database access');
+  }
+
   // On va créer un endpoint spécial sur l'API Cloudflare pour les requêtes auth
   const response = await fetch(`${apiUrl}/api/v1/internal/db/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Internal-Secret': process.env.INTERNAL_API_SECRET || 'dev-secret-123'
+      'X-Internal-Secret': internalSecret
     },
     body: JSON.stringify({ query, params })
   });

@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 /**
  * Webhook Twilio pour réception de SMS
  * Auto-création de profils clients + Réponse IA automatique

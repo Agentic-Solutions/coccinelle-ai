@@ -9,6 +9,58 @@ import { generateDocumentsFromAnswers, calculateInitialScore } from './kb-assist
 import { isDemoMode } from './mockData';
 
 /**
+ * Sauvegarder les documents via l'API
+ */
+async function saveDocumentsToAPI(documents: any[]) {
+  const authToken = localStorage.getItem('auth_token');
+
+  // Obtenir le tenant_id depuis le sessionStorage de l'onboarding
+  const onboardingData = sessionStorage.getItem('onboarding_session');
+  let tenantId = null;
+
+  if (onboardingData) {
+    const parsed = JSON.parse(onboardingData);
+    tenantId = parsed.tenant_id;
+  }
+
+  if (!tenantId) {
+    console.error('No tenant_id found in onboarding session');
+    return;
+  }
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+  for (const doc of documents) {
+    try {
+      const response = await fetch(
+        `${API_URL}/api/v1/knowledge/documents`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: doc.title,
+            content: doc.content,
+            tenantId: tenantId,
+            sourceType: doc.sourceType || 'crawl',
+            category: doc.category || 'general'
+          })
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`Failed to save document "${doc.title}":`, await response.text());
+      }
+    } catch (error) {
+      console.error(`Error saving document "${doc.title}":`, error);
+      // Continue même en cas d'erreur sur un document
+    }
+  }
+}
+
+/**
  * Crawler un site web et sauvegarder les documents
  */
 export async function crawlWebsiteForOnboarding(
@@ -85,6 +137,11 @@ export async function crawlWebsiteForOnboarding(
         getTenantStorageKey('kb_documents'),
         JSON.stringify([...existingDocs, ...finalDocs])
       );
+
+      // 🆕 AUSSI sauvegarder via l'API pour persister en DB
+      console.log('[Onboarding] Sauvegarde des documents crawlés via API...');
+      await saveDocumentsToAPI(finalDocs);
+      console.log(`[Onboarding] ✅ ${finalDocs.length} documents sauvegardés dans la DB`);
     }
 
     return {

@@ -34,11 +34,12 @@ export async function loadKnowledgeData(
     return;
   }
 
-  // Mode production
+  // Mode production - utiliser le proxy Next.js
+  const tenantId = getCurrentTenantId();
   const [docsRes, callsRes, apptsRes] = await Promise.all([
-    fetch(buildApiUrl('/api/v1/knowledge/documents')),
-    fetch(buildApiUrl('/api/v1/vapi/calls')),
-    fetch(buildApiUrl('/api/v1/appointments'))
+    fetch(`/api/proxy?path=/api/v1/knowledge/documents&tenantId=${tenantId}`),
+    fetch(`/api/proxy?path=/api/v1/vapi/calls&tenantId=${tenantId}`),
+    fetch(`/api/proxy?path=/api/v1/appointments&tenantId=${tenantId}`)
   ]);
 
   const docsData = await docsRes.json();
@@ -117,7 +118,7 @@ export async function crawlWebsite(url: string, maxPages: number, maxDepth: numb
   return validPages;
 }
 
-export function saveCrawledPages(pages: any[]) {
+export async function saveCrawledPages(pages: any[]) {
   const structuredDocs = processLocalCrawl(pages);
   console.log('📚 processLocalCrawl retourné:', structuredDocs.length, 'documents');
 
@@ -125,21 +126,58 @@ export function saveCrawledPages(pages: any[]) {
     throw new Error('Aucun contenu structuré trouvé');
   }
 
-  const finalDocs = structuredDocs.map((doc: any, index: number) => ({
-    id: `doc_crawl_${Date.now()}_${index}`,
-    title: doc.title,
-    content: doc.content,
-    category: doc.category,
-    created_at: new Date().toISOString(),
-    sourceType: 'crawl'
-  }));
+  const tenantId = getCurrentTenantId();
 
-  const storageKey = getTenantStorageKey('kb_documents');
-  const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-  const allDocs = [...existingDocs, ...finalDocs];
-  localStorage.setItem(storageKey, JSON.stringify(allDocs));
+  // Si mode démo, sauvegarder dans localStorage
+  if (isDemoMode()) {
+    const finalDocs = structuredDocs.map((doc: any, index: number) => ({
+      id: `doc_crawl_${Date.now()}_${index}`,
+      title: doc.title,
+      content: doc.content,
+      category: doc.category,
+      created_at: new Date().toISOString(),
+      sourceType: 'crawl'
+    }));
 
-  return finalDocs;
+    const storageKey = getTenantStorageKey('kb_documents');
+    const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const allDocs = [...existingDocs, ...finalDocs];
+    localStorage.setItem(storageKey, JSON.stringify(allDocs));
+
+    return finalDocs;
+  }
+
+  // Mode production : sauvegarder directement vers l'API Cloudflare Workers
+  const savedDocs = [];
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+  for (const doc of structuredDocs) {
+    const response = await fetch(`${API_URL}/api/v1/knowledge/documents?tenantId=${tenantId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: doc.title,
+        content: doc.content,
+        sourceType: 'crawl',
+        tenantId,
+        category: doc.category
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Erreur sauvegarde document:', doc.title, errorText);
+      continue;
+    }
+
+    const data = await response.json();
+    if (data.success && data.document) {
+      savedDocs.push(data.document);
+    }
+  }
+
+  console.log('✅ Documents sauvegardés dans la DB:', savedDocs.length);
+  return savedDocs;
 }
 
 export async function importFromGoogle(url: string) {

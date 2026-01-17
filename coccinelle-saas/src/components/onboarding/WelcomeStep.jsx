@@ -27,7 +27,7 @@ export default function WelcomeStep({ onNext }) {
         <FeatureCard
           icon={<Phone className="w-6 h-6 text-black" />}
           title="Assistant vocal IA"
-          description="Sara répondra à vos clients 24/7"
+          description="Assistant répondra à vos clients 24/7"
         />
         <FeatureCard
           icon={<Calendar className="w-6 h-6 text-black" />}

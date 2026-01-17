@@ -4,6 +4,7 @@
 
 import { queries } from '../db/queries.js';
 import { omniLogger } from '../utils/logger.js';
+import { getAgentTypeConfig, renderTemplate } from '../templates/agent-types.js';
 
 /**
  * POST /webhooks/omnichannel/voice
@@ -15,30 +16,38 @@ export async function handleIncomingCall(request, env) {
     const callSid = formData.get('CallSid');
     const from = formData.get('From');
     const to = formData.get('To');
+    const forwardedFrom = formData.get('ForwardedFrom'); // Numéro de transfert du client
 
-    omniLogger.info('Incoming call', { callSid, from, to });
+    omniLogger.info('Incoming call', { callSid, from, to, forwardedFrom });
 
-    // TODO: Récupérer la config agent du tenant basée sur le numéro 'to'
-    // Pour l'instant, utiliser config par défaut (sans requête DB pour éviter les erreurs D1)
+    // Récupérer le tenant_id basé sur le numéro de transfert (ForwardedFrom)
+    // Si pas de transfert, utiliser le numéro appelé (To)
+    const identifyingNumber = forwardedFrom || to;
+    let tenantId = 'tenant_demo_001'; // Fallback par défaut
 
-    // Config agent par défaut avec ElevenLabs (qualité vocale premium)
-    const agentConfig = {
-      agent_name: 'Sara',
-      agent_personality: 'friendly',
-      voice_provider: 'elevenlabs',
-      voice_id: 'pNInz6obpgDQGcFmaJgB', // Adam - voix française naturelle
-      voice_language: 'fr-FR',
-      voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.75,
-        style: 0.2,
-        use_speaker_boost: true
-      },
-      greeting_message: 'Bonjour ! Je suis Sara. Comment puis-je vous aider ?',
-      fallback_message: 'Pardon, pouvez-vous répéter ?',
-      transfer_message: 'Je vous transfère vers un conseiller.',
-      goodbye_message: 'Au revoir !'
-    };
+    try {
+      const phoneMapping = await env.DB.prepare(`
+        SELECT tenant_id FROM omni_phone_mappings
+        WHERE phone_number = ? AND is_active = 1
+        LIMIT 1
+      `).bind(identifyingNumber).first();
+
+      if (phoneMapping) {
+        tenantId = phoneMapping.tenant_id;
+        omniLogger.info('Tenant resolved from phone mapping', {
+          identifyingNumber,
+          source: forwardedFrom ? 'ForwardedFrom' : 'To',
+          tenantId
+        });
+      } else {
+        omniLogger.warn('No phone mapping found, using default tenant', { identifyingNumber });
+      }
+    } catch (error) {
+      omniLogger.error('Failed to resolve tenant from phone', { error: error.message, identifyingNumber });
+    }
+
+    // Récupérer la config agent du tenant
+    const agentConfig = await getAgentConfig(env, tenantId);
 
     // Créer la conversation dans DB
     const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -47,7 +56,7 @@ export async function handleIncomingCall(request, env) {
     await env.DB.prepare(queries.createConversation).bind(
       conversationId,
       null, // conversation_sid (sera mis à jour après)
-      'tenant_mihmuebzieaxehi7qv',
+      tenantId,
       from,
       null, // email
       null, // name
@@ -161,6 +170,30 @@ async function getAgentConfig(env, tenantId) {
       if (config.voice_settings) {
         config.voice_settings = JSON.parse(config.voice_settings);
       }
+
+      // Récupérer le nom de l'agence depuis tenants
+      const tenant = await env.DB.prepare(`
+        SELECT company_name FROM tenants WHERE id = ?
+      `).bind(tenantId).first();
+
+      const agencyName = tenant?.company_name || 'notre agence';
+
+      // Ajouter agency_name à la config
+      config.agency_name = agencyName;
+
+      // Générer le greeting_message depuis le template du type d'agent
+      const agentType = config.agent_type || 'custom';
+      const typeConfig = getAgentTypeConfig(agentType);
+
+      // Si greeting_message n'est pas personnalisé, utiliser le template
+      if (!config.greeting_message || config.greeting_message === 'Bonjour, je suis Sara, votre assistante virtuelle.') {
+        config.greeting_message = renderTemplate(typeConfig.greeting_template, {
+          agent_name: config.agent_name || 'Sara',
+          agency_name: agencyName,
+          first_name: config.first_name || ''
+        });
+      }
+
       return config;
     }
   } catch (error) {
@@ -174,7 +207,8 @@ async function getAgentConfig(env, tenantId) {
     voice_provider: 'elevenlabs',
     voice_id: 'pNInz6obpgDQGcFmaJgB',
     voice_language: 'fr-FR',
-    greeting_message: 'Bonjour, je suis Sara, votre assistante virtuelle. Comment puis-je vous aider ?',
+    agency_name: 'notre agence',
+    greeting_message: 'Bonjour, Sara IA de notre agence. Comment puis-je vous aider aujourd\'hui ?',
     fallback_message: 'Je n\'ai pas bien compris, pouvez-vous reformuler ?',
     transfer_message: 'Je vous transfère vers un conseiller.'
   };

@@ -1,0 +1,131 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img [ref=e6]
+        - heading "Coccinelle.AI" [level=1] [ref=e23]
+        - button "Réduire la barre latérale" [ref=e24]:
+          - img [ref=e25]
+      - navigation [ref=e27]:
+        - link "Accueil" [ref=e28] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e29]
+          - generic [ref=e32]: Accueil
+        - link "Conversations" [ref=e33] [cursor=pointer]:
+          - /url: /dashboard/conversations
+          - img [ref=e34]
+          - generic [ref=e36]: Conversations
+        - link "Configuration" [ref=e37] [cursor=pointer]:
+          - /url: /dashboard/configuration
+          - img [ref=e38]
+          - generic [ref=e39]: Configuration
+        - link "CRM" [ref=e40] [cursor=pointer]:
+          - /url: /dashboard/crm
+          - img [ref=e41]
+          - generic [ref=e46]: CRM
+        - link "Rendez-vous" [ref=e47] [cursor=pointer]:
+          - /url: /dashboard/appointments
+          - img [ref=e48]
+          - generic [ref=e50]: Rendez-vous
+        - link "Produits" [ref=e51] [cursor=pointer]:
+          - /url: /dashboard/products
+          - img [ref=e52]
+          - generic [ref=e56]: Produits
+        - link "Paramètres" [ref=e57] [cursor=pointer]:
+          - /url: /dashboard/settings
+          - img [ref=e58]
+          - generic [ref=e61]: Paramètres
+      - generic [ref=e63]:
+        - paragraph [ref=e64]: Version 1.0.0
+        - paragraph [ref=e65]: © 2024 Coccinelle.AI
+    - main [ref=e66]:
+      - generic [ref=e67]:
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - img [ref=e72]
+            - heading "Coccinelle.AI" [level=1] [ref=e88]
+          - navigation [ref=e89]:
+            - link "Dashboard" [ref=e90] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e91]
+              - text: Dashboard
+            - link "Clients" [ref=e94] [cursor=pointer]:
+              - /url: /dashboard/customers
+              - img [ref=e95]
+              - text: Clients
+            - link "Paramètres" [ref=e100] [cursor=pointer]:
+              - /url: /dashboard/settings
+              - img [ref=e101]
+              - text: Paramètres
+        - generic [ref=e104]:
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - heading "Clients" [level=2] [ref=e107]:
+                - img [ref=e108]
+                - text: Clients
+              - paragraph [ref=e113]: Gérez vos clients et suivez leur activité
+            - generic [ref=e114]:
+              - button "Exporter CSV" [ref=e115]:
+                - img [ref=e116]
+                - text: Exporter CSV
+              - button "Nouveau client" [ref=e119]:
+                - img [ref=e120]
+                - text: Nouveau client
+          - generic [ref=e121]:
+            - generic [ref=e123]:
+              - generic [ref=e124]:
+                - paragraph [ref=e125]: Total clients
+                - paragraph [ref=e126]: "0"
+              - img [ref=e128]
+            - generic [ref=e134]:
+              - generic [ref=e135]:
+                - paragraph [ref=e136]: Nouveaux ce mois
+                - paragraph [ref=e137]: "0"
+              - img [ref=e139]
+            - generic [ref=e143]:
+              - generic [ref=e144]:
+                - paragraph [ref=e145]: Clients VIP
+                - paragraph [ref=e146]: "0"
+              - img [ref=e148]
+            - generic [ref=e152]:
+              - generic [ref=e153]:
+                - paragraph [ref=e154]: Clients actifs
+                - paragraph [ref=e155]: "0"
+              - img [ref=e157]
+          - generic [ref=e161]:
+            - generic [ref=e162]:
+              - img [ref=e163]
+              - textbox "Rechercher..." [ref=e166]: EditTest1768615495444
+            - combobox [ref=e167]:
+              - option "Tous les statuts" [selected]
+              - option "Actif"
+              - option "VIP"
+              - option "Inactif"
+              - option "Prospect"
+            - button "Actualiser" [ref=e168]:
+              - img [ref=e169]
+              - text: Actualiser
+          - table [ref=e172]:
+            - rowgroup [ref=e173]:
+              - row "Client Contact Statut Source Créé le Actions" [ref=e174]:
+                - columnheader "Client" [ref=e175]
+                - columnheader "Contact" [ref=e176]
+                - columnheader "Statut" [ref=e177]
+                - columnheader "Source" [ref=e178]
+                - columnheader "Créé le" [ref=e179]
+                - columnheader "Actions" [ref=e180]
+            - rowgroup [ref=e181]:
+              - row "Aucun client trouvé" [ref=e182]:
+                - cell "Aucun client trouvé" [ref=e183]
+          - generic [ref=e184]:
+            - generic [ref=e185]: Affichage de 0 sur 0 client(s)
+            - generic [ref=e186]:
+              - button "Précédent" [disabled] [ref=e187]
+              - button "Suivant" [disabled] [ref=e188]
+  - button "Open Next.js Dev Tools" [ref=e194] [cursor=pointer]:
+    - img [ref=e195]
+  - alert [ref=e198]
+```

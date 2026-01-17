@@ -1,48 +1,93 @@
-// Module Knowledge - Routes
+// Module Knowledge - Routes SÉCURISÉES
+// Version: 3.0.0 - 16 janvier 2026
+// SÉCURITÉ: Auth JWT sur tous les endpoints
+// Support Workers AI (768 dims) + OpenAI (1536 dims) fallback
+
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { logger } from '../../utils/logger.js';
+import * as search from './search.js';
+import * as embeddings from './embeddings.js';
+import * as crawler from './crawler.js';
+import * as auth from '../auth/helpers.js';
+
+// ========================================
+// HELPER: Auth check réutilisable
+// ========================================
+async function checkAuth(request, env) {
+  const authResult = await auth.requireAuth(request, env);
+  if (authResult.error) {
+    return {
+      error: true,
+      response: new Response(JSON.stringify({ success: false, error: authResult.error }), {
+        status: authResult.status,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    };
+  }
+  return { error: false, user: authResult.user, tenant: authResult.tenant };
+}
 
 export async function handleKnowledgeRoutes(request, env, path, method) {
-  const url = new URL(request.url);
-  
   try {
     // POST /api/v1/knowledge/search - Recherche sémantique
     if (path === '/api/v1/knowledge/search' && method === 'POST') {
       return await handleSearch(request, env);
     }
-    
+
     // POST /api/v1/knowledge/ask - RAG Question/Answer
     if (path === '/api/v1/knowledge/ask' && method === 'POST') {
       return await handleAsk(request, env);
     }
-    
+
     // POST /api/v1/knowledge/crawl - Crawler web
     if (path === '/api/v1/knowledge/crawl' && method === 'POST') {
       return await handleCrawl(request, env);
     }
-    
+
     // GET /api/v1/knowledge/documents - Liste documents
     if (path === '/api/v1/knowledge/documents' && method === 'GET') {
       return await handleListDocuments(request, env);
     }
-    
+
+    // POST /api/v1/knowledge/documents - Créer un document
+    if (path === '/api/v1/knowledge/documents' && method === 'POST') {
+      return await handleCreateDocument(request, env);
+    }
+
     // POST /api/v1/knowledge/documents/upload - Upload document
     if (path === '/api/v1/knowledge/documents/upload' && method === 'POST') {
       return await handleUploadDocument(request, env);
     }
-    
+
     // GET /api/v1/knowledge/crawls - Liste crawls
     if (path === '/api/v1/knowledge/crawls' && method === 'GET') {
       return await handleListCrawls(request, env);
     }
-    
+
     // POST /api/v1/knowledge/embeddings/generate - Générer embeddings
     if (path === '/api/v1/knowledge/embeddings/generate' && method === 'POST') {
       return await handleGenerateEmbeddings(request, env);
     }
-    
+
+    // POST /api/v1/knowledge/embeddings/process-document/:id - Traiter document
+    if (path.startsWith('/api/v1/knowledge/embeddings/process-document/') && method === 'POST') {
+      const documentId = path.split('/').pop();
+      return await handleProcessDocument(request, env, documentId);
+    }
+
+    // GET /api/v1/knowledge/embeddings/status/:documentId - Statut embeddings
+    if (path.startsWith('/api/v1/knowledge/embeddings/status/') && method === 'GET') {
+      const documentId = path.split('/').pop();
+      return await handleEmbeddingStatus(request, env, documentId);
+    }
+
+    // POST /api/v1/knowledge/sync-vectorize - Sync DB vers Vectorize
+    if (path === '/api/v1/knowledge/sync-vectorize' && method === 'POST') {
+      return await handleSyncVectorize(request, env);
+    }
+
     return null; // Route non trouvée
-    
+
   } catch (error) {
     logger.error('Knowledge route error', { error: error.message, path });
     return errorResponse(error.message);
@@ -50,463 +95,368 @@ export async function handleKnowledgeRoutes(request, env, path, method) {
 }
 
 // ========================================
-// HANDLERS
+// HANDLERS - TOUS SÉCURISÉS
 // ========================================
 
 async function handleSearch(request, env) {
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
+
   const body = await request.json();
-  const { query, topK = 5, tenantId = 'tenant_demo_001' } = body;
-  
+  const { query, topK = 5, provider = 'workersai' } = body;
+
   if (!query) {
     return errorResponse('query is required', 400);
   }
 
-  // 1. Générer embedding de la query
-  const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'text-embedding-3-small',
-      input: query
-    })
-  });
+  const tenantId = tenant.id;
 
-  if (!embeddingResponse.ok) {
-    throw new Error('Failed to generate query embedding');
+  let queryEmbedding;
+  let targetVectorize;
+
+  if (provider === 'workersai' && env.AI) {
+    const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', { text: [query] });
+    queryEmbedding = result.data[0];
+    targetVectorize = env.VECTORIZE_V2 || env.VECTORIZE;
+    logger.info('Search using Workers AI', { provider: 'workersai', dimensions: 768, tenantId });
+  } else {
+    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({ model: 'text-embedding-3-small', input: query })
+    });
+
+    if (!embeddingResponse.ok) {
+      throw new Error('Failed to generate query embedding with OpenAI');
+    }
+
+    const embeddingData = await embeddingResponse.json();
+    queryEmbedding = embeddingData.data[0].embedding;
+    targetVectorize = env.VECTORIZE;
+    logger.info('Search using OpenAI fallback', { provider: 'openai', dimensions: 1536, tenantId });
   }
 
-  const embeddingData = await embeddingResponse.json();
-  const queryEmbedding = embeddingData.data[0].embedding;
-
-  // 2. Recherche vectorielle
-  const searchResults = await env.VECTORIZE.query(queryEmbedding, {
+  const searchResults = await targetVectorize.query(queryEmbedding, {
     topK: topK,
     returnMetadata: true,
     filter: { tenantId: tenantId }
   });
 
-  // 3. Récupérer les chunks depuis D1
   const chunkIds = searchResults.matches.map(m => m.id);
-  
+
   if (chunkIds.length === 0) {
-    return successResponse({
-      query: query,
-      results: [],
-      count: 0
-    });
+    return successResponse({ query, results: [], count: 0, provider });
   }
 
   const placeholders = chunkIds.map(() => '?').join(',');
   const chunksResult = await env.DB.prepare(`
-    SELECT
-      c.id,
-      c.content,
-      c.chunk_index,
-      d.source_url as url,
-      d.title,
-      d.source_type as doc_type
+    SELECT c.id, c.content, c.chunk_index, d.source_url as url, d.title, d.source_type as doc_type
     FROM knowledge_chunks c
     JOIN knowledge_documents d ON c.document_id = d.id
     WHERE c.id IN (${placeholders})
   `).bind(...chunkIds).all();
 
-  // 4. Enrichir avec scores
   const enrichedResults = chunksResult.results.map(chunk => {
     const match = searchResults.matches.find(m => m.id === chunk.id);
-    return {
-      ...chunk,
-      score: match?.score || 0
-    };
+    return { ...chunk, score: match?.score || 0 };
   });
 
-  return successResponse({
-    query: query,
-    results: enrichedResults,
-    count: enrichedResults.length
-  });
+  return successResponse({ query, results: enrichedResults, count: enrichedResults.length, provider });
 }
 
 async function handleAsk(request, env) {
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
+
   const body = await request.json();
-  const { question, topK = 3, tenantId = 'tenant_demo_001' } = body;
-  
+  const { question, topK = 5, provider = 'workersai' } = body;
+
   if (!question) {
     return errorResponse('question is required', 400);
   }
 
-  // 1. Recherche sémantique (réutiliser la logique de handleSearch)
-  const searchRequest = new Request(request.url, {
-    method: 'POST',
-    body: JSON.stringify({ query: question, topK, tenantId })
+  const tenantId = tenant.id;
+
+  const result = await search.ragPipeline({
+    question,
+    db: env.DB,
+    vectorize: env.VECTORIZE,
+    env,
+    llmApiKey: env.ANTHROPIC_API_KEY,
+    tenantId,
+    topK,
+    provider
   });
-  
-  const searchResponse = await handleSearch(searchRequest, env);
-  const searchData = await searchResponse.json();
-  
-  if (!searchData.success || searchData.results.length === 0) {
-    return jsonResponse({
-      success: true,
-      question: question,
-      answer: "Je n'ai pas trouvé d'information pertinente dans la base de connaissances.",
-      sources: []
-    });
-  }
-
-  // 2. Construire le contexte pour Claude
-  const context = searchData.results
-    .map(r => `[Source: ${r.title}]\n${r.content}`)
-    .join('\n\n');
-
-  // 3. Appel à Claude pour générer la réponse
-  const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: `Contexte:\n${context}\n\nQuestion: ${question}\n\nRéponds de manière concise et précise en te basant uniquement sur le contexte fourni.`
-      }]
-    })
-  });
-
-  if (!claudeResponse.ok) {
-    throw new Error('Failed to generate answer with Claude');
-  }
-
-  const claudeData = await claudeResponse.json();
-  const answer = claudeData.content?.[0]?.text || 'Erreur lors de la génération de la réponse';
 
   return successResponse({
-    question: question,
-    answer: answer,
-    sources: searchData.results.map(r => ({
-      title: r.title,
-      url: r.url,
-      score: r.score
-    }))
+    question,
+    answer: result.answer,
+    sources: result.sources,
+    chunksUsed: result.chunksUsed,
+    confidence: result.confidence,
+    model: result.model,
+    provider: result.provider,
+    llmProvider: result.llmProvider,
+    processingTime: result.processingTime
   });
 }
 
 async function handleCrawl(request, env) {
-  // TODO: Implémenter le crawler
-  return errorResponse('Crawler not implemented yet', 501);
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
+
+  const body = await request.json();
+  const { startUrl, maxPages, maxDepth } = body;
+
+  if (!startUrl) {
+    return errorResponse('startUrl is required', 400);
+  }
+
+  try {
+    const pages = await crawler.crawlWebsite(startUrl, maxPages || 10);
+
+    logger.info('[KB] Crawl completed', { tenantId: tenant.id, startUrl, pagesCount: pages.length });
+
+    return successResponse({
+      success: true,
+      pages: pages.map(page => ({
+        url: page.url,
+        title: page.title,
+        content: page.content
+      }))
+    });
+  } catch (error) {
+    logger.error('[KB] Crawl error', { error: error.message, startUrl, tenantId: tenant.id });
+    return errorResponse(`Erreur lors du crawl: ${error.message}`, 500);
+  }
 }
 
 async function handleListDocuments(request, env) {
-  const url = new URL(request.url);
-  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
-  
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
+
+  const tenantId = tenant.id;
+
+  logger.info('[KB] GET documents', { tenantId });
+
   const result = await env.DB.prepare(`
-    SELECT id, title, source_url as url, source_type as doc_type, created_at
+    SELECT
+      id,
+      title,
+      source_url as url,
+      source_type as sourceType,
+      content,
+      metadata,
+      created_at
     FROM knowledge_documents
-    WHERE tenant_id = ?
+    WHERE tenant_id = ? AND is_active = 1
     ORDER BY created_at DESC
   `).bind(tenantId).all();
-  
-  return successResponse({
-    documents: result.results,
-    count: result.results.length
+
+  const documents = result.results.map(doc => {
+    let category = null;
+    if (doc.metadata) {
+      try {
+        const meta = JSON.parse(doc.metadata);
+        category = meta.category;
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    return { ...doc, category };
   });
+
+  logger.info('[KB] Documents found', { tenantId, count: documents.length });
+
+  return successResponse({ documents, count: documents.length });
+}
+
+async function handleCreateDocument(request, env) {
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
+
+  const body = await request.json();
+  const { title, content, sourceType = 'manual', sourceUrl, category } = body;
+
+  if (!title || !content) {
+    return errorResponse('title and content are required', 400);
+  }
+
+  const tenantId = tenant.id;
+  const id = `doc_${sourceType}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const contentHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content))
+    .then(hash => Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+  const wordCount = content.split(/\s+/).length;
+  const metadata = category ? JSON.stringify({ category }) : null;
+
+  await env.DB.prepare(`
+    INSERT INTO knowledge_documents
+    (id, tenant_id, source_type, source_url, title, content, content_hash, word_count, status, metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, datetime('now'))
+  `).bind(id, tenantId, sourceType, sourceUrl || null, title, content, contentHash, wordCount, metadata).run();
+
+  logger.info('[KB] Document created', { tenantId, documentId: id });
+
+  const document = {
+    id,
+    title,
+    content,
+    source_type: sourceType,
+    source_url: sourceUrl,
+    category,
+    created_at: new Date().toISOString()
+  };
+
+  return successResponse({ document, message: 'Document créé avec succès' });
 }
 
 async function handleUploadDocument(request, env) {
-  // TODO: Implémenter upload
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+
   return errorResponse('Upload not implemented yet', 501);
 }
 
 async function handleListCrawls(request, env) {
-  const url = new URL(request.url);
-  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
-  
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
+
+  const tenantId = tenant.id;
+
   const result = await env.DB.prepare(`
     SELECT id, url, status, pages_crawled, created_at
     FROM knowledge_crawl_jobs
     WHERE tenant_id = ?
     ORDER BY created_at DESC
   `).bind(tenantId).all();
-  
-  return successResponse({
-    crawls: result.results,
-    count: result.results.length
-  });
+
+  return successResponse({ crawls: result.results, count: result.results.length });
 }
 
 async function handleGenerateEmbeddings(request, env) {
-  // TODO: Implémenter génération embeddings
-  return errorResponse('Generate embeddings not implemented yet', 501);
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+
+  const body = await request.json();
+  const { text, provider = 'workersai' } = body;
+
+  if (!text) {
+    return errorResponse('text is required', 400);
+  }
+
+  const embedding = await embeddings.generateEmbedding(text, env, { provider });
+  const dimensions = provider === 'workersai' ? 768 : 1536;
+  const model = provider === 'workersai' ? '@cf/baai/bge-base-en-v1.5' : 'text-embedding-3-small';
+
+  return successResponse({ embedding, dimensions, model, provider });
 }
-// ============================================================================
-// RAG ROUTES - EMBEDDINGS + SEARCH
-// ============================================================================
 
-import * as search from './search.js';
-import * as embeddings from './embeddings.js';
+async function handleProcessDocument(request, env, documentId) {
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
 
-export function registerRagRoutes(router) {
-  
-  // Endpoint 1: Recherche sémantique simple
-  router.post('/api/v1/knowledge/search', async (request, env) => {
-    try {
-      const { query, topK = 5 } = await request.json();
-      
-      if (!query) {
-        return new Response(JSON.stringify({ error: 'Query is required' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+  // Vérifier que le document appartient au tenant
+  const docCheck = await env.DB.prepare(`
+    SELECT id FROM knowledge_documents WHERE id = ? AND tenant_id = ?
+  `).bind(documentId, tenant.id).first();
 
-      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'text-embedding-3-small',
-          input: query
-        })
-      });
+  if (!docCheck) {
+    return errorResponse('Document not found or access denied', 404);
+  }
 
-      const embeddingData = await embeddingResponse.json();
-      const queryEmbedding = embeddingData.data[0].embedding;
+  const body = await request.json().catch(() => ({}));
+  const { provider = 'workersai' } = body;
 
-      const results = await search.semanticSearch(
-        env.VECTORIZE,
-        queryEmbedding,
-        topK,
-        { tenantId: request.tenantId || 'default' }
-      );
+  const targetVectorize = provider === 'workersai' ? (env.VECTORIZE_V2 || env.VECTORIZE) : env.VECTORIZE;
+  const result = await embeddings.processDocumentEmbeddings(env.DB, targetVectorize, documentId, env, { provider });
 
-      const chunkIds = results.map(r => r.chunkId);
-      const chunks = await search.retrieveChunks(env.DB, chunkIds);
+  logger.info('[KB] Document processed', { tenantId: tenant.id, documentId });
 
-      return new Response(JSON.stringify({
-        success: true,
-        query: query,
-        results: chunks,
-        count: chunks.length
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+  return successResponse(result);
+}
 
-    } catch (error) {
-      console.error('Search error:', error);
-      return new Response(JSON.stringify({
-        error: 'Search failed',
-        message: error.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  });
+async function handleEmbeddingStatus(request, env, documentId) {
+  // 🔐 AUTH REQUIRED
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { tenant } = authCheck;
 
-  // Endpoint 2: Question/Réponse RAG
-  router.post('/api/v1/knowledge/ask', async (request, env) => {
-    try {
-      const { question, topK = 5 } = await request.json();
-      
-      if (!question) {
-        return new Response(JSON.stringify({ error: 'Question is required' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+  // Vérifier que le document appartient au tenant
+  const docCheck = await env.DB.prepare(`
+    SELECT id FROM knowledge_documents WHERE id = ? AND tenant_id = ?
+  `).bind(documentId, tenant.id).first();
 
-      const result = await search.ragPipeline({
-        question: question,
-        db: env.DB,
-        vectorize: env.VECTORIZE,
-        openaiApiKey: env.OPENAI_API_KEY,
-        llmApiKey: env.ANTHROPIC_API_KEY,
-        tenantId: request.tenantId || 'default',
-        agentId: null,
-        topK: topK
-      });
+  if (!docCheck) {
+    return errorResponse('Document not found or access denied', 404);
+  }
 
-      return new Response(JSON.stringify({
-        success: true,
-        question: question,
-        answer: result.answer,
-        sources: result.sources,
-        chunksUsed: result.chunksUsed,
-        confidence: result.confidence,
-        model: result.model,
-        provider: result.provider,
-        processingTime: result.processingTime
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+  const status = await embeddings.checkEmbeddingStatus(env.DB, documentId);
+  return successResponse(status);
+}
 
-    } catch (error) {
-      console.error('RAG pipeline error:', error);
-      return new Response(JSON.stringify({
-        error: 'RAG pipeline failed',
-        message: error.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  });
+async function handleSyncVectorize(request, env) {
+  // 🔐 AUTH REQUIRED + ADMIN ONLY
+  const authCheck = await checkAuth(request, env);
+  if (authCheck.error) return authCheck.response;
+  const { user, tenant } = authCheck;
 
-  // Endpoint 3: Sync DB vers Vectorize
-  router.post('/api/v1/knowledge/sync-vectorize', async (request, env) => {
-    try {
-      const chunksResult = await env.DB.prepare(`
-        SELECT 
-          kc.id,
-          kc.embedding,
-          kc.document_id,
-          kc.chunk_index,
-          kc.token_count,
-          kd.tenant_id,
-          kd.agent_id
-        FROM knowledge_chunks kc
-        LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
-        WHERE kc.embedding IS NOT NULL
-        AND kc.embedding_status = 'completed'
-      `).all();
+  // Vérifier que l'utilisateur est admin
+  if (user.role !== 'admin') {
+    return errorResponse('Admin access required', 403);
+  }
 
-      const chunks = chunksResult.results.map(chunk => ({
-        id: chunk.id,
-        embedding: JSON.parse(chunk.embedding),
-        documentId: chunk.document_id,
-        chunkIndex: chunk.chunk_index,
-        tokenCount: chunk.token_count,
-        tenantId: chunk.tenant_id,
-        agentId: chunk.agent_id
-      }));
+  const body = await request.json().catch(() => ({}));
+  const { provider = 'workersai' } = body;
 
-      const result = await search.upsertToVectorize(env.VECTORIZE, chunks);
+  // Récupérer uniquement les chunks du tenant
+  const chunksResult = await env.DB.prepare(`
+    SELECT kc.id, kc.embedding, kc.document_id, kc.chunk_index, kc.token_count, kd.tenant_id, kd.agent_id
+    FROM knowledge_chunks kc
+    LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
+    WHERE kc.embedding IS NOT NULL 
+      AND kc.embedding_status = 'completed'
+      AND kd.tenant_id = ?
+  `).bind(tenant.id).all();
 
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Sync completed',
-        totalChunks: chunks.length,
-        inserted: result.inserted
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+  const chunks = chunksResult.results.map(chunk => ({
+    id: chunk.id,
+    embedding: JSON.parse(chunk.embedding),
+    documentId: chunk.document_id,
+    chunkIndex: chunk.chunk_index,
+    tokenCount: chunk.token_count,
+    tenantId: chunk.tenant_id,
+    agentId: chunk.agent_id
+  }));
 
-    } catch (error) {
-      console.error('Sync error:', error);
-      return new Response(JSON.stringify({
-        error: 'Sync failed',
-        message: error.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  });
+  const targetVectorize = provider === 'workersai' ? (env.VECTORIZE_V2 || env.VECTORIZE) : env.VECTORIZE;
+  const result = await search.upsertToVectorize(targetVectorize, chunks);
 
-  // Endpoint 4: Générer embedding
-  router.post('/api/v1/knowledge/embeddings/generate', async (request, env) => {
-    try {
-      const { text } = await request.json();
-      
-      if (!text) {
-        return new Response(JSON.stringify({ error: 'Text is required' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+  logger.info('[KB] Vectorize sync completed', { tenantId: tenant.id, chunksCount: chunks.length });
 
-      const embedding = await embeddings.generateEmbedding(text, env.OPENAI_API_KEY);
-
-      return new Response(JSON.stringify({
-        success: true,
-        embedding: embedding,
-        dimensions: 1536,
-        model: 'text-embedding-3-small'
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-    } catch (error) {
-      console.error('Generate embedding error:', error);
-      return new Response(JSON.stringify({
-        error: 'Failed to generate embedding',
-        message: error.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  });
-
-  // Endpoint 5: Process document
-  router.post('/api/v1/knowledge/embeddings/process-document/:id', async (request, env) => {
-    try {
-      const documentId = request.params.id;
-
-      const result = await embeddings.processDocumentEmbeddings(
-        env.DB,
-        env.VECTORIZE,
-        documentId,
-        env.OPENAI_API_KEY
-      );
-
-      return new Response(JSON.stringify({
-        success: true,
-        documentId: documentId,
-        ...result
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-    } catch (error) {
-      console.error('Process document error:', error);
-      return new Response(JSON.stringify({
-        error: 'Failed to process document',
-        message: error.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  });
-
-  // Endpoint 6: Check status
-  router.get('/api/v1/knowledge/embeddings/status/:documentId', async (request, env) => {
-    try {
-      const documentId = request.params.documentId;
-
-      const status = await embeddings.checkEmbeddingStatus(env.DB, documentId);
-
-      return new Response(JSON.stringify({
-        success: true,
-        ...status
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-    } catch (error) {
-      console.error('Check status error:', error);
-      return new Response(JSON.stringify({
-        error: 'Failed to check status',
-        message: error.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+  return successResponse({
+    message: 'Sync completed',
+    totalChunks: chunks.length,
+    inserted: result.inserted,
+    provider
   });
 }

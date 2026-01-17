@@ -221,7 +221,7 @@ function OverviewTab({ healthScore, documents, onDocumentDelete }: { healthScore
   const getSourceBadge = (sourceType?: string) => {
     switch (sourceType) {
       case 'assistant':
-        return <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Assistant Sara</span>;
+        return <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Assistant Assistant</span>;
       case 'manual':
         return <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">Manuel</span>;
       case 'crawl':

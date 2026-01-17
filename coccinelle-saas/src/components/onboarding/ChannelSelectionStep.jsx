@@ -1,127 +1,135 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Phone, Mail, MessageSquare, PhoneCall } from 'lucide-react';
+import React from 'react';
+import { Phone, Mail, MessageSquare, PhoneCall, ExternalLink, BookOpen } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 const CHANNELS = [
   {
     id: 'phone',
     label: 'Téléphone (Voix)',
-    description: 'Appels vocaux avec Sara',
+    description: 'Configurez votre assistant vocal pour gérer les appels entrants',
     icon: PhoneCall,
+    link: '/dashboard/settings/channels/phone',
     color: 'blue'
   },
   {
     id: 'sms',
     label: 'SMS',
-    description: 'Messages texte via Twilio',
+    description: 'Configurez l\'envoi et la réception de messages texte',
     icon: MessageSquare,
+    link: '/dashboard/settings/channels/sms',
     color: 'green'
   },
   {
     id: 'email',
     label: 'Email',
-    description: 'Emails automatisés',
+    description: 'Configurez vos campagnes d\'emails automatisés',
     icon: Mail,
+    link: '/dashboard/settings/channels/email',
     color: 'purple'
   },
   {
     id: 'whatsapp',
     label: 'WhatsApp',
-    description: 'Messages WhatsApp Business',
+    description: 'Connectez votre compte WhatsApp Business',
     icon: Phone,
+    link: '/dashboard/settings/channels/whatsapp',
     color: 'emerald'
   }
 ];
 
 export default function ChannelSelectionStep({ onNext, onBack, loading }) {
-  const [selectedChannels, setSelectedChannels] = useState(['phone']); // Phone sélectionné par défaut
+  const router = useRouter();
 
-  const toggleChannel = (channelId) => {
-    setSelectedChannels(prev => {
-      if (prev.includes(channelId)) {
-        return prev.filter(id => id !== channelId);
-      } else {
-        return [...prev, channelId];
-      }
-    });
+  const handleChannelConfig = (link) => {
+    router.push(`${link}?from=onboarding`);
   };
 
-  const handleSubmit = () => {
-    if (selectedChannels.length === 0) {
-      alert('Veuillez sélectionner au moins un canal de communication');
-      return;
-    }
-
-    onNext({
-      selectedChannels
-    });
+  const handleKnowledgeBase = () => {
+    router.push('/dashboard/knowledge');
   };
-
-  const isFormValid = selectedChannels.length > 0;
 
   return (
     <div>
       <h2 className="text-2xl font-bold text-black mb-2">
-        Quels canaux souhaitez-vous activer ?
+        Configuration de vos canaux
       </h2>
       <p className="text-gray-600 mb-8">
-        Sélectionnez les canaux sur lesquels Sara pourra communiquer avec vos clients.
+        Configurez les canaux sur lesquels votre assistant IA communiquera avec vos clients.
+        Chaque canal a sa propre page de configuration dédiée.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {CHANNELS.map((channel) => {
-          const Icon = channel.icon;
-          const isSelected = selectedChannels.includes(channel.id);
+      {/* Canaux de communication */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-black mb-4">Canaux de communication</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {CHANNELS.map((channel) => {
+            const Icon = channel.icon;
 
-          return (
-            <button
-              key={channel.id}
-              type="button"
-              onClick={() => toggleChannel(channel.id)}
-              className={`p-6 border-2 rounded-lg text-left transition-all ${
-                isSelected
-                  ? 'border-black bg-gray-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  isSelected ? 'bg-black' : 'bg-gray-100'
-                }`}>
-                  <Icon className={`w-6 h-6 ${
-                    isSelected ? 'text-white' : 'text-gray-400'
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="font-semibold text-black">
+            return (
+              <div
+                key={channel.id}
+                className="p-6 border-2 border-gray-200 rounded-lg hover:border-gray-300 transition-all"
+              >
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-6 h-6 text-gray-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-black mb-1">
                       {channel.label}
                     </div>
-                    {isSelected && (
-                      <div className="w-5 h-5 bg-black rounded-full flex items-center justify-center">
-                        <span className="text-white text-xs">✓</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {channel.description}
+                    <div className="text-sm text-gray-600">
+                      {channel.description}
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => handleChannelConfig(channel.link)}
+                  className="w-full px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                >
+                  Configurer
+                  <ExternalLink className="w-4 h-4" />
+                </button>
               </div>
-            </button>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
+      {/* Base de connaissance */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-black mb-4">Base de connaissance</h3>
+        <div className="p-6 border-2 border-gray-200 rounded-lg hover:border-gray-300 transition-all">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-6 h-6 text-gray-600" />
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold text-black mb-1">
+                Documents et connaissances
+              </div>
+              <div className="text-sm text-gray-600">
+                Importez vos documents, FAQ et informations pour enrichir les réponses de l'assistant
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleKnowledgeBase}
+            className="w-full px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+          >
+            Gérer la base de connaissance
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Info box */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <p className="text-sm text-blue-900">
-          💡 <strong>Note:</strong> Le canal <strong>Téléphone</strong> sera configuré à l'étape suivante. Les autres canaux (SMS, Email, WhatsApp) pourront être configurés plus tard dans <strong>Paramètres {'>'} Canaux</strong>.
-          {selectedChannels.length > 0 && (
-            <span className="block mt-2 font-medium">
-              {selectedChannels.length} canal{selectedChannels.length > 1 ? 'ux' : ''} sélectionné{selectedChannels.length > 1 ? 's' : ''}
-            </span>
-          )}
+          💡 <strong>Astuce :</strong> Vous pouvez configurer ces canaux maintenant ou plus tard depuis le menu Paramètres.
+          Cliquez sur "Terminer" pour accéder au tableau de bord.
         </p>
       </div>
 
@@ -133,11 +141,10 @@ export default function ChannelSelectionStep({ onNext, onBack, loading }) {
           ← Retour
         </button>
         <button
-          onClick={handleSubmit}
-          disabled={!isFormValid || loading}
-          className="flex-1 px-6 py-2 bg-black text-white rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          onClick={() => onNext({})}
+          className="flex-1 px-6 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
         >
-          {loading ? 'Chargement...' : 'Continuer →'}
+          Terminer et accéder au dashboard →
         </button>
       </div>
     </div>

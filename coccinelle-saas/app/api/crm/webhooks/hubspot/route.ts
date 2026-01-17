@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 /**
  * Webhook HubSpot pour recevoir les changements
  * Quand un contact est créé/modifié dans HubSpot, ce webhook est appelé

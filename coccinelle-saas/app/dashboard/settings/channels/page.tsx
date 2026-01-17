@@ -127,7 +127,7 @@ export default function ChannelsPage() {
     {
       id: 'phone',
       name: 'Téléphone (Voix)',
-      description: 'Appels vocaux avec Sara, votre agent IA',
+      description: 'Appels vocaux avec Assistant, votre agent IA',
       icon: Phone,
       color: 'blue',
       path: '/dashboard/settings/channels/phone',
@@ -137,13 +137,12 @@ export default function ChannelsPage() {
     {
       id: 'sms',
       name: 'SMS',
-      description: 'Bientôt disponible',
+      description: 'Messages SMS automatisés via Twilio',
       icon: MessageSquare,
-      color: 'gray',
+      color: 'green',
       path: '/dashboard/settings/channels/sms',
-      status: { enabled: false, configured: false },
-      managedBy: 'admin',
-      comingSoon: true
+      status: channels.sms,
+      managedBy: 'admin'
     },
     {
       id: 'email',

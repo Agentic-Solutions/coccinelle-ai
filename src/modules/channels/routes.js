@@ -180,6 +180,11 @@ async function updateChannelConfig(request, env, tenantId, channelType) {
     ).run();
   }
 
+  // Si canal phone : créer/mettre à jour omni_agent_configs et omni_phone_mappings
+  if (channelType === 'phone' && config) {
+    await syncOmniChannelPhoneConfig(env, tenantId, config);
+  }
+
   logger.info('Channel config updated', { tenantId, channelType, enabled });
 
   return successResponse({
@@ -188,6 +193,77 @@ async function updateChannelConfig(request, env, tenantId, channelType) {
     enabled: enabled || false,
     configured: true
   });
+}
+
+// Synchroniser la config phone vers les tables omnicanal
+async function syncOmniChannelPhoneConfig(env, tenantId, config) {
+  const now = new Date().toISOString();
+  const { clientPhoneNumber, sara } = config;
+
+  // 1. Créer/mettre à jour omni_agent_configs
+  const existingAgent = await env.DB.prepare(`
+    SELECT id FROM omni_agent_configs WHERE tenant_id = ?
+  `).bind(tenantId).first();
+
+  const agentData = {
+    agent_name: sara?.assistantName || 'Sara',
+    voice_provider: sara?.voice === 'female' ? 'elevenlabs' : 'elevenlabs',
+    voice_id: sara?.voiceId || null,
+    voice_language: sara?.language || 'fr-FR',
+    greeting_message: sara?.scripts?.reception || sara?.customInstructions || 'Bonjour, je suis votre assistante virtuelle.',
+  };
+
+  if (existingAgent) {
+    await env.DB.prepare(`
+      UPDATE omni_agent_configs
+      SET agent_name = ?, voice_provider = ?, voice_id = ?, voice_language = ?, greeting_message = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(
+      agentData.agent_name,
+      agentData.voice_provider,
+      agentData.voice_id,
+      agentData.voice_language,
+      agentData.greeting_message,
+      now,
+      existingAgent.id
+    ).run();
+  } else {
+    await env.DB.prepare(`
+      INSERT INTO omni_agent_configs (tenant_id, agent_name, voice_provider, voice_id, voice_language, greeting_message, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      tenantId,
+      agentData.agent_name,
+      agentData.voice_provider,
+      agentData.voice_id,
+      agentData.voice_language,
+      agentData.greeting_message,
+      now,
+      now
+    ).run();
+  }
+
+  // 2. Créer/mettre à jour omni_phone_mappings pour le numéro client
+  if (clientPhoneNumber) {
+    const existingMapping = await env.DB.prepare(`
+      SELECT id FROM omni_phone_mappings WHERE phone_number = ?
+    `).bind(clientPhoneNumber).first();
+
+    if (existingMapping) {
+      await env.DB.prepare(`
+        UPDATE omni_phone_mappings
+        SET tenant_id = ?, is_active = 1, updated_at = ?
+        WHERE id = ?
+      `).bind(tenantId, now, existingMapping.id).run();
+    } else {
+      await env.DB.prepare(`
+        INSERT INTO omni_phone_mappings (phone_number, tenant_id, channel_type, is_active, created_at, updated_at)
+        VALUES (?, ?, 'voice', 1, ?, ?)
+      `).bind(clientPhoneNumber, tenantId, now, now).run();
+    }
+  }
+
+  logger.info('Omnichannel phone config synced', { tenantId, clientPhoneNumber });
 }
 
 // Active un canal
@@ -250,44 +326,52 @@ async function testChannel(request, env, tenantId, channelType) {
   }
 }
 
-// Test canal Phone (VAPI)
+// Test canal Phone (Twilio)
 async function testPhoneChannel(env, tenantId, body) {
-  // Pour le canal phone, on vérifie que la config VAPI est correcte
-  const config = await env.DB.prepare(`
-    SELECT assistant_id, config_public FROM channel_configurations
-    WHERE tenant_id = ? AND channel_type = 'phone'
-  `).bind(tenantId).first();
+  // Vérifier que Twilio est configuré
+  const twilioAccountSid = env.TWILIO_ACCOUNT_SID;
+  const twilioAuthToken = env.TWILIO_AUTH_TOKEN;
 
-  if (!config?.assistant_id) {
-    return errorResponse('Assistant VAPI non configuré', 400);
+  if (!twilioAccountSid || !twilioAuthToken) {
+    return errorResponse('Configuration Twilio manquante', 400);
   }
 
-  // Vérifier l'assistant VAPI via leur API
+  // Vérifier le compte Twilio
   try {
-    const vapiResponse = await fetch(`https://api.vapi.ai/assistant/${config.assistant_id}`, {
-      headers: {
-        'Authorization': `Bearer ${env.VAPI_API_KEY}`
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}.json`,
+      {
+        headers: {
+          'Authorization': 'Basic ' + btoa(`${twilioAccountSid}:${twilioAuthToken}`)
+        }
       }
-    });
+    );
 
-    if (!vapiResponse.ok) {
-      return errorResponse('Assistant VAPI introuvable ou invalide', 400);
+    if (!response.ok) {
+      return errorResponse('Compte Twilio invalide ou inaccessible', 400);
     }
 
-    const assistant = await vapiResponse.json();
+    const account = await response.json();
+
+    // Récupérer les numéros configurés
+    const phoneNumbers = [
+      env.TWILIO_PHONE_NUMBER || '+33939035760',
+      env.TWILIO_PHONE_NUMBER_2 || '+33939035761'
+    ];
 
     return successResponse({
       success: true,
-      message: 'Configuration VAPI valide',
-      assistant: {
-        id: assistant.id,
-        name: assistant.name,
-        voice: assistant.voice
-      }
+      message: 'Configuration Twilio valide',
+      account: {
+        sid: account.sid,
+        status: account.status,
+        friendlyName: account.friendly_name
+      },
+      phoneNumbers: phoneNumbers
     });
   } catch (error) {
-    logger.error('VAPI test failed', { error: error.message, tenantId });
-    return errorResponse('Erreur lors du test VAPI: ' + error.message, 500);
+    logger.error('Twilio test failed', { error: error.message, tenantId });
+    return errorResponse('Erreur lors du test Twilio: ' + error.message, 500);
   }
 }
 

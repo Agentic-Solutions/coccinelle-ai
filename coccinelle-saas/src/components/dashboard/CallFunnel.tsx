@@ -18,7 +18,7 @@ export default function CallFunnelComponent({ funnel }: CallFunnelProps) {
       nextRate: funnel.rates.handleRate
     },
     {
-      label: 'Traités par Sara',
+      label: 'Traités par Assistant',
       count: funnel.handled,
       rate: funnel.rates.handleRate,
       icon: CheckCircle,
@@ -54,7 +54,7 @@ export default function CallFunnelComponent({ funnel }: CallFunnelProps) {
       <div className="mb-6">
         <h3 className="text-xl font-bold mb-2">Funnel d'appels entrants</h3>
         <p className="text-gray-600 text-sm">
-          Performance de Sara sur les appels reçus
+          Performance de Assistant sur les appels reçus
         </p>
       </div>
 
@@ -86,7 +86,7 @@ export default function CallFunnelComponent({ funnel }: CallFunnelProps) {
           // Thresholds différents selon l'étape
           let thresholds = { good: 70, medium: 50 };
           if (index === 0) thresholds = { good: 100, medium: 100 }; // Reçus = toujours 100%
-          if (index === 1) thresholds = { good: 95, medium: 85 }; // Prise en charge (Sara doit traiter quasi tous)
+          if (index === 1) thresholds = { good: 95, medium: 85 }; // Prise en charge (Assistant doit traiter quasi tous)
           if (index === 2) thresholds = { good: 60, medium: 40 }; // Qualification
           if (index === 3) thresholds = { good: 50, medium: 30 }; // RDV
 
@@ -174,7 +174,7 @@ export default function CallFunnelComponent({ funnel }: CallFunnelProps) {
             <div className="flex items-start gap-2 text-sm">
               <span className="text-green-600 font-bold">•</span>
               <p className="text-gray-700">
-                <span className="font-semibold">Sara performe très bien</span> sur toutes les étapes
+                <span className="font-semibold">Assistant performe très bien</span> sur toutes les étapes
               </p>
             </div>
           )}

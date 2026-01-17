@@ -1,0 +1,39 @@
+{
+  "name": "@coccinelle/billing-stripe",
+  "version": "1.0.0",
+  "description": "Module de facturation Stripe réutilisable pour SaaS (Cloudflare Workers + Next.js)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "stripe",
+    "billing",
+    "saas",
+    "cloudflare-workers",
+    "nextjs",
+    "subscription",
+    "invoicing"
+  ],
+  "author": "Coccinelle AI",
+  "license": "MIT",
+  "peerDependencies": {
+    "stripe": "^14.0.0",
+    "react": "^18.0.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/uuid": "^9.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ]
+}

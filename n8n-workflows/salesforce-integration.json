@@ -1,0 +1,304 @@
+{
+  "name": "Coccinelle - Salesforce Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "coccinelle/salesforce",
+        "options": {}
+      },
+      "id": "webhook-salesforce",
+      "name": "Webhook Coccinelle",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create_lead",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "switch-action",
+      "name": "Route by Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "leadFields": {
+          "values": [
+            {
+              "fieldId": "FirstName",
+              "fieldValue": "={{ $json.data.first_name }}"
+            },
+            {
+              "fieldId": "LastName",
+              "fieldValue": "={{ $json.data.last_name || 'Unknown' }}"
+            },
+            {
+              "fieldId": "Email",
+              "fieldValue": "={{ $json.data.email }}"
+            },
+            {
+              "fieldId": "Phone",
+              "fieldValue": "={{ $json.data.phone }}"
+            },
+            {
+              "fieldId": "Company",
+              "fieldValue": "={{ $json.data.company || 'N/A' }}"
+            },
+            {
+              "fieldId": "LeadSource",
+              "fieldValue": "Coccinelle AI"
+            },
+            {
+              "fieldId": "Description",
+              "fieldValue": "={{ $json.data.notes || 'Lead from Coccinelle AI Voice Agent' }}"
+            }
+          ]
+        }
+      },
+      "id": "salesforce-create-lead",
+      "name": "Create Lead in Salesforce",
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1,
+      "position": [700, 200],
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "SALESFORCE_CREDENTIALS_ID",
+          "name": "Salesforce OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "leadId": "={{ $json.data.salesforce_id }}",
+        "updateFields": {
+          "values": [
+            {
+              "fieldId": "Status",
+              "fieldValue": "={{ $json.data.status }}"
+            },
+            {
+              "fieldId": "Description",
+              "fieldValue": "={{ $json.data.notes }}"
+            }
+          ]
+        }
+      },
+      "id": "salesforce-update-lead",
+      "name": "Update Lead in Salesforce",
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1,
+      "position": [700, 400],
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "SALESFORCE_CREDENTIALS_ID",
+          "name": "Salesforce OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "taskFields": {
+          "values": [
+            {
+              "fieldId": "Subject",
+              "fieldValue": "={{ $json.data.subject || 'Follow-up from Coccinelle AI' }}"
+            },
+            {
+              "fieldId": "WhoId",
+              "fieldValue": "={{ $json.data.salesforce_id }}"
+            },
+            {
+              "fieldId": "ActivityDate",
+              "fieldValue": "={{ $json.data.due_date || $now.plus(1, 'day').toISODate() }}"
+            },
+            {
+              "fieldId": "Description",
+              "fieldValue": "={{ $json.data.description }}"
+            },
+            {
+              "fieldId": "Priority",
+              "fieldValue": "={{ $json.data.priority || 'Normal' }}"
+            }
+          ]
+        }
+      },
+      "id": "salesforce-create-task",
+      "name": "Create Task in Salesforce",
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1,
+      "position": [700, 600],
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "SALESFORCE_CREDENTIALS_ID",
+          "name": "Salesforce OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "success",
+              "value": "true"
+            },
+            {
+              "name": "salesforce_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "message",
+              "value": "Lead synced to Salesforce"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "callback-coccinelle",
+      "name": "Callback to Coccinelle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Salesforce sync initiated' }) }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1140, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Coccinelle": {
+      "main": [
+        [
+          {
+            "node": "Route by Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Action": {
+      "main": [
+        [
+          {
+            "node": "Create Lead in Salesforce",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Lead in Salesforce",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Task in Salesforce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead in Salesforce": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead in Salesforce": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Task in Salesforce": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback to Coccinelle": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Coccinelle",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "CRM",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "active": false
+}

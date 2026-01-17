@@ -1,0 +1,66 @@
+Catégorie,Route,Fichier,Fonction,Type
+Authentification,/,/app/page.tsx,Landing page avec présentation produit,Page publique
+Authentification,/login,/app/login/page.tsx,Connexion utilisateurs existants,Page publique
+Authentification,/signup,/app/signup/page.tsx,Création nouveau compte,Page publique
+Onboarding,/onboarding,/app/onboarding/page.tsx,Flow onboarding principal multi-étapes,Page protégée
+Onboarding,/client/onboarding,/app/client/onboarding/page.tsx,Onboarding client post-signup,Page protégée
+Onboarding,/client/onboarding/email-setup,/app/client/onboarding/email-setup/page.tsx,Configuration intégration email,Page protégée
+Onboarding,/client/onboarding/sms-setup,/app/client/onboarding/sms-setup/page.tsx,Configuration SMS (Twilio/Vonage),Page protégée
+Onboarding,/client/onboarding/phone-setup,/app/client/onboarding/phone-setup/page.tsx,Configuration numéros téléphoniques,Page protégée
+Onboarding,/client/onboarding/whatsapp-setup,/app/client/onboarding/whatsapp-setup/page.tsx,Configuration WhatsApp Business,Page protégée
+Onboarding,/client/onboarding/complete,/app/client/onboarding/complete/page.tsx,Confirmation onboarding terminé,Page protégée
+Onboarding,/client/preferences,/app/client/preferences/page.tsx,Préférences utilisateur post-onboarding,Page protégée
+Dashboard,/dashboard,/app/dashboard/page.tsx,Hub central avec KPIs et 6 modules,Page protégée
+Canaux,/dashboard/channels,/app/dashboard/channels/page.tsx,Vue d'ensemble canaux avec stats,Page protégée
+Canaux,/dashboard/channels/phone,/app/dashboard/channels/phone/page.tsx,Configuration numéros et options appel,Page protégée
+Canaux,/dashboard/channels/sms,/app/dashboard/channels/sms/page.tsx,Gestion campagnes et réponses SMS,Page protégée
+Canaux,/dashboard/channels/whatsapp,/app/dashboard/channels/whatsapp/page.tsx,Configuration et gestion WhatsApp,Page protégée
+Canaux,/dashboard/channels/email,/app/dashboard/channels/email/page.tsx,Configuration paramètres email,Page protégée
+Canaux,/dashboard/channels/inbox,/app/dashboard/channels/inbox/page.tsx,Vue unifiée messages entrants,Page protégée
+Canaux,/dashboard/inbox,/app/dashboard/inbox/page.tsx,Gestion messages inbox,Page protégée
+Conversations,/dashboard/conversations,/app/dashboard/conversations/page.tsx,Historique centralisé conversations,Page protégée
+Conversations,/dashboard/conversations/appels,/app/dashboard/conversations/appels/page.tsx,Conversations appels téléphoniques,Page protégée
+Conversations,/dashboard/conversations/sara,/app/dashboard/conversations/sara/page.tsx,Conversations avec agent IA SARA,Page protégée
+Conversations,/dashboard/appels,/app/dashboard/appels/page.tsx,Vue dédiée aux appels,Page protégée
+RDV,/dashboard/appointments,/app/dashboard/appointments/page.tsx,Gestion rendez-vous automatiques,Page protégée
+RDV,/dashboard/rdv,/app/dashboard/rdv/page.tsx,Gestion RDV (variant),Page protégée
+RDV,/dashboard/appointments/calendar,/app/dashboard/appointments/calendar/page.tsx,Vue calendrier des RDV,Page protégée
+RDV,/dashboard/appointments/calendar/settings,/app/dashboard/appointments/calendar/settings/page.tsx,Configuration calendrier et synchro,Page protégée
+RDV,/dashboard/rdv/settings,/app/dashboard/rdv/settings/page.tsx,Configuration rendez-vous,Page protégée
+CRM,/dashboard/crm,/app/dashboard/crm/page.tsx,Hub CRM et gestion prospects,Page protégée
+CRM,/dashboard/crm/prospects,/app/dashboard/crm/prospects/page.tsx,Liste prospects avec filtres,Page protégée
+CRM,/dashboard/crm/prospects/[id],/app/dashboard/crm/prospects/[id]/page.tsx,Fiche prospect détaillée,Page protégée
+CRM,/dashboard/customers,/app/dashboard/customers/page.tsx,Gestion clients confirmés,Page protégée
+CRM,/dashboard/customers/[id],/app/dashboard/customers/[id]/page.tsx,Fiche client avec historique,Page protégée
+Analytics,/dashboard/analytics,/app/dashboard/analytics/page.tsx,Tableaux de bord analytics,Page protégée
+Analytics,/dashboard/sara-analytics,/app/dashboard/sara-analytics/page.tsx,Analytics agent IA SARA,Page protégée
+IA,/dashboard/sara,/app/dashboard/sara/page.tsx,Configuration agent vocal SARA,Page protégée
+Connaissance,/dashboard/knowledge,/app/dashboard/knowledge/page.tsx,Gestion base de connaissances,Page protégée
+Propriétés,/dashboard/properties,/app/dashboard/properties/page.tsx,Portefeuille propriétés immobilier,Page protégée
+Paramètres,/dashboard/settings,/app/dashboard/settings/page.tsx,Hub configuration avec 3 sections,Page protégée
+Paramètres,/dashboard/settings/channels,/app/dashboard/settings/channels/page.tsx,Configuration détaillée canaux,Page protégée
+Paramètres,/dashboard/settings/channels/phone,/app/dashboard/settings/channels/phone/page.tsx,Paramètres téléphone avancés,Page protégée
+Paramètres,/dashboard/settings/channels/sms,/app/dashboard/settings/channels/sms/page.tsx,Paramètres SMS avancés,Page protégée
+Paramètres,/dashboard/settings/channels/email,/app/dashboard/settings/channels/email/page.tsx,Paramètres email avancés,Page protégée
+Paramètres,/dashboard/settings/channels/whatsapp,/app/dashboard/settings/channels/whatsapp/page.tsx,Paramètres WhatsApp avancés,Page protégée
+Paramètres,/dashboard/settings/integrations,/app/dashboard/settings/integrations/page.tsx,Gestion intégrations externes,Page protégée
+Paramètres,/dashboard/settings/notifications,/app/dashboard/settings/notifications/page.tsx,Configuration alertes et notifications,Page protégée
+Intégrations,/dashboard/integrations,/app/dashboard/integrations/page.tsx,Liste intégrations disponibles,Page protégée
+Intégrations,/dashboard/integrations/new,/app/dashboard/integrations/new/page.tsx,Assistant création intégration,Page protégée
+Test,/dashboard/test-channels,/app/dashboard/test-channels/page.tsx,Test canaux avant production,Page protégée
+API,POST /api/channels/auto,,Configuration automatique canaux,Endpoint
+API,POST /api/channels/email/send,,Envoi emails,Endpoint
+API,POST /api/channels/sms/send,,Envoi SMS Twilio,Endpoint
+API,POST /api/channels/whatsapp/send,,Envoi WhatsApp,Endpoint
+API,GET/POST /api/crm/integrations,,Gestion intégrations CRM,Endpoint
+API,POST /api/crm/sync,,Synchronisation CRM,Endpoint
+API,POST /api/crm/webhooks/hubspot,,Webhook HubSpot entrants,Endpoint
+API,POST /api/crm/webhooks/salesforce,,Webhook Salesforce entrants,Endpoint
+API,GET/POST /api/knowledge/documents,,Gestion documents,Endpoint
+API,POST /api/knowledge/documents/upload,,Upload documents PDF/Word,Endpoint
+API,POST /api/knowledge/crawl,,Web scraping/crawling site,Endpoint
+API,POST /api/knowledge/import-google,,Import depuis Google Drive,Endpoint
+API,POST /api/knowledge/ask,,Requête vers base connaissance,Endpoint
+API,POST /api/knowledge/structure-ai,,Structuration IA documents,Endpoint
+API,POST /api/webhooks/twilio/sms,,Webhook SMS entrants Twilio,Endpoint
+API,POST /api/webhooks/whatsapp,,Webhook WhatsApp entrants,Endpoint

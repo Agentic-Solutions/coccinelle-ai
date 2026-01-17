@@ -1,0 +1,6 @@
+category,title,description,price,city,postal_code,surface,rooms,floor,elevator,balcony
+real_estate,Appartement 3P Paris 15e,Magnifique appartement lumineux avec vue dégagée,450000,Paris,75015,85,3,4,true,true
+real_estate,Studio Montmartre,Studio cosy parfait pour étudiant ou investissement,280000,Paris,75018,28,1,2,false,false
+real_estate,Maison avec jardin Bordeaux,Belle maison familiale avec jardin de 200m²,520000,Bordeaux,33000,120,5,0,false,false
+real_estate,Duplex Lyon Centre,Duplex moderne entièrement rénové en plein centre,380000,Lyon,69002,95,4,5,true,true
+real_estate,Villa vue mer Nice,Superbe villa avec piscine et vue panoramique mer,890000,Nice,06000,180,6,0,false,true

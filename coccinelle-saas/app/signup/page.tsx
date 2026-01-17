@@ -3,18 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { INDUSTRIES } from '@/constants/industries';
 import { isDemoMode, mockTenant } from '@/lib/mockData';
 
 export default function SignupPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    companyName: '',
     name: '',
     email: '',
-    password: '',
-    phone: '',
-    sector: ''
+    password: ''
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,14 +29,11 @@ export default function SignupPage() {
 
     // Validation
     const newErrors = [];
-    if (!formData.companyName) newErrors.push('Le nom de l\'entreprise est requis');
     if (!formData.name) newErrors.push('Votre nom est requis');
     if (!formData.email) newErrors.push('L\'email est requis');
     if (!formData.password || formData.password.length < 8) {
       newErrors.push('Le mot de passe doit contenir au moins 8 caractères');
     }
-    if (!formData.phone) newErrors.push('Le téléphone est requis');
-    if (!formData.sector) newErrors.push('Le secteur d\'activité est requis');
 
     if (newErrors.length > 0) {
       setErrors(newErrors);
@@ -65,9 +58,7 @@ export default function SignupPage() {
           user: demoUser,
           tenant: {
             ...mockTenant,
-            name: formData.companyName,
-            industry: formData.sector,
-            phone: formData.phone
+            name: formData.email.split('@')[1] || 'Demo Company'
           }
         };
 
@@ -88,12 +79,10 @@ export default function SignupPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            company_name: formData.companyName,
+            company_name: '',
             name: formData.name,
             email: formData.email,
-            password: formData.password,
-            phone: formData.phone,
-            sector: formData.sector
+            password: formData.password
           })
         }
       );
@@ -111,7 +100,7 @@ export default function SignupPage() {
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('tenant', JSON.stringify(data.tenant));
 
-      // Redirection vers l'onboarding (CORRECTION ✅)
+      // Redirection vers l'onboarding
       router.push('/onboarding');
     } catch (err) {
       setErrors(['Erreur réseau. Vérifiez votre connexion.']);
@@ -155,22 +144,6 @@ export default function SignupPage() {
           )}
 
           <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-                Nom de votre entreprise *
-              </label>
-              <input
-                id="companyName"
-                name="companyName"
-                type="text"
-                required
-                value={formData.companyName}
-                onChange={handleChange}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
-                placeholder="Ex: Agence Immobilière Dupont"
-              />
-            </div>
-
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                 Votre nom complet *
@@ -218,43 +191,12 @@ export default function SignupPage() {
                 placeholder="Minimum 8 caractères"
               />
             </div>
+          </div>
 
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                Téléphone *
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                required
-                value={formData.phone}
-                onChange={handleChange}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
-                placeholder="+33 6 12 34 56 78"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="sector" className="block text-sm font-medium text-gray-700 mb-1">
-                Secteur d'activité *
-              </label>
-              <select
-                id="sector"
-                name="sector"
-                required
-                value={formData.sector}
-                onChange={handleChange}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
-              >
-                <option value="">Sélectionnez votre secteur</option>
-                {INDUSTRIES.map((industry) => (
-                  <option key={industry.value} value={industry.value}>
-                    {industry.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-900">
+              💡 Après la création de votre compte, vous serez guidé pour configurer votre assistant IA et vos canaux de communication.
+            </p>
           </div>
 
           <div>

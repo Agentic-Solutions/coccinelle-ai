@@ -56,7 +56,7 @@ export default function CallInsights({ insights, score }: CallInsightsProps) {
   };
 
   const getScoreMessage = (score: number) => {
-    if (score >= 80) return 'Excellente performance ! Sara est très efficace.';
+    if (score >= 80) return 'Excellente performance ! Assistant est très efficace.';
     if (score >= 60) return 'Bonne performance. Quelques optimisations possibles.';
     if (score >= 40) return 'Performance moyenne. Plusieurs améliorations nécessaires.';
     return 'Performance faible. Optimisation urgente recommandée.';
@@ -68,7 +68,7 @@ export default function CallInsights({ insights, score }: CallInsightsProps) {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <h3 className="text-xl font-bold mb-2">Score de performance de Sara</h3>
+            <h3 className="text-xl font-bold mb-2">Score de performance de Assistant</h3>
             <p className="text-gray-600 text-sm mb-4">{getScoreMessage(score)}</p>
 
             {/* Barre de progression */}
@@ -138,7 +138,7 @@ export default function CallInsights({ insights, score }: CallInsightsProps) {
           <div className="text-4xl mb-4">🎉</div>
           <h3 className="font-semibold text-green-900 mb-2">Aucune recommandation !</h3>
           <p className="text-green-700 text-sm">
-            Sara performe excellemment. Continuez sur cette lancée !
+            Assistant performe excellemment. Continuez sur cette lancée !
           </p>
         </div>
       ) : (

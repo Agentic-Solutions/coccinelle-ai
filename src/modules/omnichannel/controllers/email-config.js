@@ -1,14 +1,35 @@
 /**
  * Controller Email Configuration - Gestion de la configuration email multi-tenant
+ * Version: 2.0.0 - 16 janvier 2026
+ * SÉCURISÉ: Auth JWT sur tous les endpoints (sauf instructions)
  */
 
 import { omniLogger } from '../utils/logger.js';
 import { CloudflareDNSService } from '../services/cloudflare-dns.js';
 import { DNSDetectorService } from '../services/dns-detector.js';
+import * as auth from '../../auth/helpers.js';
+
+/**
+ * Helper: Vérification auth réutilisable
+ */
+async function checkAuth(request, env) {
+  const authResult = await auth.requireAuth(request, env);
+  if (authResult.error) {
+    return {
+      error: true,
+      response: new Response(JSON.stringify({ success: false, error: authResult.error }), {
+        status: authResult.status,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    };
+  }
+  return { error: false, user: authResult.user, tenant: authResult.tenant };
+}
 
 /**
  * GET /api/v1/omnichannel/email/cloudflare/instructions
  * Instructions pour créer un API Token Cloudflare
+ * ✅ Pas d'auth nécessaire - contenu public
  */
 export async function getCloudflareInstructions(request, env) {
   return new Response(JSON.stringify({
@@ -60,14 +81,21 @@ export async function getCloudflareInstructions(request, env) {
 /**
  * POST /api/v1/omnichannel/email/cloudflare/connect
  * Connecter un compte Cloudflare avec API Token
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function handleCloudflareCallback(request, env) {
   try {
-    const { token, tenantId } = await request.json();
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    if (!token || !tenantId) {
+    const tenantId = tenant.id;
+    const { token } = await request.json();
+
+    if (!token) {
       return new Response(JSON.stringify({
-        error: 'Missing token or tenantId'
+        error: 'Missing token'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -145,29 +173,25 @@ export async function handleCloudflareCallback(request, env) {
 }
 
 /**
- * GET /api/v1/omnichannel/email/cloudflare/zones?tenantId=xxx
+ * GET /api/v1/omnichannel/email/cloudflare/zones
  * Liste des zones (domaines) disponibles pour ce tenant
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function listCloudflareZones(request, env) {
   try {
-    const url = new URL(request.url);
-    const tenantId = url.searchParams.get('tenantId');
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    if (!tenantId) {
-      return new Response(JSON.stringify({
-        error: 'Missing tenantId parameter'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const tenantId = tenant.id;
 
     // Récupérer le token Cloudflare
-    const auth = await env.DB.prepare(`
+    const authData = await env.DB.prepare(`
       SELECT access_token FROM omni_cloudflare_auth WHERE tenant_id = ?
     `).bind(tenantId).first();
 
-    if (!auth) {
+    if (!authData) {
       return new Response(JSON.stringify({
         error: 'Cloudflare account not connected',
         message: 'Please connect your Cloudflare account first'
@@ -178,7 +202,7 @@ export async function listCloudflareZones(request, env) {
     }
 
     // Lister les zones
-    const cloudflare = new CloudflareDNSService(auth.access_token);
+    const cloudflare = new CloudflareDNSService(authData.access_token);
     const zones = await cloudflare.listZones();
 
     omniLogger.info('Listed Cloudflare zones', { tenantId, zonesCount: zones.length });
@@ -211,15 +235,22 @@ export async function listCloudflareZones(request, env) {
 /**
  * POST /api/v1/omnichannel/email/auto-configure
  * Configuration automatique DNS pour email via Cloudflare
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function autoConfigureEmailDNS(request, env) {
   try {
-    const { tenantId, domain, emailAddress, zoneId } = await request.json();
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    if (!tenantId || !domain || !emailAddress || !zoneId) {
+    const tenantId = tenant.id;
+    const { domain, emailAddress, zoneId } = await request.json();
+
+    if (!domain || !emailAddress || !zoneId) {
       return new Response(JSON.stringify({
         error: 'Missing required fields',
-        required: ['tenantId', 'domain', 'emailAddress', 'zoneId']
+        required: ['domain', 'emailAddress', 'zoneId']
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -234,11 +265,11 @@ export async function autoConfigureEmailDNS(request, env) {
     });
 
     // Récupérer le token Cloudflare
-    const auth = await env.DB.prepare(`
+    const authData = await env.DB.prepare(`
       SELECT access_token FROM omni_cloudflare_auth WHERE tenant_id = ?
     `).bind(tenantId).first();
 
-    if (!auth) {
+    if (!authData) {
       return new Response(JSON.stringify({
         error: 'Cloudflare account not connected'
       }), {
@@ -280,7 +311,7 @@ export async function autoConfigureEmailDNS(request, env) {
     }
 
     // Configurer les DNS automatiquement via Cloudflare
-    const cloudflare = new CloudflareDNSService(auth.access_token);
+    const cloudflare = new CloudflareDNSService(authData.access_token);
 
     try {
       const result = await cloudflare.setupEmailDNSRecords(zoneId, domain, 'eu-west-1');
@@ -344,22 +375,18 @@ export async function autoConfigureEmailDNS(request, env) {
 }
 
 /**
- * GET /api/v1/omnichannel/email/config?tenantId=xxx
+ * GET /api/v1/omnichannel/email/config
  * Récupérer la configuration email du tenant
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function getEmailConfig(request, env) {
   try {
-    const url = new URL(request.url);
-    const tenantId = url.searchParams.get('tenantId');
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    if (!tenantId) {
-      return new Response(JSON.stringify({
-        error: 'Missing tenantId parameter'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const tenantId = tenant.id;
 
     const config = await env.DB.prepare(`
       SELECT * FROM omni_email_configs WHERE tenant_id = ?
@@ -410,15 +437,22 @@ export async function getEmailConfig(request, env) {
 /**
  * POST /api/v1/omnichannel/email/detect-provider
  * Détecte automatiquement le provider DNS d'un domaine
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function detectDNSProvider(request, env) {
   try {
-    const { domain, emailAddress, tenantId } = await request.json();
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    if (!domain || !emailAddress || !tenantId) {
+    const tenantId = tenant.id;
+    const { domain, emailAddress } = await request.json();
+
+    if (!domain || !emailAddress) {
       return new Response(JSON.stringify({
         error: 'Missing required fields',
-        required: ['domain', 'emailAddress', 'tenantId']
+        required: ['domain', 'emailAddress']
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -440,9 +474,6 @@ export async function detectDNSProvider(request, env) {
       emailAddress,
       forwardingAddress
     );
-
-    // NOTE: La sauvegarde en DB se fera lors de l'auto-configuration
-    // Pour la détection simple, on ne sauvegarde pas pour éviter les erreurs de FK
 
     omniLogger.info('DNS provider detected', {
       tenantId,
@@ -478,19 +509,16 @@ export async function detectDNSProvider(request, env) {
 /**
  * POST /api/v1/omnichannel/email/verify-forwarding
  * Vérifie que le forwarding email fonctionne
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function verifyEmailForwarding(request, env) {
   try {
-    const { tenantId } = await request.json();
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    if (!tenantId) {
-      return new Response(JSON.stringify({
-        error: 'Missing tenantId'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const tenantId = tenant.id;
 
     // Récupérer la config
     const config = await env.DB.prepare(`
@@ -505,11 +533,6 @@ export async function verifyEmailForwarding(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
-    // Pour vérifier le forwarding, on pourrait :
-    // 1. Envoyer un email de test à l'adresse du client
-    // 2. Attendre de le recevoir sur forwarding_address
-    // 3. Marquer comme vérifié
 
     // Pour l'instant, on permet au client de marquer manuellement comme vérifié
     const now = new Date().toISOString();

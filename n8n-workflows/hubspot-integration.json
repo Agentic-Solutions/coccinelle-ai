@@ -1,0 +1,352 @@
+{
+  "name": "Coccinelle - HubSpot Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "coccinelle/hubspot",
+        "options": {}
+      },
+      "id": "webhook-hubspot",
+      "name": "Webhook Coccinelle",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "create_contact",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "switch-action",
+      "name": "Route by Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "create",
+        "additionalFields": {
+          "firstName": "={{ $json.data.first_name }}",
+          "lastName": "={{ $json.data.last_name || '' }}",
+          "email": "={{ $json.data.email }}",
+          "phone": "={{ $json.data.phone }}",
+          "company": "={{ $json.data.company || '' }}",
+          "lifecycleStage": "lead",
+          "leadStatus": "={{ $json.data.status || 'NEW' }}"
+        },
+        "options": {}
+      },
+      "id": "hubspot-create-contact",
+      "name": "Create Contact in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [700, 200],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIALS_ID",
+          "name": "HubSpot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "update",
+        "contactId": "={{ $json.data.hubspot_id }}",
+        "updateFields": {
+          "lifecycleStage": "={{ $json.data.lifecycle_stage || 'lead' }}",
+          "leadStatus": "={{ $json.data.status }}"
+        },
+        "options": {}
+      },
+      "id": "hubspot-update-contact",
+      "name": "Update Contact in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [700, 400],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIALS_ID",
+          "name": "HubSpot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "deal",
+        "operation": "create",
+        "additionalFields": {
+          "dealName": "={{ $json.data.deal_name || 'Deal from Coccinelle AI' }}",
+          "dealStage": "={{ $json.data.deal_stage || 'appointmentscheduled' }}",
+          "pipeline": "default",
+          "amount": "={{ $json.data.amount || 0 }}",
+          "closeDate": "={{ $json.data.close_date || $now.plus(30, 'day').toISODate() }}"
+        },
+        "options": {}
+      },
+      "id": "hubspot-create-deal",
+      "name": "Create Deal in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [700, 600],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIALS_ID",
+          "name": "HubSpot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "engagement",
+        "operation": "create",
+        "type": "NOTE",
+        "metadata": {
+          "body": "={{ $json.data.note || 'Interaction via Coccinelle AI Voice Agent' }}"
+        },
+        "associations": {
+          "contactIds": "={{ [$json.data.hubspot_id] }}"
+        },
+        "options": {}
+      },
+      "id": "hubspot-create-note",
+      "name": "Create Note in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [700, 800],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIALS_ID",
+          "name": "HubSpot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "engagement",
+        "operation": "create",
+        "type": "CALL",
+        "metadata": {
+          "body": "={{ $json.data.call_summary || 'Call via Coccinelle AI' }}",
+          "status": "={{ $json.data.call_status || 'COMPLETED' }}",
+          "durationMilliseconds": "={{ ($json.data.call_duration || 0) * 1000 }}",
+          "toNumber": "={{ $json.data.phone }}",
+          "fromNumber": "={{ $json.data.from_number }}"
+        },
+        "associations": {
+          "contactIds": "={{ [$json.data.hubspot_id] }}"
+        },
+        "options": {}
+      },
+      "id": "hubspot-log-call",
+      "name": "Log Call in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [700, 1000],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIALS_ID",
+          "name": "HubSpot API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "success",
+              "value": "true"
+            },
+            {
+              "name": "hubspot_id",
+              "value": "={{ $json.id || $json.vid }}"
+            },
+            {
+              "name": "message",
+              "value": "Contact synced to HubSpot"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "callback-coccinelle",
+      "name": "Callback to Coccinelle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'HubSpot sync initiated' }) }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1140, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Coccinelle": {
+      "main": [
+        [
+          {
+            "node": "Route by Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Action": {
+      "main": [
+        [
+          {
+            "node": "Create Contact in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Contact in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Deal in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Note in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Call in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Contact in HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact in HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Deal in HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Note in HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Call in HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback to Coccinelle": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Coccinelle",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "CRM",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "active": false
+}

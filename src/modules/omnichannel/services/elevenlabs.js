@@ -40,13 +40,23 @@ export class ElevenLabsService {
   async getFrenchVoices() {
     const allVoices = await this.getVoices();
 
-    // Filtrer les voix françaises (labels contenant "French" ou langues fr-*)
+    // Filtrer les voix qui supportent le français
     return allVoices.filter(voice => {
-      const labels = voice.labels || {};
-      const hasFrenchlabel = Object.values(labels).some(label =>
-        typeof label === 'string' && label.toLowerCase().includes('french')
+      // Vérifier dans verified_languages si la langue "fr" est supportée
+      const verifiedLanguages = voice.verified_languages || [];
+      const hasFrench = verifiedLanguages.some(lang =>
+        lang.language === 'fr'
       );
-      return hasFrenchlabel;
+
+      // Sinon, vérifier dans les labels en fallback
+      if (!hasFrench) {
+        const labels = voice.labels || {};
+        return Object.values(labels).some(label =>
+          typeof label === 'string' && label.toLowerCase().includes('french')
+        );
+      }
+
+      return hasFrench;
     });
   }
 

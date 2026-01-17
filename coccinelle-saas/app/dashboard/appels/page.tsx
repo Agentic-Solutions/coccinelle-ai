@@ -198,7 +198,7 @@ export default function AppelsPage() {
             </Link>
             <Logo size={48} />
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900">Appels Sara</h1>
+              <h1 className="text-3xl font-semibold text-gray-900">Appels Assistant</h1>
               <p className="text-gray-600 mt-1">Historique complet des appels téléphoniques</p>
             </div>
           </div>

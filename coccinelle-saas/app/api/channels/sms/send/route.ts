@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createTwilioClientFromEnv } from '@/modules/channels/sms/twilioClient';
 import { createSMSService } from '@/modules/channels/sms/smsService';

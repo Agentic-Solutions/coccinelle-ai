@@ -119,9 +119,9 @@ export default function CallPerformanceComponent({ performance }: CallPerformanc
           <div className="mt-4 p-3 bg-gray-50 rounded border border-gray-200">
             <p className="text-xs text-gray-600">
               {performance.avgCallDuration < 120 ? (
-                <span className="text-red-600">⚠ Appels trop courts - Enrichir le script de Sara</span>
+                <span className="text-red-600">⚠ Appels trop courts - Enrichir le script de Assistant</span>
               ) : performance.avgCallDuration >= 180 ? (
-                <span className="text-green-600">✓ Bonne durée - Sara prend le temps d'échanger</span>
+                <span className="text-green-600">✓ Bonne durée - Assistant prend le temps d'échanger</span>
               ) : (
                 <span className="text-yellow-600">○ Durée correcte - Potentiel d'amélioration</span>
               )}

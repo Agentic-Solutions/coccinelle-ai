@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -34,7 +34,8 @@ interface ChannelConfig {
   };
 }
 
-export default function ChannelsConfigPage() {
+// Composant interne qui utilise useSearchParams
+function NotificationsContent() {
   const searchParams = useSearchParams();
   const channelParam = searchParams.get('channel');
 
@@ -303,13 +304,13 @@ export default function ChannelsConfigPage() {
                   Canal voix sélectionné
                 </h3>
                 <p className="text-sm text-blue-800 mb-4">
-                  Pour le canal voix, configurez <strong>Sara</strong>, votre agent IA vocal qui gère
-                  automatiquement vos appels entrants et sortants. Sara peut prendre des rendez-vous,
+                  Pour le canal voix, configurez <strong>Assistant</strong>, votre agent IA vocal qui gère
+                  automatiquement vos appels entrants et sortants. Assistant peut prendre des rendez-vous,
                   répondre aux questions, et qualifier vos prospects 24/7.
                 </p>
                 <Link href="/dashboard/sara">
                   <button className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 font-medium">
-                    Configurer Sara
+                    Configurer Assistant
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </Link>
@@ -522,5 +523,23 @@ export default function ChannelsConfigPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Composant de chargement
+function LoadingState() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-gray-300 border-t-gray-900 rounded-full animate-spin"></div>
+    </div>
+  );
+}
+
+// Export avec Suspense boundary
+export default function ChannelsConfigPage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <NotificationsContent />
+    </Suspense>
   );
 }

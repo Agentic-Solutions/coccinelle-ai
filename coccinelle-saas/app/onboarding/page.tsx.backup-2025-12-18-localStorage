@@ -1,0 +1,315 @@
+'use client';
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import ProgressBar from '@/components/onboarding/ProgressBar';
+import WelcomeStep from '@/components/onboarding/WelcomeStep';
+import BusinessInfoStep from '@/components/onboarding/BusinessInfoStep';
+import ChannelSelectionStep from '@/components/onboarding/ChannelSelectionStep';
+import PhoneConfigStep from '@/components/onboarding/PhoneConfigStep';
+import SMSConfigStep from '@/components/onboarding/SMSConfigStep';
+import EmailConfigStep from '@/components/onboarding/EmailConfigStep';
+import WhatsAppConfigStep from '@/components/onboarding/WhatsAppConfigStep';
+import KnowledgeBaseStep from '@/components/onboarding/KnowledgeBaseStep';
+import CompletionStep from '@/components/onboarding/CompletionStep';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+export default function Onboarding() {
+  const router = useRouter();
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Session d'onboarding
+  const [sessionId, setSessionId] = useState(null);
+  const [tenantId, setTenantId] = useState(null);
+
+  // Données de configuration
+  const [businessData, setBusinessData] = useState(null);
+  const [selectedChannels, setSelectedChannels] = useState([]);
+  const [channelConfigs, setChannelConfigs] = useState({});
+  const [kbData, setKbData] = useState(null);
+
+  // Construire dynamiquement la liste des étapes
+  const steps = useMemo(() => {
+    const baseSteps = [
+      { id: 'welcome', label: 'Bienvenue' },
+      { id: 'business-info', label: 'Entreprise' },
+      { id: 'channel-selection', label: 'Canaux' }
+    ];
+
+    // Ajouter les étapes de configuration par canal sélectionné
+    const channelSteps = selectedChannels.map(channelId => ({
+      id: `config-${channelId}`,
+      label: `Config ${channelId}`,
+      channelId
+    }));
+
+    const endSteps = [
+      { id: 'knowledge-base', label: 'Base de connaissances' },
+      { id: 'completion', label: 'Terminé' }
+    ];
+
+    return [...baseSteps, ...channelSteps, ...endSteps];
+  }, [selectedChannels]);
+
+  const currentStep = steps[currentStepIndex];
+  const totalSteps = steps.length;
+
+  // Créer une session d'onboarding au démarrage
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/onboarding/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          setSessionId(data.session_id);
+          setTenantId(data.tenant_id);
+          console.log('[Onboarding] Session créée:', data.session_id);
+        } else {
+          console.error('[Onboarding] Erreur création session:', data.error);
+          setError('Impossible de démarrer l\'onboarding');
+        }
+      } catch (err) {
+        console.error('[Onboarding] Erreur réseau:', err);
+        setError('Erreur de connexion au serveur');
+      }
+    };
+
+    initSession();
+  }, []);
+
+  const handleNext = async (stepData) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Sauvegarder les données selon l'étape actuelle
+      if (currentStep.id === 'business-info') {
+        setBusinessData(stepData);
+
+        // Sauvegarder les données business dans la session
+        if (sessionId) {
+          await fetch(`${API_BASE_URL}/api/v1/onboarding/session/${sessionId}/business`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              company_name: stepData.companyName,
+              industry: stepData.industry,
+              phone: stepData.phone,
+              email: stepData.email
+            })
+          });
+        }
+      } else if (currentStep.id === 'channel-selection') {
+        setSelectedChannels(stepData.selectedChannels);
+      } else if (currentStep.id.startsWith('config-')) {
+        // Fusionner la config du canal avec les configs existantes
+        setChannelConfigs(prev => ({ ...prev, ...stepData }));
+
+        // Sauvegarder la config VAPI si c'est le canal phone
+        if (currentStep.channelId === 'phone' && sessionId) {
+          await fetch(`${API_BASE_URL}/api/v1/onboarding/session/${sessionId}/vapi`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agent_type: stepData.phone.agent_type,
+              voice: stepData.phone.voice,
+              assistant_name: stepData.phone.assistant_name
+            })
+          });
+        }
+      } else if (currentStep.id === 'knowledge-base') {
+        setKbData(stepData);
+
+        // Sauvegarder les KB dans la session (si besoin)
+        if (sessionId && stepData.documents && stepData.documents.length > 0) {
+          await fetch(`${API_BASE_URL}/api/v1/onboarding/session/${sessionId}/kb`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              documents: stepData.documents
+            })
+          });
+        }
+      }
+
+      // Passer à l'étape suivante
+      setCurrentStepIndex(currentStepIndex + 1);
+    } catch (err) {
+      setError('Erreur lors de la sauvegarde');
+      console.error('Error saving step:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStepIndex > 0) {
+      setCurrentStepIndex(currentStepIndex - 1);
+    }
+  };
+
+  const handleComplete = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!sessionId) {
+        setError('Session d\'onboarding introuvable');
+        return;
+      }
+
+      // Appeler l'API de complétion qui déclenchera la synchronisation
+      const response = await fetch(`${API_BASE_URL}/api/v1/onboarding/session/${sessionId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('[Onboarding] Terminé avec succès, sync_status:', data.sync_status);
+
+        // Sauvegarder en localStorage pour backup
+        try {
+          localStorage.setItem('onboarding_completed', 'true');
+          localStorage.setItem('onboarding_tenant_id', tenantId);
+          localStorage.setItem('onboarding_session_id', sessionId);
+        } catch (e) {
+          console.error('Error saving to localStorage:', e);
+        }
+
+        // Rediriger vers le dashboard
+        router.push('/dashboard');
+      } else {
+        setError(data.error || 'Erreur lors de la finalisation');
+      }
+    } catch (err) {
+      console.error('Error completing onboarding:', err);
+      setError('Erreur de connexion au serveur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Render le composant correspondant à l'étape actuelle
+  const renderStep = () => {
+    if (!sessionId && currentStep.id !== 'welcome') {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+          <span className="ml-3 text-gray-600">Initialisation...</span>
+        </div>
+      );
+    }
+
+    switch (currentStep.id) {
+      case 'welcome':
+        return <WelcomeStep onNext={() => setCurrentStepIndex(1)} />;
+
+      case 'business-info':
+        return (
+          <BusinessInfoStep
+            onNext={handleNext}
+            onBack={handleBack}
+            loading={loading}
+          />
+        );
+
+      case 'channel-selection':
+        return (
+          <ChannelSelectionStep
+            onNext={handleNext}
+            onBack={handleBack}
+            loading={loading}
+          />
+        );
+
+      case 'config-phone':
+        return (
+          <PhoneConfigStep
+            onNext={handleNext}
+            onBack={handleBack}
+            loading={loading}
+          />
+        );
+
+      case 'config-sms':
+        return (
+          <SMSConfigStep
+            onNext={handleNext}
+            onBack={handleBack}
+            loading={loading}
+          />
+        );
+
+      case 'config-email':
+        return (
+          <EmailConfigStep
+            onNext={handleNext}
+            onBack={handleBack}
+            loading={loading}
+          />
+        );
+
+      case 'config-whatsapp':
+        return (
+          <WhatsAppConfigStep
+            onNext={handleNext}
+            onBack={handleBack}
+            loading={loading}
+          />
+        );
+
+      case 'knowledge-base':
+        return (
+          <KnowledgeBaseStep
+            sessionId={sessionId}
+            onNext={handleNext}
+            onBack={handleBack}
+            loading={loading}
+          />
+        );
+
+      case 'completion':
+        return (
+          <CompletionStep
+            kbData={kbData}
+            saraConfig={channelConfigs}
+            onComplete={handleComplete}
+            loading={loading}
+          />
+        );
+
+      default:
+        return <div>Étape inconnue</div>;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <ProgressBar currentStep={currentStepIndex + 1} totalSteps={totalSteps} />
+
+        <div className="mt-8 bg-white border border-gray-200 rounded-lg p-8">
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          {renderStep()}
+        </div>
+      </div>
+    </div>
+  );
+}

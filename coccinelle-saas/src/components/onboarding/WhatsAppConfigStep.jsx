@@ -40,8 +40,8 @@ export default function WhatsAppConfigStep({ onNext, onBack, loading }) {
               Configuration détaillée disponible plus tard
             </h3>
             <p className="text-sm text-blue-800 mb-3">
-              La configuration complète de WhatsApp (compte Business, Twilio WhatsApp API, etc.)
-              peut être effectuée après l'onboarding dans <strong>Paramètres &gt; Canaux &gt; WhatsApp</strong>.
+              La configuration complète de WhatsApp (compte Business, API, templates, etc.)
+              sera disponible après l'onboarding dans <strong>Paramètres &gt; Canaux &gt; WhatsApp</strong>.
             </p>
             <p className="text-sm text-blue-800">
               Pour l'instant, nous allons simplement activer ce canal pour que vous puissiez

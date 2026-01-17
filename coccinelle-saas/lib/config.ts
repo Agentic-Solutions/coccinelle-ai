@@ -70,7 +70,7 @@ export const getCurrentTenantId = (): string => {
       const user = JSON.parse(userStr);
       if (user.email) {
         // Créer un ID unique basé sur l'email
-        return `tenant_${btoa(user.email).replace(/=/g, '').substring(0, 16)}`;
+        return `tenant_${btoa(user.email).replace(/=/g, '')}`;
       }
     }
   } catch (e) {

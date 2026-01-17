@@ -132,7 +132,8 @@ export async function requireAuth(request, env) {
       return { error: 'Organisation introuvable', status: 401 };
     }
     
-    if (tenant.status !== 'active' && tenant.status !== 'trial') {
+    // Allow null status (legacy) or active/trial status
+    if (tenant.status && tenant.status !== 'active' && tenant.status !== 'trial') {
       return { error: 'Organisation inactive', status: 403 };
     }
     

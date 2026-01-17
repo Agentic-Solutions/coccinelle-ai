@@ -178,8 +178,8 @@ function generateSmartAlerts(calls: any[], appointments: any[], documents: any[]
     alerts.push({
       id: 'kb-empty',
       type: 'error',
-      title: '⚠️ Knowledge Base vide - Sara ne peut pas fonctionner',
-      message: 'Sans documents, Sara ne pourra pas répondre aux questions de vos clients. Configurez votre KB maintenant pour rendre Sara opérationnelle.',
+      title: '⚠️ Knowledge Base vide - Assistant ne peut pas fonctionner',
+      message: 'Sans documents, Assistant ne pourra pas répondre aux questions de vos clients. Configurez votre KB maintenant pour rendre Assistant opérationnelle.',
       timestamp: now,
       priority: 'high',
       action: {
@@ -198,7 +198,7 @@ function generateSmartAlerts(calls: any[], appointments: any[], documents: any[]
       id: 'kb-insufficient',
       type: 'warning',
       title: `Knowledge Base incomplète (${documents.length}/3 minimum)`,
-      message: 'Pour que Sara soit vraiment efficace, nous recommandons au moins 3 documents couvrant vos services, horaires et tarifs.',
+      message: 'Pour que Assistant soit vraiment efficace, nous recommandons au moins 3 documents couvrant vos services, horaires et tarifs.',
       timestamp: now,
       priority: 'high',
       action: {

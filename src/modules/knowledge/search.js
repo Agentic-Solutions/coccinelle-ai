@@ -1,11 +1,19 @@
 // search.js - Module RAG Search pour Coccinelle.ai
-// Version: 1.0.0 - 7 novembre 2025
+// Version: 2.0.0 - 27 novembre 2025
+// Support Workers AI (768 dims) + OpenAI (1536 dims)
+
+const EMBEDDING_DIMENSIONS = {
+  workersai: 768,
+  openai: 1536
+};
 
 // FONCTION 1: Recherche sémantique vectorielle
 export async function semanticSearch(vectorize, queryEmbedding, topK = 5, filter = {}) {
   try {
-    if (!queryEmbedding || queryEmbedding.length !== 1536) {
-      throw new Error('Invalid embedding: must be array of 1536 numbers');
+    // Support 768 (Workers AI) ou 1536 (OpenAI) dimensions
+    const validDimensions = [768, 1536];
+    if (!queryEmbedding || !validDimensions.includes(queryEmbedding.length)) {
+      throw new Error(`Invalid embedding: must be array of ${validDimensions.join(' or ')} numbers, got ${queryEmbedding?.length}`);
     }
 
     const query = {
@@ -191,25 +199,43 @@ export async function upsertToVectorize(vectorize, chunks) {
   }
 }
 
-// FONCTION 6: Pipeline RAG complet
-export async function ragPipeline({ question, db, vectorize, openaiApiKey, llmApiKey, tenantId, agentId = null, topK = 5 }) {
+// FONCTION 6: Pipeline RAG complet (Workers AI par défaut)
+export async function ragPipeline({ question, db, vectorize, env, openaiApiKey, llmApiKey, tenantId, agentId = null, topK = 5, provider = 'workersai' }) {
   try {
     const startTime = Date.now();
 
-    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`
-      },
-      body: JSON.stringify({ model: 'text-embedding-3-small', input: question })
-    });
+    let queryEmbedding;
+    let targetVectorize = vectorize;
 
-    if (!embeddingResponse.ok) throw new Error('Failed to generate query embedding');
-    const embeddingData = await embeddingResponse.json();
-    const queryEmbedding = embeddingData.data[0].embedding;
+    // Générer l'embedding avec Workers AI ou OpenAI
+    if (provider === 'workersai' && env?.AI) {
+      // Workers AI - gratuit, edge
+      const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+        text: [question]
+      });
+      queryEmbedding = result.data[0];
+      // Utiliser le nouvel index Vectorize (768 dims)
+      targetVectorize = env.VECTORIZE_V2 || vectorize;
+    } else {
+      // OpenAI - fallback
+      const apiKey = openaiApiKey || env?.OPENAI_API_KEY;
+      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({ model: 'text-embedding-3-small', input: question })
+      });
 
-    const searchResults = await semanticSearch(vectorize, queryEmbedding, topK, { tenantId, agentId });
+      if (!embeddingResponse.ok) throw new Error('Failed to generate query embedding');
+      const embeddingData = await embeddingResponse.json();
+      queryEmbedding = embeddingData.data[0].embedding;
+      // Utiliser l'ancien index Vectorize (1536 dims)
+      targetVectorize = env?.VECTORIZE || vectorize;
+    }
+
+    const searchResults = await semanticSearch(targetVectorize, queryEmbedding, topK, { tenantId, agentId });
 
     if (searchResults.length === 0) {
       return {
@@ -217,6 +243,7 @@ export async function ragPipeline({ question, db, vectorize, openaiApiKey, llmAp
         sources: [],
         chunksUsed: 0,
         confidence: 0,
+        provider: provider,
         processingTime: Date.now() - startTime
       };
     }
@@ -229,12 +256,12 @@ export async function ragPipeline({ question, db, vectorize, openaiApiKey, llmAp
     });
 
     const contextData = buildContext(chunksWithScores);
-    const answerData = await generateAnswer(question, contextData.context, llmApiKey);
+    const answerData = await generateAnswer(question, contextData.context, llmApiKey || env?.ANTHROPIC_API_KEY);
 
     await db.prepare(`
-      INSERT INTO knowledge_search_logs (id, tenant_id, agent_id, query, results_count, top_score, processing_time_ms, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `).bind(crypto.randomUUID(), tenantId, agentId, question, chunks.length, searchResults[0]?.score || 0, Date.now() - startTime).run();
+      INSERT INTO knowledge_search_logs (id, tenant_id, agent_id, query, results_count, top_score, processing_time_ms, embedding_provider, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(crypto.randomUUID(), tenantId, agentId, question, chunks.length, searchResults[0]?.score || 0, Date.now() - startTime, provider).run();
 
     return {
       answer: answerData.answer,
@@ -242,7 +269,8 @@ export async function ragPipeline({ question, db, vectorize, openaiApiKey, llmAp
       chunksUsed: contextData.chunksUsed,
       confidence: searchResults[0]?.score || 0,
       model: answerData.model,
-      provider: answerData.provider,
+      provider: provider,
+      llmProvider: answerData.provider,
       processingTime: Date.now() - startTime
     };
   } catch (error) {

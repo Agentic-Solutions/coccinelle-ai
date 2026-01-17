@@ -7,10 +7,10 @@ import Logo from '../../../src/components/Logo';
 import CallFunnelComponent from '../../../src/components/dashboard/CallFunnel';
 import CallPerformanceComponent from '../../../src/components/dashboard/CallPerformance';
 import CallInsights from '../../../src/components/dashboard/CallInsights';
-import { analyzeSara, generateDemoCallEvents } from '../../../lib/sara-analytics';
+import { analyzeAssistant, generateDemoCallEvents } from '../../../lib/sara-analytics';
 import { isDemoMode, mockCalls } from '../../../lib/mockData';
 
-export default function SaraAnalyticsPage() {
+export default function AssistantAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'funnel' | 'performance' | 'insights'>('funnel');
@@ -30,8 +30,8 @@ export default function SaraAnalyticsPage() {
         // Générer des événements d'appels basés sur mockCalls
         const events = generateDemoCallEvents(mockCalls.length);
 
-        // Analyser avec le moteur Sara Analytics
-        const result = analyzeSara({
+        // Analyser avec le moteur Assistant Analytics
+        const result = analyzeAssistant({
           events,
           calls: mockCalls
         });
@@ -59,7 +59,7 @@ export default function SaraAnalyticsPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Analyse des performances de Sara...</p>
+          <p className="text-gray-600">Analyse des performances de Assistant...</p>
         </div>
       </div>
     );
@@ -79,7 +79,7 @@ export default function SaraAnalyticsPage() {
               </Link>
               <Logo size={48} />
               <div>
-                <h1 className="text-2xl font-bold">Sara Analytics</h1>
+                <h1 className="text-2xl font-bold">Assistant Analytics</h1>
                 <p className="text-sm text-gray-600">Performance des appels entrants</p>
               </div>
             </div>
@@ -115,7 +115,7 @@ export default function SaraAnalyticsPage() {
                 </div>
                 <p className="text-gray-600 mb-4">
                   {analytics.score >= 80
-                    ? 'Sara performe excellemment sur les appels entrants.'
+                    ? 'Assistant performe excellemment sur les appels entrants.'
                     : analytics.score >= 60
                     ? 'Bonne performance avec des optimisations possibles.'
                     : 'Des améliorations significatives sont recommandées.'}

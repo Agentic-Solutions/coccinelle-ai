@@ -1,0 +1,8 @@
+product_title,category,base_price,sku,color,size,stock
+Nike Air Max,shoes,129.99,NIKE-AM-RED-42,Rouge,42,5
+Nike Air Max,shoes,129.99,NIKE-AM-RED-43,Rouge,43,2
+Nike Air Max,shoes,129.99,NIKE-AM-BLACK-42,Noir,42,3
+Nike Air Max,shoes,129.99,NIKE-AM-BLACK-43,Noir,43,0
+Adidas Ultra Boost,shoes,159.99,ADIDAS-UB-WHITE-42,Blanc,42,10
+Adidas Ultra Boost,shoes,159.99,ADIDAS-UB-WHITE-43,Blanc,43,7
+Adidas Ultra Boost,shoes,159.99,ADIDAS-UB-BLUE-42,Bleu,42,4

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Brain,
   BarChart3,
@@ -15,27 +16,25 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Logo from '../../../src/components/Logo';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import { isDemoMode, mockCalls, mockAppointments, mockStats, mockDocuments } from '../../../lib/mockData';
 import AIInsightsPanel from '../../../src/components/dashboard/AIInsightsPanel';
+
+// Lazy load recharts (only when analytics tab is active)
+const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
+const Line = dynamic(() => import('recharts').then(mod => mod.Line), { ssr: false });
+const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
+const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
+const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
+const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
+const AreaChart = dynamic(() => import('recharts').then(mod => mod.AreaChart), { ssr: false });
+const Area = dynamic(() => import('recharts').then(mod => mod.Area), { ssr: false });
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
+const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
+const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
 
 // Types
 interface Stats {
@@ -336,14 +335,17 @@ export default function AnalyticsPage() {
     setAgentPerformance(data);
   };
 
-  // Export PDF
-  const exportPDF = () => {
+  // Export PDF - lazy load jsPDF only when needed
+  const exportPDF = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    await import('jspdf-autotable');
+
     const doc = new jsPDF();
-    
+
     // Titre
     doc.setFontSize(20);
     doc.text('Rapport Analytics Coccinelle.ai', 14, 22);
-    
+
     doc.setFontSize(12);
     doc.text(`Période: ${period === '7d' ? '7 jours' : period === '30d' ? '30 jours' : period === '90d' ? '90 jours' : '1 an'}`, 14, 32);
     doc.text(`Généré le: ${new Date().toLocaleDateString('fr-FR')}`, 14, 40);
@@ -351,7 +353,7 @@ export default function AnalyticsPage() {
     // Stats globales
     doc.setFontSize(14);
     doc.text('Statistiques Globales', 14, 55);
-    
+
     (doc as any).autoTable({
       startY: 60,
       head: [['Métrique', 'Valeur']],
@@ -368,7 +370,7 @@ export default function AnalyticsPage() {
     // Top Questions
     doc.setFontSize(14);
     doc.text('Top 5 Questions', 14, (doc as any).lastAutoTable.finalY + 15);
-    
+
     (doc as any).autoTable({
       startY: (doc as any).lastAutoTable.finalY + 20,
       head: [['Question', 'Nombre']],
@@ -379,7 +381,7 @@ export default function AnalyticsPage() {
     doc.addPage();
     doc.setFontSize(14);
     doc.text('Performance des Agents', 14, 22);
-    
+
     (doc as any).autoTable({
       startY: 27,
       head: [['Agent', 'RDV Créés']],
@@ -522,7 +524,7 @@ export default function AnalyticsPage() {
                 <Phone className="w-6 h-6 text-gray-700" />
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-1">Total appels Sara</p>
+            <p className="text-sm text-gray-600 mb-1">Total appels Assistant</p>
             <p className="text-3xl font-bold text-gray-900">{stats.totalCalls}</p>
           </div>
 

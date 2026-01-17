@@ -19,6 +19,16 @@ export const OmnichannelConfig = {
     defaultVoiceIdFR: 'pNInz6obpgDQGcFmaJgB' // Antoine (FR)
   },
 
+  googleTTS: {
+    apiKey: (env) => env.GOOGLE_CLOUD_TTS_API_KEY,
+    baseUrl: 'https://texttospeech.googleapis.com/v1',
+    defaultVoice: {
+      languageCode: 'fr-FR',
+      name: 'fr-FR-Wavenet-D', // Voix féminine professionnelle
+      ssmlGender: 'FEMALE'
+    }
+  },
+
   twilio: {
     accountSid: (env) => env.TWILIO_ACCOUNT_SID,
     authToken: (env) => env.TWILIO_AUTH_TOKEN,

@@ -37,17 +37,27 @@ export async function handleConversationWebSocket(request, env) {
   omniLogger.info('WebSocket connected', { conversationId, callSid });
 
   // Récupérer la configuration de l'agent pour ce tenant
-  const agentConfig = await env.DB.prepare(`
+  let agentConfig = await env.DB.prepare(`
     SELECT * FROM omni_agent_configs
     WHERE tenant_id = (
       SELECT tenant_id FROM omni_conversations WHERE id = ?
     )
   `).bind(conversationId).first();
 
+  // Utiliser une config par défaut si aucune n'est trouvée dans la DB
   if (!agentConfig) {
-    omniLogger.error('No agent config found for conversation', { conversationId });
-    server.close(1008, 'Agent configuration not found');
-    return new Response('Agent configuration not found', { status: 400 });
+    omniLogger.warn('No agent config found in DB, using default config', { conversationId });
+    agentConfig = {
+      agent_name: 'Sara',
+      agent_personality: 'friendly',
+      voice_provider: 'google',
+      voice_id: 'fr-FR-Neural2-A',
+      voice_language: 'fr-FR',
+      greeting_message: 'Bonjour ! Je suis Sara, votre assistante virtuelle chez Agentic Solutions. Comment puis-je vous aider ?',
+      fallback_message: 'Pardon, pouvez-vous répéter ?',
+      transfer_message: 'Je vous transfère vers un conseiller.',
+      goodbye_message: 'Au revoir !'
+    };
   }
 
   // Créer l'orchestrateur de conversation
@@ -217,7 +227,7 @@ export async function handleConversationWebSocket(request, env) {
     });
   });
 
-  // Retourner la réponse WebSocket
+  // Retourner la réponse WebSocket avec status 101 (obligatoire)
   return new Response(null, {
     status: 101,
     webSocket: client

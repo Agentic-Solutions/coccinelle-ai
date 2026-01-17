@@ -1,5 +1,5 @@
-// Sara Call Analytics Engine - Analyse des performances des appels entrants
-// Optimisation de l'agent vocal Sara qui reçoit les appels
+// Assistant Call Analytics Engine - Analyse des performances des appels entrants
+// Optimisation de l'agent vocal Assistant qui reçoit les appels
 
 export interface CallEvent {
   id: string;
@@ -12,7 +12,7 @@ export interface CallEvent {
 
 export interface CallFunnel {
   received: number;         // Appels reçus
-  handled: number;          // Traités par Sara
+  handled: number;          // Traités par Assistant
   qualified: number;        // Leads qualifiés
   rdvCreated: number;       // RDV pris
 
@@ -58,7 +58,7 @@ export interface OptimizationInsight {
   estimatedImprovement: number;
 }
 
-export interface SaraAnalytics {
+export interface AssistantAnalytics {
   funnel: CallFunnel;
   performance: CallPerformance;
   insights: OptimizationInsight[];
@@ -188,10 +188,10 @@ export function generateOptimizationInsights(
       priority: 'critical',
       category: 'capacity',
       title: 'Taux de prise en charge faible',
-      description: `Seulement ${funnel.rates.handleRate.toFixed(1)}% des appels sont traités par Sara. Des appels sont perdus.`,
+      description: `Seulement ${funnel.rates.handleRate.toFixed(1)}% des appels sont traités par Assistant. Des appels sont perdus.`,
       impact: 'Perte de leads et mauvaise expérience client',
       actionItems: [
-        'Augmenter la capacité de Sara (gestion simultanée)',
+        'Augmenter la capacité de Assistant (gestion simultanée)',
         'Vérifier la configuration technique (files d\'attente)',
         'Ajouter une messagerie vocale pour rappeler',
         'Analyser les heures de pic pour anticiper'
@@ -223,7 +223,7 @@ export function generateOptimizationInsights(
       category: 'script',
       title: 'Faible taux de qualification',
       description: `${funnel.rates.qualificationRate.toFixed(1)}% des appels traités sont qualifiés. Beaucoup de temps perdu.`,
-      impact: 'Sara traite trop de prospects non qualifiés',
+      impact: 'Assistant traite trop de prospects non qualifiés',
       actionItems: [
         'Améliorer le script de qualification',
         'Poser les questions de qualification plus tôt',
@@ -246,7 +246,7 @@ export function generateOptimizationInsights(
       actionItems: [
         'Renforcer la proposition de valeur dans le script',
         'Simplifier le processus de prise de RDV',
-        'Former Sara à gérer les objections',
+        'Former Assistant à gérer les objections',
         'Créer plus d\'urgence (disponibilités limitées)',
         'Proposer plusieurs créneaux immédiatement'
       ],
@@ -344,7 +344,7 @@ export function generateOptimizationInsights(
       priority: 'low',
       category: 'performance',
       title: 'Performance exceptionnelle !',
-      description: `${funnel.rates.overallConversion.toFixed(1)}% de conversion globale. Sara est excellente.`,
+      description: `${funnel.rates.overallConversion.toFixed(1)}% de conversion globale. Assistant est excellente.`,
       impact: 'Maintenez et amplifiez cette performance',
       actionItems: [
         'Documenter ce qui fonctionne',
@@ -363,8 +363,8 @@ export function generateOptimizationInsights(
   );
 }
 
-// Calculer le score global de Sara pour appels entrants
-export function calculateSaraScore(
+// Calculer le score global de Assistant pour appels entrants
+export function calculateAssistantScore(
   funnel: CallFunnel,
   performance: CallPerformance
 ): number {
@@ -390,16 +390,16 @@ export function calculateSaraScore(
 }
 
 // Fonction principale d'analyse
-export function analyzeSara(data: {
+export function analyzeAssistant(data: {
   events: CallEvent[];
   calls: any[];
-}): SaraAnalytics {
+}): AssistantAnalytics {
   const { events, calls } = data;
 
   const funnel = calculateCallFunnel(events);
   const performance = analyzeCallPerformance(events, calls);
   const insights = generateOptimizationInsights(funnel, performance);
-  const score = calculateSaraScore(funnel, performance);
+  const score = calculateAssistantScore(funnel, performance);
 
   return {
     funnel,
@@ -426,7 +426,7 @@ export function generateDemoCallEvents(callsCount: number): CallEvent[] {
       callId
     });
 
-    // 95% sont traités (Sara répond bien)
+    // 95% sont traités (Assistant répond bien)
     if (Math.random() < 0.95) {
       events.push({
         id: `event-${events.length}`,

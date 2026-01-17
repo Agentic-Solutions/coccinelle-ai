@@ -5,23 +5,45 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
-N8N_WEBHOOK_URL = "https://votre-n8n.com/webhook/coccinelle"
+N8N_WEBHOOK_URL = "https://coccinelle-n8n.onrender.com"
 TWILIO_PHONE_NUMBER = "+33939035760"
 TWILIO_PHONE_NUMBER_2 = "+33939035761"
+TWILIO_CONVERSATIONS_SERVICE_SID = "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 RESEND_FROM_EMAIL = "onboarding@resend.dev"
+OMNICHANNEL_ENABLED = "true"
+FRONTEND_URL = "http://localhost:3000"
 
 # Note: Les secrets suivants doivent être configurés via wrangler secret put:
 # - TWILIO_ACCOUNT_SID
 # - TWILIO_AUTH_TOKEN
 # - ANTHROPIC_API_KEY
 # - OPENAI_API_KEY
-# - ELEVENLABS_API_KEY (optionnel)
+# - ELEVENLABS_API_KEY (pour Omnichannel TTS)
+# - DEEPGRAM_API_KEY (pour Omnichannel transcription)
+# - STRIPE_SECRET_KEY (clé secrète Stripe - mode test: sk_test_xxx, mode live: sk_live_xxx)
+# - STRIPE_WEBHOOK_SECRET (secret des webhooks Stripe - whsec_xxx)
+# - GOOGLE_CLOUD_API_KEY (pour Google Cloud TTS)
 
 [[d1_databases]]
 binding = "DB"
 database_name = "coccinelle-db"
 database_id = "f4d7ff42-fc12-4c16-9c19-ada63c023827"
 
+# Workers AI binding pour embeddings gratuits
+[ai]
+binding = "AI"
+
+# Index Vectorize legacy (OpenAI embeddings - 1536 dimensions)
 [[vectorize]]
 binding = "VECTORIZE"
 index_name = "coccinelle-vectors"
+
+# Nouvel index Vectorize (Workers AI embeddings - 768 dimensions)
+[[vectorize]]
+binding = "VECTORIZE_V2"
+index_name = "coccinelle-vectors-v2"
+
+# R2 bucket pour audio ElevenLabs (Omnichannel)
+[[r2_buckets]]
+binding = "AUDIO_BUCKET"
+bucket_name = "omnichannel-audio"

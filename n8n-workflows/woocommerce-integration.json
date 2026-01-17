@@ -1,0 +1,370 @@
+{
+  "name": "Coccinelle - WooCommerce Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "coccinelle/woocommerce",
+        "options": {}
+      },
+      "id": "webhook-woocommerce",
+      "name": "Webhook Coccinelle",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "get_order",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "switch-action",
+      "name": "Route by Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "resource": "order",
+        "operation": "get",
+        "orderId": "={{ $json.data.order_id }}"
+      },
+      "id": "woo-get-order",
+      "name": "Get Order from WooCommerce",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [700, 100],
+      "credentials": {
+        "wooCommerceApi": {
+          "id": "WOOCOMMERCE_CREDENTIALS_ID",
+          "name": "WooCommerce API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "order",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 10,
+        "options": {
+          "customer": "={{ $json.data.customer_id }}",
+          "status": "={{ $json.data.status || 'any' }}"
+        }
+      },
+      "id": "woo-get-customer-orders",
+      "name": "Get Customer Orders",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [700, 300],
+      "credentials": {
+        "wooCommerceApi": {
+          "id": "WOOCOMMERCE_CREDENTIALS_ID",
+          "name": "WooCommerce API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "order",
+        "operation": "update",
+        "orderId": "={{ $json.data.order_id }}",
+        "updateFields": {
+          "status": "={{ $json.data.new_status }}"
+        }
+      },
+      "id": "woo-update-order",
+      "name": "Update Order Status",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [700, 500],
+      "credentials": {
+        "wooCommerceApi": {
+          "id": "WOOCOMMERCE_CREDENTIALS_ID",
+          "name": "WooCommerce API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "product",
+        "operation": "get",
+        "productId": "={{ $json.data.product_id }}"
+      },
+      "id": "woo-get-product",
+      "name": "Get Product Info",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [700, 700],
+      "credentials": {
+        "wooCommerceApi": {
+          "id": "WOOCOMMERCE_CREDENTIALS_ID",
+          "name": "WooCommerce API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "product",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 20,
+        "options": {
+          "search": "={{ $json.data.search_term }}",
+          "status": "publish",
+          "stockStatus": "instock"
+        }
+      },
+      "id": "woo-search-products",
+      "name": "Search Products",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [700, 900],
+      "credentials": {
+        "wooCommerceApi": {
+          "id": "WOOCOMMERCE_CREDENTIALS_ID",
+          "name": "WooCommerce API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "customer",
+        "operation": "get",
+        "customerId": "={{ $json.data.customer_id }}"
+      },
+      "id": "woo-get-customer",
+      "name": "Get Customer Info",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [700, 1100],
+      "credentials": {
+        "wooCommerceApi": {
+          "id": "WOOCOMMERCE_CREDENTIALS_ID",
+          "name": "WooCommerce API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform WooCommerce data for Coccinelle AI\nconst input = $input.all();\nconst action = $('Webhook Coccinelle').item.json.action;\n\nlet response = {\n  success: true,\n  action: action,\n  data: {}\n};\n\nif (action === 'get_order' || action === 'get_customer_orders') {\n  const orders = input.map(item => ({\n    id: item.json.id,\n    number: item.json.number,\n    status: item.json.status,\n    total: item.json.total,\n    currency: item.json.currency,\n    date_created: item.json.date_created,\n    billing: {\n      first_name: item.json.billing?.first_name,\n      last_name: item.json.billing?.last_name,\n      email: item.json.billing?.email,\n      phone: item.json.billing?.phone\n    },\n    line_items: item.json.line_items?.map(li => ({\n      name: li.name,\n      quantity: li.quantity,\n      total: li.total\n    }))\n  }));\n  response.data = { orders };\n  response.summary = `Found ${orders.length} order(s). Latest: #${orders[0]?.number} - ${orders[0]?.status} - ${orders[0]?.total} ${orders[0]?.currency}`;\n}\n\nif (action === 'get_product' || action === 'search_products') {\n  const products = input.map(item => ({\n    id: item.json.id,\n    name: item.json.name,\n    price: item.json.price,\n    regular_price: item.json.regular_price,\n    sale_price: item.json.sale_price,\n    stock_status: item.json.stock_status,\n    stock_quantity: item.json.stock_quantity,\n    short_description: item.json.short_description?.replace(/<[^>]*>/g, '').substring(0, 200)\n  }));\n  response.data = { products };\n  response.summary = `Found ${products.length} product(s). ${products.slice(0,3).map(p => p.name).join(', ')}`;\n}\n\nif (action === 'get_customer') {\n  const customer = input[0]?.json;\n  response.data = {\n    customer: {\n      id: customer.id,\n      email: customer.email,\n      first_name: customer.first_name,\n      last_name: customer.last_name,\n      orders_count: customer.orders_count,\n      total_spent: customer.total_spent\n    }\n  };\n  response.summary = `Customer: ${customer.first_name} ${customer.last_name} - ${customer.orders_count} orders - Total spent: ${customer.total_spent}`;\n}\n\nif (action === 'update_order') {\n  response.data = { order_id: input[0]?.json.id, new_status: input[0]?.json.status };\n  response.summary = `Order #${input[0]?.json.number} updated to status: ${input[0]?.json.status}`;\n}\n\nreturn [response];"
+      },
+      "id": "transform-response",
+      "name": "Transform for Coccinelle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook Coccinelle').item.json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "callback-coccinelle",
+      "name": "Callback to Coccinelle",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'WooCommerce query initiated', action: $('Webhook Coccinelle').item.json.action }) }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1360, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Coccinelle": {
+      "main": [
+        [
+          {
+            "node": "Route by Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Action": {
+      "main": [
+        [
+          {
+            "node": "Get Order from WooCommerce",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Customer Orders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Order Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Product Info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search Products",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Customer Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Order from WooCommerce": {
+      "main": [
+        [
+          {
+            "node": "Transform for Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer Orders": {
+      "main": [
+        [
+          {
+            "node": "Transform for Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Order Status": {
+      "main": [
+        [
+          {
+            "node": "Transform for Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Info": {
+      "main": [
+        [
+          {
+            "node": "Transform for Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Products": {
+      "main": [
+        [
+          {
+            "node": "Transform for Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer Info": {
+      "main": [
+        [
+          {
+            "node": "Transform for Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform for Coccinelle": {
+      "main": [
+        [
+          {
+            "node": "Callback to Coccinelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback to Coccinelle": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Coccinelle",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "eCommerce",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "active": false
+}

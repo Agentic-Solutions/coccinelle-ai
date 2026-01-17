@@ -193,8 +193,15 @@ export class ConversationOrchestrator {
         return;
       }
 
-      // Générer une réponse avec Claude AI
-      const response = await this.claude.streamResponse(this.claudeSession, transcript);
+      // Générer une réponse avec Claude AI (avec outils de recherche et rendez-vous)
+      const response = await this.claude.streamResponse(
+        this.claudeSession,
+        transcript,
+        {
+          searchProducts: (params) => this.searchProducts(params),
+          bookAppointment: (params) => this.bookAppointment(params)
+        }
+      );
 
       omniLogger.info('Claude response generated', {
         conversationId: this.conversationId,
@@ -461,6 +468,263 @@ export class ConversationOrchestrator {
     this.audioBuffer.clear();
 
     // Le WebSocket Twilio sera fermé par le handler principal
+  }
+
+  /**
+   * Rechercher des produits dans la base de données
+   */
+  async searchProducts(params) {
+    try {
+      omniLogger.info('Searching products', {
+        conversationId: this.conversationId,
+        params
+      });
+
+      // Récupérer le tenant_id depuis la conversation
+      const conversation = await this.env.DB.prepare(`
+        SELECT tenant_id FROM omni_conversations WHERE id = ?
+      `).bind(this.conversationId).first();
+
+      if (!conversation) {
+        omniLogger.error('Conversation not found for product search', {
+          conversationId: this.conversationId
+        });
+        return [];
+      }
+
+      const tenantId = conversation.tenant_id;
+
+      // Construire la requête SQL avec les filtres
+      let query = `
+        SELECT
+          id, title, description, category, type, price, price_currency,
+          available, location, tags, images, attributes
+        FROM products
+        WHERE tenant_id = ?
+      `;
+      const bindings = [tenantId];
+
+      // Filtre: catégorie (optionnel - permet de chercher même si uncategorized)
+      if (params.category && params.category !== 'real_estate') {
+        query += ` AND category = ?`;
+        bindings.push(params.category);
+      }
+      // Note: On ne filtre pas si category='real_estate' car beaucoup de produits sont 'uncategorized'
+
+      // Filtre: ville (chercher dans location.city ET dans attributes)
+      if (params.city) {
+        query += ` AND (json_extract(location, '$.city') LIKE ? OR attributes LIKE ?)`;
+        bindings.push(`%${params.city}%`, `%${params.city}%`);
+      }
+
+      // Filtre: prix exact (prioritaire sur min/max)
+      // Applique une flexibilité de ±10 000€ par défaut (max: -40 000€ / +10 000€)
+      if (params.exactPrice !== undefined && params.exactPrice !== null) {
+        const flexibilityDown = 10000; // -10 000€ par défaut
+        const flexibilityUp = 10000;   // +10 000€ par défaut
+        const minFlexible = Math.max(0, params.exactPrice - flexibilityDown);
+        const maxFlexible = params.exactPrice + flexibilityUp;
+
+        query += ` AND price BETWEEN ? AND ?`;
+        bindings.push(minFlexible, maxFlexible);
+
+        omniLogger.info('Applying price flexibility', {
+          exactPrice: params.exactPrice,
+          range: `${minFlexible}-${maxFlexible}`
+        });
+      } else {
+        // Sinon, utiliser min/max
+        if (params.minPrice !== undefined && params.minPrice !== null) {
+          query += ` AND price >= ?`;
+          bindings.push(params.minPrice);
+        }
+
+        if (params.maxPrice !== undefined && params.maxPrice !== null) {
+          query += ` AND price <= ?`;
+          bindings.push(params.maxPrice);
+        }
+      }
+
+      // Filtre: nombre de pièces (stocké dans attributes.nb_pieces)
+      if (params.minRooms !== undefined && params.minRooms !== null) {
+        query += ` AND CAST(json_extract(attributes, '$.nb_pieces') AS INTEGER) >= ?`;
+        bindings.push(params.minRooms);
+      }
+
+      if (params.maxRooms !== undefined && params.maxRooms !== null) {
+        query += ` AND CAST(json_extract(attributes, '$.nb_pieces') AS INTEGER) <= ?`;
+        bindings.push(params.maxRooms);
+      }
+
+      // Filtre: mots-clés (recherche dans title et description)
+      if (params.keywords) {
+        query += ` AND (title LIKE ? OR description LIKE ?)`;
+        bindings.push(`%${params.keywords}%`, `%${params.keywords}%`);
+      }
+
+      // Trier par disponibilité et prix
+      query += ` AND available = 1 ORDER BY price ASC LIMIT 10`;
+
+      omniLogger.info('Executing product search query', {
+        conversationId: this.conversationId,
+        query,
+        bindingsCount: bindings.length
+      });
+
+      // Exécuter la requête
+      const results = await this.env.DB.prepare(query)
+        .bind(...bindings)
+        .all();
+
+      omniLogger.info('Product search completed', {
+        conversationId: this.conversationId,
+        resultsCount: results.results.length
+      });
+
+      // Parser les champs JSON
+      const products = results.results.map(row => ({
+        ...row,
+        location: row.location ? JSON.parse(row.location) : null,
+        attributes: row.attributes ? JSON.parse(row.attributes) : {},
+        tags: row.tags ? (row.tags.includes(',') ? row.tags.split(',') : row.tags.split(';')) : [],
+        images: row.images ? JSON.parse(row.images) : []
+      }));
+
+      return products;
+
+    } catch (error) {
+      omniLogger.error('Error searching products', {
+        conversationId: this.conversationId,
+        error: error.message,
+        stack: error.stack
+      });
+
+      // Retourner un tableau vide en cas d'erreur
+      return [];
+    }
+  }
+
+  /**
+   * Prendre un rendez-vous pour visiter un bien
+   */
+  async bookAppointment(params) {
+    try {
+      omniLogger.info('Booking appointment', {
+        conversationId: this.conversationId,
+        params
+      });
+
+      // Récupérer le tenant_id et les infos de la conversation
+      const conversation = await this.env.DB.prepare(`
+        SELECT tenant_id, phone FROM omni_conversations WHERE id = ?
+      `).bind(this.conversationId).first();
+
+      if (!conversation) {
+        omniLogger.error('Conversation not found for appointment booking', {
+          conversationId: this.conversationId
+        });
+        return { success: false, message: 'Erreur système' };
+      }
+
+      const tenantId = conversation.tenant_id;
+      const customerPhone = conversation.phone;
+
+      // Créer ou récupérer le prospect
+      let prospect = await this.env.DB.prepare(`
+        SELECT id, name, email FROM prospects WHERE phone = ? AND tenant_id = ?
+      `).bind(customerPhone, tenantId).first();
+
+      let prospectId;
+      if (!prospect) {
+        // Créer un nouveau prospect
+        prospectId = `prospect_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await this.env.DB.prepare(`
+          INSERT INTO prospects (id, tenant_id, phone, name, email, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).bind(
+          prospectId,
+          tenantId,
+          customerPhone,
+          params.customerName || 'Client (appel vocal)',
+          params.customerEmail || null
+        ).run();
+      } else {
+        prospectId = prospect.id;
+
+        // Mettre à jour le nom et l'email si fournis et manquants
+        if (params.customerName && (!prospect.name || prospect.name === 'Client (appel vocal)')) {
+          await this.env.DB.prepare(`
+            UPDATE prospects SET name = ?, updated_at = datetime('now') WHERE id = ?
+          `).bind(params.customerName, prospectId).run();
+        }
+        if (params.customerEmail && !prospect.email) {
+          await this.env.DB.prepare(`
+            UPDATE prospects SET email = ?, updated_at = datetime('now') WHERE id = ?
+          `).bind(params.customerEmail, prospectId).run();
+        }
+      }
+
+      // Créer le rendez-vous avec le schéma correct
+      const appointmentId = `appointment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const scheduledAt = params.dateTime || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // Par défaut demain
+      const managementToken = `token_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+      const durationMinutes = params.duration || 60; // 60 minutes par défaut
+
+      // Construire les notes avec le transcript de la conversation si disponible
+      let notes = `Rendez-vous pour visite immobilière - Demande via appel vocal\nConversation ID: ${this.conversationId}`;
+      if (params.productTitle) {
+        notes += `\nBien demandé: ${params.productTitle}`;
+      }
+      if (params.productId) {
+        notes += `\nID Produit: ${params.productId}`;
+      }
+
+      await this.env.DB.prepare(`
+        INSERT INTO appointments (
+          id, tenant_id, prospect_id, agent_id, property_id,
+          type, scheduled_at, duration_minutes, status,
+          management_token, notes
+        )
+        VALUES (?, ?, ?, NULL, ?, 'property_visit', ?, ?, 'scheduled', ?, ?)
+      `).bind(
+        appointmentId,
+        tenantId,
+        prospectId,
+        params.productId || null,
+        scheduledAt,
+        durationMinutes,
+        managementToken,
+        notes
+      ).run();
+
+      omniLogger.info('Appointment booked', {
+        conversationId: this.conversationId,
+        appointmentId,
+        prospectId,
+        scheduledAt,
+        propertyId: params.productId
+      });
+
+      return {
+        success: true,
+        appointmentId,
+        scheduledAt,
+        managementToken,
+        message: `Rendez-vous confirmé pour ${new Date(scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+      };
+
+    } catch (error) {
+      omniLogger.error('Error booking appointment', {
+        conversationId: this.conversationId,
+        error: error.message,
+        stack: error.stack
+      });
+
+      return {
+        success: false,
+        message: 'Erreur lors de la prise de rendez-vous'
+      };
+    }
   }
 
   /**

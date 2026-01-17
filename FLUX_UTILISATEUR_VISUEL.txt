@@ -1,0 +1,254 @@
+================================================================================
+PARCOURS UTILISATEUR COMPLET - COCCINELLE AI - VUE SYNTHÉTIQUE
+================================================================================
+
+PHASE 1: DÉCOUVERTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ┌─────────────────────────────────────────────┐
+    │      / (Landing Page)                       │
+    │  - Présentation produit                     │
+    │  - Tarification                             │
+    │  - CTA: "Essai gratuit"                     │
+    └────────────────┬────────────────────────────┘
+                     │
+                     ▼
+    ┌─────────────────────────────────────────────┐
+    │      /signup (Création Compte)              │
+    │  - Infos entreprise                         │
+    │  - Infos utilisateur                        │
+    │  - Secteur d'activité                       │
+    │  - Options OAuth                            │
+    └────────────────┬────────────────────────────┘
+                     │
+                     ▼
+    ┌─────────────────────────────────────────────┐
+    │      /login (Connexion)                     │
+    │  - Email/Mot de passe                       │
+    │  - Options OAuth                            │
+    │  - Persistent tokens                        │
+    └────────────────┬────────────────────────────┘
+                     │
+                     ▼
+
+
+PHASE 2: ONBOARDING INITIAL (Setup rapide 5 min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ┌──────────────────────────────────────────────────────┐
+    │    /onboarding (Flow Principal)                      │
+    │                                                      │
+    │    Step 1: Bienvenue ─────┐                         │
+    │    Step 2: Sélection canaux│                        │
+    │            (Dynamique)     │                        │
+    │    Step 3-6: Config canaux │                        │
+    │    Step 7: Base connaissance│                       │
+    │    Step 8: Completion      │                        │
+    │                            ▼                        │
+    └──────────────────────────────────────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────────────────────┐
+    │  Configuration des Canaux (Dynamique)                │
+    │                                                      │
+    │  IF Téléphone sélectionné:                          │
+    │    ├─ /client/onboarding/phone-setup               │
+    │    └─ Numéros, IVR, options                         │
+    │                                                      │
+    │  IF SMS sélectionné:                                │
+    │    ├─ /client/onboarding/sms-setup                 │
+    │    └─ Twilio/Vonage, templates                      │
+    │                                                      │
+    │  IF Email sélectionné:                              │
+    │    ├─ /client/onboarding/email-setup               │
+    │    └─ SMTP, signatures                              │
+    │                                                      │
+    │  IF WhatsApp sélectionné:                           │
+    │    ├─ /client/onboarding/whatsapp-setup            │
+    │    └─ Business Account, templates                   │
+    │                                                      │
+    └──────────────────────────────────────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────────────────────┐
+    │  /dashboard/knowledge                                │
+    │  Base de connaissances                              │
+    │  ├─ Import site web (web scraping)                 │
+    │  ├─ Upload PDF/Word                                │
+    │  └─ FAQ personnalisée                              │
+    └──────────────────────────────────────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────────────────────┐
+    │  /client/onboarding/complete                         │
+    │  Confirmation + Redirection Dashboard                │
+    └──────────────────────────────────────────────────────┘
+                     │
+                     ▼
+
+
+PHASE 3: TABLEAU DE BORD PRINCIPAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │               /dashboard (Hub Central)                       │
+    │                                                              │
+    │  KPIs: Appels, Documents, RDV                               │
+    │  Smart Alerts | Notifications | Getting Started Checklist   │
+    │                                                              │
+    │  6 Modules Principaux:                                      │
+    │  ├─ 1. Knowledge (Base de connaissance)                    │
+    │  ├─ 2. Channels (Canaux de communication)                  │
+    │  ├─ 3. Conversations (Historique conversations)            │
+    │  ├─ 4. CRM (Gestion prospects)                            │
+    │  ├─ 5. Appointments (Rendez-vous)                         │
+    │  └─ 6. Analytics (Rapports)                               │
+    └─────────────────────────────────────────────────────────────┘
+            │              │              │            │            │
+            ▼              ▼              ▼            ▼            ▼
+
+
+PHASE 4: EXPLOITATION & EXPLOITATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌────────────────────────┐  ┌────────────────────────┐  ┌────────────────────┐
+│  CANAUX                │  │  CONVERSATIONS         │  │  CRM & PROSPECTS   │
+│ ────────────────────── │  │ ─────────────────────  │  │ ──────────────────  │
+│ /dashboard/channels    │  │ /dashboard/             │  │ /dashboard/crm     │
+│ (Vue globale)          │  │  conversations         │  │ (Hub)              │
+│                        │  │                        │  │                    │
+│ └─ phone              │  │ /dashboard/             │  │ /dashboard/crm/    │
+│ └─ sms                │  │  conversations/appels   │  │  prospects         │
+│ └─ whatsapp           │  │                        │  │ (Liste + filtres)  │
+│ └─ email              │  │ /dashboard/             │  │                    │
+│ └─ inbox              │  │  conversations/sara     │  │ /dashboard/crm/    │
+│                        │  │ (Agent IA)             │  │  prospects/[id]    │
+│ /dashboard/inbox      │  │                        │  │ (Fiche détail)     │
+│ (Msgs entrants)       │  │ /dashboard/appels      │  │                    │
+│                        │  │ (Vue alternative)      │  │ /dashboard/        │
+│ /dashboard/settings/  │  │                        │  │  customers         │
+│  channels             │  │ /dashboard/inbox       │  │ (Clients confirmés)│
+│ (Config avancée)      │  │ (Msgs centralisés)     │  │                    │
+└────────────────────────┘  └────────────────────────┘  └────────────────────┘
+
+┌──────────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+│  RENDEZ-VOUS             │  │  ANALYTICS           │  │  AGENT IA (SARA)     │
+│ ────────────────────────  │  │ ─────────────────── │  │ ───────────────────   │
+│ /dashboard/appointments  │  │ /dashboard/          │  │ /dashboard/sara      │
+│ (Vue RDV)                │  │  analytics           │  │ (Configuration)      │
+│                          │  │ (Tableaux bord)      │  │                      │
+│ /dashboard/rdv           │  │                      │  │ /dashboard/           │
+│ (Vue alternative)        │  │ /dashboard/          │  │  sara-analytics      │
+│                          │  │  sara-analytics      │  │ (Stats SARA)         │
+│ /dashboard/appointments/ │  │ (Stats agent IA)     │  │                      │
+│  calendar                │  │                      │  │ /dashboard/settings/ │
+│ (Calendrier)             │  │                      │  │  (Config avancée)    │
+│                          │  │                      │  │                      │
+│ /dashboard/appointments/ │  │                      │  │                      │
+│  calendar/settings       │  │                      │  │                      │
+│ (Sync Google/Outlook)    │  │                      │  │                      │
+└──────────────────────────┘  └──────────────────────┘  └──────────────────────┘
+
+
+PHASE 5: CONFIGURATION AVANCÉE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ┌─────────────────────────────────────────────┐
+    │   /dashboard/settings (Hub Paramètres)      │
+    │                                             │
+    │   Compte & Personnel:                       │
+    │   ├─ Profile                               │
+    │   ├─ Notifications                         │
+    │   └─ Security                              │
+    │                                             │
+    │   Configuration Business:                   │
+    │   ├─ Availability (Heures de bureau)       │
+    │   ├─ Calendar (Google/Outlook sync)        │
+    │   ├─ Email (Configuration SMTP)            │
+    │   └─ Channels (Config détaillée)           │
+    │       ├─ Phone                             │
+    │       ├─ SMS                               │
+    │       ├─ Email                             │
+    │       └─ WhatsApp                          │
+    │                                             │
+    │   Équipe & Développement:                   │
+    │   ├─ Team (Gestion équipe)                 │
+    │   └─ API (Clés API)                        │
+    └─────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────┐
+    │   /dashboard/integrations                   │
+    │   Intégrations CRM                          │
+    │   ├─ HubSpot                               │
+    │   ├─ Salesforce                            │
+    │   ├─ Autres...                             │
+    │   └─ Webhooks pour sync bidirectionnelle   │
+    └─────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────┐
+    │   /dashboard/properties (Immobilier)        │
+    │   Portefeuille propriétés                   │
+    └─────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────┐
+    │   /dashboard/test-channels                  │
+    │   Test canaux avant production              │
+    └─────────────────────────────────────────────┘
+
+
+STATISTIQUES GLOBALES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pages Publiques:         3  (/,  /login, /signup)
+Pages Onboarding:        8  (Main + Client + 4 canaux + complete + prefs)
+Pages Dashboard:         1  (Hub central)
+Pages Canaux:            7  (Overview + 4 canaux + 2 inboxes)
+Pages Conversations:     4  (Overview + appels + sara + appels alt)
+Pages RDV:               5  (Overview + alternative + calendar + settings x2)
+Pages CRM:               5  (Overview + prospects + [id] + customers + [id])
+Pages Analytics:         2  (Principal + SARA)
+Pages IA:                1  (SARA config)
+Pages Connaissance:      1  (Knowledge)
+Pages Propriétés:        1  (Properties)
+Pages Paramètres:        14 (Hub principal + sous-sections)
+Pages Intégrations:      2  (Vue + Nouvelle)
+Pages Test:              1  (Test channels)
+
+TOTAL: 55 Pages principales + 18 API Routes
+
+
+API ROUTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Canaux:          4 routes (auto config, email, sms, whatsapp)
+CRM:             4 routes (integrations, sync, webhooks HubSpot/Salesforce)
+Connaissance:    6 routes (documents, upload, crawl, import, ask, structure)
+Webhooks:        2 routes (Twilio SMS, WhatsApp)
+
+TOTAL: 16 API Routes
+
+
+TECHNOLOGIES CLÉS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Next.js 15 (App Router)
+- React Hooks
+- Tailwind CSS
+- Lucide Icons
+- JWT Authentication
+- localStorage + Cookies
+- Demo Mode (mock data)
+- Multi-tenant (tenant_id)
+- Live Updates (WebSocket simulation)
+
+
+SÉCURITÉ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ RGPD 100% conforme
+✓ ISO 27001 certifié
+✓ Hébergement EU (données France)
+✓ Chiffrement SSL/TLS 256-bit
+✓ HTTPS enforced
+
+================================================================================

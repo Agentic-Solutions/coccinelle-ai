@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { INDUSTRIES } from '@/constants/industries';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -13,6 +14,7 @@ export default function ProfileForm() {
     email: '',
     phone: '',
     company: '',
+    industry: '',
   });
 
   useEffect(() => {
@@ -21,20 +23,29 @@ export default function ProfileForm() {
 
   const fetchProfile = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_URL}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (res.ok) {
         const data = await res.json();
-        setProfile({
-          firstName: data.first_name || '',
-          lastName: data.last_name || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          company: data.company_name || '',
-        });
+        if (data.success) {
+          // Extraire le nom depuis user.name (format: "Prénom Nom")
+          const fullName = data.user?.name || '';
+          const nameParts = fullName.split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+
+          setProfile({
+            firstName: firstName,
+            lastName: lastName,
+            email: data.user?.email || '',
+            phone: data.tenant?.phone || '',
+            company: data.tenant?.name || '',
+            industry: data.tenant?.sector || data.tenant?.industry || '',
+          });
+        }
       }
     } catch (error) {
       console.error('Erreur chargement profil:', error);
@@ -47,7 +58,7 @@ export default function ProfileForm() {
     setMessage('');
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_URL}/api/v1/auth/profile`, {
         method: 'PUT',
         headers: {
@@ -59,6 +70,7 @@ export default function ProfileForm() {
           last_name: profile.lastName,
           phone: profile.phone,
           company_name: profile.company,
+          industry: profile.industry,
         }),
       });
 
@@ -67,7 +79,7 @@ export default function ProfileForm() {
         setTimeout(() => setMessage(''), 3000);
       } else {
         const error = await res.json();
-        setMessage(`Erreur: ${error.message}`);
+        setMessage(`Erreur: ${error.error || error.message || 'Erreur inconnue'}`);
       }
     } catch (error) {
       setMessage('Erreur lors de la mise à jour');
@@ -76,7 +88,7 @@ export default function ProfileForm() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
   };
 
@@ -96,7 +108,7 @@ export default function ProfileForm() {
       <div className="grid grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Prénom
+            Prénom *
           </label>
           <input
             type="text"
@@ -110,7 +122,7 @@ export default function ProfileForm() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Nom
+            Nom *
           </label>
           <input
             type="text"
@@ -139,7 +151,7 @@ export default function ProfileForm() {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Téléphone
+          Téléphone principal *
         </label>
         <input
           type="tel"
@@ -147,12 +159,13 @@ export default function ProfileForm() {
           value={profile.phone}
           onChange={handleChange}
           className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+          required
         />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Entreprise
+          Nom de l'entreprise *
         </label>
         <input
           type="text"
@@ -160,7 +173,26 @@ export default function ProfileForm() {
           value={profile.company}
           onChange={handleChange}
           className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+          required
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Secteur d'activité *
+        </label>
+        <select
+          name="industry"
+          value={profile.industry}
+          onChange={handleChange}
+          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+          required
+        >
+          <option value="">Sélectionnez votre secteur</option>
+          {INDUSTRIES.map((ind) => (
+            <option key={ind.value} value={ind.value}>{ind.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="flex justify-end pt-4">

@@ -124,11 +124,8 @@ async function handleSetup(message, conversationManager, websocket) {
     startTime: Date.now()
   });
 
-  // Envoyer un message de configuration optionnel
-  sendMessage(websocket, {
-    type: 'setup_ack',
-    callSid: callSid
-  });
+  // Pas besoin d'envoyer une réponse - le protocole ConversationRelay n'accepte que :
+  // text, play, sendDigits, language, end
 }
 
 // Traiter la transcription vocale de l'utilisateur

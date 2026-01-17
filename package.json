@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 execute coccinelle-db --local --file=database/schema-v1.sql",
     "db:seed": "wrangler d1 execute coccinelle-db --local --file=database/seed-data.sql"
@@ -13,9 +13,10 @@
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "itty-router": "^4.0.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "stripe": "^20.0.0"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.54.0"
   }
 }

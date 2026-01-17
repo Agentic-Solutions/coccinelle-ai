@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 /**
  * Webhook Salesforce pour recevoir les changements
  * Utilise Salesforce Outbound Messages ou Platform Events

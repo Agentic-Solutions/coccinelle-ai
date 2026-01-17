@@ -162,7 +162,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
     return (
       <div>
         <h2 className="text-2xl font-bold text-black mb-2">
-          Comment Sara va-t-elle apprendre sur vous ?
+          Comment Assistant va-t-elle apprendre sur vous ?
         </h2>
         <p className="text-gray-600 mb-8">
           Choisissez la méthode la plus simple pour vous.
@@ -177,7 +177,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
             <Globe className="w-12 h-12 text-black mx-auto mb-4" />
             <h3 className="font-semibold text-black mb-2">J'ai un site web</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Sara analyse automatiquement votre site
+              Assistant analyse automatiquement votre site
             </p>
             <span className="text-xs text-gray-500">⏱️ 2 minutes</span>
           </button>
@@ -203,7 +203,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
             <MessageSquare className="w-12 h-12 text-black mx-auto mb-4" />
             <h3 className="font-semibold text-black mb-2">Je n'ai rien</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Sara vous pose 5 questions essentielles
+              Assistant vous pose 5 questions essentielles
             </p>
             <span className="text-xs text-gray-500">⏱️ 3 minutes</span>
           </button>
@@ -238,7 +238,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
           Analysons votre site web
         </h2>
         <p className="text-gray-600 mb-8">
-          Sara va extraire automatiquement vos services, horaires et FAQ.
+          Assistant va extraire automatiquement vos services, horaires et FAQ.
         </p>
 
         {!crawling ? (
@@ -275,7 +275,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
         ) : (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
             <Loader2 className="w-12 h-12 text-black mx-auto mb-4 animate-spin" />
-            <p className="text-gray-700 font-medium mb-2">Sara explore votre site...</p>
+            <p className="text-gray-700 font-medium mb-2">Assistant explore votre site...</p>
             <p className="text-sm text-gray-600">Cela peut prendre quelques instants</p>
           </div>
         )}
@@ -291,7 +291,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
           Uploadez vos documents
         </h2>
         <p className="text-gray-600 mb-8">
-          Sara lira vos PDF, DOCX, TXT pour apprendre sur votre entreprise.
+          Assistant lira vos PDF, DOCX, TXT pour apprendre sur votre entreprise.
         </p>
 
         <div className="mb-6">
@@ -357,10 +357,10 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
       return (
         <div>
           <h2 className="text-2xl font-bold text-black mb-2">
-            Sara va vous poser quelques questions
+            Assistant va vous poser quelques questions
           </h2>
           <p className="text-gray-600 mb-8">
-            En 3 minutes, Sara va construire automatiquement votre base de connaissances.
+            En 3 minutes, Assistant va construire automatiquement votre base de connaissances.
           </p>
 
           <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 mb-6">
@@ -373,7 +373,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
                 <ul className="space-y-2 text-sm text-gray-700">
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 font-bold">1.</span>
-                    <span>Sara vous pose {questions.length} questions sur votre activité</span>
+                    <span>Assistant vous pose {questions.length} questions sur votre activité</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 font-bold">2.</span>
@@ -381,7 +381,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 font-bold">3.</span>
-                    <span>Sara génère automatiquement 3-5 documents structurés</span>
+                    <span>Assistant génère automatiquement 3-5 documents structurés</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 font-bold">4.</span>
@@ -436,14 +436,14 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
             </div>
           </div>
 
-          {/* Message Sara */}
+          {/* Message Assistant */}
           <div className="bg-gray-100 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-sm">S</span>
               </div>
               <div className="flex-1">
-                <div className="font-medium text-black mb-1">Sara</div>
+                <div className="font-medium text-black mb-1">Assistant</div>
                 <p className="text-gray-900 mb-2">{currentQuestion.text}</p>
                 {currentQuestion.hint && (
                   <p className="text-sm text-gray-600 italic">💡 {currentQuestion.hint}</p>
@@ -537,7 +537,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
             )}
           </div>
           <h2 className="text-2xl font-bold text-black mb-3">
-            {isSuccess ? 'Knowledge Base créée !' : 'Sara génère votre Knowledge Base...'}
+            {isSuccess ? 'Knowledge Base créée !' : 'Assistant génère votre Knowledge Base...'}
           </h2>
           <p className="text-gray-600 mb-8">
             {isSuccess ? 'Redirection vers le récapitulatif' : 'Création automatique de vos documents en cours'}
@@ -578,7 +578,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
             {/* Message warning */}
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <p className="text-sm text-red-900 font-medium mb-3">
-                ⚠️ Sans Knowledge Base, Sara ne pourra pas :
+                ⚠️ Sans Knowledge Base, Assistant ne pourra pas :
               </p>
               <ul className="space-y-2 text-sm text-red-800">
                 <li className="flex items-start gap-2">
@@ -610,7 +610,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
             {/* Info Auto-Builder */}
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-6">
               <p className="text-sm text-purple-900">
-                <strong>🤖 Auto-Builder</strong> : Si vous passez maintenant, Sara utilisera l'Auto-Builder pour apprendre de vos premiers appels et construire sa KB automatiquement.
+                <strong>🤖 Auto-Builder</strong> : Si vous passez maintenant, Assistant utilisera l'Auto-Builder pour apprendre de vos premiers appels et construire sa KB automatiquement.
               </p>
             </div>
 

@@ -614,12 +614,15 @@ export default function KnowledgePage() {
                       {crawlProgress.pages.map((page, index) => (
                         <div
                           key={index}
+                          role="button"
+                          tabIndex={0}
                           className={`border rounded-lg p-4 transition-all cursor-pointer hover:shadow-md ${
                             selectedPages.has(index.toString())
                               ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-400'
                               : 'bg-white border-gray-200'
                           }`}
                           onClick={() => togglePageSelection(index.toString())}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') togglePageSelection(index.toString()); }}
                         >
                           <div className="flex items-start gap-3">
                             <input
@@ -949,11 +952,14 @@ export default function KnowledgePage() {
                     {history.map((item, idx) => (
                       <div
                         key={idx}
+                        role="button"
+                        tabIndex={0}
                         className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:border-blue-300 cursor-pointer transition-all group"
                         onClick={() => {
                           setQuestion(item.question);
                           setAnswer(item.answer);
                         }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setQuestion(item.question); setAnswer(item.answer); } }}
                       >
                         <div className="flex items-start gap-2 mb-2">
                           <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />

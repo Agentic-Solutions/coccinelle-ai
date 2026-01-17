@@ -67,7 +67,7 @@ export default function GettingStartedChecklist({
       },
       {
         id: 'sara',
-        title: 'Sara configurée',
+        title: 'Assistant configurée',
         description: 'Votre assistant vocal est prêt',
         status: onboardingCompleted ? 'completed' : 'in-progress',
         icon: <Zap className="w-5 h-5" />
@@ -80,9 +80,9 @@ export default function GettingStartedChecklist({
           ? `Knowledge Base incomplète (${documentsCount}/3 minimum)`
           : `Knowledge Base complète (${documentsCount} docs)`,
         description: documentsCount === 0
-          ? 'Ajoutez des documents pour que Sara puisse répondre aux questions'
+          ? 'Ajoutez des documents pour que Assistant puisse répondre aux questions'
           : documentsCount < 3
-          ? 'Pour que Sara soit vraiment efficace, nous recommandons au moins 3 documents couvrant vos services, horaires et tarifs.'
+          ? 'Pour que Assistant soit vraiment efficace, nous recommandons au moins 3 documents couvrant vos services, horaires et tarifs.'
           : 'Votre KB contient assez de documents, continuez à l\'enrichir',
         status: documentsCount === 0
           ? 'pending'
@@ -97,10 +97,10 @@ export default function GettingStartedChecklist({
       },
       {
         id: 'test-call',
-        title: callsCount === 0 ? 'Testez Sara' : `Sara a reçu ${callsCount} appel${callsCount > 1 ? 's' : ''}`,
+        title: callsCount === 0 ? 'Testez Assistant' : `Assistant a reçu ${callsCount} appel${callsCount > 1 ? 's' : ''}`,
         description: callsCount === 0
-          ? 'Appelez Sara pour tester ses capacités'
-          : 'Sara fonctionne correctement',
+          ? 'Appelez Assistant pour tester ses capacités'
+          : 'Assistant fonctionne correctement',
         status: callsCount === 0 ? 'pending' : 'completed',
         icon: <Phone className="w-5 h-5" />,
         action: callsCount === 0 ? {

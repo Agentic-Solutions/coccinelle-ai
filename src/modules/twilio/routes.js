@@ -37,6 +37,33 @@ export async function handleTwilioRoutes(request, env, path, method) {
       return await handleStats(request, env);
     }
 
+
+    // ============ SMS ROUTES ============
+    
+    // POST /api/v1/sms/send - Envoyer un SMS manuel
+    if (path === '/api/v1/sms/send' && method === 'POST') {
+      return await handleSendSMS(request, env);
+    }
+    
+    // POST /api/v1/sms/confirmation - SMS confirmation RDV
+    if (path === '/api/v1/sms/confirmation' && method === 'POST') {
+      return await handleSMSConfirmation(request, env);
+    }
+    
+    // POST /api/v1/sms/reminder - SMS rappel RDV
+    if (path === '/api/v1/sms/reminder' && method === 'POST') {
+      return await handleSMSReminder(request, env);
+    }
+    
+    // POST /api/v1/sms/cancel - SMS annulation RDV
+    if (path === '/api/v1/sms/cancel' && method === 'POST') {
+      return await handleSMSCancel(request, env);
+    }
+    
+    // GET /api/v1/sms/history - Historique des SMS
+    if (path === '/api/v1/sms/history' && method === 'GET') {
+      return await handleSMSHistory(request, env);
+    }
     return null;
 
   } catch (error) {
@@ -444,4 +471,216 @@ function escapeXml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+// ============ SMS ROUTES ============
+
+/**
+ * POST /api/v1/sms/send - Envoyer un SMS manuel
+ */
+async function handleSendSMS(request, env) {
+  const body = await request.json();
+  const { to, message, tenant_id } = body;
+
+  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
+  if (!message) return errorResponse('Message requis', 400);
+
+  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  
+  if (result.success) {
+    return successResponse({
+      message_sid: result.messageSid,
+      to,
+      status: 'sent',
+      message: 'SMS envoyé avec succès'
+    });
+  } else {
+    return errorResponse(result.error, 400);
+  }
+}
+
+/**
+ * POST /api/v1/sms/confirmation - SMS confirmation RDV (template)
+ */
+async function handleSMSConfirmation(request, env) {
+  const body = await request.json();
+  const { to, customer_name, date, time, company_name, tenant_id } = body;
+
+  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
+  if (!date || !time) return errorResponse('Date et heure requises', 400);
+
+  const name = customer_name || 'Client';
+  const company = company_name || 'notre établissement';
+  
+  const message = `Bonjour ${name}, votre RDV est confirmé pour le ${date} à ${time} chez ${company}. À bientôt !`;
+
+  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  
+  if (result.success) {
+    return successResponse({
+      message_sid: result.messageSid,
+      to,
+      type: 'confirmation',
+      status: 'sent'
+    });
+  } else {
+    return errorResponse(result.error, 400);
+  }
+}
+
+/**
+ * POST /api/v1/sms/reminder - SMS rappel RDV (template)
+ */
+async function handleSMSReminder(request, env) {
+  const body = await request.json();
+  const { to, customer_name, date, time, company_name, tenant_id } = body;
+
+  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
+  if (!date || !time) return errorResponse('Date et heure requises', 400);
+
+  const name = customer_name || 'Client';
+  const company = company_name || 'notre établissement';
+  
+  const message = `Rappel ${name} : votre RDV est demain ${date} à ${time} chez ${company}. Besoin de modifier ? Répondez à ce SMS.`;
+
+  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  
+  if (result.success) {
+    return successResponse({
+      message_sid: result.messageSid,
+      to,
+      type: 'reminder',
+      status: 'sent'
+    });
+  } else {
+    return errorResponse(result.error, 400);
+  }
+}
+
+/**
+ * POST /api/v1/sms/cancel - SMS annulation RDV (template)
+ */
+async function handleSMSCancel(request, env) {
+  const body = await request.json();
+  const { to, customer_name, date, time, company_name, tenant_id } = body;
+
+  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
+
+  const name = customer_name || 'Client';
+  const company = company_name || 'notre établissement';
+  
+  let message;
+  if (date && time) {
+    message = `Bonjour ${name}, votre RDV du ${date} à ${time} chez ${company} a été annulé. Contactez-nous pour reprogrammer.`;
+  } else {
+    message = `Bonjour ${name}, votre RDV chez ${company} a été annulé. Contactez-nous pour reprogrammer.`;
+  }
+
+  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  
+  if (result.success) {
+    return successResponse({
+      message_sid: result.messageSid,
+      to,
+      type: 'cancel',
+      status: 'sent'
+    });
+  } else {
+    return errorResponse(result.error, 400);
+  }
+}
+
+/**
+ * GET /api/v1/sms/history - Historique des SMS
+ */
+async function handleSMSHistory(request, env) {
+  const url = new URL(request.url);
+  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
+  const limit = parseInt(url.searchParams.get('limit')) || 50;
+
+  try {
+    const result = await env.DB.prepare(`
+      SELECT id, to_number, from_number, message, status, direction, created_at
+      FROM sms_messages
+      WHERE tenant_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).bind(tenantId, limit).all();
+
+    return successResponse({
+      messages: result.results || [],
+      count: result.results?.length || 0
+    });
+  } catch (error) {
+    // Table might not exist yet
+    return successResponse({
+      messages: [],
+      count: 0,
+      note: 'SMS history table not configured'
+    });
+  }
+}
+
+/**
+ * Fonction commune pour envoyer un SMS via Twilio
+ */
+async function sendTwilioSMS(env, to, message, tenantId) {
+  const accountSid = env.TWILIO_ACCOUNT_SID;
+  const authToken = env.TWILIO_AUTH_TOKEN;
+  const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
+
+  if (!accountSid || !authToken) {
+    logger.warn('Twilio credentials not configured');
+    return { success: false, error: 'SMS service not configured' };
+  }
+
+  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+
+  const formData = new URLSearchParams();
+  formData.append('From', from);
+  formData.append('To', to);
+  formData.append('Body', message);
+
+  try {
+    const response = await fetch(twilioUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      logger.error('Twilio SMS API error', { error: data });
+      return { success: false, error: data.message || 'SMS send failed' };
+    }
+
+    logger.info('SMS sent', { messageSid: data.sid, to });
+
+    // Sauvegarder en DB (optionnel)
+    try {
+      await env.DB.prepare(`
+        INSERT INTO sms_messages (id, tenant_id, to_number, from_number, message, status, direction, twilio_sid, created_at)
+        VALUES (?, ?, ?, ?, ?, 'sent', 'outbound', ?, datetime('now'))
+      `).bind(
+        `sms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        tenantId || 'tenant_demo_001',
+        to,
+        from,
+        message,
+        data.sid
+      ).run();
+    } catch (dbError) {
+      // Table might not exist, ignore
+      logger.warn('Could not save SMS to DB', { error: dbError.message });
+    }
+
+    return { success: true, messageSid: data.sid };
+  } catch (error) {
+    logger.error('Error sending SMS', { error: error.message });
+    return { success: false, error: error.message };
+  }
 }

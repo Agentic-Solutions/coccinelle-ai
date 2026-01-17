@@ -183,7 +183,7 @@ function detectContentGaps(documents: any[]): KnowledgeGap[] {
         id: `gap-category-${category.name.toLowerCase()}`,
         type: 'missing_content',
         title: `Contenu manquant : ${category.name}`,
-        description: `Aucun document ne couvre la catégorie "${category.name}". Cela pourrait limiter la capacité de Sara à répondre.`,
+        description: `Aucun document ne couvre la catégorie "${category.name}". Cela pourrait limiter la capacité de Assistant à répondre.`,
         priority: 'high',
         suggestedAction: `Créer un document sur ${category.name}`,
         estimatedImpact: 'high'

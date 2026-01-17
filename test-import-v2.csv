@@ -1,0 +1,3 @@
+category,title,description,price,city,postal_code,surface,rooms,floor,elevator,balcony
+real_estate,Loft industriel Montreuil,Superbe loft avec grande hauteur sous plafond,680000,Montreuil,93100,150,4,3,true,false
+real_estate,T2 neuf Nantes,Appartement neuf avec terrasse et parking,320000,Nantes,44000,55,2,1,true,true

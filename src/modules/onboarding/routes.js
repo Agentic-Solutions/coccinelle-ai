@@ -24,6 +24,81 @@ function generateId(prefix) {
 }
 
 /**
+ * Crée les catégories de produits par défaut pour un nouveau tenant
+ */
+async function createDefaultProductCategories(env, tenantId) {
+  const now = new Date().toISOString();
+
+  const defaultCategories = [
+    {
+      id: `cat_${tenantId}_real_estate`,
+      key: 'real_estate',
+      name: 'Immobilier',
+      description: 'Biens immobiliers: appartements, maisons, locaux commerciaux',
+      icon: 'Home',
+      color: 'blue',
+      fields: JSON.stringify([
+        {"key": "surface", "label": "Surface (m²)", "type": "number", "required": false},
+        {"key": "rooms", "label": "Nombre de pièces", "type": "number", "required": false},
+        {"key": "bedrooms", "label": "Chambres", "type": "number", "required": false},
+        {"key": "floor", "label": "Étage", "type": "number", "required": false}
+      ]),
+      display_order: 1
+    },
+    {
+      id: `cat_${tenantId}_retail`,
+      key: 'retail',
+      name: 'Commerce',
+      description: 'Articles de vente au détail',
+      icon: 'ShoppingBag',
+      color: 'purple',
+      fields: JSON.stringify([
+        {"key": "brand", "label": "Marque", "type": "text", "required": false},
+        {"key": "color", "label": "Couleur", "type": "text", "required": false}
+      ]),
+      display_order: 2
+    },
+    {
+      id: `cat_${tenantId}_food`,
+      key: 'food',
+      name: 'Restauration',
+      description: 'Produits alimentaires et plats de restauration',
+      icon: 'UtensilsCrossed',
+      color: 'orange',
+      fields: JSON.stringify([
+        {"key": "ingredients", "label": "Ingrédients", "type": "text", "required": false},
+        {"key": "spicy", "label": "Épicé", "type": "checkbox", "required": false}
+      ]),
+      display_order: 3
+    },
+    {
+      id: `cat_${tenantId}_services`,
+      key: 'services',
+      name: 'Services',
+      description: 'Services professionnels et prestations',
+      icon: 'Briefcase',
+      color: 'green',
+      fields: JSON.stringify([
+        {"key": "duration", "label": "Durée", "type": "text", "required": false},
+        {"key": "online", "label": "En ligne", "type": "checkbox", "required": false}
+      ]),
+      display_order: 4
+    }
+  ];
+
+  const statements = defaultCategories.map(cat =>
+    env.DB.prepare(`
+      INSERT INTO product_categories (
+        id, tenant_id, key, name, description, icon, color, is_system, fields, display_order, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `).bind(cat.id, tenantId, cat.key, cat.name, cat.description, cat.icon, cat.color, cat.fields, cat.display_order, now, now)
+  );
+
+  await env.DB.batch(statements);
+  console.log(`[Onboarding] Created ${defaultCategories.length} default product categories for tenant ${tenantId}`);
+}
+
+/**
  * POST /api/v1/onboarding/start
  * Démarre une nouvelle session d'onboarding
  */
@@ -45,6 +120,14 @@ export async function startOnboarding(request, env, tenantId, userId) {
         VALUES (?, 'Tenant Temporaire', ?, ?, ?)
       `).bind(tenantId, `${tenantId}@temp.local`, apiKey, now).run();
       console.log(`[Onboarding] Tenant temporaire créé: ${tenantId}`);
+
+      // Créer les catégories de produits par défaut
+      try {
+        await createDefaultProductCategories(env, tenantId);
+      } catch (error) {
+        console.error(`[Onboarding] Erreur création catégories pour ${tenantId}:`, error);
+        // Ne pas bloquer l'onboarding si les catégories échouent
+      }
     }
 
     await env.DB.prepare(`

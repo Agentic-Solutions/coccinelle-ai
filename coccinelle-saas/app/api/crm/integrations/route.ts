@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 /**
  * API pour gérer les intégrations CRM
  * GET: Lister toutes les intégrations

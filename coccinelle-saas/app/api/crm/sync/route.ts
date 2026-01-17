@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 /**
  * API pour déclencher une synchronisation manuelle
  * POST: Synchroniser tous les clients vers un CRM externe

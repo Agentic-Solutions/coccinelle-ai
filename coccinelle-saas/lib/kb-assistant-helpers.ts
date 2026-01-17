@@ -2,7 +2,7 @@
  * Fonctions helpers pour la génération de documents KB par secteur
  */
 
-const FOOTER = '\n---\n\n*Document généré automatiquement par Sara - Assistant IA Coccinelle.AI*';
+const FOOTER = '\n---\n\n*Document généré automatiquement par Assistant - Assistant IA Coccinelle.AI*';
 
 export function createPresentationDocument(companyName: string, sector: string, services: string, specificities?: string, booking?: string, process?: string) {
   return {

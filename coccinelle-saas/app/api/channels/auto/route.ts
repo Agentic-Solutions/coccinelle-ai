@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createChannelOrchestrator } from '@/modules/orchestrator/channelOrchestrator';
 import { createSMSService } from '@/modules/channels/sms/smsService';

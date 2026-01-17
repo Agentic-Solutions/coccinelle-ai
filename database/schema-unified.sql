@@ -3,8 +3,8 @@
  * COCCINELLE AI - SCHÉMA UNIFIÉ DE BASE DE DONNÉES
  * ================================================================
  *
- * Version : 2.0.0 (Architecture unifiée)
- * Date : 2025-12-22
+ * Version : 3.0.0 (Section 7 corrigée)
+ * Date : 2025-01-05
  *
  * Principe : Single Source of Truth
  *   - Pas de duplication de données entre onboarding et runtime
@@ -277,44 +277,140 @@ CREATE INDEX IF NOT EXISTS idx_kb_chunks_doc ON knowledge_chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_kb_crawl_tenant ON knowledge_crawl_jobs(tenant_id);
 
 -- ================================================================
--- SECTION 7 : PRODUITS & SERVICES
+-- SECTION 7 : PRODUITS & SERVICES (CORRIGÉE)
 -- ================================================================
 
 CREATE TABLE IF NOT EXISTS product_categories (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
+  
+  -- Identifiant unique de la catégorie
+  key TEXT NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
+  
+  -- Hiérarchie
   parent_id TEXT,
-
+  
+  -- Affichage
+  icon TEXT,
+  color TEXT,
+  display_order INTEGER DEFAULT 0,
+  
+  -- Métadonnées
+  is_system INTEGER DEFAULT 0,
+  fields TEXT,
+  
+  -- Timestamps
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  
+  -- Contraintes
   FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-  FOREIGN KEY (parent_id) REFERENCES product_categories(id) ON DELETE SET NULL
+  FOREIGN KEY (parent_id) REFERENCES product_categories(id) ON DELETE SET NULL,
+  UNIQUE(tenant_id, key)
 );
 
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  category_id TEXT,
-
-  name TEXT NOT NULL,
+  
+  -- Assignation agent
+  agent_id TEXT,
+  assignment_type TEXT DEFAULT 'shared',
+  
+  -- Identification
+  sku TEXT,
+  category TEXT NOT NULL,
+  type TEXT,
+  
+  -- Contenu
+  title TEXT NOT NULL,
   description TEXT,
+  short_description TEXT,
+  
+  -- Prix
   price REAL,
+  price_currency TEXT DEFAULT 'EUR',
+  compare_at_price REAL,
+  
+  -- Stock
   stock_quantity INTEGER DEFAULT 0,
-
-  is_active INTEGER DEFAULT 1,
-
+  stock_status TEXT DEFAULT 'in_stock',
+  available INTEGER DEFAULT 1,
+  
+  -- Données JSON
+  attributes TEXT,
+  images TEXT,
+  videos TEXT,
+  location TEXT,
+  
+  -- SEO & Tags
+  keywords TEXT,
+  tags TEXT,
+  
+  -- Variantes
+  has_variants INTEGER DEFAULT 0,
+  variants TEXT,
+  
+  -- Statut
+  status TEXT DEFAULT 'active',
+  published_at DATETIME,
+  
+  -- Audit
+  created_by TEXT,
+  updated_by TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-
+  
+  -- Contraintes
   FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-  FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE SET NULL
+  FOREIGN KEY (agent_id) REFERENCES commercial_agents(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS product_variants (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  
+  -- Identification
+  sku TEXT,
+  position INTEGER DEFAULT 0,
+  
+  -- Attributs de la variante
+  attributes TEXT,
+  
+  -- Prix
+  price REAL,
+  
+  -- Stock
+  stock_quantity INTEGER DEFAULT 0,
+  stock_status TEXT DEFAULT 'in_stock',
+  available INTEGER DEFAULT 1,
+  
+  -- Timestamps
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  
+  -- Contraintes
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 -- Index
+CREATE INDEX IF NOT EXISTS idx_product_categories_tenant ON product_categories(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_product_categories_key ON product_categories(key);
+CREATE INDEX IF NOT EXISTS idx_product_categories_parent ON product_categories(parent_id);
+
 CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+CREATE INDEX IF NOT EXISTS idx_products_agent ON products(agent_id);
+CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
+CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+
+CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_tenant ON product_variants(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
 
 -- ================================================================
 -- SECTION 8 : CRM & CUSTOMERS

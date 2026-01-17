@@ -18,7 +18,8 @@ import {
 import {
   getVoices,
   getVoiceDetails,
-  getModels
+  getModels,
+  getVoicePreview
 } from './controllers/voices.js';
 import {
   handleCloudflareCallback,
@@ -79,13 +80,25 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
       return await getVoices(request, env);
     }
 
+    // GET /api/v1/omnichannel/agent/voices/:voiceId/preview
     // GET /api/v1/omnichannel/agent/voices/:voiceId
     if (path.startsWith('/api/v1/omnichannel/agent/voices/') && method === 'GET') {
-      const voiceId = path.split('/').pop();
-      if (voiceId === 'models') {
+      const pathParts = path.split('/');
+      const lastPart = pathParts[pathParts.length - 1];
+
+      // Check for preview endpoint
+      if (lastPart === 'preview') {
+        const voiceId = pathParts[pathParts.length - 2];
+        return await getVoicePreview(request, env, voiceId);
+      }
+
+      // Check for models endpoint
+      if (lastPart === 'models') {
         return await getModels(request, env);
       }
-      return await getVoiceDetails(request, env, voiceId);
+
+      // Default: voice details
+      return await getVoiceDetails(request, env, lastPart);
     }
 
     // GET /api/v1/omnichannel/audio/:audioId

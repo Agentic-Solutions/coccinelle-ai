@@ -1,3 +1,6 @@
+// Utiliser Edge runtime pour Cloudflare Pages
+export const runtime = 'edge';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 interface CrawlRequest {
@@ -38,7 +41,6 @@ export async function POST(request: NextRequest) {
 
     // Import dynamique de cheerio
     const cheerio = await import('cheerio');
-    const axios = (await import('axios')).default;
 
     const crawledPages: any[] = [];
     const visitedUrls = new Set<string>();
@@ -47,14 +49,25 @@ export async function POST(request: NextRequest) {
     // Fonction pour crawler une page
     const crawlPage = async (pageUrl: string, retries = 0): Promise<{ title: string; content: string; links: string[] }> => {
       try {
-        const response = await axios.get(pageUrl, {
-          timeout: 20000, // Augmenté à 20 secondes
+        // Utiliser fetch au lieu d'axios (compatible edge runtime)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 secondes
+
+        const response = await fetch(pageUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; CoccinelleBot/1.0; +http://coccinelle.ai)'
-          }
+          },
+          signal: controller.signal
         });
 
-        const $ = cheerio.load(response.data);
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
 
         // Extraire le titre
         const title = $('title').text() || $('h1').first().text() || 'Sans titre';
@@ -151,8 +164,11 @@ export async function POST(request: NextRequest) {
 
         return { title, content, links };
       } catch (error) {
-        // Retry logic pour le premier essai en cas de timeout
-        if (retries < 1 && (error as any).code === 'ECONNABORTED') {
+        // Retry logic pour le premier essai en cas de timeout ou erreur réseau
+        const isTimeout = error instanceof Error && error.name === 'AbortError';
+        const isNetworkError = error instanceof TypeError;
+
+        if (retries < 1 && (isTimeout || isNetworkError)) {
           console.log(`🔄 Retry crawl ${pageUrl} (tentative ${retries + 1}/1)`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Attendre 2s avant retry
           return crawlPage(pageUrl, retries + 1);

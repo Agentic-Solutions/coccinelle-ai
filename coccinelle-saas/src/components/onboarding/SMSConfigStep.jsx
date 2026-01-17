@@ -30,7 +30,7 @@ export default function SMSConfigStep({ onNext, onBack, loading }) {
         Configuration du canal SMS
       </h2>
       <p className="text-gray-600 mb-8">
-        Configurez l'envoi de SMS via Twilio.
+        Envoyez des SMS personnalisés à vos clients.
       </p>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
@@ -38,15 +38,14 @@ export default function SMSConfigStep({ onNext, onBack, loading }) {
           <AlertCircle className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
           <div>
             <h3 className="font-semibold text-blue-900 mb-2">
-              Configuration détaillée disponible plus tard
+              Configuration disponible après l'onboarding
             </h3>
             <p className="text-sm text-blue-800 mb-3">
-              La configuration complète du SMS (credentials Twilio, numéro d'envoi, etc.)
-              peut être effectuée après l'onboarding dans <strong>Paramètres &gt; Canaux &gt; SMS</strong>.
+              La configuration complète du SMS (numéro d'envoi, messages automatiques, etc.)
+              sera disponible dans <strong>Paramètres &gt; Canaux &gt; SMS</strong>.
             </p>
             <p className="text-sm text-blue-800">
-              Pour l'instant, nous allons simplement activer ce canal pour que vous puissiez
-              le configurer plus tard.
+              Nous activons simplement ce canal pour que vous puissiez le configurer plus tard.
             </p>
           </div>
         </div>

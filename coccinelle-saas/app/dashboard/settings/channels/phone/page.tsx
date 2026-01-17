@@ -2,13 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Phone, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import Logo from '@/components/Logo';
 
 const TWILIO_SHARED_NUMBER = '+33 9 39 03 57 61'; // Numéro Twilio mutualisé
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
+interface AgentType {
+  id: string;
+  name: string;
+  description: string;
+  tools?: string[];
+}
+
 export default function PhoneConfigPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromOnboarding = searchParams.get('from') === 'onboarding';
+
   const [config, setConfig] = useState({
     enabled: false,
     configured: false, // Géré par l'admin (si Vapi est setup)
@@ -16,8 +28,8 @@ export default function PhoneConfigPage() {
     twilioSharedNumber: TWILIO_SHARED_NUMBER,
     sara: {
       voice: 'female' as 'female' | 'male',
-      assistantName: 'Sara',
-      agentType: 'reception' as 'reception' | 'qualification' | 'appointment' | 'support',
+      assistantName: 'Assistant',
+      agentType: 'multi_purpose',
       customInstructions: '',
       language: 'fr-FR'
     },
@@ -31,27 +43,54 @@ export default function PhoneConfigPage() {
   const [copiedNumber, setCopiedNumber] = useState(false);
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [agentTypes, setAgentTypes] = useState<AgentType[]>([]);
 
-  // Charger la config depuis l'API
+  // Charger la config depuis l'API et les types d'agents
   useEffect(() => {
-    const fetchConfig = async () => {
+    const fetchData = async () => {
       try {
         const token = localStorage.getItem('auth_token');
-        const response = await fetch(`${API_URL}/api/v1/channels/phone`, {
+
+        // Charger les types d'agents disponibles
+        const agentTypesResponse = await fetch(`${API_URL}/api/v1/onboarding/agent-types`);
+        if (agentTypesResponse.ok) {
+          const agentTypesData = await agentTypesResponse.json();
+          if (agentTypesData.success && agentTypesData.agent_types) {
+            setAgentTypes(agentTypesData.agent_types);
+          }
+        }
+
+        // Charger la configuration depuis omni_agent_configs
+        const response = await fetch(`${API_URL}/api/v1/omnichannel/agent/config`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
 
+        // Si on vient de l'onboarding, charger la config depuis sessionStorage
+        const onboardingConfig = sessionStorage.getItem('onboarding_assistant_config');
+        let assistantConfig = null;
+        if (fromOnboarding && onboardingConfig) {
+          assistantConfig = JSON.parse(onboardingConfig);
+        }
+
         if (response.ok) {
           const data = await response.json();
-          if (data.channel) {
+          if (data.success && data.config) {
+            const cfg = data.config;
             setConfig(prev => ({
               ...prev,
-              enabled: data.channel.enabled,
-              configured: data.channel.configured,
-              ...data.channel.config
+              enabled: true,
+              configured: true,
+              clientPhoneNumber: cfg.phone_number || '',
+              sara: {
+                voice: assistantConfig?.voice || (cfg.voice_id === 'onwK4e9ZLuTAKqWW03F9' ? 'male' : 'female'), // ElevenLabs voice IDs
+                assistantName: assistantConfig?.assistant_name || cfg.agent_name || 'Assistant',
+                agentType: assistantConfig?.agent_type || cfg.agent_type || 'multi_purpose',
+                customInstructions: cfg.system_prompt || '',
+                language: cfg.voice_language || 'fr-FR'
+              }
             }));
           }
         } else {
@@ -79,7 +118,7 @@ export default function PhoneConfigPage() {
       }
     };
 
-    fetchConfig();
+    fetchData();
   }, []);
 
   const handleSave = async () => {
@@ -110,20 +149,26 @@ export default function PhoneConfigPage() {
     // Sauvegarder via l'API
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/v1/channels/phone`, {
+      const tenant = JSON.parse(localStorage.getItem('tenant') || '{}');
+      const tenantId = tenant.id;
+
+      if (!tenantId) {
+        throw new Error('Tenant ID manquant');
+      }
+
+      const response = await fetch(`${API_URL}/api/v1/omnichannel/agent/config`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          config: {
-            clientPhoneNumber: config.clientPhoneNumber,
-            twilioSharedNumber: config.twilioSharedNumber,
-            sara: config.sara,
-            transferConfigured: config.transferConfigured
-          },
-          enabled: config.enabled
+          tenantId: tenantId,
+          agent_type: config.sara.agentType,
+          agent_name: config.sara.assistantName,
+          voice_id: config.sara.voice === 'female' ? 'pNInz6obpgDQGcFmaJgB' : 'onwK4e9ZLuTAKqWW03F9',
+          voice_language: config.sara.language || 'fr-FR',
+          system_prompt: config.sara.customInstructions || ''
         })
       });
 
@@ -138,12 +183,26 @@ export default function PhoneConfigPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       console.log('Phone config saved to API');
+
+      // Redirect to onboarding if coming from there
+      if (fromOnboarding) {
+        setTimeout(() => {
+          router.push('/onboarding');
+        }, 1500);
+      }
     } catch (e: any) {
       console.error('Error saving Phone config:', e);
       // Fallback: sauvegarder localement
       localStorage.setItem('phone_client_config', JSON.stringify(config));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+
+      // Redirect to onboarding if coming from there (even on error, since config is saved to localStorage)
+      if (fromOnboarding) {
+        setTimeout(() => {
+          router.push('/onboarding');
+        }, 1500);
+      }
     } finally {
       setSaving(false);
     }
@@ -168,15 +227,9 @@ export default function PhoneConfigPage() {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     setTesting(false);
-    alert(`Pour tester : Appelez votre numéro ${config.clientPhoneNumber}\nL'appel sera transféré et Sara devrait répondre.`);
+    alert(`Pour tester : Appelez votre numéro ${config.clientPhoneNumber}\nL'appel sera transféré et Assistant devrait répondre.`);
   };
 
-  const agentTypes = [
-    { value: 'reception', label: 'Accueil téléphonique', description: 'Réceptionne et route les appels' },
-    { value: 'qualification', label: 'Qualification de leads', description: 'Qualifie les prospects entrants' },
-    { value: 'appointment', label: 'Prise de rendez-vous', description: 'Gère les prises de RDV automatiquement' },
-    { value: 'support', label: 'Support client', description: 'Répond aux questions et problèmes' }
-  ];
 
   const transferGuides = [
     {
@@ -235,7 +288,7 @@ export default function PhoneConfigPage() {
             <Logo size={48} />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Configuration Canal Voix</h1>
-              <p className="text-sm text-gray-600">Configurez Sara, votre agent IA vocal</p>
+              <p className="text-sm text-gray-600">Configurez Assistant, votre agent IA vocal</p>
             </div>
           </div>
         </div>
@@ -294,7 +347,7 @@ export default function PhoneConfigPage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Canal Voix</h2>
-                <p className="text-sm text-gray-600">Agent IA vocal (Sara)</p>
+                <p className="text-sm text-gray-600">Agent IA vocal (Assistant)</p>
                 {config.configured && (
                   <span className="inline-flex items-center gap-1 mt-1 text-xs text-green-700 font-medium">
                     <CheckCircle className="w-3 h-3" />
@@ -356,7 +409,7 @@ export default function PhoneConfigPage() {
             </div>
 
             <p className="text-sm text-blue-800 mb-4">
-              Pour que Sara réponde à vos appels, configurez un transfert depuis votre numéro vers :
+              Pour que Assistant réponde à vos appels, configurez un transfert depuis votre numéro vers :
             </p>
 
             <div className="bg-white border border-blue-300 rounded-lg p-4 mb-4">
@@ -419,17 +472,17 @@ export default function PhoneConfigPage() {
 
             <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-xs text-yellow-800">
-                <strong>💡 Conseil :</strong> Configurez un transfert conditionnel (si occupé / si pas de réponse) pour garder la main sur vos appels tout en bénéficiant de Sara.
+                <strong>💡 Conseil :</strong> Configurez un transfert conditionnel (si occupé / si pas de réponse) pour garder la main sur vos appels tout en bénéficiant de Assistant.
               </p>
             </div>
           </div>
         )}
 
-        {/* Configuration de Sara */}
+        {/* Configuration de Assistant */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <SettingsIcon className="w-5 h-5 text-gray-700" />
-            <h3 className="font-bold text-gray-900">Configuration de Sara</h3>
+            <h3 className="font-bold text-gray-900">Configuration de Assistant</h3>
           </div>
 
           <p className="text-sm text-gray-600 mb-4">
@@ -479,12 +532,12 @@ export default function PhoneConfigPage() {
                 type="text"
                 value={config.sara.assistantName}
                 onChange={(e) => setConfig({ ...config, sara: { ...config.sara, assistantName: e.target.value } })}
-                placeholder="Sara"
+                placeholder="Assistant"
                 disabled={!config.configured}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:opacity-50"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Le nom utilisé lors de la présentation (ex: "Bonjour, je suis Sara...")
+                Le nom utilisé lors de la présentation (ex: "Bonjour, je suis Assistant...")
               </p>
             </div>
 
@@ -499,11 +552,15 @@ export default function PhoneConfigPage() {
                 disabled={!config.configured}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:opacity-50"
               >
-                {agentTypes.map(type => (
-                  <option key={type.value} value={type.value}>
-                    {type.label} - {type.description}
-                  </option>
-                ))}
+                {agentTypes.length > 0 ? (
+                  agentTypes.map(type => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} - {type.description}
+                    </option>
+                  ))
+                ) : (
+                  <option value="multi_purpose">Agent Polyvalent - Gère plusieurs types de demandes</option>
+                )}
               </select>
             </div>
 
@@ -521,7 +578,7 @@ export default function PhoneConfigPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:opacity-50"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Personnalisez le comportement de Sara selon vos besoins
+                Personnalisez le comportement de Assistant selon vos besoins
               </p>
             </div>
           </div>
@@ -532,7 +589,7 @@ export default function PhoneConfigPage() {
           <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
             <h3 className="font-bold text-green-900 mb-2">Tester votre configuration</h3>
             <p className="text-sm text-green-800 mb-4">
-              Appelez votre numéro professionnel pour vérifier que Sara répond correctement
+              Appelez votre numéro professionnel pour vérifier que Assistant répond correctement
             </p>
             <div className="flex gap-3">
               <button

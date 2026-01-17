@@ -1,27 +1,43 @@
 /**
  * Controller Agent Config - CRUD configuration agent par tenant
+ * Version: 2.0.0 - 16 janvier 2026
+ * SÉCURISÉ: Auth JWT sur tous les endpoints
  */
 
 import { queries } from '../db/queries.js';
 import { validators } from '../utils/validator.js';
 import { omniLogger } from '../utils/logger.js';
+import * as auth from '../../auth/helpers.js';
 
 /**
- * GET /api/v1/omnichannel/agent/config?tenantId=xxx
+ * Helper: Vérification auth réutilisable
+ */
+async function checkAuth(request, env) {
+  const authResult = await auth.requireAuth(request, env);
+  if (authResult.error) {
+    return {
+      error: true,
+      response: new Response(JSON.stringify({ success: false, error: authResult.error }), {
+        status: authResult.status,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    };
+  }
+  return { error: false, user: authResult.user, tenant: authResult.tenant };
+}
+
+/**
+ * GET /api/v1/omnichannel/agent/config
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function getAgentConfig(request, env) {
   try {
-    const url = new URL(request.url);
-    const tenantId = url.searchParams.get('tenantId');
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    // Validation
-    const validation = validators.tenantId(tenantId);
-    if (!validation.valid) {
-      return new Response(JSON.stringify({ error: validation.error }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const tenantId = tenant.id;
 
     // Récupérer la config
     const config = await env.DB.prepare(queries.getAgentConfig)
@@ -74,20 +90,18 @@ export async function getAgentConfig(request, env) {
 
 /**
  * PUT /api/v1/omnichannel/agent/config
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function updateAgentConfig(request, env) {
   try {
-    const body = await request.json();
-    const { tenantId, ...config } = body;
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    // Validation tenant
-    const tenantValidation = validators.tenantId(tenantId);
-    if (!tenantValidation.valid) {
-      return new Response(JSON.stringify({ error: tenantValidation.error }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const tenantId = tenant.id;
+    const body = await request.json();
+    const config = body; // On ignore le tenantId du body, on utilise celui du token
 
     // Validation config
     const configValidation = validators.agentConfig(config);
@@ -180,20 +194,17 @@ export async function updateAgentConfig(request, env) {
 }
 
 /**
- * DELETE /api/v1/omnichannel/agent/config?tenantId=xxx
+ * DELETE /api/v1/omnichannel/agent/config
+ * 🔐 Auth JWT - tenantId depuis le token
  */
 export async function deleteAgentConfig(request, env) {
   try {
-    const url = new URL(request.url);
-    const tenantId = url.searchParams.get('tenantId');
+    // 🔐 AUTH REQUIRED
+    const authCheck = await checkAuth(request, env);
+    if (authCheck.error) return authCheck.response;
+    const { tenant } = authCheck;
 
-    const validation = validators.tenantId(tenantId);
-    if (!validation.valid) {
-      return new Response(JSON.stringify({ error: validation.error }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const tenantId = tenant.id;
 
     await env.DB.prepare(queries.deleteAgentConfig)
       .bind(tenantId)

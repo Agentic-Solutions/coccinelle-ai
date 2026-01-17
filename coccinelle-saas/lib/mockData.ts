@@ -233,7 +233,7 @@ export const mockAgents = [
   { id: 'agent_002', first_name: 'Julie', last_name: 'Dupont', email: 'julie@salon-marie.fr' }
 ];
 
-// Mode démo activé si l'URL contient ?demo=true ou si on est en localhost ET que NEXT_PUBLIC_USE_REAL_API n'est pas true
+// Mode démo activé si localhost OU ?demo=true dans l'URL
 export const isDemoMode = () => {
   if (typeof window === 'undefined') return false;
 

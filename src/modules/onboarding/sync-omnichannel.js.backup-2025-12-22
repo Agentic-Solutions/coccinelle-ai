@@ -1,0 +1,295 @@
+/**
+ * Synchronisation Onboarding → Omnichannel
+ * Transfère les données collectées pendant l'onboarding vers les tables omni_*
+ */
+
+/**
+ * Synchronise toutes les données d'onboarding vers les modules Omnichannel
+ * @param {Object} env - Environnement Cloudflare (avec DB)
+ * @param {string} sessionId - ID de la session d'onboarding
+ * @param {string} tenantId - ID du tenant
+ * @param {Object} bodyData - Données envoyées depuis le frontend (assistant_config, phone_config)
+ */
+export async function syncOnboardingToOmnichannel(env, sessionId, tenantId, bodyData = {}) {
+  try {
+    console.log(`[Sync] Starting sync for session ${sessionId}, tenant ${tenantId}`);
+    console.log(`[Sync] Body data:`, JSON.stringify(bodyData));
+
+    // 1. Récupérer toutes les données d'onboarding
+    const onboardingData = await getOnboardingData(env, sessionId, tenantId);
+
+    if (!onboardingData) {
+      throw new Error('Onboarding data not found');
+    }
+
+    // Fusionner les données du body avec les données existantes
+    if (bodyData.assistant_config) {
+      onboardingData.assistantConfig = bodyData.assistant_config;
+    }
+    if (bodyData.phone_config) {
+      onboardingData.phoneConfig = bodyData.phone_config;
+    }
+
+    // 2. Créer ou mettre à jour omni_agent_configs
+    await syncAgentConfig(env, tenantId, onboardingData);
+
+    // 3. Créer le phone mapping
+    await syncPhoneMapping(env, tenantId, onboardingData);
+
+    // 4. Lier les knowledge base documents
+    await syncKnowledgeBase(env, tenantId, onboardingData);
+
+    // 5. Mettre à jour les données business du tenant
+    await syncTenantBusinessData(env, tenantId, onboardingData);
+
+    console.log(`[Sync] Successfully synced all data for tenant ${tenantId}`);
+
+    return {
+      success: true,
+      message: 'Synchronization completed'
+    };
+
+  } catch (error) {
+    console.error('[Sync] Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Récupère toutes les données stockées pendant l'onboarding
+ */
+async function getOnboardingData(env, sessionId, tenantId) {
+  // Récupérer les données de la session
+  const session = await env.DB.prepare(`
+    SELECT * FROM onboarding_sessions
+    WHERE id = ? AND tenant_id = ?
+  `).bind(sessionId, tenantId).first();
+
+  if (!session) {
+    return null;
+  }
+
+  // Parser les JSON stockés
+  const businessData = session.business_data ? JSON.parse(session.business_data) : {};
+  const vapiData = session.vapi_data ? JSON.parse(session.vapi_data) : {};
+  const kbData = session.kb_data ? JSON.parse(session.kb_data) : {};
+  const twilioData = session.twilio_data ? JSON.parse(session.twilio_data) : {};
+
+  return {
+    session,
+    business: businessData,
+    vapi: vapiData,
+    kb: kbData,
+    twilio: twilioData
+  };
+}
+
+/**
+ * Synchronise la configuration de l'agent vocal
+ */
+async function syncAgentConfig(env, tenantId, data) {
+  const { business, vapi, assistantConfig, phoneConfig } = data;
+
+  // Priorité 1: assistantConfig depuis le body (données de l'onboarding)
+  // Priorité 2: vapi.phone (anciennes données)
+  // Priorité 3: Valeurs par défaut
+  let agentType = assistantConfig?.agent_type || vapi?.phone?.agent_type || vapi?.agent_type || 'custom';
+
+  if (agentType === 'custom' || !agentType) {
+    // Auto-détection si pas fourni ou custom
+    if (business?.industry === 'real_estate' || business?.industry === 'immobilier') {
+      agentType = 'real_estate_reception';
+    } else if (business?.industry === 'beauty' || business?.industry === 'health') {
+      agentType = 'appointment_booking';
+    } else {
+      agentType = 'custom';
+    }
+  }
+
+  console.log(`[Sync] Using agent_type: ${agentType} (from assistantConfig: ${assistantConfig?.agent_type})`);
+
+  // Récupérer le company_name depuis tenants
+  const tenant = await env.DB.prepare(`
+    SELECT company_name FROM tenants WHERE id = ?
+  `).bind(tenantId).first();
+
+  const companyName = tenant?.company_name || business?.companyName || 'notre entreprise';
+
+  // Extraire les données de configuration - PRIORISER assistantConfig
+  const assistantName = assistantConfig?.assistant_name || vapi?.phone?.assistant_name || vapi?.agentName || 'Assistant';
+  const voiceType = assistantConfig?.voice || vapi?.phone?.voice || 'female'; // 'male' ou 'female'
+
+  console.log(`[Sync] Assistant name: ${assistantName}, voice: ${voiceType}`);
+
+  // Mapper voice type vers voice_id ElevenLabs
+  let voiceId = vapi?.voice_id || 'pNInz6obpgDQGcFmaJgB'; // Default female
+  if (voiceType === 'male') {
+    voiceId = 'onwK4e9ZLuTAKqWW03F9'; // Voix masculine ElevenLabs
+  } else if (voiceType === 'female') {
+    voiceId = 'pNInz6obpgDQGcFmaJgB'; // Voix féminine ElevenLabs
+  }
+
+  // Vérifier si une config existe déjà
+  const existing = await env.DB.prepare(`
+    SELECT id FROM omni_agent_configs WHERE tenant_id = ?
+  `).bind(tenantId).first();
+
+  const now = new Date().toISOString();
+
+  if (existing) {
+    // Mettre à jour
+    await env.DB.prepare(`
+      UPDATE omni_agent_configs
+      SET agent_type = ?,
+          agent_name = ?,
+          voice_provider = ?,
+          voice_id = ?,
+          greeting_message = ?,
+          updated_at = ?
+      WHERE tenant_id = ?
+    `).bind(
+      agentType,
+      assistantName,
+      vapi.voice_provider || 'elevenlabs',
+      voiceId,
+      `Bonjour, je suis ${assistantName}, votre assistant${voiceType === 'female' ? 'e' : ''} virtuel${voiceType === 'female' ? 'le' : ''}.`,
+      now,
+      tenantId
+    ).run();
+
+    console.log(`[Sync] Updated agent config for tenant ${tenantId} - type: ${agentType}, name: ${assistantName}, voice: ${voiceType}`);
+  } else {
+    // Créer
+    const configId = `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    await env.DB.prepare(`
+      INSERT INTO omni_agent_configs (
+        id, tenant_id, agent_type, agent_name,
+        voice_provider, voice_id, voice_language,
+        greeting_message, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      configId,
+      tenantId,
+      agentType,
+      assistantName,
+      vapi.voice_provider || 'elevenlabs',
+      voiceId,
+      vapi.language || 'fr-FR',
+      `Bonjour, je suis ${assistantName}, votre assistant${voiceType === 'female' ? 'e' : ''} virtuel${voiceType === 'female' ? 'le' : ''}.`,
+      now,
+      now
+    ).run();
+
+    console.log(`[Sync] Created agent config ${configId} for tenant ${tenantId} - type: ${agentType}, name: ${assistantName}, voice: ${voiceType}`);
+  }
+}
+
+/**
+ * Synchronise le mapping téléphone → tenant
+ */
+async function syncPhoneMapping(env, tenantId, data) {
+  const { twilio, phoneConfig } = data;
+
+  // Priorité 1: phoneConfig depuis le body
+  // Priorité 2: twilio depuis la session
+  const phoneNumber = phoneConfig?.phone_number || twilio?.phoneNumber;
+
+  if (!phoneNumber) {
+    console.log(`[Sync] No phone number to sync for tenant ${tenantId}`);
+    return;
+  }
+
+  // Vérifier si le mapping existe déjà
+  const existing = await env.DB.prepare(`
+    SELECT id FROM omni_phone_mappings WHERE phone_number = ?
+  `).bind(phoneNumber).first();
+
+  if (existing) {
+    // Mettre à jour le tenant_id
+    await env.DB.prepare(`
+      UPDATE omni_phone_mappings
+      SET tenant_id = ?,
+          updated_at = datetime('now')
+      WHERE phone_number = ?
+    `).bind(tenantId, phoneNumber).run();
+
+    console.log(`[Sync] Updated phone mapping ${phoneNumber} → ${tenantId}`);
+  } else {
+    // Créer le mapping
+    const mappingId = `mapping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    await env.DB.prepare(`
+      INSERT INTO omni_phone_mappings (
+        id, phone_number, tenant_id, created_at, updated_at
+      ) VALUES (?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(
+      mappingId,
+      phoneNumber,
+      tenantId
+    ).run();
+
+    console.log(`[Sync] Created phone mapping ${phoneNumber} → ${tenantId}`);
+  }
+}
+
+/**
+ * Lie les documents de la knowledge base à l'agent
+ */
+async function syncKnowledgeBase(env, tenantId, data) {
+  const { kb } = data;
+
+  if (!kb.documents || kb.documents.length === 0) {
+    console.log(`[Sync] No KB documents to sync for tenant ${tenantId}`);
+    return;
+  }
+
+  // Récupérer tous les IDs de documents créés
+  const documents = await env.DB.prepare(`
+    SELECT id FROM knowledge_documents
+    WHERE tenant_id = ?
+    ORDER BY created_at DESC
+    LIMIT 10
+  `).bind(tenantId).all();
+
+  if (documents.results.length === 0) {
+    console.log(`[Sync] No KB documents found for tenant ${tenantId}`);
+    return;
+  }
+
+  const documentIds = documents.results.map(doc => doc.id);
+  const kbIdsJson = JSON.stringify(documentIds);
+
+  // Mettre à jour omni_agent_configs avec les KB IDs
+  await env.DB.prepare(`
+    UPDATE omni_agent_configs
+    SET knowledge_base_ids = ?
+    WHERE tenant_id = ?
+  `).bind(kbIdsJson, tenantId).run();
+
+  console.log(`[Sync] Linked ${documentIds.length} KB documents to agent for tenant ${tenantId}`);
+}
+
+/**
+ * Met à jour les données business du tenant
+ */
+async function syncTenantBusinessData(env, tenantId, data) {
+  const { business } = data;
+
+  // Mettre à jour la table tenants avec les infos business
+  await env.DB.prepare(`
+    UPDATE tenants
+    SET company_name = ?,
+        sector = ?
+    WHERE id = ?
+  `).bind(
+    business.companyName || business.name || null,
+    business.industry || null,
+    tenantId
+  ).run();
+
+  console.log(`[Sync] Updated business data for tenant ${tenantId}`);
+}

@@ -7,6 +7,7 @@ import { handleKnowledgeRoutes } from './modules/knowledge/routes.js';
 import { handleProspectsRoutes } from './modules/prospects/routes.js';
 import { handleAgentsRoutes } from './modules/agents/routes.js';
 import { handleAppointmentsRoutes } from './modules/appointments/routes.js';
+import { handleProductsRoutes } from './modules/products/routes.js';
 import { handleVapiRoutes } from './modules/vapi/routes.js';
 import { handleTwilioRoutes } from './modules/twilio/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
@@ -15,6 +16,10 @@ import { handleChannelsRoutes } from './modules/channels/routes.js';
 import { handleIntegrationsRoutes } from './modules/integrations/routes.js';
 // Module Omnichannel (indépendant, activable via OMNICHANNEL_ENABLED)
 import { handleOmnichannelRoutes } from './modules/omnichannel/index.js';
+import { handleRetellRoutes } from './modules/retell/routes.js';
+import { handlePermissionsRoutes } from './modules/permissions/routes.js';
+import { handleTeamsRoutes } from './modules/teams/routes.js';
+import { handleCustomersRoutes } from './modules/customers/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -37,7 +42,17 @@ export default {
         if (response) return response;
       }
 
-      if (path.startsWith('/api/v1/auth/')) {
+      if (path.startsWith("/api/v1/teams")) {
+      response = await handleTeamsRoutes(request, env, ctx, corsHeaders);
+      if (response) return response;
+    }
+
+    if (path.startsWith("/api/v1/permissions")) {
+      response = await handlePermissionsRoutes(request, env, ctx, corsHeaders);
+      if (response) return response;
+      if (response) return response;
+    }
+    if (path.startsWith("/api/v1/auth/")) {
         response = await handleAuthRoutes(request, env, ctx, corsHeaders);
         if (response) return response;
       }
@@ -61,6 +76,26 @@ export default {
         if (response) return response;
       }
       
+      if (path.startsWith('/api/v1/products')) {
+        response = await handleProductsRoutes(request, env, path, method);
+        if (response) return response;
+      }
+      if (path.startsWith('/api/v1/customers')) {
+        response = await handleCustomersRoutes(request, env, path, method);
+        if (response) {
+          const corsHeaders = getCorsHeaders(request);
+          const headers = new Headers(response.headers);
+          Object.entries(corsHeaders).forEach(([key, value]) => {
+            headers.set(key, value);
+          });
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers
+          });
+        }
+      }
+
       if (path.startsWith('/api/v1/agents')) {
         response = await handleAgentsRoutes(request, env, path, method);
         if (response) return response;
@@ -77,11 +112,16 @@ export default {
       }
 
       // Twilio ConversationRelay routes
-      if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio')) {
+    if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio') || path.startsWith('/api/v1/sms')) {
         response = await handleTwilioRoutes(request, env, path, method);
         if (response) return response;
       }
 
+      // Routes Retell (Agent vocal IA)
+      if (path.startsWith('/api/v1/retell') || path.startsWith('/webhooks/retell')) {
+        response = await handleRetellRoutes(request, env, path, method);
+        if (response) return response;
+      }
       // MODULE OMNICHANNEL (indépendant, plug-and-play)
       // Activer avec OMNICHANNEL_ENABLED=true dans wrangler.toml
       if (path.startsWith('/api/v1/omnichannel') || path.startsWith('/webhooks/omnichannel')) {

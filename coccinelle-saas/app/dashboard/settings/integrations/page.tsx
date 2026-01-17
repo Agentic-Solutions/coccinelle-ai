@@ -169,12 +169,36 @@ export default function IntegrationsPage() {
 
   const loadIntegrations = async () => {
     try {
-      const response = await fetch('/api/crm/integrations');
+      const token = localStorage.getItem('auth_token');
+
+      // Mode démo : ne pas appeler l'API
+      if (token?.startsWith('demo_token_')) {
+        console.log('Mode démo : intégrations simulées');
+        setIntegrationStatuses({
+          native: 'connected',
+          hubspot: 'disconnected',
+          salesforce: 'disconnected',
+          shopify: 'disconnected',
+          woocommerce: 'disconnected'
+        });
+        return;
+      }
+
+      // Mode production : appeler l'API
+      const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/integrations/configured', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        console.error('Erreur API intégrations:', response.status);
+        return;
+      }
+
       const data = await response.json();
 
       const statuses: Record<string, 'connected' | 'disconnected' | 'error'> = {};
       data.integrations?.forEach((int: any) => {
-        statuses[int.systemType] = int.isActive ? 'connected' : 'disconnected';
+        statuses[int.platform_slug] = int.enabled ? 'connected' : 'disconnected';
       });
       setIntegrationStatuses(statuses);
     } catch (error) {
@@ -199,17 +223,19 @@ export default function IntegrationsPage() {
     try {
       const credentials = formData[integrationId] || {};
 
-      const response = await fetch('/api/crm/integrations', {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/integrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
-          systemType: integrationId,
-          credentials,
-          settings: {
-            syncDirection: 'bidirectional',
-            autoSync: true,
-            syncInterval: 300
-          }
+          integration_type: integrationId,
+          integration_name: `${integrationId.charAt(0).toUpperCase() + integrationId.slice(1)} Integration`,
+          config_encrypted: credentials,
+          sync_direction: 'bidirectional',
+          sync_frequency: 'realtime'
         })
       });
 
@@ -298,21 +324,37 @@ export default function IntegrationsPage() {
     setSyncResult(null);
 
     try {
-      const response = await fetch('/api/crm/sync', {
+      // Get the integration ID from configured integrations
+      const token = localStorage.getItem('auth_token');
+      const integrationsResponse = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/integrations/configured', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const integrationsData = await integrationsResponse.json();
+      const integration = integrationsData.integrations?.find((i: any) => i.platform_slug === integrationId);
+
+      if (!integration) {
+        throw new Error('Intégration non trouvée');
+      }
+
+      const response = await fetch(`https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/integrations/${integration.id}/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
-          systemType: integrationId,
-          direction: 'bidirectional'
+          sync_type: 'manual_sync',
+          entity_type: 'all',
+          entity_id: 'all'
         })
       });
 
       const result = await response.json();
 
-      if (result.success) {
+      if (result.message) {
         setSyncResult({
           success: true,
-          message: `Synchronisation terminée : ${result.result?.synced || 0} clients synchronisés`,
+          message: result.message || 'Synchronisation démarrée',
           details: result.result
         });
       } else {
@@ -337,8 +379,23 @@ export default function IntegrationsPage() {
     }
 
     try {
-      // TODO: Implémenter la déconnexion via l'API
-      // Pour l'instant, on met à jour localement
+      // Get the integration ID from configured integrations
+      const token = localStorage.getItem('auth_token');
+      const integrationsResponse = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/integrations/configured', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const integrationsData = await integrationsResponse.json();
+      const integration = integrationsData.integrations?.find((i: any) => i.platform_slug === integrationId);
+
+      if (integration) {
+        // Disable the integration
+        await fetch(`https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/integrations/${integration.id}/disable`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+
+      // Update local state
       setIntegrationStatuses(prev => ({
         ...prev,
         [integrationId]: 'disconnected'
@@ -355,6 +412,9 @@ export default function IntegrationsPage() {
         success: true,
         message: 'Intégration déconnectée avec succès'
       });
+
+      // Reload integrations
+      await loadIntegrations();
     } catch (error: any) {
       setTestResult({
         success: false,

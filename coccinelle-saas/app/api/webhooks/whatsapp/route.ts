@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 /**
  * Webhook WhatsApp Business API (Meta/Twilio)
  * Auto-création de profils clients + Réponse IA automatique
