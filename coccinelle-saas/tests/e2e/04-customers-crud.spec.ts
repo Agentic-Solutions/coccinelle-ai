@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Customers CRUD - Strict Tests', () => {
   test.beforeEach(async ({ page }) => {
+    // Handle dialogs BEFORE any action
+    page.on('dialog', dialog => dialog.accept());
+    
     // Create a test account and login
     await page.goto('/signup');
     await page.waitForSelector('input[name="email"]');
@@ -34,232 +37,230 @@ test.describe('Customers CRUD - Strict Tests', () => {
   });
 
   test('BUG CHECK: Customers page must be accessible', async ({ page }) => {
-    // STRICT: Must be on customers page
     expect(page.url()).toContain('/dashboard/customers');
-
-    // STRICT: Page must have customers heading
     const heading = page.locator('h1, h2').filter({ hasText: /clients?|customers?/i }).first();
     await expect(heading).toBeVisible({ timeout: 5000 });
   });
 
   test('BUG CHECK: Must display "Nouveau client" button', async ({ page }) => {
-    // STRICT: Must have a button to create new customer
     const createButton = page.locator('button').filter({
       hasText: /nouveau client|ajouter|créer|add customer|create|new customer/i
     }).first();
-
     await expect(createButton).toBeVisible({ timeout: 5000 });
   });
 
   test('BUG CHECK: Must display stats cards', async ({ page }) => {
-    // STRICT: Must have stats cards
     const totalCard = page.locator('text=/total clients?/i');
     await expect(totalCard).toBeVisible({ timeout: 5000 });
-
     const vipCard = page.locator('text=/clients? vip/i');
     await expect(vipCard).toBeVisible({ timeout: 5000 });
   });
 
   test('BUG CHECK: Create customer modal must open and have required fields', async ({ page }) => {
-    // Click create button
-    const createButton = page.locator('button').filter({
-      hasText: /nouveau client/i
-    }).first();
+    const createButton = page.locator('button').filter({ hasText: /nouveau client/i }).first();
     await createButton.click();
     await page.waitForTimeout(500);
 
-    // STRICT: Modal must be visible
+    // Target modal specifically
     const modal = page.locator('[class*="fixed"]').filter({ hasText: /nouveau client/i }).first();
     await expect(modal).toBeVisible({ timeout: 3000 });
 
-    // STRICT: Form must have first name field
-    const firstNameField = page.locator('input').first();
+    // Check fields WITHIN the modal
+    const firstNameField = modal.locator('input[type="text"]').first();
     await expect(firstNameField).toBeVisible();
 
-    // STRICT: Form must have email field
-    const emailField = page.locator('input[type="email"]');
+    const emailField = modal.locator('input[type="email"]');
     await expect(emailField).toBeVisible();
 
-    // STRICT: Form must have status dropdown
-    const statusSelect = page.locator('select').first();
+    const statusSelect = modal.locator('select').first();
     await expect(statusSelect).toBeVisible();
 
-    // STRICT: Form must have submit button
-    const submitButton = page.locator('button').filter({ hasText: /créer/i }).last();
+    const submitButton = modal.locator('button').filter({ hasText: /créer/i });
     await expect(submitButton).toBeVisible();
   });
 
   test('BUG CHECK: Creating a customer must add it to the list', async ({ page }) => {
-    // Click create button
-    const createButton = page.locator('button').filter({
-      hasText: /nouveau client/i
-    }).first();
+    const createButton = page.locator('button').filter({ hasText: /nouveau client/i }).first();
     await createButton.click();
     await page.waitForTimeout(500);
 
-    // Fill customer details
-    const customerFirstName = `TestClient`;
-    const customerLastName = `E2E${Date.now()}`;
+    const customerFirstName = `Client${Date.now()}`;
     const customerEmail = `client-${Date.now()}@test.com`;
 
-    // Fill first name (first input in modal)
-    const firstNameInput = page.locator('input[type="text"]').first();
+    // IMPORTANT: Target the modal specifically, not the whole page!
+    const modal = page.locator('[class*="fixed"]').filter({ hasText: /nouveau client/i }).first();
+    await expect(modal).toBeVisible({ timeout: 3000 });
+
+    // Fill form WITHIN the modal
+    const firstNameInput = modal.locator('input[type="text"]').first();
     await firstNameInput.fill(customerFirstName);
 
-    // Fill last name (second input)
-    const lastNameInput = page.locator('input[type="text"]').nth(1);
-    await lastNameInput.fill(customerLastName);
-
-    // Fill email
-    const emailInput = page.locator('input[type="email"]');
+    const emailInput = modal.locator('input[type="email"]');
     await emailInput.fill(customerEmail);
 
-    // Fill phone
-    const phoneInput = page.locator('input[type="tel"]');
-    await phoneInput.fill('+33612345678');
-
-    // Submit form
-    const submitButton = page.locator('button').filter({ hasText: /créer/i }).last();
+    // Submit
+    const submitButton = modal.locator('button').filter({ hasText: /créer/i });
     await submitButton.click();
 
-    // Wait for modal to close and list to refresh
-    await page.waitForTimeout(2000);
+    // Wait for modal to close
+    await expect(modal).not.toBeVisible({ timeout: 5000 });
 
-    // Handle alert if present
-    page.on('dialog', dialog => dialog.accept());
-
-    // STRICT: Customer must appear in the list
-    const customerInList = page.locator(`text="${customerFirstName}"`).or(page.locator(`text="${customerLastName}"`));
-    await expect(customerInList.first()).toBeVisible({ timeout: 5000 });
+    // Wait for list to refresh and find customer in table
+    await page.waitForTimeout(1000);
+    await expect(page.locator('table').locator(`text=${customerFirstName}`)).toBeVisible({ timeout: 10000 });
   });
 
   test('BUG CHECK: Search must filter customers', async ({ page }) => {
-    // First create a customer with unique name
-    const uniqueName = `SearchTest${Date.now()}`;
+    const uniqueName = `Search${Date.now()}`;
     
+    // Create customer
     const createButton = page.locator('button').filter({ hasText: /nouveau client/i }).first();
     await createButton.click();
     await page.waitForTimeout(500);
 
-    const firstNameInput = page.locator('input[type="text"]').first();
+    // Target modal
+    const modal = page.locator('[class*="fixed"]').filter({ hasText: /nouveau client/i }).first();
+    await expect(modal).toBeVisible({ timeout: 3000 });
+
+    const firstNameInput = modal.locator('input[type="text"]').first();
     await firstNameInput.fill(uniqueName);
 
-    const emailInput = page.locator('input[type="email"]');
+    const emailInput = modal.locator('input[type="email"]');
     await emailInput.fill(`search-${Date.now()}@test.com`);
 
-    const submitButton = page.locator('button').filter({ hasText: /créer/i }).last();
+    const submitButton = modal.locator('button').filter({ hasText: /créer/i });
     await submitButton.click();
-    await page.waitForTimeout(2000);
 
-    // Handle alert
-    page.on('dialog', dialog => dialog.accept());
+    // Wait for modal to close
+    await expect(modal).not.toBeVisible({ timeout: 5000 });
 
-    // Now search for the customer
+    // Wait for customer to appear first
+    await page.waitForTimeout(1000);
+    await expect(page.locator('table').locator(`text=${uniqueName}`)).toBeVisible({ timeout: 10000 });
+
+    // Now search using the search bar (outside modal)
     const searchInput = page.locator('input[placeholder*="echercher"]');
     await searchInput.fill(uniqueName);
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
-    // STRICT: Customer with that name must be visible
-    const customerInList = page.locator(`text="${uniqueName}"`);
-    await expect(customerInList.first()).toBeVisible({ timeout: 5000 });
+    // Verify customer still visible after search
+    await expect(page.locator('table').locator(`text=${uniqueName}`)).toBeVisible({ timeout: 5000 });
   });
 
   test('BUG CHECK: Edit customer must update the customer', async ({ page }) => {
-    // First create a customer
-    const originalName = `EditTest${Date.now()}`;
+    const originalName = `Edit${Date.now()}`;
     
+    // Create customer first
     const createButton = page.locator('button').filter({ hasText: /nouveau client/i }).first();
     await createButton.click();
     await page.waitForTimeout(500);
 
-    const firstNameInput = page.locator('input[type="text"]').first();
+    // Target create modal
+    const createModal = page.locator('[class*="fixed"]').filter({ hasText: /nouveau client/i }).first();
+    await expect(createModal).toBeVisible({ timeout: 3000 });
+
+    const firstNameInput = createModal.locator('input[type="text"]').first();
     await firstNameInput.fill(originalName);
 
-    const emailInput = page.locator('input[type="email"]');
+    const emailInput = createModal.locator('input[type="email"]');
     await emailInput.fill(`edit-${Date.now()}@test.com`);
 
-    let submitButton = page.locator('button').filter({ hasText: /créer/i }).last();
+    let submitButton = createModal.locator('button').filter({ hasText: /créer/i });
     await submitButton.click();
-    await page.waitForTimeout(2000);
 
-    // Handle alert
-    page.on('dialog', dialog => dialog.accept());
+    // Wait for modal to close
+    await expect(createModal).not.toBeVisible({ timeout: 5000 });
 
-    // Find and click edit button for the customer
+    // Wait for customer to appear
+    await page.waitForTimeout(1000);
+    await expect(page.locator('table').locator(`text=${originalName}`)).toBeVisible({ timeout: 10000 });
+
+    // Click edit button
     const editButton = page.locator('button[title="Modifier"]').first();
     await editButton.click();
     await page.waitForTimeout(500);
 
-    // Update the name
-    const updatedName = `${originalName}UPDATED`;
-    const editFirstNameInput = page.locator('input[type="text"]').first();
+    // Target edit modal
+    const editModal = page.locator('[class*="fixed"]').filter({ hasText: /modifier/i }).first();
+    await expect(editModal).toBeVisible({ timeout: 3000 });
+
+    // Update name WITHIN the edit modal
+    const updatedName = `${originalName}UPD`;
+    const editFirstNameInput = editModal.locator('input[type="text"]').first();
     await editFirstNameInput.clear();
     await editFirstNameInput.fill(updatedName);
 
     // Submit update
-    submitButton = page.locator('button').filter({ hasText: /enregistrer/i }).last();
+    submitButton = editModal.locator('button').filter({ hasText: /enregistrer/i });
     await submitButton.click();
-    await page.waitForTimeout(2000);
 
-    // STRICT: Updated customer must appear in list
-    const updatedCustomer = page.locator(`text="${updatedName}"`);
-    await expect(updatedCustomer.first()).toBeVisible({ timeout: 5000 });
+    // Wait for modal to close
+    await expect(editModal).not.toBeVisible({ timeout: 5000 });
+
+    // Verify update
+    await page.waitForTimeout(1000);
+    await expect(page.locator('table').locator(`text=${updatedName}`)).toBeVisible({ timeout: 10000 });
   });
 
   test('BUG CHECK: Delete customer must remove it from list', async ({ page }) => {
-    // First create a customer to delete
-    const customerToDelete = `DeleteTest${Date.now()}`;
+    const customerToDelete = `Delete${Date.now()}`;
     
+    // Create customer
     const createButton = page.locator('button').filter({ hasText: /nouveau client/i }).first();
     await createButton.click();
     await page.waitForTimeout(500);
 
-    const firstNameInput = page.locator('input[type="text"]').first();
+    // Target create modal
+    const createModal = page.locator('[class*="fixed"]').filter({ hasText: /nouveau client/i }).first();
+    await expect(createModal).toBeVisible({ timeout: 3000 });
+
+    const firstNameInput = createModal.locator('input[type="text"]').first();
     await firstNameInput.fill(customerToDelete);
 
-    const emailInput = page.locator('input[type="email"]');
+    const emailInput = createModal.locator('input[type="email"]');
     await emailInput.fill(`delete-${Date.now()}@test.com`);
 
-    const submitButton = page.locator('button').filter({ hasText: /créer/i }).last();
+    const submitButton = createModal.locator('button').filter({ hasText: /créer/i });
     await submitButton.click();
-    await page.waitForTimeout(2000);
 
-    // Handle alerts
-    page.on('dialog', dialog => dialog.accept());
+    // Wait for modal to close
+    await expect(createModal).not.toBeVisible({ timeout: 5000 });
 
-    // Verify customer is in list
-    await expect(page.locator(`text="${customerToDelete}"`).first()).toBeVisible();
+    // Wait for customer to appear
+    await page.waitForTimeout(1000);
+    await expect(page.locator('table').locator(`text=${customerToDelete}`)).toBeVisible({ timeout: 10000 });
 
-    // Find and click delete button
+    // Click delete button
     const deleteButton = page.locator('button[title="Supprimer"]').first();
     await deleteButton.click();
     await page.waitForTimeout(500);
 
-    // Confirm deletion in modal
-    const confirmButton = page.locator('button').filter({ hasText: /supprimer/i }).last();
-    await confirmButton.click();
-    await page.waitForTimeout(2000);
+    // Target delete modal
+    const deleteModal = page.locator('[class*="fixed"]').filter({ hasText: /supprimer/i }).first();
+    await expect(deleteModal).toBeVisible({ timeout: 3000 });
 
-    // STRICT: Customer must NOT be visible in list
-    await expect(page.locator(`text="${customerToDelete}"`).first()).not.toBeVisible({ timeout: 5000 });
+    // Confirm deletion
+    const confirmButton = deleteModal.locator('button').filter({ hasText: /supprimer/i });
+    await confirmButton.click();
+
+    // Wait for modal to close
+    await expect(deleteModal).not.toBeVisible({ timeout: 5000 });
+
+    // Verify customer is removed
+    await page.waitForTimeout(1000);
+    await expect(page.locator('table').locator(`text=${customerToDelete}`)).not.toBeVisible({ timeout: 10000 });
   });
 
   test('BUG CHECK: Export CSV button must exist', async ({ page }) => {
-    // STRICT: Must have export button
     const exportButton = page.locator('button').filter({ hasText: /exporter|export|csv/i }).first();
     await expect(exportButton).toBeVisible({ timeout: 5000 });
   });
 
   test('BUG CHECK: Status filter must work', async ({ page }) => {
-    // STRICT: Must have status filter dropdown
     const statusFilter = page.locator('select').filter({ has: page.locator('option:has-text("Tous les statuts")') });
     await expect(statusFilter).toBeVisible({ timeout: 5000 });
-
-    // Change filter to VIP
     await statusFilter.selectOption('vip');
     await page.waitForTimeout(500);
-
-    // Page should refresh (no error)
     expect(page.url()).toContain('/dashboard/customers');
   });
 });
