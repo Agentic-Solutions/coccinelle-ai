@@ -159,6 +159,49 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
 
   // Vue initiale : Choix de la méthode
   if (selectedMethod === null) {
+    // Modal Skip Warning
+    if (showSkipWarning) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg max-w-md w-full mx-4 p-6 shadow-xl">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-center text-black mb-3">
+              Êtes-vous sûr de vouloir passer cette étape ?
+            </h3>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-red-900 font-medium mb-3">
+                Sans Knowledge Base, Assistant ne pourra pas :
+              </p>
+              <ul className="space-y-2 text-sm text-red-800">
+                <li>Répondre aux questions sur vos services</li>
+                <li>Donner vos horaires d'ouverture</li>
+                <li>Qualifier correctement les prospects</li>
+                <li>Prendre des rendez-vous efficacement</li>
+              </ul>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSkipWarning(false)}
+                className="flex-1 px-4 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+              >
+                Retour
+              </button>
+              <button
+                onClick={confirmSkip}
+                className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Passer
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div>
         <h2 className="text-2xl font-bold text-black mb-2">
@@ -214,7 +257,7 @@ export default function KnowledgeBaseStep({ sessionId, onNext, onBack, loading }
             onClick={handleSkip}
             className="text-gray-600 hover:text-black transition-colors text-sm"
           >
-            ⏭️ Je ferai ça depuis le dashboard
+             Je ferai ça depuis le dashboard
           </button>
         </div>
 

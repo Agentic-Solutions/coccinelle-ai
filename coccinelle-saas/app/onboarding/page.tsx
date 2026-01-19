@@ -31,7 +31,7 @@ export default function Onboarding() {
     ];
 
     // Ajouter les étapes de configuration par canal sélectionné
-    const channelSteps = selectedChannels.map(channelId => ({
+    const channelSteps = (selectedChannels || []).map(channelId => ({
       id: `config-${channelId}`,
       label: `Config ${channelId}`,
       channelId
