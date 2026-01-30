@@ -1,1212 +1,677 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ArrowLeft, Mail, Save, CheckCircle, AlertCircle, Settings as SettingsIcon,
-  Info, Eye, EyeOff, ExternalLink, Loader2, Copy, Check, Globe
+  ArrowLeft, Globe, Plus, Trash2, CheckCircle, AlertCircle,
+  Loader2, Copy, Check, RefreshCw, Mail, HelpCircle, Send, TestTube,
+  ChevronDown, ChevronUp, ExternalLink, Inbox, LogOut
 } from 'lucide-react';
-import Logo from '@/components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
-// ===================================
-// INTERFACES
-// ===================================
-
-interface ProviderInfo {
-  provider: string;
-  providerName: string;
-  nameservers: string[];
-  canAutoConfig: boolean;
-  requiresOAuth: boolean;
-  supportsAPI: boolean;
+interface DnsRecord {
+  type: string;
+  name: string;
+  value: string;
+  priority?: number;
+  description: string;
 }
 
-interface Instructions {
-  title: string;
-  steps: Array<{
-    step: number;
-    title: string;
-    description: string;
-    url?: string;
-    details?: string[];
-  }>;
+interface EmailDomain {
+  id: string;
+  domain: string;
+  status: 'pending' | 'verified' | 'failed';
+  fromEmail: string;
+  fromName: string;
+  dnsRecords: DnsRecord[];
+  verifiedAt: string | null;
+  createdAt: string;
 }
 
-interface InboundEmailConfig {
-  configured: boolean;
-  config?: {
-    domain: string;
-    emailAddress: string;
-    forwardingAddress: string;
-    dnsProvider: string;
-    status: string;
-    dnsVerified: boolean;
-    forwardingVerified: boolean;
-    lastVerificationAt: string | null;
-  };
+interface ProviderStatus {
+  connected: boolean;
+  email?: string;
+  connectedAt?: string;
 }
 
 export default function EmailConfigPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const fromOnboarding = searchParams.get('from') === 'onboarding';
-
-  // ===================================
-  // INBOUND EMAIL STATE (Réception)
-  // ===================================
-  const [inboundStep, setInboundStep] = useState<'initial' | 'detected' | 'configuring' | 'completed'>('initial');
-  const [inboundLoading, setInboundLoading] = useState(false);
-  const [inboundMessage, setInboundMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const [emailAddress, setEmailAddress] = useState('');
-  const [providerInfo, setProviderInfo] = useState<ProviderInfo | null>(null);
-  const [instructions, setInstructions] = useState<Instructions | null>(null);
-  const [forwardingAddress, setForwardingAddress] = useState('');
-  const [inboundConfig, setInboundConfig] = useState<InboundEmailConfig | null>(null);
-  const [cloudflareToken, setCloudflareToken] = useState('');
-  const [copiedForwarding, setCopiedForwarding] = useState(false);
-
-  // ===================================
-  // OUTBOUND EMAIL STATE (Envoi - SMTP)
-  // ===================================
-  const [outboundConfig, setOutboundConfig] = useState({
-    enabled: false,
-    configured: false,
-    smtp: {
-      host: '',
-      port: 587,
-      secure: true,
-      user: '',
-      password: '',
-      fromEmail: '',
-      fromName: ''
-    },
-    templates: {
-      rdvConfirmation: true,
-      rdvRappel: true,
-      newsletter: false,
-      promotions: false
-    }
-  });
-
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [testing, setTesting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [testEmail, setTestEmail] = useState('');
+  const [activeTab, setActiveTab] = useState<'gmail' | 'outlook' | 'yahoo' | 'domain' | 'test'>('gmail');
+  const [domains, setDomains] = useState<EmailDomain[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [newDomain, setNewDomain] = useState('');
+  const [fromEmail, setFromEmail] = useState('contact');
+  const [fromName, setFromName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const [expandedDomain, setExpandedDomain] = useState<string | null>(null);
+  const [testEmail, setTestEmail] = useState('');
+  const [testSubject, setTestSubject] = useState('Test depuis Coccinelle.AI');
+  const [testMessage, setTestMessage] = useState('Ceci est un email de test.');
+  const [sending, setSending] = useState(false);
+  
+  // OAuth states for each provider
+  const [gmailStatus, setGmailStatus] = useState<ProviderStatus>({ connected: false });
+  const [outlookStatus, setOutlookStatus] = useState<ProviderStatus>({ connected: false });
+  const [yahooStatus, setYahooStatus] = useState<ProviderStatus>({ connected: false });
+  const [providerLoading, setProviderLoading] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
-  // ===================================
-  // LOAD CONFIG ON MOUNT
-  // ===================================
-  useEffect(() => {
-    loadAllConfigs();
-  }, []);
-
-  const loadAllConfigs = async () => {
-    await Promise.all([
-      loadInboundConfig(),
-      loadOutboundConfig()
-    ]);
-    setLoading(false);
-  };
-
-  // Load Inbound Config
-  const loadInboundConfig = async () => {
-    try {
-      // Utiliser directement le tenantId de fallback pour le développement
-      const tenantId = 'test_tenant_001';
-
-      const configRes = await fetch(`${API_URL}/api/v1/omnichannel/email/config?tenantId=${tenantId}`);
-
-      if (configRes.ok) {
-        const data = await configRes.json();
-        setInboundConfig(data);
-
-        if (data.configured && data.config.status === 'active') {
-          setInboundStep('completed');
-          setEmailAddress(data.config.emailAddress);
-          setForwardingAddress(data.config.forwardingAddress);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading inbound config:', error);
+  useEffect(() => { 
+    loadDomains(); 
+    loadAllProviderStatus();
+    
+    // Check URL params for OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const provider = urlParams.get('provider');
+    const connected = urlParams.get('connected') === 'true';
+    const email = urlParams.get('email');
+    
+    if (connected && provider) {
+      setSuccess(`${provider.charAt(0).toUpperCase() + provider.slice(1)} connecté avec succès ! (${email})`);
+      if (provider === 'gmail' || provider === 'google') setGmailStatus({ connected: true, email: email || undefined });
+      if (provider === 'outlook') setOutlookStatus({ connected: true, email: email || undefined });
+      if (provider === 'yahoo') setYahooStatus({ connected: true, email: email || undefined });
+      window.history.replaceState({}, '', window.location.pathname);
     }
+    
+    // Legacy support for gmail_connected
+    if (urlParams.get('gmail_connected') === 'true') {
+      setSuccess(`Gmail connecté avec succès ! (${email})`);
+      setGmailStatus({ connected: true, email: email || undefined });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    
+    if (urlParams.get('error')) {
+      setError('Erreur lors de la connexion. Veuillez réessayer.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+  
+  useEffect(() => {
+    const pendingDomain = domains.find(d => d.status !== 'verified');
+    if (pendingDomain && !expandedDomain) {
+      setExpandedDomain(pendingDomain.id);
+    }
+  }, [domains]);
+
+  const getToken = () => localStorage.getItem('auth_token');
+
+  const loadAllProviderStatus = async () => {
+    loadProviderStatus('google', setGmailStatus);
+    loadProviderStatus('outlook', setOutlookStatus);
+    loadProviderStatus('yahoo', setYahooStatus);
   };
 
-  // Load Outbound Config (SMTP)
-  const loadOutboundConfig = async () => {
+  const loadProviderStatus = async (provider: string, setStatus: (s: ProviderStatus) => void) => {
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/v1/channels/email`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      setProviderLoading(provider);
+      const response = await fetch(`${API_URL}/api/v1/oauth/${provider}/status`, {
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }
       });
-
       if (response.ok) {
         const data = await response.json();
-        if (data.channel) {
-          setOutboundConfig(prev => ({
-            ...prev,
-            enabled: data.channel.enabled,
-            configured: data.channel.configured,
-            smtp: data.channel.config?.smtp || prev.smtp,
-            templates: data.channel.config?.templates || prev.templates
-          }));
-          setTestEmail(data.channel.config?.smtp?.user || '');
-        }
-      } else {
-        // Fallback localStorage
-        const savedConfig = localStorage.getItem('email_client_config');
-        if (savedConfig) {
-          const parsed = JSON.parse(savedConfig);
-          setOutboundConfig(parsed);
-          setTestEmail(parsed.smtp.user || '');
-        }
+        setStatus(data);
       }
-    } catch (e) {
-      console.error('Error loading outbound config:', e);
-      const savedConfig = localStorage.getItem('email_client_config');
-      if (savedConfig) {
-        const parsed = JSON.parse(savedConfig);
-        setOutboundConfig(parsed);
-        setTestEmail(parsed.smtp.user || '');
+    } catch (err) {
+      console.error(`Erreur chargement status ${provider}:`, err);
+    } finally {
+      setProviderLoading(null);
+    }
+  };
+
+  const handleConnectProvider = (provider: 'google' | 'outlook' | 'yahoo') => {
+    const token = getToken();
+    window.location.href = `${API_URL}/api/v1/oauth/${provider}/authorize?redirect=/dashboard/channels/email&token=${token}`;
+  };
+
+  const handleDisconnectProvider = async (provider: 'google' | 'outlook' | 'yahoo', setStatus: (s: ProviderStatus) => void, providerName: string) => {
+    if (!confirm(`Déconnecter ${providerName} ? Sara ne pourra plus lire ni envoyer d'emails depuis ce compte.`)) return;
+    try {
+      setDisconnecting(provider);
+      const response = await fetch(`${API_URL}/api/v1/oauth/${provider}/disconnect`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        setStatus({ connected: false });
+        setSuccess(`${providerName} déconnecté`);
       }
-    }
-  };
-
-  // ===================================
-  // INBOUND EMAIL HANDLERS
-  // ===================================
-
-  const extractDomain = (email: string) => {
-    const match = email.match(/@(.+)$/);
-    return match ? match[1] : '';
-  };
-
-  const handleDetectProvider = async () => {
-    if (!emailAddress.includes('@')) {
-      setInboundMessage({ type: 'error', text: 'Veuillez entrer une adresse email valide' });
-      return;
-    }
-
-    setInboundLoading(true);
-    setInboundMessage(null);
-
-    try {
-      // Utiliser directement le tenantId de fallback pour le développement
-      const tenantId = 'test_tenant_001';
-      const domain = extractDomain(emailAddress);
-
-      const res = await fetch(`${API_URL}/api/v1/omnichannel/email/detect-provider`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, emailAddress, tenantId }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erreur lors de la détection du provider');
-      }
-
-      const data = await res.json();
-      setProviderInfo(data.provider);
-      setInstructions(data.instructions);
-      setForwardingAddress(data.forwardingAddress);
-      setInboundStep('detected');
-    } catch (error: any) {
-      setInboundMessage({ type: 'error', text: error.message });
+    } catch (err: any) {
+      setError(err.message);
     } finally {
-      setInboundLoading(false);
+      setDisconnecting(null);
     }
   };
 
-  const handleConnectCloudflare = async () => {
-    if (!cloudflareToken.trim()) {
-      setInboundMessage({ type: 'error', text: 'Veuillez entrer votre API Token Cloudflare' });
-      return;
-    }
-
-    setInboundLoading(true);
-    setInboundMessage(null);
-
+  const loadDomains = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+      setLoading(true);
+      const response = await fetch(`${API_URL}/api/v1/channels/email/domains`, {
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }
       });
+      if (!response.ok) throw new Error('Erreur lors du chargement');
+      const data = await response.json();
+      setDomains(data.domains || []);
+    } catch (err: any) { setError(err.message); } 
+    finally { setLoading(false); }
+  };
 
-      if (!userRes.ok) throw new Error('Erreur d\'authentification');
-
-      const userData = await userRes.json();
-      const tenantId = userData.tenant_id;
-
-      const res = await fetch(`${API_URL}/api/v1/omnichannel/email/cloudflare/connect`, {
+  const handleAddDomain = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDomain.trim()) return;
+    try {
+      setAdding(true);
+      setError(null);
+      const response = await fetch(`${API_URL}/api/v1/channels/email/domains`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: cloudflareToken, tenantId }),
-      });
-
-      if (!res.ok) throw new Error('Erreur lors de la connexion à Cloudflare');
-
-      setInboundMessage({ type: 'success', text: 'Token Cloudflare validé !' });
-
-      // Auto-configure DNS
-      setTimeout(() => handleAutoConfigureDNS(), 1000);
-    } catch (error: any) {
-      setInboundMessage({ type: 'error', text: error.message });
-      setInboundLoading(false);
-    }
-  };
-
-  const handleAutoConfigureDNS = async () => {
-    setInboundStep('configuring');
-    setInboundMessage(null);
-
-    try {
-      const token = localStorage.getItem('auth_token');
-      const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!userRes.ok) throw new Error('Erreur d\'authentification');
-
-      const userData = await userRes.json();
-      const tenantId = userData.tenant_id;
-
-      const res = await fetch(`${API_URL}/api/v1/omnichannel/email/auto-configure`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId }),
-      });
-
-      if (!res.ok) throw new Error('Erreur lors de la configuration DNS');
-
-      const data = await res.json();
-
-      setInboundMessage({ type: 'success', text: 'Configuration DNS automatique réussie !' });
-      setInboundStep('completed');
-      await loadInboundConfig();
-    } catch (error: any) {
-      setInboundMessage({ type: 'error', text: error.message });
-      setInboundStep('detected');
-    } finally {
-      setInboundLoading(false);
-    }
-  };
-
-  const handleVerifyForwarding = async () => {
-    setInboundLoading(true);
-    setInboundMessage(null);
-
-    try {
-      const token = localStorage.getItem('auth_token');
-      const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!userRes.ok) throw new Error('Erreur d\'authentification');
-
-      const userData = await userRes.json();
-      const tenantId = userData.tenant_id;
-
-      const res = await fetch(`${API_URL}/api/v1/omnichannel/email/verify-forwarding`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId }),
-      });
-
-      if (!res.ok) throw new Error('Erreur lors de la vérification');
-
-      setInboundMessage({ type: 'success', text: 'Redirection email vérifiée et activée !' });
-      setInboundStep('completed');
-      await loadInboundConfig();
-    } catch (error: any) {
-      setInboundMessage({ type: 'error', text: error.message });
-    } finally {
-      setInboundLoading(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedForwarding(true);
-    setTimeout(() => setCopiedForwarding(false), 2000);
-  };
-
-  // ===================================
-  // OUTBOUND EMAIL HANDLERS (SMTP)
-  // ===================================
-
-  const handleSaveOutbound = async () => {
-    setSaving(true);
-    setError(null);
-
-    if (outboundConfig.enabled && !outboundConfig.configured) {
-      setError('Vous devez d\'abord configurer votre serveur SMTP.');
-      setSaving(false);
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/v1/channels/email`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          config: {
-            smtp: outboundConfig.smtp,
-            templates: outboundConfig.templates
-          },
-          enabled: outboundConfig.enabled
+          domain: newDomain.trim().toLowerCase(),
+          fromEmail: `${fromEmail}@${newDomain.trim().toLowerCase()}`,
+          fromName: fromName || newDomain.trim()
         })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors de la sauvegarde');
-      }
-
-      localStorage.setItem('email_client_config', JSON.stringify(outboundConfig));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-
-      // Redirect to onboarding if coming from there
-      if (fromOnboarding) {
-        setTimeout(() => {
-          router.push('/onboarding');
-        }, 1500);
-      }
-    } catch (e: any) {
-      console.error('Error saving Email config:', e);
-      localStorage.setItem('email_client_config', JSON.stringify(outboundConfig));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-
-      // Redirect to onboarding if coming from there (even on error, since config is saved to localStorage)
-      if (fromOnboarding) {
-        setTimeout(() => {
-          router.push('/onboarding');
-        }, 1500);
-      }
-    } finally {
-      setSaving(false);
-    }
+      if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Erreur'); }
+      setSuccess('Domaine ajouté ! Configurez les DNS ci-dessous.');
+      setNewDomain(''); setFromEmail('contact'); setFromName('');
+      await loadDomains();
+    } catch (err: any) { setError(err.message); } 
+    finally { setAdding(false); }
   };
 
-  const handleConfigureSMTP = () => {
-    const { host, port, user, password, fromEmail, fromName } = outboundConfig.smtp;
-
-    if (!host || !user || !password || !fromEmail || !fromName) {
-      setError('Tous les champs SMTP sont requis.');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(fromEmail)) {
-      setError('L\'adresse email "De" n\'est pas valide.');
-      return;
-    }
-
-    if (!emailRegex.test(user)) {
-      setError('L\'adresse email de connexion n\'est pas valide.');
-      return;
-    }
-
-    setOutboundConfig({
-      ...outboundConfig,
-      configured: true
-    });
-
-    setError(null);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-
-    // Redirect to onboarding if coming from there
-    if (fromOnboarding) {
-      setTimeout(() => {
-        router.push('/onboarding');
-      }, 1500);
-    }
-  };
-
-  const handleTestEmail = async () => {
-    if (!testEmail) {
-      setError('Veuillez saisir une adresse email pour le test.');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(testEmail)) {
-      setError('L\'adresse email de test n\'est pas valide.');
-      return;
-    }
-
-    setTesting(true);
-    setError(null);
-
+  const handleVerify = async (domainId: string) => {
     try {
-      const token = localStorage.getItem('auth_token');
+      setVerifying(domainId);
+      const response = await fetch(`${API_URL}/api/v1/channels/email/domains/${domainId}/verify`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      if (data.verified) setSuccess('Domaine vérifié !');
+      else setError('DNS non propagés. Réessayez dans quelques minutes.');
+      await loadDomains();
+    } catch (err: any) { setError(err.message); } 
+    finally { setVerifying(null); }
+  };
+
+  const handleDelete = async (domainId: string) => {
+    if (!confirm('Supprimer ce domaine ?')) return;
+    try {
+      await fetch(`${API_URL}/api/v1/channels/email/domains/${domainId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }
+      });
+      setSuccess('Domaine supprimé');
+      await loadDomains();
+    } catch (err: any) { setError(err.message); }
+  };
+
+  const copyToClipboard = (value: string, fieldId: string) => {
+    navigator.clipboard.writeText(value);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleSendTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testEmail.trim()) return;
+    try {
+      setSending(true); setError(null); setSuccess(null);
       const response = await fetch(`${API_URL}/api/v1/channels/email/test`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ toEmail: testEmail })
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toEmail: testEmail.trim(), subject: testSubject, message: testMessage })
       });
-
       const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert(`Email de test envoyé avec succès à ${testEmail} !`);
-      } else {
-        setError(data.error || 'Erreur lors de l\'envoi de l\'email de test');
-      }
-    } catch (e: any) {
-      setError('Erreur lors de l\'envoi: ' + e.message);
-    } finally {
-      setTesting(false);
-    }
+      if (!response.ok) throw new Error(data.error || 'Erreur');
+      setSuccess(`Email envoyé à ${testEmail} !`);
+      setTestEmail('');
+    } catch (err: any) { setError(err.message); } 
+    finally { setSending(false); }
   };
 
-  // ===================================
-  // RENDER
-  // ===================================
+  const getFullDnsRecords = (domain: string): DnsRecord[] => [
+    { type: 'MX', name: '@', value: 'coccinelle-api.youssef-amrouche.workers.dev', priority: 10, description: '📥 Réception - Pour recevoir les emails' },
+    { type: 'TXT', name: '@', value: 'v=spf1 include:amazonses.com ~all', description: '📤 SPF - Autorisation d\'envoi' },
+    { type: 'CNAME', name: 'resend._domainkey', value: `resend._domainkey.${domain}.at.resend.dev`, description: '📤 DKIM - Signature des emails' },
+    { type: 'TXT', name: '_dmarc', value: 'v=DMARC1; p=none;', description: '🔒 DMARC - Politique de sécurité' }
+  ];
+
+  // Composant réutilisable pour chaque provider
+  const ProviderCard = ({ 
+    provider, 
+    providerName, 
+    status, 
+    icon, 
+    bgColor,
+    onConnect,
+    onDisconnect
+  }: {
+    provider: 'google' | 'outlook' | 'yahoo';
+    providerName: string;
+    status: ProviderStatus;
+    icon: React.ReactNode;
+    bgColor: string;
+    onConnect: () => void;
+    onDisconnect: () => void;
+  }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="flex items-center gap-4 mb-6">
+        <div className={`w-16 h-16 rounded-xl ${bgColor} flex items-center justify-center`}>
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Connecter {providerName}</h2>
+          <p className="text-gray-500">Permettez à Sara de lire et répondre aux emails de votre compte {providerName}</p>
+        </div>
+      </div>
+
+      {providerLoading === provider ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        </div>
+      ) : status.connected ? (
+        <div className="space-y-4">
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-6 h-6 text-green-500" />
+              <div>
+                <p className="font-medium text-green-800">{providerName} connecté</p>
+                <p className="text-green-700">{status.email}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-medium text-blue-900 mb-2">Sara peut maintenant :</h3>
+            <ul className="space-y-1 text-blue-800 text-sm">
+              <li>📥 Lire les emails reçus sur {status.email}</li>
+              <li>📤 Répondre aux emails au nom de {status.email}</li>
+              <li>🤖 Traiter automatiquement les demandes clients</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={onDisconnect}
+            disabled={disconnecting === provider}
+            className="w-full px-6 py-3 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 flex items-center justify-center gap-2"
+          >
+            {disconnecting === provider ? (
+              <><Loader2 className="w-5 h-5 animate-spin" />Déconnexion...</>
+            ) : (
+              <><LogOut className="w-5 h-5" />Déconnecter {providerName}</>
+            )}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h3 className="font-medium text-gray-900 mb-2">En connectant {providerName}, Sara pourra :</h3>
+            <ul className="space-y-1 text-gray-600 text-sm">
+              <li>✓ Lire les emails de votre boîte de réception</li>
+              <li>✓ Répondre aux clients automatiquement</li>
+              <li>✓ Envoyer des emails au nom de votre adresse</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={onConnect}
+            className="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
+          >
+            {icon}
+            <span className="font-medium text-gray-700">Continuer avec {providerName}</span>
+          </button>
+
+          <p className="text-xs text-gray-500 text-center">
+            Vos données sont sécurisées. Coccinelle n'a accès qu'aux emails et ne stocke pas vos identifiants.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+  // Icons pour chaque provider
+  const GmailIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
+    <svg className={`${size} text-red-500`} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+    </svg>
+  );
+
+  const OutlookIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
+    <svg className={size} viewBox="0 0 24 24">
+      <path fill="#0078D4" d="M24 7.387v10.478c0 .23-.08.424-.238.576a.806.806 0 01-.59.234h-8.86v-6.9l1.26.915c.097.064.202.096.318.096a.53.53 0 00.318-.096l7.37-5.345c.096-.074.18-.106.25-.096.075.01.126.064.152.16v-.022zM23.082 5.906L15.59 11.39l-.276.2-1.002.727V5.906h8.77zm-9.77 12.844V5.906H1.75c-.23 0-.426.078-.59.234a.806.806 0 00-.234.59v10.478c0 .23.078.426.234.59.164.156.36.234.59.234h11.562zM7.5 9c.656 0 1.22.234 1.69.703.47.47.704 1.034.704 1.69 0 .47-.117.898-.352 1.286a2.426 2.426 0 01-.937.937 2.469 2.469 0 01-1.29.352c-.656 0-1.22-.235-1.69-.704a2.307 2.307 0 01-.703-1.69c0-.656.234-1.22.703-1.69.47-.47 1.034-.704 1.69-.704h.185zm0 1.172a1.2 1.2 0 00-.879.363 1.2 1.2 0 00-.363.879c0 .343.121.636.363.879.242.242.536.363.879.363.343 0 .636-.121.879-.363.242-.243.363-.536.363-.88 0-.342-.121-.636-.363-.878a1.2 1.2 0 00-.879-.363z"/>
+    </svg>
+  );
+
+  const YahooIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
+    <svg className={size} viewBox="0 0 24 24" fill="#6001D2">
+      <path d="M10.816 8.194l-3.354 7.774-1.236 5.056h-3.79l1.236-5.056L0 8.194h4.106l2.035 5.152 2.035-5.152h2.64zm2.397 12.83V8.194h3.79v12.83h-3.79zm5.45-9.31c.666 0 1.234.236 1.702.71.468.473.702 1.044.702 1.713 0 .669-.234 1.24-.702 1.713-.468.474-1.036.71-1.702.71-.666 0-1.233-.236-1.7-.71a2.333 2.333 0 01-.703-1.713c0-.669.234-1.24.702-1.713.468-.474 1.035-.71 1.701-.71z"/>
+    </svg>
+  );
+
+  const GoogleColorIcon = () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+  );
+
+  const MicrosoftColorIcon = () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24">
+      <path fill="#F25022" d="M1 1h10v10H1z"/>
+      <path fill="#00A4EF" d="M1 13h10v10H1z"/>
+      <path fill="#7FBA00" d="M13 1h10v10H13z"/>
+      <path fill="#FFB900" d="M13 13h10v10H13z"/>
+    </svg>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/settings/channels">
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            </Link>
-            <Logo size={48} />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Configuration Email</h1>
-              <p className="text-sm text-gray-600">Réception et envoi d'emails pour vos clients</p>
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard/channels" className="p-2 hover:bg-gray-100 rounded-lg">
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </Link>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Configuration Email</h1>
+                  <p className="text-sm text-gray-500">Envoyez et recevez des emails professionnels</p>
+                </div>
+              </div>
             </div>
+            <Link href="/dashboard/inbox" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <Inbox className="w-4 h-4" />
+              Voir l'Inbox
+            </Link>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-4xl mx-auto px-8 py-8">
-        {/* Loading state */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div>
-            <span className="ml-3 text-gray-600">Chargement...</span>
-          </div>
-        ) : (
-        <>
-          {/* ===================================
-              SECTION 1: RÉCEPTION D'EMAILS
-              =================================== */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-100">
-                <Globe className="w-5 h-5 text-blue-600" />
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex gap-1 overflow-x-auto">
+            <button onClick={() => setActiveTab('gmail')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'gmail' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <div className="flex items-center gap-2">
+                <GmailIcon size="w-4 h-4" />
+                Gmail
+                {gmailStatus.connected && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">1. Réception d'emails</h2>
-                <p className="text-sm text-gray-600">Configurez votre adresse email pour recevoir les messages de vos clients</p>
+            </button>
+            
+            <button onClick={() => setActiveTab('outlook')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'outlook' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <div className="flex items-center gap-2">
+                <OutlookIcon size="w-4 h-4" />
+                Outlook
+                {outlookStatus.connected && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
               </div>
-            </div>
-
-            {/* Info message */}
-            {inboundStep === 'initial' && (
-              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="text-blue-900 font-medium mb-1">Configuration simplifiée</p>
-                  <p className="text-sm text-blue-800">
-                    Entrez simplement votre adresse email professionnelle. Nous détecterons automatiquement
-                    votre hébergeur et vous guiderons dans la configuration.
-                  </p>
-                </div>
+            </button>
+            
+            <button onClick={() => setActiveTab('yahoo')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'yahoo' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <div className="flex items-center gap-2">
+                <YahooIcon size="w-4 h-4" />
+                Yahoo
+                {yahooStatus.connected && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
               </div>
-            )}
-
-            {/* Messages */}
-            {inboundMessage && (
-              <div className={`mb-6 rounded-lg p-4 flex items-center gap-3 ${
-                inboundMessage.type === 'success'
-                  ? 'bg-green-50 border border-green-200'
-                  : 'bg-red-50 border border-red-200'
-              }`}>
-                {inboundMessage.type === 'success' ? (
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-red-600" />
-                )}
-                <p className={`font-medium ${
-                  inboundMessage.type === 'success' ? 'text-green-800' : 'text-red-800'
-                }`}>
-                  {inboundMessage.text}
-                </p>
-              </div>
-            )}
-
-            {/* Step: Initial */}
-            {inboundStep === 'initial' && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Votre adresse email professionnelle
-                </label>
-                <div className="flex gap-3">
-                  <input
-                    type="email"
-                    value={emailAddress}
-                    onChange={(e) => setEmailAddress(e.target.value)}
-                    placeholder="contact@votre-entreprise.com"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleDetectProvider}
-                    disabled={inboundLoading}
-                    className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  >
-                    {inboundLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Détection...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="w-5 h-5" />
-                        Détecter
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Step: Detected */}
-            {inboundStep === 'detected' && providerInfo && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="mb-6">
-                  <h3 className="font-bold text-gray-900 mb-2">Hébergeur détecté</h3>
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <Globe className="w-5 h-5 text-gray-600" />
-                    <div>
-                      <p className="font-medium text-gray-900">{providerInfo.providerName}</p>
-                      <p className="text-xs text-gray-600">
-                        Domaine: {extractDomain(emailAddress)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cloudflare Auto-Config */}
-                {providerInfo.canAutoConfig && (
-                  <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h4 className="font-bold text-green-900 mb-3">
-                      Configuration automatique disponible !
-                    </h4>
-                    <p className="text-sm text-green-800 mb-4">
-                      Votre domaine est hébergé sur Cloudflare. Nous pouvons configurer automatiquement
-                      les redirections email avec votre API Token.
-                    </p>
-
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      API Token Cloudflare
-                    </label>
-                    <div className="flex gap-3 mb-3">
-                      <input
-                        type="password"
-                        value={cloudflareToken}
-                        onChange={(e) => setCloudflareToken(e.target.value)}
-                        placeholder="Collez votre API Token ici"
-                        className="flex-1 px-4 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                      />
-                      <button
-                        onClick={handleConnectCloudflare}
-                        disabled={inboundLoading}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-                      >
-                        {inboundLoading ? 'Connexion...' : 'Connecter'}
-                      </button>
-                    </div>
-
-                    <a
-                      href="https://dash.cloudflare.com/profile/api-tokens"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-green-700 hover:underline flex items-center gap-1"
-                    >
-                      Comment créer un API Token ?
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                )}
-
-                {/* Manual Instructions */}
-                {instructions && (
-                  <div className="mb-6">
-                    <h4 className="font-bold text-gray-900 mb-3">
-                      {providerInfo.canAutoConfig ? 'OU configuration manuelle' : 'Configuration manuelle'}
-                    </h4>
-
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                      <p className="text-sm font-medium text-yellow-900 mb-2">
-                        Adresse de redirection email :
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 px-3 py-2 bg-white border border-yellow-300 rounded text-sm font-mono">
-                          {forwardingAddress}
-                        </code>
-                        <button
-                          onClick={() => copyToClipboard(forwardingAddress)}
-                          className="p-2 bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
-                          title="Copier"
-                        >
-                          {copiedForwarding ? (
-                            <Check className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <Copy className="w-4 h-4 text-yellow-700" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <p className="font-medium text-gray-900">{instructions.title}</p>
-                      {instructions.steps.map((stepItem) => (
-                        <div key={stepItem.step} className="border-l-4 border-gray-300 pl-4">
-                          <div className="flex items-start gap-2">
-                            <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                              {stepItem.step}
-                            </span>
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{stepItem.title}</p>
-                              <p className="text-sm text-gray-600 mt-1">{stepItem.description}</p>
-                              {stepItem.url && (
-                                <a
-                                  href={stepItem.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                                >
-                                  Accéder
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
-                              )}
-                              {stepItem.details && (
-                                <ul className="mt-2 space-y-1">
-                                  {stepItem.details.map((detail, idx) => (
-                                    <li key={idx} className="text-xs text-gray-600 flex items-start gap-1">
-                                      <span className="text-gray-400">•</span>
-                                      <span>{detail}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={handleVerifyForwarding}
-                      disabled={inboundLoading}
-                      className="mt-6 w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-                    >
-                      {inboundLoading ? 'Vérification...' : 'J\'ai configuré la redirection, vérifier'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Step: Configuring */}
-            {inboundStep === 'configuring' && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-8 h-8 text-gray-900 animate-spin" />
-                  <span className="ml-3 text-gray-700 font-medium">Configuration en cours...</span>
-                </div>
-              </div>
-            )}
-
-            {/* Step: Completed */}
-            {inboundStep === 'completed' && inboundConfig?.configured && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                  <h3 className="font-bold text-green-900">Réception d'emails configurée !</h3>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <p className="text-green-800">
-                    <strong>Email:</strong> {inboundConfig.config?.emailAddress}
-                  </p>
-                  <p className="text-green-800">
-                    <strong>Statut:</strong> {inboundConfig.config?.status === 'active' ? 'Actif' : 'En attente'}
-                  </p>
-                  <p className="text-green-800">
-                    <strong>Provider:</strong> {inboundConfig.config?.dnsProvider}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ===================================
-              SECTION 2: ENVOI D'EMAILS (SMTP)
-              =================================== */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-100">
-                <Mail className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">2. Envoi d'emails</h2>
-                <p className="text-sm text-gray-600">Configuration SMTP pour envoyer des emails à vos clients</p>
-              </div>
-            </div>
-
-            {/* Messages de statut */}
-            {saved && (
-              <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <p className="text-green-800 font-medium">Configuration Email enregistrée avec succès !</p>
-              </div>
-            )}
-
-            {error && (
-              <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-                <p className="text-red-800 font-medium">{error}</p>
-              </div>
-            )}
-
-            {/* Info message */}
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <p className="text-blue-900 font-medium mb-1">Configuration SMTP requise</p>
-                <p className="text-sm text-blue-800">
-                  Pour envoyer des emails, vous devez configurer votre serveur SMTP. Vous pouvez utiliser Gmail, Outlook,
-                  SendGrid, ou tout autre fournisseur SMTP.
-                </p>
-              </div>
-            </div>
-
-            {/* Configuration SMTP */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <div className="flex items-center gap-2 mb-4">
-                <SettingsIcon className="w-5 h-5 text-gray-700" />
-                <h3 className="font-bold text-gray-900">Configuration du serveur SMTP</h3>
-              </div>
-
-              {outboundConfig.configured && (
-                <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                  <span className="text-sm text-green-800 font-medium">
-                    SMTP configuré : {outboundConfig.smtp.fromEmail}
-                  </span>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                {/* Fournisseur populaire - aide */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm font-medium text-gray-900 mb-2">Fournisseurs SMTP populaires :</p>
-                  <div className="text-xs text-gray-600 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span><strong>Gmail :</strong> smtp.gmail.com:587</span>
-                      <a
-                        href="https://support.google.com/mail/answer/7126229"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        Guide
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span><strong>Outlook :</strong> smtp-mail.outlook.com:587</span>
-                      <a
-                        href="https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-8361e398-8af4-4e97-b147-6c6c4ac95353"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        Guide
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span><strong>SendGrid :</strong> smtp.sendgrid.net:587</span>
-                      <a
-                        href="https://docs.sendgrid.com/for-developers/sending-email/integrating-with-the-smtp-api"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        Guide
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Serveur SMTP */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Serveur SMTP <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={outboundConfig.smtp.host}
-                      onChange={(e) => setOutboundConfig({
-                        ...outboundConfig,
-                        smtp: { ...outboundConfig.smtp, host: e.target.value }
-                      })}
-                      placeholder="smtp.gmail.com"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Port <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={outboundConfig.smtp.port}
-                      onChange={(e) => setOutboundConfig({
-                        ...outboundConfig,
-                        smtp: { ...outboundConfig.smtp, port: parseInt(e.target.value) }
-                      })}
-                      placeholder="587"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Sécurité */}
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={outboundConfig.smtp.secure}
-                      onChange={(e) => setOutboundConfig({
-                        ...outboundConfig,
-                        smtp: { ...outboundConfig.smtp, secure: e.target.checked }
-                      })}
-                      className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Utiliser TLS/SSL (recommandé)
-                    </span>
-                  </label>
-                </div>
-
-                {/* Email de connexion */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email de connexion <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={outboundConfig.smtp.user}
-                    onChange={(e) => setOutboundConfig({
-                      ...outboundConfig,
-                      smtp: { ...outboundConfig.smtp, user: e.target.value }
-                    })}
-                    placeholder="votre-email@exemple.com"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Adresse email utilisée pour se connecter au serveur SMTP
-                  </p>
-                </div>
-
-                {/* Mot de passe */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mot de passe SMTP <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={outboundConfig.smtp.password}
-                      onChange={(e) => setOutboundConfig({
-                        ...outboundConfig,
-                        smtp: { ...outboundConfig.smtp, password: e.target.value }
-                      })}
-                      placeholder="••••••••"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Pour Gmail/Outlook : utilisez un "mot de passe d'application" plutôt que votre mot de passe principal
-                  </p>
-                </div>
-
-                <div className="border-t border-gray-200 pt-4 mt-2">
-                  <p className="text-sm font-medium text-gray-700 mb-3">Informations de l'expéditeur</p>
-
-                  {/* Email "De" */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email "De" <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={outboundConfig.smtp.fromEmail}
-                      onChange={(e) => setOutboundConfig({
-                        ...outboundConfig,
-                        smtp: { ...outboundConfig.smtp, fromEmail: e.target.value }
-                      })}
-                      placeholder="contact@votre-entreprise.com"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Adresse qui apparaîtra comme expéditeur des emails
-                    </p>
-                  </div>
-
-                  {/* Nom "De" */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nom de l'expéditeur <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={outboundConfig.smtp.fromName}
-                      onChange={(e) => setOutboundConfig({
-                        ...outboundConfig,
-                        smtp: { ...outboundConfig.smtp, fromName: e.target.value }
-                      })}
-                      placeholder="Votre Entreprise"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Nom qui apparaîtra comme expéditeur des emails
-                    </p>
-                  </div>
-                </div>
-
-                {/* Bouton de validation SMTP */}
-                {!outboundConfig.configured && (
-                  <button
-                    onClick={handleConfigureSMTP}
-                    className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
-                  >
-                    Valider la configuration SMTP
-                  </button>
-                )}
-
-                {outboundConfig.configured && (
-                  <button
-                    onClick={() => setOutboundConfig({ ...outboundConfig, configured: false })}
-                    className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                  >
-                    Modifier la configuration
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Activation du canal */}
-            {outboundConfig.configured && (
-              <>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-purple-100">
-                        <Mail className="w-6 h-6 text-purple-600" />
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-bold text-gray-900">Canal Email</h2>
-                        <p className="text-sm text-gray-600">Envoi d'emails automatisés</p>
-                      </div>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-sm font-medium text-gray-700">
-                        {outboundConfig.enabled ? 'Activé' : 'Désactivé'}
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={outboundConfig.enabled}
-                        onChange={(e) => setOutboundConfig({ ...outboundConfig, enabled: e.target.checked })}
-                        className="w-6 h-6 text-gray-900 rounded focus:ring-2 focus:ring-gray-900"
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {/* Types d'emails */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <SettingsIcon className="w-5 h-5 text-gray-700" />
-                    <h3 className="font-bold text-gray-900">Types d'emails</h3>
-                  </div>
-
-                  <p className="text-sm text-gray-600 mb-4">
-                    Choisissez quels types d'emails seront envoyés à vos clients
-                  </p>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">Confirmation de rendez-vous</p>
-                        <p className="text-xs text-gray-600">Envoyé immédiatement après la prise de RDV</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={outboundConfig.templates.rdvConfirmation}
-                        onChange={(e) => setOutboundConfig({
-                          ...outboundConfig,
-                          templates: { ...outboundConfig.templates, rdvConfirmation: e.target.checked }
-                        })}
-                        disabled={!outboundConfig.enabled}
-                        className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">Rappel de rendez-vous</p>
-                        <p className="text-xs text-gray-600">Envoyé 24h avant le rendez-vous</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={outboundConfig.templates.rdvRappel}
-                        onChange={(e) => setOutboundConfig({
-                          ...outboundConfig,
-                          templates: { ...outboundConfig.templates, rdvRappel: e.target.checked }
-                        })}
-                        disabled={!outboundConfig.enabled}
-                        className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">Newsletter</p>
-                        <p className="text-xs text-gray-600">Actualités et conseils réguliers</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={outboundConfig.templates.newsletter}
-                        onChange={(e) => setOutboundConfig({
-                          ...outboundConfig,
-                          templates: { ...outboundConfig.templates, newsletter: e.target.checked }
-                        })}
-                        disabled={!outboundConfig.enabled}
-                        className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">Promotions et offres</p>
-                        <p className="text-xs text-gray-600">Campagnes marketing et promotions</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={outboundConfig.templates.promotions}
-                        onChange={(e) => setOutboundConfig({
-                          ...outboundConfig,
-                          templates: { ...outboundConfig.templates, promotions: e.target.checked }
-                        })}
-                        disabled={!outboundConfig.enabled}
-                        className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Test du canal */}
-                {outboundConfig.enabled && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-                    <h3 className="font-bold text-blue-900 mb-2">Tester le canal Email</h3>
-                    <p className="text-sm text-blue-800 mb-4">
-                      Envoyez un email de test pour vérifier que tout fonctionne correctement
-                    </p>
-                    <div className="flex gap-3">
-                      <input
-                        type="email"
-                        value={testEmail}
-                        onChange={(e) => setTestEmail(e.target.value)}
-                        placeholder="email@exemple.com"
-                        className="flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                      />
-                      <button
-                        onClick={handleTestEmail}
-                        disabled={testing}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                      >
-                        {testing ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Envoi...
-                          </>
-                        ) : (
-                          <>
-                            <Mail className="w-4 h-4" />
-                            Envoyer un test
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3">
-            <Link href="/dashboard/settings/channels">
-              <button className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium">
-                Annuler
-              </button>
-            </Link>
-            <button
-              onClick={handleSaveOutbound}
-              disabled={saving}
-              className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            >
-              {saving ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Enregistrement...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Enregistrer
-                </>
-              )}
+            </button>
+            
+            <button onClick={() => setActiveTab('domain')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'domain' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <div className="flex items-center gap-2"><Globe className="w-4 h-4" />Domaine personnalisé</div>
+            </button>
+            
+            <button onClick={() => setActiveTab('test')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'test' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <div className="flex items-center gap-2"><TestTube className="w-4 h-4" />Tester l'envoi</div>
             </button>
           </div>
-        </>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <p className="text-red-700">{error}</p>
+            <button onClick={() => setError(null)} className="ml-auto text-red-500">×</button>
+          </div>
+        )}
+        {success && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-green-500" />
+            <p className="text-green-700">{success}</p>
+            <button onClick={() => setSuccess(null)} className="ml-auto text-green-500">×</button>
+          </div>
+        )}
+
+        {activeTab === 'gmail' && (
+          <div className="space-y-6">
+            <ProviderCard
+              provider="google"
+              providerName="Gmail"
+              status={gmailStatus}
+              icon={<GoogleColorIcon />}
+              bgColor="bg-red-50"
+              onConnect={() => handleConnectProvider('google')}
+              onDisconnect={() => handleDisconnectProvider('google', setGmailStatus, 'Gmail')}
+            />
+            <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+              <button onClick={() => setShowHelp(!showHelp)} className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-blue-600" />
+                  <span className="font-medium text-blue-900">Questions fréquentes</span>
+                </div>
+                <span className="text-blue-600">{showHelp ? '−' : '+'}</span>
+              </button>
+              {showHelp && (
+                <div className="mt-4 space-y-4 text-sm text-blue-800">
+                  <div>
+                    <p className="font-medium">Pourquoi connecter Gmail ?</p>
+                    <p>Sara peut lire et répondre aux emails de vos clients automatiquement, directement depuis votre adresse Gmail professionnelle.</p>
+                  </div>
+                  <div>
+                    <p className="font-medium">Mes données sont-elles sécurisées ?</p>
+                    <p>Oui. Nous utilisons OAuth2 (la méthode officielle de Google). Nous n'avons jamais accès à votre mot de passe.</p>
+                  </div>
+                  <div>
+                    <p className="font-medium">Puis-je déconnecter à tout moment ?</p>
+                    <p>Oui, vous pouvez déconnecter Gmail à tout moment depuis cette page ou depuis les paramètres de votre compte Google.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'outlook' && (
+          <div className="space-y-6">
+            <ProviderCard
+              provider="outlook"
+              providerName="Outlook"
+              status={outlookStatus}
+              icon={<MicrosoftColorIcon />}
+              bgColor="bg-blue-50"
+              onConnect={() => handleConnectProvider('outlook')}
+              onDisconnect={() => handleDisconnectProvider('outlook', setOutlookStatus, 'Outlook')}
+            />
+            <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+              <div className="flex items-center gap-2 mb-2">
+                <HelpCircle className="w-5 h-5 text-blue-600" />
+                <span className="font-medium text-blue-900">À propos d'Outlook</span>
+              </div>
+              <p className="text-sm text-blue-800">
+                Compatible avec les adresses <strong>@outlook.com</strong>, <strong>@hotmail.com</strong>, <strong>@live.com</strong> et les comptes Microsoft 365 professionnels.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'yahoo' && (
+          <div className="space-y-6">
+            <ProviderCard
+              provider="yahoo"
+              providerName="Yahoo"
+              status={yahooStatus}
+              icon={<YahooIcon size="w-6 h-6" />}
+              bgColor="bg-purple-50"
+              onConnect={() => handleConnectProvider('yahoo')}
+              onDisconnect={() => handleDisconnectProvider('yahoo', setYahooStatus, 'Yahoo')}
+            />
+            <div className="bg-purple-50 rounded-xl p-6 border border-purple-100">
+              <div className="flex items-center gap-2 mb-2">
+                <HelpCircle className="w-5 h-5 text-purple-600" />
+                <span className="font-medium text-purple-900">À propos de Yahoo</span>
+              </div>
+              <p className="text-sm text-purple-800">
+                Compatible avec les adresses <strong>@yahoo.com</strong>, <strong>@yahoo.fr</strong>, <strong>@ymail.com</strong> et <strong>@rocketmail.com</strong>.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'domain' && (
+          <>
+            {loading ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
+            ) : (
+              <>
+                {domains.length === 0 && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+                    <h2 className="text-lg font-bold text-gray-900 mb-4">Ajouter votre domaine</h2>
+                    <p className="text-gray-600 mb-4">Configurez votre domaine pour <strong>envoyer ET recevoir</strong> des emails professionnels.</p>
+                    <form onSubmit={handleAddDomain} className="space-y-4">
+                      <input type="text" value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="exemple: salon-marie.fr" className="w-full px-4 py-3 border rounded-lg" required />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Adresse email</label>
+                          <div className="flex">
+                            <input type="text" value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} placeholder="contact" className="flex-1 px-3 py-2 border rounded-l-lg" />
+                            <span className="px-3 py-2 bg-gray-100 border border-l-0 rounded-r-lg text-gray-500 text-sm">@{newDomain || 'domaine.fr'}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nom d'expéditeur</label>
+                          <input type="text" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Salon Marie" className="w-full px-3 py-2 border rounded-lg" />
+                        </div>
+                      </div>
+                      <button type="submit" disabled={adding} className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-50">
+                        {adding ? 'Ajout...' : 'Ajouter le domaine'}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {domains.map((domain) => {
+                  const isExpanded = expandedDomain === domain.id;
+                  const dnsRecords = getFullDnsRecords(domain.domain);
+                  return (
+                    <div key={domain.id} className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                      <button onClick={() => setExpandedDomain(isExpanded ? null : domain.id)} className="w-full p-6 flex items-center justify-between hover:bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${domain.status === 'verified' ? 'bg-green-100' : 'bg-yellow-100'}`}>
+                            {domain.status === 'verified' ? <CheckCircle className="w-6 h-6 text-green-600" /> : <Globe className="w-6 h-6 text-yellow-600" />}
+                          </div>
+                          <div className="text-left">
+                            <h3 className="font-bold text-gray-900">{domain.domain}</h3>
+                            <p className="text-sm text-gray-500">{domain.fromEmail}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {domain.status === 'verified' ? '✓ Vérifié' : '⏳ En attente'}
+                          </span>
+                          {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                        </div>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-6 pb-6 border-t border-gray-100">
+                          {domain.status !== 'verified' && (
+                            <div className="mt-6">
+                              <div className="flex items-center gap-2 mb-4">
+                                <span className="text-2xl">📋</span>
+                                <h4 className="font-bold text-gray-900">Configurez ces 4 enregistrements DNS</h4>
+                              </div>
+                              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                <p className="text-amber-800 text-sm"><strong>⚠️ Important :</strong> L'enregistrement <strong>MX</strong> est nécessaire pour <strong>recevoir</strong> les emails.</p>
+                              </div>
+                              <div className="space-y-4">
+                                {dnsRecords.map((record, index) => (
+                                  <div key={index} className={`rounded-lg p-4 border ${record.type === 'MX' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${record.type === 'MX' ? 'bg-blue-600 text-white' : record.type === 'TXT' ? 'bg-gray-600 text-white' : 'bg-purple-100 text-purple-800'}`}>{record.type}</span>
+                                      <span className="text-sm text-gray-600">{record.description}</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">Nom {record.priority !== undefined && `| Priorité: ${record.priority}`}</label>
+                                        <div className="flex items-center gap-2">
+                                          <code className="flex-1 bg-white px-3 py-2 rounded border text-sm font-mono">{record.name}</code>
+                                          <button onClick={() => copyToClipboard(record.name, `${index}-name`)} className="p-2 hover:bg-blue-100 rounded">
+                                            {copiedField === `${index}-name` ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">Valeur</label>
+                                        <div className="flex items-center gap-2">
+                                          <code className="flex-1 bg-white px-3 py-2 rounded border text-sm font-mono truncate" title={record.value}>{record.value}</code>
+                                          <button onClick={() => copyToClipboard(record.value, `${index}-value`)} className="p-2 hover:bg-blue-100 rounded">
+                                            {copiedField === `${index}-value` ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <button onClick={() => handleVerify(domain.id)} disabled={verifying === domain.id} className="mt-6 w-full px-6 py-3 bg-gray-900 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                                {verifying === domain.id ? <><Loader2 className="w-5 h-5 animate-spin" />Vérification...</> : <><RefreshCw className="w-5 h-5" />Vérifier la configuration DNS</>}
+                              </button>
+                            </div>
+                          )}
+                          {domain.status === 'verified' && (
+                            <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                              <p className="text-green-800">✅ <strong>Domaine vérifié !</strong></p>
+                            </div>
+                          )}
+                          <div className="mt-4 pt-4 border-t flex justify-end">
+                            <button onClick={() => handleDelete(domain.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2 text-sm">
+                              <Trash2 className="w-4 h-4" />Supprimer
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </>
+        )}
+
+        {activeTab === 'test' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Envoyer un email de test</h2>
+            <form onSubmit={handleSendTest} className="space-y-4">
+              <input type="email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="votre-email@exemple.com" className="w-full px-4 py-3 border rounded-lg" required />
+              <input type="text" value={testSubject} onChange={(e) => setTestSubject(e.target.value)} placeholder="Sujet" className="w-full px-4 py-3 border rounded-lg" />
+              <textarea value={testMessage} onChange={(e) => setTestMessage(e.target.value)} rows={4} className="w-full px-4 py-3 border rounded-lg" />
+              <button type="submit" disabled={sending} className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                {sending ? <><Loader2 className="w-5 h-5 animate-spin" />Envoi...</> : <><Send className="w-5 h-5" />Envoyer</>}
+              </button>
+            </form>
+          </div>
         )}
       </div>
     </div>
