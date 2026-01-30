@@ -16,10 +16,12 @@ import { handleChannelsRoutes } from './modules/channels/routes.js';
 import { handleIntegrationsRoutes } from './modules/integrations/routes.js';
 // Module Omnichannel (indépendant, activable via OMNICHANNEL_ENABLED)
 import { handleOmnichannelRoutes } from './modules/omnichannel/index.js';
+import { handleMetaWebhookVerification, handleMetaWhatsAppWebhook } from "./modules/omnichannel/webhooks/meta-whatsapp.js";
 import { handleRetellRoutes } from './modules/retell/routes.js';
 import { handlePermissionsRoutes } from './modules/permissions/routes.js';
 import { handleTeamsRoutes } from './modules/teams/routes.js';
 import { handleCustomersRoutes } from './modules/customers/routes.js';
+import { handleOAuthRoutes } from './modules/oauth/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -54,6 +56,12 @@ export default {
     }
     if (path.startsWith("/api/v1/auth/")) {
         response = await handleAuthRoutes(request, env, ctx, corsHeaders);
+        if (response) return response;
+      }
+
+      // Routes OAuth (Google, Outlook, Yahoo)
+      if (path.startsWith('/api/v1/oauth/')) {
+        response = await handleOAuthRoutes(request, env, ctx, corsHeaders);
         if (response) return response;
       }
       
@@ -121,6 +129,15 @@ export default {
       if (path.startsWith('/api/v1/retell') || path.startsWith('/webhooks/retell')) {
         response = await handleRetellRoutes(request, env, path, method);
         if (response) return response;
+      }
+      // META WHATSAPP WEBHOOK
+      if (path.startsWith("/webhooks/meta/whatsapp")) {
+        if (method === "GET") {
+          return await handleMetaWebhookVerification(request, env);
+        }
+        if (method === "POST") {
+          return await handleMetaWhatsAppWebhook(request, env);
+        }
       }
       // MODULE OMNICHANNEL (indépendant, plug-and-play)
       // Activer avec OMNICHANNEL_ENABLED=true dans wrangler.toml
