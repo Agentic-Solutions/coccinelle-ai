@@ -1,0 +1,58 @@
+export async function handleGoogleCallback(request, env, ctx) {
+  console.log('=== CALLBACK START ===');
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const stateEncoded = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+
+  console.log('code:', code ? 'present' : 'missing');
+  console.log('state:', stateEncoded ? 'present' : 'missing');
+  console.log('error:', error);
+
+  // Gestion des erreurs Google
+  if (error) {
+    console.error('Erreur OAuth Google:', error);
+    return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels?error=oauth_denied`, 302);
+  }
+
+  if (!code || !stateEncoded) {
+    return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels?error=missing_params`, 302);
+  }
+
+  try {
+    // Décode le state
+    console.log('Decoding state...');
+    const state = JSON.parse(atob(stateEncoded));
+    const { tenantId, redirectAfterAuth } = state;
+    console.log('tenantId:', tenantId);
+    console.log('redirectAfterAuth:', redirectAfterAuth);
+
+    // Échange le code contre des tokens
+    console.log('Exchanging code for tokens...');
+    const tokens = await exchangeCodeForTokens(code, env);
+    console.log('Tokens received:', tokens ? 'yes' : 'no');
+    console.log('access_token:', tokens?.access_token ? 'present' : 'missing');
+    console.log('refresh_token:', tokens?.refresh_token ? 'present' : 'missing');
+
+    // Récupère les infos utilisateur
+    console.log('Getting user info...');
+    const userInfo = await getGoogleUserInfo(tokens.access_token);
+    console.log('User email:', userInfo?.email);
+
+    // Sauvegarde en base
+    console.log('Saving tokens to DB...');
+    await saveGoogleTokens(env.DB, tenantId, tokens, userInfo);
+    console.log('Tokens saved successfully!');
+
+    // Redirige vers le frontend avec succès
+    console.log('=== CALLBACK SUCCESS ===');
+    return Response.redirect(`${env.FRONTEND_URL}${redirectAfterAuth}?gmail_connected=true&email=${encodeURIComponent(userInfo.email)}`, 302);
+
+  } catch (err) {
+    console.error('=== CALLBACK ERROR ===');
+    console.error('Error name:', err.name);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels?error=oauth_failed`, 302);
+  }
+}

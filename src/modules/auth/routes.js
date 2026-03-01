@@ -2,6 +2,81 @@
 import * as auth from './helpers.js';
 import { initTenantPermissions } from '../../utils/permissions.js';
 
+// ========================================
+// FONCTIONS UTILITAIRES POUR LE SLUG
+// ========================================
+
+/**
+ * Génère un slug à partir d'un nom d'entreprise
+ * "Salon Marie & Fils" → "salon-marie-fils"
+ * "Café de la Gare" → "cafe-de-la-gare"
+ */
+function generateSlugFromName(name) {
+  if (!name) return null;
+  
+  return name
+    .toLowerCase()
+    .trim()
+    // Remplace les caractères accentués
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    // Remplace les espaces et caractères spéciaux par des tirets
+    .replace(/[^a-z0-9]+/g, '-')
+    // Supprime les tirets en début et fin
+    .replace(/^-+|-+$/g, '')
+    // Limite la longueur à 50 caractères
+    .substring(0, 50);
+}
+
+/**
+ * Vérifie si un slug est disponible
+ */
+async function isSlugAvailable(db, slug) {
+  if (!slug) return false;
+  
+  const existing = await db.prepare(
+    'SELECT id FROM tenants WHERE slug = ?'
+  ).bind(slug).first();
+  
+  return !existing;
+}
+
+/**
+ * Génère un slug unique en ajoutant un suffixe si nécessaire
+ * "salon-marie" → "salon-marie" (si disponible)
+ * "salon-marie" → "salon-marie-2" (si pris)
+ * "salon-marie" → "salon-marie-3" (si -2 aussi pris)
+ */
+async function generateUniqueSlug(db, baseName) {
+  const baseSlug = generateSlugFromName(baseName);
+  
+  if (!baseSlug) {
+    // Si pas de nom, génère un slug aléatoire
+    return 'tenant-' + Math.random().toString(36).substring(2, 10);
+  }
+  
+  // Vérifie si le slug de base est disponible
+  if (await isSlugAvailable(db, baseSlug)) {
+    return baseSlug;
+  }
+  
+  // Sinon, essaie avec des suffixes numériques
+  for (let i = 2; i <= 100; i++) {
+    const candidateSlug = `${baseSlug}-${i}`;
+    if (await isSlugAvailable(db, candidateSlug)) {
+      return candidateSlug;
+    }
+  }
+  
+  // En dernier recours, ajoute un suffixe aléatoire
+  const randomSuffix = Math.random().toString(36).substring(2, 6);
+  return `${baseSlug}-${randomSuffix}`;
+}
+
+// ========================================
+// ROUTES D'AUTHENTIFICATION
+// ========================================
+
 /**
  * Gère toutes les routes d'authentification
  */
@@ -48,8 +123,27 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       const userId = auth.generateId('user');
       const now = new Date().toISOString();
 
-      // Créer tenant (schema E2E: id, name, company_name, email, api_key, created_at)
-      await env.DB.prepare(`INSERT INTO tenants (id, name, company_name, email, api_key, created_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(tenantId, company_name.trim(), company_name.trim(), email.toLowerCase().trim(), apiKey, now).run();
+      // ========================================
+      // NOUVEAU : Générer un slug unique
+      // ========================================
+      const tenantName = company_name?.trim() || name.trim();
+      const slug = await generateUniqueSlug(env.DB, tenantName);
+      
+      console.log(`📧 Nouveau tenant: ${tenantName} → slug: ${slug}`);
+
+      // Créer tenant AVEC LE SLUG
+      await env.DB.prepare(`
+        INSERT INTO tenants (id, name, company_name, email, api_key, slug, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        tenantId, 
+        tenantName, 
+        tenantName, 
+        email.toLowerCase().trim(), 
+        apiKey, 
+        slug,  // ← NOUVEAU : slug ajouté
+        now
+      ).run();
 
       // Créer les catégories de produits par défaut
       const defaultCategories = [
@@ -76,9 +170,32 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       const userAgent = request.headers.get('User-Agent') || 'unknown';
 
       await env.DB.prepare(`INSERT INTO sessions (id, user_id, tenant_id, token, ip_address, user_agent, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(sessionId, userId, tenantId, token, clientIp, userAgent, expiresAt.toISOString(), now).run();
-      await auth.logAudit(env, { tenant_id: tenantId, user_id: userId, action: 'user.signup', resource_type: 'user', resource_id: userId, changes: { email: email.toLowerCase().trim(), role: 'admin', tenant_created: true }, ip_address: clientIp, user_agent: userAgent });
+      await auth.logAudit(env, { tenant_id: tenantId, user_id: userId, action: 'user.signup', resource_type: 'user', resource_id: userId, changes: { email: email.toLowerCase().trim(), role: 'admin', tenant_created: true, slug: slug }, ip_address: clientIp, user_agent: userAgent });
 
-      return new Response(JSON.stringify({ success: true, token, user: { id: userId, email: email.toLowerCase().trim(), name: name.trim(), role: 'admin' }, tenant: { id: tenantId, name: company_name.trim(), email: email.toLowerCase().trim(), api_key: apiKey }, session: { expires_at: expiresAt.toISOString() } }), {
+      // ========================================
+      // NOUVEAU : Retourner aussi le slug et l'email Coccinelle
+      // ========================================
+      return new Response(JSON.stringify({ 
+        success: true, 
+        token, 
+        user: { 
+          id: userId, 
+          email: email.toLowerCase().trim(), 
+          name: name.trim(), 
+          role: 'admin' 
+        }, 
+        tenant: { 
+          id: tenantId, 
+          name: tenantName, 
+          email: email.toLowerCase().trim(), 
+          api_key: apiKey,
+          slug: slug,  // ← NOUVEAU
+          coccinelle_email: `${slug}@coccinelle.ai`  // ← NOUVEAU : email de réception
+        }, 
+        session: { 
+          expires_at: expiresAt.toISOString() 
+        } 
+      }), {
         status: 201,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -133,7 +250,29 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       await env.DB.prepare(`INSERT INTO sessions (id, user_id, tenant_id, token, ip_address, user_agent, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(sessionId, user.id, user.tenant_id, token, clientIp, userAgent, expiresAt.toISOString(), now).run();
       await auth.logAudit(env, { tenant_id: user.tenant_id, user_id: user.id, action: 'user.login', resource_type: 'user', resource_id: user.id, ip_address: clientIp, user_agent: userAgent });
 
-      return new Response(JSON.stringify({ success: true, token, user: { id: user.id, email: user.email, name: user.name, role: user.role }, tenant: { id: tenant.id, name: tenant.name, email: tenant.email }, session: { expires_at: expiresAt.toISOString() } }), {
+      // ========================================
+      // NOUVEAU : Retourner aussi le slug et l'email Coccinelle
+      // ========================================
+      return new Response(JSON.stringify({ 
+        success: true, 
+        token, 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          name: user.name, 
+          role: user.role 
+        }, 
+        tenant: { 
+          id: tenant.id, 
+          name: tenant.name, 
+          email: tenant.email,
+          slug: tenant.slug,  // ← NOUVEAU
+          coccinelle_email: tenant.slug ? `${tenant.slug}@coccinelle.ai` : null  // ← NOUVEAU
+        }, 
+        session: { 
+          expires_at: expiresAt.toISOString() 
+        } 
+      }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -154,7 +293,37 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       }
 
       const { user, tenant, session } = authResult;
-      return new Response(JSON.stringify({ success: true, user: { id: user.id, email: user.email, name: user.name, role: user.role, tenant_id: user.tenant_id, is_active: user.is_active, created_at: user.created_at }, tenant: { id: tenant.id, name: tenant.name, email: tenant.email, api_key: tenant.api_key, timezone: tenant.timezone, created_at: tenant.created_at }, session: { id: session.id, expires_at: session.expires_at, created_at: session.created_at } }), {
+      
+      // ========================================
+      // NOUVEAU : Retourner aussi le slug et l'email Coccinelle
+      // ========================================
+      return new Response(JSON.stringify({ 
+        success: true, 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          name: user.name, 
+          role: user.role, 
+          tenant_id: user.tenant_id, 
+          is_active: user.is_active, 
+          created_at: user.created_at 
+        }, 
+        tenant: { 
+          id: tenant.id, 
+          name: tenant.name, 
+          email: tenant.email, 
+          api_key: tenant.api_key, 
+          timezone: tenant.timezone, 
+          slug: tenant.slug,  // ← NOUVEAU
+          coccinelle_email: tenant.slug ? `${tenant.slug}@coccinelle.ai` : null,  // ← NOUVEAU
+          created_at: tenant.created_at 
+        }, 
+        session: { 
+          id: session.id, 
+          expires_at: session.expires_at, 
+          created_at: session.created_at 
+        } 
+      }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -296,6 +465,60 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // ========================================
+  // GET /api/v1/auth/check-slug
+  // Vérifie si un slug est disponible (utile pour le frontend)
+  // ========================================
+  if (path === '/api/v1/auth/check-slug' && method === 'GET') {
+    try {
+      const slug = url.searchParams.get('slug');
+      
+      if (!slug) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: 'Paramètre slug requis' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+      
+      const normalizedSlug = generateSlugFromName(slug);
+      const available = await isSlugAvailable(env.DB, normalizedSlug);
+      
+      let suggestions = [];
+      if (!available) {
+        // Génère quelques suggestions
+        for (let i = 2; i <= 4; i++) {
+          const candidate = `${normalizedSlug}-${i}`;
+          if (await isSlugAvailable(env.DB, candidate)) {
+            suggestions.push(candidate);
+          }
+        }
+      }
+      
+      return new Response(JSON.stringify({ 
+        success: true, 
+        slug: normalizedSlug,
+        available: available,
+        suggestions: suggestions,
+        email_preview: `${normalizedSlug}@coccinelle.ai`
+      }), { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    } catch (error) {
+      console.error('Check slug error:', error);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Erreur lors de la vérification du slug' 
+      }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
   }

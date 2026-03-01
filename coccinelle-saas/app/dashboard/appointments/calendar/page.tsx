@@ -18,8 +18,8 @@ import {
   Settings
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import Logo from '../../../src/components/Logo';
-import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '../../../lib/mockData';
+import Logo from '@/components/Logo';
+import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '@/lib/mockData';
 
 interface Appointment {
   id: string;

@@ -53,6 +53,38 @@ export async function handleChannelsRoutes(request, env, path, method) {
       return await getChannelsStats(env, tenantId);
     }
 
+
+    // ===================================
+    // EMAIL DOMAIN ROUTES
+    // ===================================
+
+    // GET /api/v1/channels/email/domains - Liste les domaines du tenant
+    if (path === '/api/v1/channels/email/domains' && method === 'GET') {
+      return await listEmailDomains(env, tenantId);
+    }
+
+    // POST /api/v1/channels/email/domains - Ajoute un nouveau domaine
+    if (path === '/api/v1/channels/email/domains' && method === 'POST') {
+      return await addEmailDomain(request, env, tenantId);
+    }
+
+    // POST /api/v1/channels/email/domains/:id/verify - Vérifie le domaine
+    const verifyDomainMatch = path.match(/^\/api\/v1\/channels\/email\/domains\/([^/]+)\/verify$/);
+    if (verifyDomainMatch && method === 'POST') {
+      return await verifyEmailDomain(env, tenantId, verifyDomainMatch[1]);
+    }
+
+    // DELETE /api/v1/channels/email/domains/:id - Supprime un domaine
+    const deleteDomainMatch = path.match(/^\/api\/v1\/channels\/email\/domains\/([^/]+)$/);
+    if (deleteDomainMatch && method === 'DELETE') {
+      return await deleteEmailDomain(env, tenantId, deleteDomainMatch[1]);
+    }
+
+    // GET /api/v1/channels/email/domains/:id - Détails d'un domaine
+    const getDomainMatch = path.match(/^\/api\/v1\/channels\/email\/domains\/([^/]+)$/);
+    if (getDomainMatch && method === 'GET') {
+      return await getEmailDomain(env, tenantId, getDomainMatch[1]);
+    }
     return null;
 
   } catch (error) {
@@ -499,7 +531,8 @@ async function testWhatsappChannel(env, tenantId, body) {
     return errorResponse('Configuration WhatsApp invalide', 400);
   }
 
-  const { accessToken, phoneNumberId } = secretConfig;
+  const accessToken = secretConfig?.accessToken || env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = secretConfig?.phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!accessToken || !phoneNumberId) {
     return errorResponse('Token ou Phone Number ID manquant dans la configuration', 400);
@@ -660,5 +693,252 @@ function getDefaultConfig(channelType) {
       };
     default:
       return {};
+  }
+}
+
+// ===================================
+// EMAIL DOMAIN FUNCTIONS
+// ===================================
+
+// Liste les domaines email du tenant
+async function listEmailDomains(env, tenantId) {
+  try {
+    const domains = await env.DB.prepare(`
+      SELECT id, domain, status, from_email, from_name, resend_domain_id, 
+             dns_records, verified_at, created_at, updated_at
+      FROM email_domains
+      WHERE tenant_id = ?
+      ORDER BY created_at DESC
+    `).bind(tenantId).all();
+
+    return successResponse({
+      domains: domains.results || []
+    });
+  } catch (error) {
+    logger.error('List email domains failed', { error: error.message, tenantId });
+    return errorResponse('Erreur lors de la récupération des domaines', 500);
+  }
+}
+
+// Ajoute un nouveau domaine email via Resend API
+async function addEmailDomain(request, env, tenantId) {
+  try {
+    const body = await request.json();
+    const { domain, fromEmail, fromName } = body;
+
+    if (!domain) {
+      return errorResponse('Le domaine est requis', 400);
+    }
+
+    // Vérifier si le domaine existe déjà pour ce tenant
+    const existing = await env.DB.prepare(`
+      SELECT id FROM email_domains WHERE tenant_id = ? AND domain = ?
+    `).bind(tenantId, domain).first();
+
+    if (existing) {
+      return errorResponse('Ce domaine est déjà configuré', 400);
+    }
+
+    // Appeler l'API Resend pour créer le domaine
+    const resendResponse = await fetch('https://api.resend.com/domains', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: domain
+      })
+    });
+
+    const resendData = await resendResponse.json();
+
+    if (resendData.error || !resendResponse.ok) {
+      logger.error('Resend domain creation failed', { error: resendData, domain });
+      return errorResponse(resendData.error?.message || 'Erreur Resend lors de la création du domaine', 400);
+    }
+
+    // Générer un ID unique
+    const domainId = `domain_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Sauvegarder en base avec les DNS records retournés par Resend
+    await env.DB.prepare(`
+      INSERT INTO email_domains (id, tenant_id, domain, resend_domain_id, status, from_email, from_name, dns_records, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, datetime('now'), datetime('now'))
+    `).bind(
+      domainId,
+      tenantId,
+      domain,
+      resendData.id,
+      fromEmail || `contact@${domain}`,
+      fromName || '',
+      JSON.stringify(resendData.records || [])
+    ).run();
+
+    return successResponse({
+      success: true,
+      message: 'Domaine ajouté avec succès',
+      domain: {
+        id: domainId,
+        domain: domain,
+        resendDomainId: resendData.id,
+        status: 'pending',
+        fromEmail: fromEmail || `contact@${domain}`,
+        fromName: fromName || '',
+        dnsRecords: resendData.records || []
+      }
+    });
+  } catch (error) {
+    logger.error('Add email domain failed', { error: error.message, tenantId });
+    return errorResponse('Erreur lors de l\'ajout du domaine: ' + error.message, 500);
+  }
+}
+
+// Vérifie le domaine via Resend API
+async function verifyEmailDomain(env, tenantId, domainId) {
+  try {
+    // Récupérer le domaine en base
+    const domainRecord = await env.DB.prepare(`
+      SELECT * FROM email_domains WHERE id = ? AND tenant_id = ?
+    `).bind(domainId, tenantId).first();
+
+    if (!domainRecord) {
+      return errorResponse('Domaine non trouvé', 404);
+    }
+
+    // Appeler l'API Resend pour vérifier le domaine
+    const resendResponse = await fetch(`https://api.resend.com/domains/${domainRecord.resend_domain_id}/verify`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const resendData = await resendResponse.json();
+
+    if (resendData.error) {
+      return errorResponse(resendData.error.message || 'Erreur lors de la vérification', 400);
+    }
+
+    // Récupérer le statut mis à jour
+    const statusResponse = await fetch(`https://api.resend.com/domains/${domainRecord.resend_domain_id}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`
+      }
+    });
+
+    const statusData = await statusResponse.json();
+    const newStatus = statusData.status || 'pending';
+    const isVerified = newStatus === 'verified';
+
+    // Mettre à jour en base
+    await env.DB.prepare(`
+      UPDATE email_domains 
+      SET status = ?, 
+          dns_records = ?,
+          verified_at = CASE WHEN ? = 'verified' THEN datetime('now') ELSE verified_at END,
+          updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(
+      newStatus,
+      JSON.stringify(statusData.records || []),
+      newStatus,
+      domainId,
+      tenantId
+    ).run();
+
+    return successResponse({
+      success: true,
+      status: newStatus,
+      verified: isVerified,
+      message: isVerified ? 'Domaine vérifié avec succès !' : 'Vérification en cours, les DNS ne sont pas encore propagés.',
+      dnsRecords: statusData.records || []
+    });
+  } catch (error) {
+    logger.error('Verify email domain failed', { error: error.message, tenantId, domainId });
+    return errorResponse('Erreur lors de la vérification: ' + error.message, 500);
+  }
+}
+
+// Supprime un domaine email
+async function deleteEmailDomain(env, tenantId, domainId) {
+  try {
+    // Récupérer le domaine en base
+    const domainRecord = await env.DB.prepare(`
+      SELECT * FROM email_domains WHERE id = ? AND tenant_id = ?
+    `).bind(domainId, tenantId).first();
+
+    if (!domainRecord) {
+      return errorResponse('Domaine non trouvé', 404);
+    }
+
+    // Supprimer chez Resend si on a l'ID
+    if (domainRecord.resend_domain_id) {
+      try {
+        await fetch(`https://api.resend.com/domains/${domainRecord.resend_domain_id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${env.RESEND_API_KEY}`
+          }
+        });
+      } catch (resendError) {
+        logger.warn('Failed to delete domain from Resend', { error: resendError.message });
+        // Continue même si Resend échoue
+      }
+    }
+
+    // Supprimer en base
+    await env.DB.prepare(`
+      DELETE FROM email_domains WHERE id = ? AND tenant_id = ?
+    `).bind(domainId, tenantId).run();
+
+    return successResponse({
+      success: true,
+      message: 'Domaine supprimé avec succès'
+    });
+  } catch (error) {
+    logger.error('Delete email domain failed', { error: error.message, tenantId, domainId });
+    return errorResponse('Erreur lors de la suppression: ' + error.message, 500);
+  }
+}
+
+// Récupère les détails d'un domaine
+async function getEmailDomain(env, tenantId, domainId) {
+  try {
+    const domainRecord = await env.DB.prepare(`
+      SELECT * FROM email_domains WHERE id = ? AND tenant_id = ?
+    `).bind(domainId, tenantId).first();
+
+    if (!domainRecord) {
+      return errorResponse('Domaine non trouvé', 404);
+    }
+
+    // Parser les DNS records
+    let dnsRecords = [];
+    try {
+      dnsRecords = JSON.parse(domainRecord.dns_records || '[]');
+    } catch (e) {
+      dnsRecords = [];
+    }
+
+    return successResponse({
+      domain: {
+        id: domainRecord.id,
+        domain: domainRecord.domain,
+        status: domainRecord.status,
+        fromEmail: domainRecord.from_email,
+        fromName: domainRecord.from_name,
+        resendDomainId: domainRecord.resend_domain_id,
+        dnsRecords: dnsRecords,
+        verifiedAt: domainRecord.verified_at,
+        createdAt: domainRecord.created_at,
+        updatedAt: domainRecord.updated_at
+      }
+    });
+  } catch (error) {
+    logger.error('Get email domain failed', { error: error.message, tenantId, domainId });
+    return errorResponse('Erreur lors de la récupération: ' + error.message, 500);
   }
 }

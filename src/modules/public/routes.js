@@ -1,5 +1,6 @@
 // Module Public Widget - Routes publiques sans authentification
 // Pour permettre l'embed du widget sur sites clients
+import { createWebCall } from '../retell/routes.js';
 
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 
@@ -27,7 +28,17 @@ export async function handlePublicRoutes(request, env, path, method) {
       return await handleCreateBooking(request, env, path);
     }
 
+    // POST /api/v1/public/retell/web-call - Créer un appel WebRTC démo
+    if (path === '/api/v1/public/retell/web-call' && method === 'POST') {
+      return await createWebCall(request, env);
+    }
+
     // POST /api/v1/public/test/email - Test email (dev only)
+    // POST /api/v1/public/retell/web-call - Créer un appel WebRTC démo
+    if (path === '/api/v1/public/retell/web-call' && method === 'POST') {
+      return await createWebCall(request, env);
+    }
+
     if (path === '/api/v1/public/test/email' && method === 'POST') {
       return await handleTestEmail(request, env);
     }

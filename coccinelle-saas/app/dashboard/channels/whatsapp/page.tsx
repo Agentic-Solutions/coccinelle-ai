@@ -1,14 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, ExternalLink, PlayCircle } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, ExternalLink } from 'lucide-react';
 import Logo from '@/components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+const META_APP_ID = '25451229527845708';
+const META_CONFIG_ID = '741514108686417';
 
-export default function WhatsAppConfigPage() {
+declare global {
+  interface Window {
+    FB: any;
+    fbAsyncInit: () => void;
+  }
+}
+
+function WhatsAppConfigContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromOnboarding = searchParams.get('from') === 'onboarding';
@@ -30,18 +39,36 @@ export default function WhatsAppConfigPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
-  const [showManualGuide, setShowManualGuide] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
   const [testNumber, setTestNumber] = useState('');
+  const [fbLoaded, setFbLoaded] = useState(false);
 
-  // État pour la config manuelle
-  const [manualConfig, setManualConfig] = useState({
-    accessToken: '',
-    phoneNumberId: '',
-    whatsappNumber: ''
-  });
+  useEffect(() => {
+    if (window.FB) {
+      setFbLoaded(true);
+      return;
+    }
 
-  // Charger la config depuis l'API
+    window.fbAsyncInit = function() {
+      window.FB.init({
+        appId: META_APP_ID,
+        cookie: true,
+        xfbml: true,
+        version: 'v21.0'
+      });
+      setFbLoaded(true);
+      console.log('Facebook SDK chargé');
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://connect.facebook.net/fr_FR/sdk.js';
+    script.async = true;
+    script.defer = true;
+    script.crossOrigin = 'anonymous';
+    document.body.appendChild(script);
+  }, []);
+
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -66,7 +93,6 @@ export default function WhatsAppConfigPage() {
             }));
           }
         } else {
-          // Fallback localStorage
           const savedConfig = localStorage.getItem('whatsapp_client_config');
           if (savedConfig) {
             setConfig(JSON.parse(savedConfig));
@@ -86,98 +112,77 @@ export default function WhatsAppConfigPage() {
     fetchConfig();
   }, []);
 
-  const handleOAuthConnect = () => {
-    // TODO: Implémenter OAuth avec 360dialog
-    // Pour l'instant, simulation
-    const tenantId = localStorage.getItem('tenant_id') || 'demo';
-
-    // Simuler la redirection OAuth
-    console.log('Redirection vers 360dialog OAuth...');
-
-    // En production, ce serait :
-    // const authUrl = `https://hub.360dialog.com/dashboard/app/connect?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${tenantId}`;
-    // window.location.href = authUrl;
-
-    // Pour la démo, simuler la connexion
-    setTimeout(() => {
-      setConfig({
-        ...config,
-        configured: true,
-        connectionMethod: 'oauth',
-        whatsappNumber: '+33 6 12 34 56 78'
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-
-      // Redirect to onboarding if coming from there
-      if (fromOnboarding) {
-        setTimeout(() => {
-          router.push('/onboarding');
-        }, 3500); // Wait for the outer setTimeout (2000) + message display (1500)
-      }
-    }, 2000);
-  };
-
-  const handleManualSetup = () => {
-    setShowManualGuide(!showManualGuide);
-  };
-
-  const handleManualValidation = async () => {
-    if (!manualConfig.accessToken || !manualConfig.phoneNumberId) {
-      setError('Veuillez remplir le Token API et le Phone Number ID');
+  const handleMetaEmbeddedSignup = () => {
+    if (!fbLoaded || !window.FB) {
+      setError('Le SDK Facebook n\'est pas encore chargé. Veuillez patienter quelques secondes.');
       return;
     }
 
-    setSaving(true);
+    setConnecting(true);
     setError(null);
 
+    window.FB.login(
+      function(response: any) {
+        console.log('Réponse FB.login:', response);
+
+        if (response.authResponse) {
+          const code = response.authResponse.code;
+          console.log('Code OAuth reçu:', code);
+          exchangeCodeForToken(code);
+        } else {
+          console.log('Utilisateur a annulé ou erreur');
+          setConnecting(false);
+          setError('Connexion annulée. Veuillez réessayer.');
+        }
+      },
+      {
+        config_id: META_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: '',
+          sessionInfoVersion: '3'
+        }
+      }
+    );
+  };
+
+  const exchangeCodeForToken = async (code: string) => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/v1/channels/whatsapp`, {
-        method: 'PUT',
+      
+      const response = await fetch(`${API_URL}/api/v1/omnichannel/whatsapp/oauth/callback?code=${encodeURIComponent(code)}`, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          config: {
-            connectionMethod: 'manual',
-            whatsappNumber: manualConfig.whatsappNumber || 'Non spécifié'
-          },
-          configSecret: {
-            accessToken: manualConfig.accessToken,
-            phoneNumberId: manualConfig.phoneNumberId
-          },
-          enabled: false
-        })
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors de la validation');
-      }
+      const data = await response.json();
 
-      // Mettre à jour le state
-      setConfig({
-        ...config,
-        configured: true,
-        connectionMethod: 'manual',
-        whatsappNumber: manualConfig.whatsappNumber || 'Non spécifié'
-      });
-      setShowManualGuide(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      if (response.ok && data.success) {
+        setConfig(prev => ({
+          ...prev,
+          configured: true,
+          connectionMethod: 'meta_embedded',
+          whatsappNumber: data.phone_number || 'WhatsApp connecté'
+        }));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
 
-      // Redirect to onboarding if coming from there
-      if (fromOnboarding) {
-        setTimeout(() => {
-          router.push('/onboarding');
-        }, 1500);
+        if (fromOnboarding) {
+          setTimeout(() => router.push('/onboarding'), 1500);
+        }
+      } else {
+        setError(data.error || 'Erreur lors de la connexion WhatsApp');
       }
     } catch (e: any) {
-      setError(e.message || 'Erreur lors de la validation');
+      console.error('Erreur échange token:', e);
+      setError('Erreur de connexion au serveur: ' + e.message);
     } finally {
-      setSaving(false);
+      setConnecting(false);
     }
   };
 
@@ -185,14 +190,12 @@ export default function WhatsAppConfigPage() {
     setSaving(true);
     setError(null);
 
-    // Validation
     if (config.enabled && !config.configured) {
       setError('Vous devez d\'abord connecter votre compte WhatsApp Business.');
       setSaving(false);
       return;
     }
 
-    // Sauvegarder via l'API
     try {
       const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/v1/channels/whatsapp`, {
@@ -220,11 +223,8 @@ export default function WhatsAppConfigPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
 
-      // Redirect to onboarding if coming from there
       if (fromOnboarding) {
-        setTimeout(() => {
-          router.push('/onboarding');
-        }, 1500);
+        setTimeout(() => router.push('/onboarding'), 1500);
       }
     } catch (e: any) {
       console.error('Error saving WhatsApp config:', e);
@@ -232,11 +232,8 @@ export default function WhatsAppConfigPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
 
-      // Redirect to onboarding if coming from there (even on error, since config is saved to localStorage)
       if (fromOnboarding) {
-        setTimeout(() => {
-          router.push('/onboarding');
-        }, 1500);
+        setTimeout(() => router.push('/onboarding'), 1500);
       }
     } finally {
       setSaving(false);
@@ -279,11 +276,10 @@ export default function WhatsAppConfigPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-8 py-4">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard/settings/channels">
+            <Link href="/dashboard/channels">
               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -298,7 +294,6 @@ export default function WhatsAppConfigPage() {
       </header>
 
       <div className="max-w-4xl mx-auto px-8 py-8">
-        {/* Loading state */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div>
@@ -306,7 +301,6 @@ export default function WhatsAppConfigPage() {
           </div>
         ) : (
         <>
-        {/* Messages de statut */}
         {saved && (
           <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-green-600" />
@@ -321,7 +315,6 @@ export default function WhatsAppConfigPage() {
           </div>
         )}
 
-        {/* Statut de connexion */}
         {!config.configured ? (
           <div>
             <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
@@ -329,25 +322,22 @@ export default function WhatsAppConfigPage() {
               <div>
                 <p className="text-blue-900 font-medium mb-1">Connexion WhatsApp Business requise</p>
                 <p className="text-sm text-blue-800">
-                  Pour utiliser le canal WhatsApp, vous devez connecter votre compte WhatsApp Business.
-                  Choisissez une méthode ci-dessous.
+                  Pour utiliser le canal WhatsApp, connectez votre compte WhatsApp Business en moins de 2 minutes.
                 </p>
               </div>
             </div>
 
-            {/* Méthode 1 : OAuth (Recommandé) */}
-            <div className="bg-white rounded-lg shadow-sm border-2 border-green-300 p-6 mb-4">
+            <div className="bg-white rounded-lg shadow-sm border-2 border-green-300 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-bold text-gray-900 text-lg">Méthode 1 : Connexion automatique</h3>
+                    <h3 className="font-bold text-gray-900 text-lg">Connecter mon WhatsApp Business</h3>
                     <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
-                      RECOMMANDÉ
+                      2 MINUTES
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mb-3">
-                    Connectez votre WhatsApp Business en 2 clics via notre partenaire 360dialog.
-                    Configuration automatique en 2 minutes.
+                    Connectez votre numéro WhatsApp directement via Facebook. Simple et rapide.
                   </p>
                   <ul className="text-sm text-gray-700 space-y-1 mb-4">
                     <li className="flex items-center gap-2">
@@ -356,220 +346,69 @@ export default function WhatsAppConfigPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-green-600" />
-                      Connexion sécurisée et automatique
+                      Connexion sécurisée via Facebook
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-green-600" />
-                      Opérationnel en moins de 5 minutes
+                      Sara répond immédiatement sur votre numéro
                     </li>
                   </ul>
                 </div>
               </div>
+              
               <button
-                onClick={handleOAuthConnect}
-                className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                onClick={handleMetaEmbeddedSignup}
+                disabled={connecting || !fbLoaded}
+                className="w-full px-6 py-4 bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] transition-colors flex items-center justify-center gap-3 font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <MessageSquare className="w-5 h-5" />
-                Connecter mon WhatsApp Business
+                {connecting ? (
+                  <>
+                    <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Connexion en cours...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                    Connecter mon WhatsApp
+                  </>
+                )}
               </button>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                Vous serez redirigé vers 360dialog pour autoriser la connexion
+              
+              {!fbLoaded && (
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Chargement du SDK Facebook...
+                </p>
+              )}
+              
+              <p className="text-xs text-gray-500 mt-3 text-center">
+                Vous serez redirigé vers Facebook pour autoriser la connexion
               </p>
             </div>
 
-            {/* Méthode 2 : Configuration manuelle */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 text-lg mb-2">
-                    Méthode 2 : Configuration manuelle
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Si vous avez déjà un compte WhatsApp Business API ou préférez configurer manuellement.
-                    Temps estimé : 15-30 minutes.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={handleManualSetup}
-                className="w-full px-6 py-3 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 font-medium"
-              >
-                <SettingsIcon className="w-5 h-5" />
-                {showManualGuide ? 'Masquer le guide' : 'Afficher le guide de configuration'}
-              </button>
-
-              {/* Guide manuel */}
-              {showManualGuide && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-start gap-3">
-                      <Info className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm text-yellow-900 font-medium mb-1">
-                          Configuration avancée
-                        </p>
-                        <p className="text-sm text-yellow-800">
-                          Cette méthode nécessite des connaissances techniques. Si vous préférez une configuration simple,
-                          utilisez la méthode 1 (connexion automatique).
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <PlayCircle className="w-5 h-5 text-blue-600" />
-                    Tutoriel vidéo (3 min)
-                  </h4>
-                  <div className="bg-gray-100 rounded-lg p-8 mb-6 text-center">
-                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <PlayCircle className="w-8 h-8 text-white" />
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Tutoriel vidéo : Comment créer un compte WhatsApp Business API
-                    </p>
-                    <a
-                      href="https://www.youtube.com/watch?v=example"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 mt-3 text-blue-600 hover:text-blue-700 font-medium text-sm"
-                    >
-                      Voir la vidéo
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
-
-                  <h4 className="font-bold text-gray-900 mb-4">Étapes de configuration :</h4>
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">
-                        1
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 mb-1">Créer un compte Meta Business</p>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Rendez-vous sur{' '}
-                          <a
-                            href="https://business.facebook.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline inline-flex items-center gap-1"
-                          >
-                            business.facebook.com
-                            <ExternalLink className="w-3 h-3" />
-                          </a>{' '}
-                          et créez un compte professionnel
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">
-                        2
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 mb-1">Activer WhatsApp Business API</p>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Dans votre Meta Business Manager, allez dans "Paramètres" → "WhatsApp" → "Commencer"
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">
-                        3
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 mb-1">Obtenir votre Token API</p>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Allez dans "Outils pour les développeurs" → "API WhatsApp Business" → Copiez votre token
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">
-                        4
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 mb-1">Saisir les informations ci-dessous</p>
-                        <div className="mt-3 space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Token API WhatsApp
-                            </label>
-                            <input
-                              type="password"
-                              placeholder="EAAG..."
-                              value={manualConfig.accessToken}
-                              onChange={(e) => setManualConfig({...manualConfig, accessToken: e.target.value})}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Phone Number ID
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="123456789012345"
-                              value={manualConfig.phoneNumberId}
-                              onChange={(e) => setManualConfig({...manualConfig, phoneNumberId: e.target.value})}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Numéro WhatsApp Business
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="+33 6 12 34 56 78"
-                              value={manualConfig.whatsappNumber}
-                              onChange={(e) => setManualConfig({...manualConfig, whatsappNumber: e.target.value})}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                            />
-                          </div>
-                          <button
-                            onClick={handleManualValidation}
-                            disabled={saving || !manualConfig.accessToken || !manualConfig.phoneNumberId}
-                            className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {saving ? 'Validation en cours...' : 'Valider la configuration'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <p className="text-sm text-gray-700 flex items-start gap-2">
-                      <Info className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                      <span>
-                        <strong>Besoin d'aide ?</strong> Notre équipe peut configurer votre compte pour vous (99€).
-                        Contactez <a href="mailto:support@coccinelle.ai" className="text-blue-600 hover:underline">support@coccinelle.ai</a>
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm text-gray-700 flex items-start gap-2">
+                <Info className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                <span>
+                  <strong>Besoin d'aide ?</strong> Notre équipe peut configurer votre compte pour vous.
+                  Contactez <a href="mailto:support@coccinelle.ai" className="text-blue-600 hover:underline">support@coccinelle.ai</a>
+                </span>
+              </p>
             </div>
           </div>
         ) : (
           <>
-            {/* WhatsApp connecté - Afficher les paramètres */}
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-start gap-3">
               <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
               <div>
-                <p className="text-green-900 font-medium mb-1">WhatsApp Business connecté</p>
+                <p className="text-green-900 font-medium mb-1">WhatsApp Business connecté ✅</p>
                 <p className="text-sm text-green-800">
-                  Votre compte WhatsApp <strong>{config.whatsappNumber}</strong> est connecté et opérationnel.
-                  {config.connectionMethod === 'oauth' && ' (via 360dialog)'}
+                  Votre compte WhatsApp <strong>{config.whatsappNumber}</strong> est connecté. Sara peut maintenant répondre à vos clients !
                 </p>
               </div>
             </div>
 
-            {/* Activation du canal */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -578,7 +417,7 @@ export default function WhatsAppConfigPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Canal WhatsApp</h2>
-                    <p className="text-sm text-gray-600">Messages WhatsApp automatisés</p>
+                    <p className="text-sm text-gray-600">Sara répond automatiquement aux messages</p>
                   </div>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -595,99 +434,16 @@ export default function WhatsAppConfigPage() {
               </div>
             </div>
 
-            {/* Types de messages WhatsApp */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <div className="flex items-center gap-2 mb-4">
-                <SettingsIcon className="w-5 h-5 text-gray-700" />
-                <h3 className="font-bold text-gray-900">Types de messages WhatsApp</h3>
-              </div>
-
-              <p className="text-sm text-gray-600 mb-4">
-                Choisissez quels types de messages seront envoyés par WhatsApp à vos clients
-              </p>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">Confirmation de rendez-vous</p>
-                    <p className="text-xs text-gray-600">Envoyé immédiatement après la prise de RDV</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={config.templates.rdvConfirmation}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      templates: { ...config.templates, rdvConfirmation: e.target.checked }
-                    })}
-                    disabled={!config.enabled}
-                    className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">Rappel de rendez-vous</p>
-                    <p className="text-xs text-gray-600">Envoyé 24h avant le rendez-vous</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={config.templates.rdvRappel}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      templates: { ...config.templates, rdvRappel: e.target.checked }
-                    })}
-                    disabled={!config.enabled}
-                    className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">Réponses automatiques</p>
-                    <p className="text-xs text-gray-600">Répondre automatiquement aux messages clients</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={config.templates.reponseAuto}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      templates: { ...config.templates, reponseAuto: e.target.checked }
-                    })}
-                    disabled={!config.enabled}
-                    className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">Promotions et offres</p>
-                    <p className="text-xs text-gray-600">Campagnes marketing et promotions</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={config.templates.promotions}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      templates: { ...config.templates, promotions: e.target.checked }
-                    })}
-                    disabled={!config.enabled}
-                    className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Test du canal */}
             {config.enabled && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
                 <h3 className="font-bold text-blue-900 mb-2">Tester le canal WhatsApp</h3>
                 <p className="text-sm text-blue-800 mb-4">
-                  Envoyez un message WhatsApp de test pour vérifier que tout fonctionne correctement
+                  Envoyez un message WhatsApp de test pour vérifier que tout fonctionne
                 </p>
                 <div className="flex gap-3">
                   <input
                     type="text"
-                    placeholder="Numéro WhatsApp (ex: +33760762153)"
+                    placeholder="Numéro WhatsApp (ex: +33612345678)"
                     value={testNumber}
                     onChange={(e) => setTestNumber(e.target.value)}
                     className="flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
@@ -713,11 +469,10 @@ export default function WhatsAppConfigPage() {
               </div>
             )}
 
-            {/* Actions */}
             <div className="flex justify-end gap-3">
-              <Link href="/dashboard/settings/channels">
+              <Link href="/dashboard/channels">
                 <button className="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium">
-                  Annuler
+                  Retour
                 </button>
               </Link>
               <button
@@ -744,5 +499,17 @@ export default function WhatsAppConfigPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function WhatsAppConfigPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div>
+      </div>
+    }>
+      <WhatsAppConfigContent />
+    </Suspense>
   );
 }

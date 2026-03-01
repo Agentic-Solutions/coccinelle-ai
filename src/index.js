@@ -22,6 +22,9 @@ import { handlePermissionsRoutes } from './modules/permissions/routes.js';
 import { handleTeamsRoutes } from './modules/teams/routes.js';
 import { handleCustomersRoutes } from './modules/customers/routes.js';
 import { handleOAuthRoutes } from './modules/oauth/routes.js';
+import { handleCheckEmails, handleGetInbox, handleGetHistory, handleGetStatus, handleProcessAll, handleAutoReply, handleGetConversation, handleGetStats } from './modules/email/routes.js';
+// FIX BUG #1 : Import statique depuis helpers.js
+import { verifyToken } from './modules/auth/helpers.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -57,6 +60,46 @@ export default {
     if (path.startsWith("/api/v1/auth/")) {
         response = await handleAuthRoutes(request, env, ctx, corsHeaders);
         if (response) return response;
+      }
+
+      // Routes Email Service
+      console.log("EMAIL BLOCK REACHED", path);
+      if (path.startsWith('/api/v1/email/')) {
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader) {
+          return Response.json({ error: 'Authorization required' }, { status: 401, headers: getCorsHeaders(request) });
+        }
+        const token = authHeader.replace('Bearer ', '');
+        // FIX BUG #1 : Import statique + env.JWT_SECRET (pas env)
+        const payload = verifyToken(token, env.JWT_SECRET);
+        if (!payload) {
+          return Response.json({ error: 'Invalid token' }, { status: 401, headers: getCorsHeaders(request) });
+        }
+        const tenantId = payload.tenant_id;
+        
+        if (path === '/api/v1/email/check' && method === 'GET') {
+          response = await handleCheckEmails(request, env, ctx, tenantId);
+        } else if (path === '/api/v1/email/inbox' && method === 'GET') {
+          response = await handleGetInbox(request, env, ctx, tenantId);
+        } else if (path === '/api/v1/email/history' && method === 'GET') {
+          response = await handleGetHistory(request, env, ctx, tenantId);
+        } else if (path === '/api/v1/email/status' && method === 'GET') {
+          response = await handleGetStatus(request, env, ctx, tenantId);
+        } else if (path === "/api/v1/email/stats" && method === "GET") {
+          response = await handleGetStats(request, env, ctx, tenantId, corsHeaders);
+        } else if (path.startsWith("/api/v1/email/conversation/") && method === "GET") {
+          response = await handleGetConversation(request, env, ctx, tenantId);
+        } else if (path === "/api/v1/email/auto-reply" && method === "POST") {
+          response = await handleAutoReply(request, env, ctx, tenantId);
+        } else if (path === "/api/v1/email/process-all" && method === "POST") {
+          response = await handleProcessAll(request, env, ctx);
+        }
+        
+        if (response) {
+          const headers = new Headers(response.headers);
+          Object.entries(getCorsHeaders(request)).forEach(([k, v]) => headers.set(k, v));
+          return new Response(response.body, { status: response.status, headers });
+        }
       }
 
       // Routes OAuth (Google, Outlook, Yahoo)
@@ -177,7 +220,7 @@ export default {
 
     } catch (error) {
       logger.error('Unhandled error', { method, path, error: error.message, stack: error.stack });
-      return errorResponse('Internal server error', 500);
+      return Response.json({ error: error.message, stack: error.stack, type: error.name }, { status: 500, headers: getCorsHeaders(request) });
     }
   }
 };

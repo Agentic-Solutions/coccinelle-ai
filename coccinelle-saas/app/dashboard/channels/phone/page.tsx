@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Phone, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, Copy, ChevronDown, ChevronUp } from 'lucide-react';
@@ -27,7 +28,7 @@ interface ElevenLabsVoice {
   is_native: boolean;
 }
 
-export default function PhoneConfigPage() {
+function PhoneConfigContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromOnboarding = searchParams.get('from') === 'onboarding';
@@ -729,5 +730,13 @@ export default function PhoneConfigPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PhoneConfigPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div></div>}>
+      <PhoneConfigContent />
+    </Suspense>
   );
 }

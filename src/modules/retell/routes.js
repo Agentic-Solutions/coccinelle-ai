@@ -305,18 +305,127 @@ async function handleCallEnded(call, env) {
 }
 
 async function handleCallAnalyzed(call, analysis, env) {
+  // 1. Sauvegarder l'analyse en DB (best effort)
   try {
     await env.DB.prepare(`
       UPDATE calls 
       SET post_call_analysis = ?, transcript = ?
       WHERE retell_call_id = ?
     `).bind(
-      JSON.stringify(analysis),
-      call.transcript || null,
+      JSON.stringify(analysis || {}),
+      call.transcript || '',
       call.call_id
     ).run();
+  } catch (dbError) {
+    logger.error('Failed to save analysis in DB', { error: dbError.message });
+  }
+
+  // 2. Envoyer email recap au prospect (indépendant de la DB)
+  try {
+    const prospectEmail = call?.metadata?.prospect_email;
+    const prospectName = call?.metadata?.prospect_name || '';
+    const source = call?.metadata?.source;
+    
+    logger.info('Call analyzed - checking email', { 
+      prospectEmail, source, hasAnalysis: !!analysis, callId: call.call_id 
+    });
+
+    const durationSeconds = call.duration_ms ? Math.round(call.duration_ms / 1000) : 0;
+    if (prospectEmail && source === 'agenticsolutions.fr' && durationSeconds >= 20) {
+      await sendDemoRecapEmail(env, {
+        to: prospectEmail,
+        name: prospectName,
+        duration: call.duration_ms ? Math.round(call.duration_ms / 1000) : 0,
+        summary: analysis?.call_summary || 'Merci pour votre appel avec Julien.',
+        transcript: call.transcript || '',
+        sector: call?.metadata?.prospect_sector || '',
+        callId: call.call_id
+      });
+      logger.info('Demo recap email sent', { to: prospectEmail, callId: call.call_id });
+    } else {
+      logger.info('Skipping email', { reason: !prospectEmail ? 'no email' : 'not from agenticsolutions.fr', source });
+    }
+  } catch (emailError) {
+    logger.error('Failed to send recap email', { error: emailError.message });
+  }
+}
+
+// ============ EMAIL RECAP POST-APPEL DEMO ============
+
+async function sendDemoRecapEmail(env, data) {
+  if (!env.RESEND_API_KEY) {
+    logger.warn('RESEND_API_KEY not configured, skipping demo recap email');
+    return;
+  }
+
+  const durationMin = Math.floor(data.duration / 60);
+  const durationSec = data.duration % 60;
+  const durationStr = durationMin > 0 ? durationMin + ' min ' + durationSec + ' sec' : durationSec + ' sec';
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: #1f2937; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 22px;">coccinelle.ai</h1>
+        <p style="color: #9ca3af; margin: 8px 0 0 0; font-size: 14px;">Merci d'avoir teste notre agent vocal !</p>
+      </div>
+      
+      <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+        <p style="font-size: 16px; color: #374151;">Bonjour ${data.name},</p>
+        
+        <p style="color: #374151; line-height: 1.6;">Vous venez de discuter avec <strong>Julien</strong>, notre agent vocal IA. En quelques minutes, vous avez pu voir comment coccinelle.ai peut transformer la gestion de vos appels clients.</p>
+        
+        <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <table style="width: 100%;">
+            <tr>
+              <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Duree de l'appel</td>
+              <td style="padding: 6px 0; color: #1f2937; font-weight: 600; text-align: right;">${durationStr}</td>
+            </tr>
+            ${data.sector ? '<tr><td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Votre secteur</td><td style="padding: 6px 0; color: #1f2937; font-weight: 600; text-align: right;">' + data.sector + '</td></tr>' : ''}
+          </table>
+        </div>
+
+        <p style="color: #374151; line-height: 1.6;">Vous souhaitez aller plus loin avec coccinelle.ai ?</p>
+        
+        <div style="margin: 24px 0; text-align: center;">
+          <a href="https://agenticsolutions.fr/contact" style="display: inline-block; background: #1f2937; color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">Nous contacter</a>
+        </div>
+
+        <p style="color: #6b7280; font-size: 13px; text-align: center;">Pas encore decide ? Repondez a cet email, Youssef vous repondra personnellement.</p>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        
+        <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+          Agentic Solutions - coccinelle.ai<br/>
+          Toulouse, France<br/>
+          <a href="mailto:contact@agenticsolutions.fr" style="color: #6b7280;">contact@agenticsolutions.fr</a>
+        </p>
+      </div>
+    </div>
+  `;
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + env.RESEND_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Julien - coccinelle.ai <julien@coccinelle.ai>',
+        reply_to: 'contact@agenticsolutions.fr',
+        to: [data.to],
+        subject: data.name + ', voici le recap de votre appel avec Julien',
+        html: html
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      logger.error('Resend API error for demo recap', { error: result });
+    }
+    return result;
   } catch (error) {
-    logger.error('Failed to save analysis', { error: error.message });
+    logger.error('Failed to send demo recap email', { error: error.message });
   }
 }
 
@@ -634,5 +743,88 @@ async function searchProducts(env, tenantId, args) {
     return successResponse({
       result: `Nous proposons différents services. Pouvez-vous me préciser ce que vous recherchez ?`
     });
+  }
+}
+
+// ============ WEB CALL PUBLIC (Agentic Solutions) ============
+
+/**
+ * POST /api/v1/public/retell/web-call
+ * Crée un appel WebRTC pour qu'un prospect teste l'agent vocal
+ * depuis agenticsolutions.fr — SANS authentification
+ */
+export async function createWebCall(request, env) {
+  try {
+    const body = await request.json();
+    const { name, email, language = 'fr', sector = '' } = body;
+
+    if (!name || !email) {
+      return errorResponse('Nom et email sont requis', 400);
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return errorResponse('Format email invalide', 400);
+    }
+
+    const tenantId = 'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy';
+
+    const agentConfig = await env.DB.prepare(`
+      SELECT retell_agent_id, agent_name 
+      FROM omni_agent_configs 
+      WHERE tenant_id = ? AND retell_agent_id IS NOT NULL
+      LIMIT 1
+    `).bind(tenantId).first();
+
+    if (!agentConfig || !agentConfig.retell_agent_id) {
+      logger.error('Agent config not found for tenant', { tenantId });
+      return errorResponse('Agent non trouvé pour ce tenant', 404);
+    }
+
+    logger.info('Creating web call', { 
+      name, email, agent: agentConfig.agent_name,
+      retell_agent_id: agentConfig.retell_agent_id 
+    });
+
+    const retellResponse = await fetch('https://api.retellai.com/v2/create-web-call', {
+      method: 'POST',
+      headers: getRetellHeaders(env),
+      body: JSON.stringify({
+        agent_id: agentConfig.retell_agent_id,
+        metadata: {
+          tenant_id: tenantId,
+          prospect_name: name,
+          prospect_email: email,
+          prospect_sector: sector,
+          source: 'agenticsolutions.fr'
+        },
+        retell_llm_dynamic_variables: {
+          prospect_name: name,
+          prospect_sector: sector,
+          language: language
+        }
+      })
+    });
+
+    if (!retellResponse.ok) {
+      const errorText = await retellResponse.text();
+      logger.error('Retell API error', { status: retellResponse.status, error: errorText });
+      return errorResponse('Erreur création appel Retell: ' + errorText, 500);
+    }
+
+    const retellData = await retellResponse.json();
+
+    logger.info('Web call created successfully', { 
+      call_id: retellData.call_id, agent_id: retellData.agent_id 
+    });
+
+    return successResponse({
+      access_token: retellData.access_token,
+      call_id: retellData.call_id
+    });
+
+  } catch (error) {
+    logger.error('createWebCall error', { error: error.message });
+    return errorResponse('Erreur serveur: ' + error.message, 500);
   }
 }

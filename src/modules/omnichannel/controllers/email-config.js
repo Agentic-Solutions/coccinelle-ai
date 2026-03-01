@@ -281,7 +281,7 @@ export async function autoConfigureEmailDNS(request, env) {
     // Créer ou mettre à jour la config email
     const now = new Date().toISOString();
     const configId = `emailcfg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const forwardingAddress = `${tenantId}@mail.coccinelle.ai`;
+    const forwardingAddress = `${tenantId}@coccinelle.ai`;
 
     const existing = await env.DB.prepare(`
       SELECT id FROM omni_email_configs WHERE tenant_id = ?
@@ -466,7 +466,7 @@ export async function detectDNSProvider(request, env) {
     const providerInfo = await detector.detectProvider(domain);
 
     // Générer l'adresse de forwarding
-    const forwardingAddress = `${tenantId}@mail.coccinelle.ai`;
+    const forwardingAddress = `${tenantId}@coccinelle.ai`;
 
     // Générer les instructions de forwarding
     const instructions = detector.generateForwardingInstructions(

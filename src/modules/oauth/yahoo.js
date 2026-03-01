@@ -8,7 +8,7 @@ const YAHOO_AUTH_URL = 'https://api.login.yahoo.com/oauth2/request_auth';
 const YAHOO_TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token';
 
 // Scopes nécessaires
-const SCOPES = 'openid mail-r mail-w';
+const SCOPES = 'openid profile email';
 
 /**
  * Génère l'URL d'autorisation Yahoo

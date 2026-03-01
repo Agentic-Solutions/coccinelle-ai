@@ -9,9 +9,16 @@ N8N_WEBHOOK_URL = "https://coccinelle-n8n.onrender.com"
 TWILIO_PHONE_NUMBER = "+33939035760"
 TWILIO_PHONE_NUMBER_2 = "+33939035761"
 TWILIO_CONVERSATIONS_SERVICE_SID = "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-RESEND_FROM_EMAIL = "onboarding@resend.dev"
+RESEND_FROM_EMAIL = "Sara <sara@coccinelle.ai>"
 OMNICHANNEL_ENABLED = "true"
-FRONTEND_URL = "http://localhost:3000"
+FRONTEND_URL = "https://coccinelle-saas.pages.dev"
+GOOGLE_CLIENT_ID = "4699769016-fo6jp6vid80sno7nngjb58o180b1sr3o.apps.googleusercontent.com"
+GOOGLE_REDIRECT_URI = "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/oauth/google/callback"
+META_WHATSAPP_ACCESS_TOKEN = "EAFprwicaq0wBQvqGR8NKZCanfoTreBFibfyZALzUISeqObpsH3BTRxANqfgwZC5U0tn3bBE2Bu10DXzn5Yk6JS3VVPVGGWgHBzNCh45FROZCcovMBFUEjLpegGr0IM4Tcq1QHRphwdFPcMimYV5WbnE2rf0QWntD4TF21zcyaleFQW8MhvwQ9SGRjjfWsFEFS2DSVAk9jHl6Bv9geguLDiuaZBruukTTyeOYHnqUscPrhSP7YrwghLsnqAytbzS6nuV8eFor83cI3J3VQRxAUreWOiLrF64JUDUUZD"
+META_WEBHOOK_VERIFY_TOKEN = "coccinelle_meta_verify_2026"
+META_APP_ID = "25451229527845708"
+META_APP_SECRET = "39b16ccc8d6c3bbabaae052bbdd33926"
+META_BUSINESS_ID = "2369569113476967"
 
 # Note: Les secrets suivants doivent être configurés via wrangler secret put:
 # - TWILIO_ACCOUNT_SID
@@ -47,3 +54,33 @@ index_name = "coccinelle-vectors-v2"
 [[r2_buckets]]
 binding = "AUDIO_BUCKET"
 bucket_name = "omnichannel-audio"
+
+# ========================================
+# 📧 EMAIL ROUTING - Réception des emails
+# ========================================
+# Pour recevoir les emails, le client doit :
+# 1. Ajouter son domaine sur Cloudflare
+# 2. Configurer Email Routing vers ce Worker
+# 3. Ajouter le record MX dans ses DNS
+
+# ========================================
+# 📧 EMAIL ROUTING - Réception des emails
+# ========================================
+# Pour recevoir les emails, le client doit :
+# 1. Ajouter son domaine sur Cloudflare
+# 2. Configurer Email Routing vers ce Worker
+# 3. Ajouter le record MX dans ses DNS
+
+# ========================================
+
+
+
+# OAuth Microsoft/Outlook
+# MICROSOFT_CLIENT_ID = "à configurer"
+# MICROSOFT_CLIENT_SECRET = "à configurer" 
+# MICROSOFT_REDIRECT_URI = "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/oauth/outlook/callback"
+
+# OAuth Yahoo
+# YAHOO_CLIENT_ID = "à configurer"
+# YAHOO_CLIENT_SECRET = "à configurer"
+# YAHOO_REDIRECT_URI = "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/oauth/yahoo/callback"

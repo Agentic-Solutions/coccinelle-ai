@@ -30,6 +30,8 @@ import {
   verifyEmailForwarding,
   getCloudflareInstructions
 } from './controllers/email-config.js';
+import { sendEmail } from './controllers/email-send.js';
+import { handleOAuthCallback, getSharedWABAs } from './controllers/whatsapp-oauth.js';
 
 // Webhooks
 import { handleIncomingCall } from './webhooks/voice.js';
@@ -159,6 +161,20 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
     // POST /api/v1/omnichannel/email/verify-forwarding
     if (path === '/api/v1/omnichannel/email/verify-forwarding' && method === 'POST') {
       return await verifyEmailForwarding(request, env);
+    }
+
+    // GET /api/v1/omnichannel/whatsapp/oauth/callback
+    if (path === '/api/v1/omnichannel/whatsapp/oauth/callback' && method === 'GET') {
+      return await handleOAuthCallback(request, env);
+    }
+
+    // GET /api/v1/omnichannel/whatsapp/wabas
+    if (path === '/api/v1/omnichannel/whatsapp/wabas' && method === 'GET') {
+      return await getSharedWABAs(request, env);
+    }
+    // POST /api/v1/omnichannel/email/send
+    if (path === '/api/v1/omnichannel/email/send' && method === 'POST') {
+      return await sendEmail(request, env);
     }
 
     // ============================================

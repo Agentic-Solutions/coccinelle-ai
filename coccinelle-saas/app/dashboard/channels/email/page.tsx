@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
   ArrowLeft, Globe, Plus, Trash2, CheckCircle, AlertCircle,
   Loader2, Copy, Check, RefreshCw, Mail, HelpCircle, Send, TestTube,
-  ChevronDown, ChevronUp, ExternalLink, Inbox, LogOut
+  ChevronDown, ChevronUp, ExternalLink, Inbox, LogOut, Bot, BarChart3
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
@@ -63,6 +63,57 @@ export default function EmailConfigPage() {
   const [providerLoading, setProviderLoading] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
+  // NEW: Auto-reply and stats states
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
+  const [emailStats, setEmailStats] = useState({ received: 0, replied: 0 });
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [processingAutoReply, setProcessingAutoReply] = useState(false);
+
+  const getToken = () => localStorage.getItem('auth_token');
+
+  // NEW: Load email stats
+  const loadEmailStats = async () => {
+    try {
+      setLoadingStats(true);
+      const response = await fetch(`${API_URL}/api/v1/email/inbox`, {
+        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const received = data.emails?.length || 0;
+        const statsResponse = await fetch(`${API_URL}/api/v1/email/stats`, {
+          headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }
+        });
+        let replied = 0;
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          replied = statsData.repliedCount || 0;
+        }
+        setEmailStats({ received, replied });
+      }
+    } catch (err) { console.error("Erreur stats:", err); }
+    finally { setLoadingStats(false); }
+  };
+
+  // NEW: Handle auto-reply click
+  const handleAutoReplyClick = async () => {
+    try {
+      setProcessingAutoReply(true);
+      const response = await fetch(`${API_URL}/api/v1/email/auto-reply`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${getToken()}`, "Content-Type": "application/json" }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccess(`Sara a traité ${data.processed} email(s) !`);
+        loadEmailStats();
+      } else {
+        throw new Error(data.error || "Erreur");
+      }
+    } catch (err: any) { setError(err.message); }
+    finally { setProcessingAutoReply(false); }
+  };
+
   useEffect(() => { 
     loadDomains(); 
     loadAllProviderStatus();
@@ -93,6 +144,13 @@ export default function EmailConfigPage() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
+
+  // NEW: Load stats when gmail is connected
+  useEffect(() => {
+    if (gmailStatus.connected) {
+      loadEmailStats();
+    }
+  }, [gmailStatus.connected]);
   
   useEffect(() => {
     const pendingDomain = domains.find(d => d.status !== 'verified');
@@ -100,8 +158,6 @@ export default function EmailConfigPage() {
       setExpandedDomain(pendingDomain.id);
     }
   }, [domains]);
-
-  const getToken = () => localStorage.getItem('auth_token');
 
   const loadAllProviderStatus = async () => {
     loadProviderStatus('google', setGmailStatus);
@@ -244,7 +300,44 @@ export default function EmailConfigPage() {
     { type: 'TXT', name: '_dmarc', value: 'v=DMARC1; p=none;', description: '🔒 DMARC - Politique de sécurité' }
   ];
 
-  // Composant réutilisable pour chaque provider
+  // Icons pour chaque provider
+  const GmailIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
+    <svg className={`${size} text-red-500`} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+    </svg>
+  );
+
+  const OutlookIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
+    <svg className={size} viewBox="0 0 24 24">
+      <path fill="#0078D4" d="M24 7.387v10.478c0 .23-.08.424-.238.576a.806.806 0 01-.59.234h-8.86v-6.9l1.26.915c.097.064.202.096.318.096a.53.53 0 00.318-.096l7.37-5.345c.096-.074.18-.106.25-.096.075.01.126.064.152.16v-.022zM23.082 5.906L15.59 11.39l-.276.2-1.002.727V5.906h8.77zm-9.77 12.844V5.906H1.75c-.23 0-.426.078-.59.234a.806.806 0 00-.234.59v10.478c0 .23.078.426.234.59.164.156.36.234.59.234h11.562zM7.5 9c.656 0 1.22.234 1.69.703.47.47.704 1.034.704 1.69 0 .47-.117.898-.352 1.286a2.426 2.426 0 01-.937.937 2.469 2.469 0 01-1.29.352c-.656 0-1.22-.235-1.69-.704a2.307 2.307 0 01-.703-1.69c0-.656.234-1.22.703-1.69.47-.47 1.034-.704 1.69-.704h.185zm0 1.172a1.2 1.2 0 00-.879.363 1.2 1.2 0 00-.363.879c0 .343.121.636.363.879.242.242.536.363.879.363.343 0 .636-.121.879-.363.242-.243.363-.536.363-.88 0-.342-.121-.636-.363-.878a1.2 1.2 0 00-.879-.363z"/>
+    </svg>
+  );
+
+  const YahooIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
+    <svg className={size} viewBox="0 0 24 24" fill="#6001D2">
+      <path d="M10.816 8.194l-3.354 7.774-1.236 5.056h-3.79l1.236-5.056L0 8.194h4.106l2.035 5.152 2.035-5.152h2.64zm2.397 12.83V8.194h3.79v12.83h-3.79zm5.45-9.31c.666 0 1.234.236 1.702.71.468.473.702 1.044.702 1.713 0 .669-.234 1.24-.702 1.713-.468.474-1.036.71-1.702.71-.666 0-1.233-.236-1.7-.71a2.333 2.333 0 01-.703-1.713c0-.669.234-1.24.702-1.713.468-.474 1.035-.71 1.701-.71z"/>
+    </svg>
+  );
+
+  const GoogleColorIcon = () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+  );
+
+  const MicrosoftColorIcon = () => (
+    <svg className="w-6 h-6" viewBox="0 0 24 24">
+      <path fill="#F25022" d="M1 1h10v10H1z"/>
+      <path fill="#00A4EF" d="M1 13h10v10H1z"/>
+      <path fill="#7FBA00" d="M13 1h10v10H13z"/>
+      <path fill="#FFB900" d="M13 13h10v10H13z"/>
+    </svg>
+  );
+
+  // Composant réutilisable pour chaque provider (KEPT AS IS for Outlook/Yahoo)
   const ProviderCard = ({ 
     provider, 
     providerName, 
@@ -337,43 +430,6 @@ export default function EmailConfigPage() {
     </div>
   );
 
-  // Icons pour chaque provider
-  const GmailIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
-    <svg className={`${size} text-red-500`} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
-    </svg>
-  );
-
-  const OutlookIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
-    <svg className={size} viewBox="0 0 24 24">
-      <path fill="#0078D4" d="M24 7.387v10.478c0 .23-.08.424-.238.576a.806.806 0 01-.59.234h-8.86v-6.9l1.26.915c.097.064.202.096.318.096a.53.53 0 00.318-.096l7.37-5.345c.096-.074.18-.106.25-.096.075.01.126.064.152.16v-.022zM23.082 5.906L15.59 11.39l-.276.2-1.002.727V5.906h8.77zm-9.77 12.844V5.906H1.75c-.23 0-.426.078-.59.234a.806.806 0 00-.234.59v10.478c0 .23.078.426.234.59.164.156.36.234.59.234h11.562zM7.5 9c.656 0 1.22.234 1.69.703.47.47.704 1.034.704 1.69 0 .47-.117.898-.352 1.286a2.426 2.426 0 01-.937.937 2.469 2.469 0 01-1.29.352c-.656 0-1.22-.235-1.69-.704a2.307 2.307 0 01-.703-1.69c0-.656.234-1.22.703-1.69.47-.47 1.034-.704 1.69-.704h.185zm0 1.172a1.2 1.2 0 00-.879.363 1.2 1.2 0 00-.363.879c0 .343.121.636.363.879.242.242.536.363.879.363.343 0 .636-.121.879-.363.242-.243.363-.536.363-.88 0-.342-.121-.636-.363-.878a1.2 1.2 0 00-.879-.363z"/>
-    </svg>
-  );
-
-  const YahooIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
-    <svg className={size} viewBox="0 0 24 24" fill="#6001D2">
-      <path d="M10.816 8.194l-3.354 7.774-1.236 5.056h-3.79l1.236-5.056L0 8.194h4.106l2.035 5.152 2.035-5.152h2.64zm2.397 12.83V8.194h3.79v12.83h-3.79zm5.45-9.31c.666 0 1.234.236 1.702.71.468.473.702 1.044.702 1.713 0 .669-.234 1.24-.702 1.713-.468.474-1.036.71-1.702.71-.666 0-1.233-.236-1.7-.71a2.333 2.333 0 01-.703-1.713c0-.669.234-1.24.702-1.713.468-.474 1.035-.71 1.701-.71z"/>
-    </svg>
-  );
-
-  const GoogleColorIcon = () => (
-    <svg className="w-6 h-6" viewBox="0 0 24 24">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-    </svg>
-  );
-
-  const MicrosoftColorIcon = () => (
-    <svg className="w-6 h-6" viewBox="0 0 24 24">
-      <path fill="#F25022" d="M1 1h10v10H1z"/>
-      <path fill="#00A4EF" d="M1 13h10v10H1z"/>
-      <path fill="#7FBA00" d="M13 1h10v10H13z"/>
-      <path fill="#FFB900" d="M13 13h10v10H13z"/>
-    </svg>
-  );
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200">
@@ -455,17 +511,144 @@ export default function EmailConfigPage() {
           </div>
         )}
 
+        {/* ===================== GMAIL TAB - IMPROVED UX ===================== */}
         {activeTab === 'gmail' && (
           <div className="space-y-6">
-            <ProviderCard
-              provider="google"
-              providerName="Gmail"
-              status={gmailStatus}
-              icon={<GoogleColorIcon />}
-              bgColor="bg-red-50"
-              onConnect={() => handleConnectProvider('google')}
-              onDisconnect={() => handleDisconnectProvider('google', setGmailStatus, 'Gmail')}
-            />
+            
+            {/* STEP 1: Connexion Gmail */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-sm">1</div>
+                <h2 className="text-lg font-bold text-gray-900">Connexion Gmail</h2>
+              </div>
+              
+              {providerLoading === 'google' ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                </div>
+              ) : gmailStatus.connected ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-6 h-6 text-green-500" />
+                      <div>
+                        <p className="font-medium text-green-800">Gmail connecté</p>
+                        <p className="text-green-700">{gmailStatus.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDisconnectProvider('google', setGmailStatus, 'Gmail')}
+                      disabled={disconnecting === 'google'}
+                      className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2 text-sm"
+                    >
+                      {disconnecting === 'google' ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                      Déconnecter
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p className="text-gray-600 text-sm">Connectez votre compte Gmail pour que Sara puisse lire et répondre à vos emails automatiquement.</p>
+                  </div>
+                  <button
+                    onClick={() => handleConnectProvider('google')}
+                    className="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-lg hover:border-red-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
+                  >
+                    <GoogleColorIcon />
+                    <span className="font-medium text-gray-700">Connecter avec Google</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* STEP 2: Réponses automatiques (only if connected) */}
+            {gmailStatus.connected && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">2</div>
+                  <h2 className="text-lg font-bold text-gray-900">Réponses automatiques</h2>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                        <Bot className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-purple-900">Sara répond aux emails</p>
+                        <p className="text-sm text-purple-700">{autoReplyEnabled ? 'Activé' : 'Désactivé'}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setAutoReplyEnabled(!autoReplyEnabled)}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${autoReplyEnabled ? 'bg-purple-600' : 'bg-gray-300'}`}
+                    >
+                      <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${autoReplyEnabled ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+                  
+                  <button
+                    onClick={handleAutoReplyClick}
+                    disabled={processingAutoReply}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {processingAutoReply ? (
+                      <><Loader2 className="w-5 h-5 animate-spin" /> Traitement en cours...</>
+                    ) : (
+                      <><Send className="w-5 h-5" /> Sara répond maintenant</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: Statistiques (only if connected) */}
+            {gmailStatus.connected && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">3</div>
+                    <h2 className="text-lg font-bold text-gray-900">Statistiques</h2>
+                  </div>
+                  <button
+                    onClick={loadEmailStats}
+                    disabled={loadingStats}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <RefreshCw className={`w-5 h-5 text-gray-500 ${loadingStats ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                      <span className="text-2xl font-bold text-blue-900">{emailStats.received}</span>
+                    </div>
+                    <p className="text-sm text-blue-700">Emails reçus</p>
+                  </div>
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Bot className="w-5 h-5 text-green-600" />
+                      <span className="text-2xl font-bold text-green-900">{emailStats.replied}</span>
+                    </div>
+                    <p className="text-sm text-green-700">Réponses Sara</p>
+                  </div>
+                </div>
+                
+                <Link 
+                  href="/dashboard/inbox"
+                  className="mt-4 w-full px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+                >
+                  <Inbox className="w-4 h-4" />
+                  Voir l'Inbox complet
+                </Link>
+              </div>
+            )}
+
+            {/* FAQ Section */}
             <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
               <button onClick={() => setShowHelp(!showHelp)} className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">

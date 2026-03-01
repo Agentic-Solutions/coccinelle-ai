@@ -224,7 +224,33 @@ async function handleCrawl(request, env) {
   try {
     const pages = await crawler.crawlWebsite(startUrl, maxPages || 10);
 
-    logger.info('[KB] Crawl completed', { tenantId: tenant.id, startUrl, pagesCount: pages.length });
+    logger.info("[KB] Crawl completed", { tenantId: tenant.id, startUrl, pagesCount: pages.length });
+
+    // SAUVEGARDER LES PAGES DANS LA DB
+    const savedDocs = [];
+    for (const page of pages) {
+      const docId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const now = new Date().toISOString();
+      
+      await env.DB.prepare(`
+        INSERT INTO knowledge_documents (
+          id, tenant_id, title, source_url, source_type, content, metadata, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, "crawl", ?, ?, ?, ?)
+      `).bind(
+        docId,
+        tenant.id,
+        page.title || "Page sans titre",
+        page.url,
+        page.content || "",
+        JSON.stringify({ crawledAt: now, startUrl }),
+        now,
+        now
+      ).run();
+      
+      savedDocs.push({ id: docId, url: page.url, title: page.title });
+    }
+    
+    logger.info("[KB] Documents saved", { tenantId: tenant.id, docsCount: savedDocs.length });
 
     return successResponse({
       success: true,

@@ -150,7 +150,7 @@ export default function ChannelsPage() {
       description: 'Emails automatisés via SMTP',
       icon: Mail,
       color: 'purple',
-      path: '/dashboard/settings/channels/email',
+      path: '/dashboard/channels/email',
       status: channels.email,
       managedBy: 'client'
     },

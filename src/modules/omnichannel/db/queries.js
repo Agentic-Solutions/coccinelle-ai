@@ -45,7 +45,7 @@ export const queries = {
   createConversation: `
     INSERT INTO omni_conversations (
       id, conversation_sid, tenant_id,
-      customer_phone, customer_email, customer_name,
+      client_phone, client_email, client_name,
       active_channels, current_channel, conversation_context,
       call_sid, first_message_at, last_message_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

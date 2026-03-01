@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Bot, BookOpen, Settings as SettingsIcon, Check } from 'lucide-react';
 import AssistantConfigStep from '@/components/onboarding/SaraConfigStep';
 import Link from 'next/link';
 
-export default function AssistantConfigPage() {
+function AssistantConfigContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromOnboarding = searchParams.get('from') === 'onboarding';
@@ -119,5 +120,13 @@ export default function AssistantConfigPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AssistantConfigPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div></div>}>
+      <AssistantConfigContent />
+    </Suspense>
   );
 }

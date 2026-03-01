@@ -15,8 +15,13 @@ export class ClaudeAIService {
   /**
    * Créer une nouvelle session de conversation
    */
-  async createSession(agentConfig) {
-    const systemPrompt = agentConfig.system_prompt || this.getDefaultSystemPrompt(agentConfig);
+  async createSession(agentConfig, knowledgeContext = "") {
+    let systemPrompt = agentConfig.system_prompt || this.getDefaultSystemPrompt(agentConfig);
+    
+    // Injecter la knowledge base dans le prompt
+    if (knowledgeContext && knowledgeContext.length > 0) {
+      systemPrompt += "\n\n=== BASE DE CONNAISSANCES ===\nRÈGLES STRICTES:\n1. Réponds UNIQUEMENT avec les informations ci-dessous\n2. Si une information n est pas dans cette base, dis \"Je n ai pas cette information, je vous invite à nous contacter\"\n3. Ne JAMAIS inventer ou supposer\n\nInformations disponibles:\n" + knowledgeContext.substring(0, 8000);
+    }
 
     return {
       sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
