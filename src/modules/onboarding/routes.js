@@ -1,8 +1,8 @@
 /**
  * =====================================================
  * COCCINELLE.AI - ONBOARDING ROUTES (ARCHITECTURE UNIFIÉE)
- * Version : 2.0.0
- * Date : 22 décembre 2025
+ * Version : 2.1.0
+ * Date : 1 mars 2026
  * =====================================================
  *
  * PRINCIPE : Single Source of Truth
@@ -10,9 +10,13 @@
  *   - PAS de JSON temporaire dans onboarding_sessions
  *   - PAS de sync complexe
  *   - Transactions atomiques (rollback automatique si échec)
+ *   - Auth via JWT (plus de x-tenant-id header)
  *
  * =====================================================
  */
+
+import { requireAuth } from '../auth/helpers.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Génère un ID unique
@@ -651,18 +655,23 @@ export async function getAgentTypes(request, env) {
 /**
  * Router principal pour les routes d'onboarding
  */
-export async function handleOnboardingRoutes(request, env, path, method) {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-tenant-id'
-  };
+export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const method = request.method;
 
   try {
     // POST /api/v1/onboarding/start
     if (path === '/api/v1/onboarding/start' && method === 'POST') {
-      const tenantId = request.headers.get('x-tenant-id') || 'default';
-      const userId = request.headers.get('x-user-id') || 'anonymous';
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const tenantId = authResult.tenant.id;
+      const userId = authResult.user.id;
       const result = await startOnboarding(request, env, tenantId, userId);
       return new Response(JSON.stringify(result), {
         status: result.success ? 201 : 500,
@@ -757,8 +766,15 @@ export async function handleOnboardingRoutes(request, env, path, method) {
 
     // GET /api/v1/onboarding/session/:id/status
     if (path.match(/^\/api\/v1\/onboarding\/session\/[^/]+\/status$/) && method === 'GET') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
       const sessionId = path.split('/')[5];
-      const tenantId = request.headers.get('x-tenant-id') || 'default';
+      const tenantId = authResult.tenant.id;
       const result = await getOnboardingStatus(request, env, sessionId, tenantId);
       return new Response(JSON.stringify(result), {
         status: result.success ? 200 : 404,
@@ -779,11 +795,10 @@ export async function handleOnboardingRoutes(request, env, path, method) {
     return null;
 
   } catch (error) {
-    console.error('Error in handleOnboardingRoutes:', error);
+    logger.error('Error in handleOnboardingRoutes', { error: error.message, path });
     return new Response(JSON.stringify({
       success: false,
-      error: 'Erreur serveur',
-      details: error.message
+      error: 'Erreur serveur'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

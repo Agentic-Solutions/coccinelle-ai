@@ -1,11 +1,16 @@
 // Module Public Widget - Routes publiques sans authentification
 // Pour permettre l'embed du widget sur sites clients
 import { createWebCall } from '../retell/routes.js';
-
+import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
+import { rateLimitResponse } from '../../utils/rate-limiter.js';
 
 export async function handlePublicRoutes(request, env, path, method) {
   const url = new URL(request.url);
+
+  // Rate limit public endpoints: 30 requests/minute per IP
+  const rateLimited = rateLimitResponse(request, path, { maxRequests: 30, windowMs: 60000 });
+  if (rateLimited) return rateLimited;
 
   try {
     // GET /api/v1/public/:tenantId/info - Infos tenant publiques
@@ -33,30 +38,27 @@ export async function handlePublicRoutes(request, env, path, method) {
       return await createWebCall(request, env);
     }
 
-    // POST /api/v1/public/test/email - Test email (dev only)
-    // POST /api/v1/public/retell/web-call - Créer un appel WebRTC démo
-    if (path === '/api/v1/public/retell/web-call' && method === 'POST') {
-      return await createWebCall(request, env);
-    }
+    // Test endpoints - only available when ENABLE_TEST_ENDPOINTS=true in env
+    if (path.startsWith('/api/v1/public/test/') && method === 'POST') {
+      if (!env.ENABLE_TEST_ENDPOINTS || env.ENABLE_TEST_ENDPOINTS !== 'true') {
+        return errorResponse('Test endpoints are disabled in production', 403);
+      }
 
-    if (path === '/api/v1/public/test/email' && method === 'POST') {
-      return await handleTestEmail(request, env);
-    }
-
-    // POST /api/v1/public/test/sms - Test SMS (dev only)
-    if (path === '/api/v1/public/test/sms' && method === 'POST') {
-      return await handleTestSMS(request, env);
-    }
-
-    // POST /api/v1/public/test/whatsapp - Test WhatsApp (dev only)
-    if (path === '/api/v1/public/test/whatsapp' && method === 'POST') {
-      return await handleTestWhatsApp(request, env);
+      if (path === '/api/v1/public/test/email') {
+        return await handleTestEmail(request, env);
+      }
+      if (path === '/api/v1/public/test/sms') {
+        return await handleTestSMS(request, env);
+      }
+      if (path === '/api/v1/public/test/whatsapp') {
+        return await handleTestWhatsApp(request, env);
+      }
     }
 
     return null; // Route non trouvée
 
   } catch (error) {
-    console.error('Public route error:', error);
+    logger.error('Public route error', { error: error.message });
     return errorResponse(error.message);
   }
 }
@@ -107,7 +109,7 @@ async function handleGetTenantInfo(request, env, path) {
       }
     });
   } catch (error) {
-    console.error('Error fetching tenant info:', error);
+    logger.error('Error fetching tenant info', { error: error.message });
     return errorResponse('Failed to fetch tenant info');
   }
 }
@@ -181,7 +183,7 @@ async function handleGetAvailability(request, env, path, url) {
     });
 
   } catch (error) {
-    console.error('Error fetching availability:', error);
+    logger.error('Error fetching availability', { error: error.message });
     return errorResponse('Failed to fetch availability');
   }
 }
@@ -209,7 +211,7 @@ async function handleGetServices(request, env, path) {
     });
 
   } catch (error) {
-    console.error('Error fetching services:', error);
+    logger.error('Error fetching services', { error: error.message });
     return errorResponse('Failed to fetch services');
   }
 }
@@ -307,7 +309,7 @@ async function handleCreateBooking(request, env, path) {
     }, 201);
 
   } catch (error) {
-    console.error('Error creating booking:', error);
+    logger.error('Error creating booking', { error: error.message });
     return errorResponse('Failed to create booking');
   }
 }
@@ -361,7 +363,7 @@ async function handleTestEmail(request, env) {
       to: toEmail
     });
   } catch (error) {
-    console.error('Email test failed:', error);
+    logger.error('Email test failed', { error: error.message });
     return errorResponse('Erreur lors de l\'envoi: ' + error.message, 500);
   }
 }
@@ -418,7 +420,7 @@ async function handleTestSMS(request, env) {
       to: formattedNumber
     });
   } catch (error) {
-    console.error('SMS test failed:', error);
+    logger.error('SMS test failed', { error: error.message });
     return errorResponse('Erreur lors de l\'envoi: ' + error.message, 500);
   }
 }
@@ -466,7 +468,7 @@ async function handleTestWhatsApp(request, env) {
     const result = await response.json();
 
     if (result.error) {
-      console.error('WhatsApp error:', result.error);
+      logger.error('WhatsApp error', { error: result.error });
       return errorResponse(`Erreur WhatsApp: ${result.error.message}`, 400);
     }
 
@@ -477,7 +479,7 @@ async function handleTestWhatsApp(request, env) {
       to: formattedNumber
     });
   } catch (error) {
-    console.error('WhatsApp test failed:', error);
+    logger.error('WhatsApp test failed', { error: error.message });
     return errorResponse('Erreur lors de l\'envoi: ' + error.message, 500);
   }
 }

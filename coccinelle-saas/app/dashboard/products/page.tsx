@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Package, Plus, Search, Filter, MapPin, Euro, ShoppingBag, UtensilsCrossed, Briefcase, Home, Tag, Car, Book, Smartphone, Music, Heart, ShoppingCart, Laptop, Users } from 'lucide-react';
-import * as LucideIcons from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 
 interface Product {
@@ -60,6 +59,7 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all'); // 'all', 'product', 'service'
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,8 +86,8 @@ export default function ProductsPage() {
       if (data.success) {
         setCategories(data.categories);
       }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
     } finally {
       setLoadingCategories(false);
     }
@@ -96,6 +96,7 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setError(null);
       const categoryParam = selectedCategory !== 'all' ? `&category=${selectedCategory}` : '';
       const response = await fetch(`/api/proxy?path=/api/v1/products&tenantId=${tenantId}${categoryParam}`);
       const data = await response.json();
@@ -103,8 +104,9 @@ export default function ProductsPage() {
       if (data.success) {
         setProducts(data.products);
       }
-    } catch (error) {
-      console.error('Error fetching products:', error);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError('Impossible de charger les produits. Verifiez votre connexion.');
     } finally {
       setLoading(false);
     }
@@ -205,29 +207,29 @@ export default function ProductsPage() {
     <div>
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Package className="w-7 h-7 text-blue-600" />
-                Produits Multi-Secteurs
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="pl-10 lg:pl-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <Package className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 flex-shrink-0" />
+                Produits
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Gérez tous vos produits : immobilier, e-commerce, restauration, services...
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                Gerez tous vos produits et services
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <Link href="/dashboard/products/agents" className="px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg hover:bg-gray-50 flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto">
+              <Link href="/dashboard/products/agents" className="px-3 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm whitespace-nowrap">
                 <Users className="w-4 h-4" />
-                Assigner les agents
+                <span className="hidden sm:inline">Assigner les</span> Agents
               </Link>
-              <Link href="/dashboard/products/import" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+              <Link href="/dashboard/products/import" className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm whitespace-nowrap">
                 <Package className="w-4 h-4" />
-                Importer CSV
+                <span className="hidden sm:inline">Importer</span> CSV
               </Link>
-              <Link href="/dashboard/products/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <Link href="/dashboard/products/new" className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm whitespace-nowrap">
                 <Plus className="w-4 h-4" />
-                Nouveau produit
+                Nouveau
               </Link>
             </div>
           </div>
@@ -260,6 +262,18 @@ export default function ProductsPage() {
           </div>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+            <p className="text-red-700 text-sm">{error}</p>
+            <button onClick={fetchProducts} className="text-red-700 hover:text-red-800 text-sm font-medium underline">
+              Reessayer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

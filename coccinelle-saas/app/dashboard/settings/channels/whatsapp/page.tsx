@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, ExternalLink, PlayCircle } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useToast } from '../../../../../hooks/useToast';
+import ActionToastContainer from '../../../../../src/components/ActionToast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function WhatsAppConfigPage() {
+  const toast = useToast();
   const [config, setConfig] = useState({
     enabled: false,
     configured: false,
@@ -233,7 +236,7 @@ export default function WhatsAppConfigPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(data.message || 'Test WhatsApp effectué !');
+        toast.success(data.message || 'Test WhatsApp effectué !');
       } else {
         setError(data.error || 'Erreur lors du test WhatsApp');
       }

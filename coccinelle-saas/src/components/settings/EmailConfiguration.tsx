@@ -57,7 +57,7 @@ export default function EmailConfiguration() {
 
   const loadCurrentConfig = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -99,7 +99,7 @@ export default function EmailConfiguration() {
     setMessage(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -148,7 +148,7 @@ export default function EmailConfiguration() {
     setMessage(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -188,7 +188,7 @@ export default function EmailConfiguration() {
     setStep('configuring');
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -242,7 +242,7 @@ export default function EmailConfiguration() {
     setMessage(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const userRes = await fetch(`${API_URL}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });

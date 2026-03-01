@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Mic, Phone, Zap, Brain, Settings as SettingsIcon, Volume2, MessageSquare, Target, Clock } from 'lucide-react';
 import Logo from '@/components/Logo';
 import Link from 'next/link';
+import { useToast } from '../../../hooks/useToast';
+import ActionToastContainer from '../../../src/components/ActionToast';
 
 interface VoiceConfig {
   voice: string;
@@ -27,6 +29,7 @@ interface QualificationCriteria {
 }
 
 export default function AssistantConfigPage() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'voice' | 'personality' | 'scripts' | 'qualification'>('voice');
 
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>({
@@ -83,29 +86,31 @@ Puis-je vous proposer un rendez-vous avec un de nos conseillers ?`);
       qualificationCriteria,
       script
     });
-    alert('Configuration de Assistant sauvegardée avec succès !');
+    toast.success('Configuration de Assistant sauvegardée avec succès !');
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-4">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link href="/dashboard">
-              <Logo size={48} />
+              <Logo size={48} className="hidden sm:block" />
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Configuration Assistant</h1>
-              <p className="text-sm text-gray-600">Configurez votre agent IA vocal intelligent</p>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Configuration Assistant</h1>
+              <p className="text-xs sm:text-sm text-gray-600">Configurez votre agent IA vocal intelligent</p>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Stats en direct */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <Phone className="w-5 h-5 text-green-600" />
@@ -146,21 +151,22 @@ Puis-je vous proposer un rendez-vous avec un de nos conseillers ?`);
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
           <div className="border-b border-gray-200">
-            <nav className="flex">
+            <nav className="flex overflow-x-auto">
               <button
                 onClick={() => setActiveTab('voice')}
-                className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
+                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
                   activeTab === 'voice'
                     ? 'border-b-2 border-gray-900 text-gray-900'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 <Volume2 className="w-4 h-4" />
-                Voix & Audio
+                <span className="hidden sm:inline">Voix & Audio</span>
+                <span className="sm:hidden">Voix</span>
               </button>
               <button
                 onClick={() => setActiveTab('personality')}
-                className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
+                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
                   activeTab === 'personality'
                     ? 'border-b-2 border-gray-900 text-gray-900'
                     : 'text-gray-600 hover:text-gray-900'
@@ -171,7 +177,7 @@ Puis-je vous proposer un rendez-vous avec un de nos conseillers ?`);
               </button>
               <button
                 onClick={() => setActiveTab('scripts')}
-                className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
+                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
                   activeTab === 'scripts'
                     ? 'border-b-2 border-gray-900 text-gray-900'
                     : 'text-gray-600 hover:text-gray-900'
@@ -182,7 +188,7 @@ Puis-je vous proposer un rendez-vous avec un de nos conseillers ?`);
               </button>
               <button
                 onClick={() => setActiveTab('qualification')}
-                className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
+                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
                   activeTab === 'qualification'
                     ? 'border-b-2 border-gray-900 text-gray-900'
                     : 'text-gray-600 hover:text-gray-900'

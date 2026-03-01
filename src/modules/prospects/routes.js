@@ -86,7 +86,7 @@ async function handleListProspects(request, env) {
   const offset = parseInt(url.searchParams.get('offset')) || 0;
   
   let query = `
-    SELECT id, first_name, last_name, email, phone, status, source, created_at, updated_at
+    SELECT id, first_name, last_name, email, phone, status, source, created_at
     FROM prospects
     WHERE tenant_id = ?
   `;
@@ -141,18 +141,17 @@ async function handleCreateProspect(request, env) {
   const now = new Date().toISOString();
   
   await env.DB.prepare(`
-    INSERT INTO prospects (id, tenant_id, first_name, last_name, email, phone, status, source, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO prospects (id, tenant_id, first_name, last_name, email, phone, status, source, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    prospectId, 
-    tenantId, 
-    first_name, 
+    prospectId,
+    tenantId,
+    first_name,
     last_name || null,
-    email, 
-    phone || null, 
-    status, 
+    email,
+    phone || null,
+    status,
     source || null,
-    now,
     now
   ).run();
   
@@ -206,14 +205,13 @@ async function handleUpdateProspect(request, env, prospectId) {
   const phone = body.phone !== undefined ? body.phone : existing.phone;
   const status = body.status || existing.status;
   const source = body.source !== undefined ? body.source : existing.source;
-  const now = new Date().toISOString();
-  
+
   await env.DB.prepare(`
-    UPDATE prospects 
-    SET first_name = ?, last_name = ?, email = ?, phone = ?, status = ?, source = ?, updated_at = ?
+    UPDATE prospects
+    SET first_name = ?, last_name = ?, email = ?, phone = ?, status = ?, source = ?
     WHERE id = ? AND tenant_id = ?
   `).bind(
-    first_name, last_name, email, phone, status, source, now,
+    first_name, last_name, email, phone, status, source,
     prospectId, tenantId
   ).run();
   
@@ -221,7 +219,7 @@ async function handleUpdateProspect(request, env, prospectId) {
   
   return successResponse({
     success: true,
-    prospect: { id: prospectId, tenant_id: tenantId, first_name, last_name, email, phone, status, source, updated_at: now }
+    prospect: { id: prospectId, tenant_id: tenantId, first_name, last_name, email, phone, status, source }
   });
 }
 

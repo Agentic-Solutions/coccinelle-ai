@@ -149,27 +149,30 @@ export default function DashboardPage() {
     }))
   ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
 
-  // Quick wins
+  // Quick wins - use explicit Tailwind classes to avoid purge issues
   const quickWins = [
     {
-      title: '3 RDV à confirmer',
+      title: '3 RDV a confirmer',
       action: 'Confirmer',
       icon: Calendar,
-      color: 'green',
+      bgClass: 'bg-green-50',
+      iconClass: 'text-green-600',
       href: '/dashboard/appointments'
     },
     {
-      title: '5 appels non traités',
-      action: 'Écouter',
+      title: '5 appels non traites',
+      action: 'Ecouter',
       icon: Phone,
-      color: 'blue',
+      bgClass: 'bg-blue-50',
+      iconClass: 'text-blue-600',
       href: '/dashboard/conversations/appels'
     },
     {
-      title: '2 docs à valider',
+      title: '2 docs a valider',
       action: 'Valider',
       icon: FileText,
-      color: 'purple',
+      bgClass: 'bg-purple-50',
+      iconClass: 'text-purple-600',
       href: '/dashboard/knowledge'
     }
   ];
@@ -186,10 +189,10 @@ export default function DashboardPage() {
       <div className="flex-1">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-8 py-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Tableau de bord</h2>
-              <p className="text-sm text-gray-600 mt-1">
+          <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+            <div className="pl-12 lg:pl-0">
+              <h2 className="text-xl sm:text-2xl font-bold">Tableau de bord</h2>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">
                 Bienvenue sur votre assistant omnicanal
               </p>
             </div>
@@ -206,60 +209,60 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <div className="p-8 space-y-8">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
           {/* Métriques clés - 4 cards avec micro-trends */}
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <Link href="/dashboard/conversations/appels">
-              <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-blue-50 group-hover:bg-blue-100 rounded-xl flex items-center justify-center transition-colors">
-                    <Phone className="w-6 h-6 text-blue-600" />
+              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 group-hover:bg-blue-100 rounded-xl flex items-center justify-center transition-colors">
+                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                   </div>
                   <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
                     +12%
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-gray-900 mb-1">{stats.appels}</p>
-                <p className="text-sm text-gray-600 mb-3">Appels Assistant</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.appels}</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Appels Assistant</p>
+                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
                   <TrendingUp className="w-3 h-3 text-green-600" />
-                  <span>3 aujourd'hui</span>
+                  <span>3 aujourd&apos;hui</span>
                 </div>
               </div>
             </Link>
 
             <Link href="/dashboard/knowledge">
-              <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors">
-                    <FileText className="w-6 h-6 text-purple-600" />
+              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                   </div>
                   <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
                     +5%
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-gray-900 mb-1">{stats.documents}</p>
-                <p className="text-sm text-gray-600 mb-3">Documents KB</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.documents}</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Documents KB</p>
+                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
                   <CheckCircle2 className="w-3 h-3 text-green-600" />
-                  <span>Base à jour</span>
+                  <span>Base a jour</span>
                 </div>
               </div>
             </Link>
 
             <Link href="/dashboard/appointments">
-              <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-green-50 group-hover:bg-green-100 rounded-xl flex items-center justify-center transition-colors">
-                    <Calendar className="w-6 h-6 text-green-600" />
+              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-50 group-hover:bg-green-100 rounded-xl flex items-center justify-center transition-colors">
+                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                   </div>
                   <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
                     +8%
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-gray-900 mb-1">{stats.rdv}</p>
-                <p className="text-sm text-gray-600 mb-3">Rendez-vous</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.rdv}</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Rendez-vous</p>
+                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
                   <Clock className="w-3 h-3 text-orange-600" />
                   <span>2 cette semaine</span>
                 </div>
@@ -267,18 +270,18 @@ export default function DashboardPage() {
             </Link>
 
             <Link href="/dashboard/crm">
-              <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center transition-colors">
-                    <Users className="w-6 h-6 text-orange-600" />
+              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center transition-colors">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
                   </div>
                   <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
                     +15%
                   </span>
                 </div>
-                <p className="text-3xl font-bold text-gray-900 mb-1">{stats.clients}</p>
-                <p className="text-sm text-gray-600 mb-3">Clients actifs</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.clients}</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Clients actifs</p>
+                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
                   <TrendingUp className="w-3 h-3 text-green-600" />
                   <span>5 nouveaux</span>
                 </div>
@@ -292,7 +295,7 @@ export default function DashboardPage() {
               <h3 className="text-lg font-bold text-gray-900">Actions rapides</h3>
               <span className="text-xs text-gray-500">Accès direct aux fonctionnalités</span>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
               {/* Ligne 1 */}
               <Link href="/dashboard/conversations/appels">
                 <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
@@ -434,9 +437,9 @@ export default function DashboardPage() {
           </div>
 
           {/* Section 2 colonnes: Activité + Quick Wins */}
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
             {/* Activité récente - 2/3 avec timeline verticale */}
-            <div className="col-span-2">
+            <div className="lg:col-span-2">
               <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -512,8 +515,8 @@ export default function DashboardPage() {
                     <Link key={index} href={win.href}>
                       <div className="bg-white rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer group border border-amber-100">
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 bg-${win.color}-50 rounded-lg flex items-center justify-center flex-shrink-0`}>
-                            <win.icon className={`w-4 h-4 text-${win.color}-600`} />
+                          <div className={`w-8 h-8 ${win.bgClass} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                            <win.icon className={`w-4 h-4 ${win.iconClass}`} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">{win.title}</p>

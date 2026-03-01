@@ -17,9 +17,10 @@ import {
   ArrowLeft,
   Settings
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import Logo from '../../../src/components/Logo';
 import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '../../../lib/mockData';
+import { useToast } from '../../../hooks/useToast';
+import ActionToastContainer from '../../../src/components/ActionToast';
 
 interface Appointment {
   id: string;
@@ -58,6 +59,7 @@ interface Agent {
 }
 
 export default function RdvPage() {
+  const toast = useToast();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
   const [stats, setStats] = useState<Stats>({
@@ -87,7 +89,7 @@ export default function RdvPage() {
     notes: ''
   });
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
   useEffect(() => {
     fetchData();
@@ -225,7 +227,8 @@ export default function RdvPage() {
     setSearchQuery('');
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import('xlsx');
     const dataToExport = filteredAppointments.map(a => ({
       'ID': a.id,
       'Prospect': a.prospect_name || 'N/A',
@@ -241,7 +244,7 @@ export default function RdvPage() {
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Rendez-vous');
-    
+
     const today = new Date().toISOString().split('T')[0];
     XLSX.writeFile(wb, `rdv_coccinelle_${today}.xlsx`);
   };
@@ -260,7 +263,7 @@ export default function RdvPage() {
       });
 
       if (response.ok) {
-        alert('Rendez-vous créé avec succès !');
+        toast.success('Rendez-vous créé avec succès !');
         setShowCreateModal(false);
         setNewAppointment({
           prospect_id: '',
@@ -271,11 +274,11 @@ export default function RdvPage() {
         });
         fetchData();
       } else {
-        alert('Erreur lors de la création du rendez-vous');
+        toast.error('Erreur lors de la création du rendez-vous');
       }
     } catch (error) {
       console.error('Erreur création RDV:', error);
-      alert('Erreur lors de la création du rendez-vous');
+      toast.error('Erreur lors de la création du rendez-vous');
     }
   };
 
@@ -326,93 +329,96 @@ export default function RdvPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-4">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link href="/dashboard">
               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </button>
             </Link>
-            <Logo size={48} />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Rendez-vous</h1>
-              <p className="text-sm text-gray-600">Gérez tous vos rendez-vous prospects</p>
+            <Logo size={48} className="hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Rendez-vous</h1>
+              <p className="text-xs sm:text-sm text-gray-600 truncate">Gérez tous vos rendez-vous prospects</p>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div></div>
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/rdv/settings">
-            <button className="px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-2">
-              <Settings size={20} />
-              Paramètres RDV
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <Link href="/dashboard/rdv/settings" className="flex-1 sm:flex-none">
+            <button className="w-full px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm">
+              <Settings size={18} />
+              <span className="hidden sm:inline">Paramètres RDV</span>
+              <span className="sm:hidden">Param.</span>
             </button>
           </Link>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
+            className="flex-1 sm:flex-none bg-gray-900 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center justify-center gap-2 text-sm"
           >
-            <Plus size={20} />
+            <Plus size={18} />
             Nouveau RDV
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">Total RDV</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_appointments}</p>
+              <p className="text-gray-600 text-xs sm:text-sm">Total RDV</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{stats.total_appointments}</p>
             </div>
-            <Calendar className="text-blue-600" size={40} />
+            <Calendar className="text-blue-600" size={28} />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">RDV à venir</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.upcoming_appointments}</p>
+              <p className="text-gray-600 text-xs sm:text-sm">RDV à venir</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{stats.upcoming_appointments}</p>
             </div>
-            <Clock className="text-orange-600" size={40} />
+            <Clock className="text-orange-600" size={28} />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">RDV confirmés</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.confirmed_appointments}</p>
+              <p className="text-gray-600 text-xs sm:text-sm">RDV confirmés</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{stats.confirmed_appointments}</p>
             </div>
-            <CheckCircle2 className="text-green-600" size={40} />
+            <CheckCircle2 className="text-green-600" size={28} />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">Taux présence</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{stats.attendance_rate}%</p>
+              <p className="text-gray-600 text-xs sm:text-sm">Taux présence</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{stats.attendance_rate}%</p>
             </div>
-            <Users className="text-purple-600" size={40} />
+            <Users className="text-purple-600" size={28} />
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex items-center gap-2 mb-4">
           <Filter size={20} className="text-gray-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Filtres</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">Filtres</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
             <select
@@ -482,15 +488,15 @@ export default function RdvPage() {
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6 flex justify-between items-center">
-        <p className="text-gray-600">
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <p className="text-sm sm:text-base text-gray-600">
           <span className="font-semibold text-gray-900">{filteredAppointments.length}</span> rendez-vous trouvés
         </p>
         <button
           onClick={exportToExcel}
-          className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2"
+          className="bg-gray-900 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center gap-2 text-sm w-full sm:w-auto justify-center"
         >
-          <Download size={20} />
+          <Download size={18} />
           Exporter Excel
         </button>
       </div>
@@ -604,9 +610,9 @@ export default function RdvPage() {
       </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-4">Nouveau rendez-vous</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-lg p-4 sm:p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4">Nouveau rendez-vous</h2>
             
             <form onSubmit={createAppointment}>
               <div className="space-y-4">

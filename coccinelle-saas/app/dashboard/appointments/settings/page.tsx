@@ -2,10 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Users, Mail, Phone, Settings as SettingsIcon, Save } from 'lucide-react';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function AppointmentsSettingsPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -66,7 +69,7 @@ export default function AppointmentsSettingsPage() {
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
       console.error('Error saving settings:', error);
-      alert('Erreur lors de la sauvegarde');
+      toast.error('Erreur lors de la sauvegarde des paramètres');
     } finally {
       setLoading(false);
     }
@@ -123,12 +126,13 @@ export default function AppointmentsSettingsPage() {
   ];
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div className="max-w-4xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-black mb-2">Paramètres de Rendez-vous</h1>
-          <p className="text-gray-600">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-black mb-2">Paramètres de Rendez-vous</h1>
+          <p className="text-sm sm:text-base text-gray-600">
             Configurez les créneaux, horaires d'ouverture et notifications pour vos rendez-vous.
           </p>
         </div>

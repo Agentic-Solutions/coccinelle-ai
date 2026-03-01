@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, Zap, Crown, Building2, Loader2 } from 'lucide-react';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 interface Plan {
   planId: string;
@@ -34,6 +36,7 @@ interface CurrentSubscription {
 }
 
 export default function UpgradePage() {
+  const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
@@ -106,11 +109,11 @@ export default function UpgradePage() {
         window.location.href = data.url;
       } else {
         console.error('Error creating checkout session:', data.error);
-        alert('Erreur lors de la création de la session de paiement');
+        toast.error('Erreur lors de la création de la session de paiement');
       }
     } catch (error) {
       console.error('Error upgrading plan:', error);
-      alert('Erreur lors de la mise à niveau');
+      toast.error('Erreur lors de la mise à niveau');
     } finally {
       setProcessingPlanId(null);
     }
@@ -162,7 +165,8 @@ export default function UpgradePage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-4 sm:py-8 px-4">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">Choisissez votre plan</h1>

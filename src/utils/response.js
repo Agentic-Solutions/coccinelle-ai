@@ -12,6 +12,6 @@ export function errorResponse(message, status = 500) {
   return jsonResponse({ error: message }, status);
 }
 
-export function successResponse(data) {
-  return jsonResponse({ success: true, ...data });
+export function successResponse(data, status = 200) {
+  return jsonResponse({ success: true, ...data }, status);
 }

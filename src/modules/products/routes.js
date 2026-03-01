@@ -37,7 +37,7 @@ export async function handleProductsRoutes(request, env, path, method) {
     // GET /api/v1/products/:id - Détails d'un produit
     if (path.match(/^\/api\/v1\/products\/[^/]+$/) && method === 'GET') {
       const productId = path.split('/').pop();
-      return await getProduct(request, env, tenantId, productId);
+      return await getProduct(env, tenantId, productId);
     }
 
     // POST /api/v1/products - Créer un produit
@@ -54,7 +54,7 @@ export async function handleProductsRoutes(request, env, path, method) {
     // DELETE /api/v1/products/:id - Supprimer un produit
     if (path.match(/^\/api\/v1\/products\/[^/]+$/) && method === 'DELETE') {
       const productId = path.split('/').pop();
-      return await deleteProduct(request, env, tenantId, productId);
+      return await deleteProduct(env, tenantId, productId);
     }
 
     // POST /api/v1/products/preview-import - Analyser et prévisualiser un CSV
@@ -84,15 +84,6 @@ export async function handleProductsRoutes(request, env, path, method) {
  */
 async function listProducts(request, env, tenantId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
     const agentId = url.searchParams.get('agent_id');
@@ -167,17 +158,8 @@ async function listProducts(request, env, tenantId) {
 /**
  * GET /api/v1/products/:id - Détails d'un produit
  */
-async function getProduct(request, env, tenantId, productId) {
+async function getProduct(env, tenantId, productId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     const product = await env.DB.prepare(`
       SELECT * FROM products
       WHERE id = ? AND tenant_id = ?
@@ -220,15 +202,6 @@ async function getProduct(request, env, tenantId, productId) {
  */
 async function createProduct(request, env, tenantId, userId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     const body = await request.json();
 
     // Validation
@@ -262,9 +235,9 @@ async function createProduct(request, env, tenantId, userId) {
       body.agent_id || null,
       body.assignment_type || 'shared',
       body.sku || null,
-      body.category || existing.category,
+      body.category,
       body.type || null,
-      body.title || existing.title,
+      body.title,
       body.description || null,
       body.short_description || null,
       body.price || null,
@@ -342,15 +315,6 @@ async function createProduct(request, env, tenantId, userId) {
  */
 async function updateProduct(request, env, tenantId, userId, productId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     // Vérifier que le produit existe et appartient au tenant
     const existing = await env.DB.prepare(`
       SELECT * FROM products WHERE id = ? AND tenant_id = ?
@@ -438,17 +402,8 @@ async function updateProduct(request, env, tenantId, userId, productId) {
 /**
  * DELETE /api/v1/products/:id - Supprimer un produit (soft delete)
  */
-async function deleteProduct(request, env, tenantId, productId) {
+async function deleteProduct(env, tenantId, productId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     // Vérifier que le produit existe
     const existing = await env.DB.prepare(`
       SELECT * FROM products WHERE id = ? AND tenant_id = ?
@@ -510,15 +465,6 @@ function fallbackMapping(headers) {
  */
 async function previewImport(request, env, tenantId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     const formData = await request.formData();
     const file = formData.get('file');
 
@@ -529,15 +475,6 @@ async function previewImport(request, env, tenantId) {
     // Import des parsers (dynamique pour éviter les erreurs si le fichier n'existe pas encore)
     let parseFile, suggestMappingWithAI;
     try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
       const parsers = await import('./file-parsers.js');
       parseFile = parsers.parseFile;
       suggestMappingWithAI = parsers.suggestMappingWithAI;
@@ -549,15 +486,6 @@ async function previewImport(request, env, tenantId) {
     // Parser le fichier selon son format
     let parsedData;
     try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
       parsedData = await parseFile(file, env);
     } catch (parseError) {
       logger.error('File parsing error', { error: parseError.message });
@@ -569,15 +497,6 @@ async function previewImport(request, env, tenantId) {
     // Utiliser l'IA pour suggérer le meilleur mapping (avec analyse de nettoyage si disponible)
     let aiSuggestion;
     try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
       const cleaningAnalysis = cleaning?.analysis || null;
       aiSuggestion = await suggestMappingWithAI(headers, preview, env, cleaningAnalysis);
     } catch (aiError) {
@@ -623,15 +542,6 @@ async function previewImport(request, env, tenantId) {
  */
 async function importProducts(request, env, tenantId, userId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     const formData = await request.formData();
     const file = formData.get('file');
     const mappingJson = formData.get('columnMapping');
@@ -643,15 +553,6 @@ async function importProducts(request, env, tenantId, userId) {
     // Import des parsers avec le nettoyage intelligent
     let parseFile;
     try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
       const parsers = await import('./file-parsers.js');
       parseFile = parsers.parseFile;
     } catch (importError) {
@@ -662,15 +563,6 @@ async function importProducts(request, env, tenantId, userId) {
     // Parser le fichier avec nettoyage automatique
     let parsedData;
     try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
       parsedData = await parseFile(file, env);
     } catch (parseError) {
       logger.error('File parsing error', { error: parseError.message });
@@ -691,21 +583,11 @@ async function importProducts(request, env, tenantId, userId) {
       let columnMapping = {};
       if (mappingJson) {
         try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
           columnMapping = JSON.parse(mappingJson);
         } catch (e) {
           return errorResponse('Invalid column mapping format', 400);
         }
       } else {
-        // Mapping par défaut
         headers.forEach(h => {
           columnMapping[h] = h;
         });
@@ -737,25 +619,14 @@ async function importProducts(request, env, tenantId, userId) {
     }
 
     // Mode standard (sans variantes)
-    // Utiliser le mapping fourni ou créer un mapping par défaut
     let columnMapping = {};
     if (mappingJson) {
       try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
         columnMapping = JSON.parse(mappingJson);
       } catch (e) {
         return errorResponse('Invalid column mapping format', 400);
       }
     } else {
-      // Mapping par défaut : on suppose que les colonnes du CSV correspondent directement
       headers.forEach(h => {
         columnMapping[h] = h;
       });
@@ -782,15 +653,6 @@ async function importProducts(request, env, tenantId, userId) {
     // Parser et importer chaque ligne (déjà nettoyée par parseFile)
     for (let i = 0; i < rows.length; i++) {
       try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
         const row = rows[i];
 
         // Fonction helper pour récupérer une valeur en utilisant le mapping
@@ -930,15 +792,6 @@ async function importProducts(request, env, tenantId, userId) {
  */
 async function checkStock(request, env, tenantId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     const body = await request.json();
     const { query } = body;
 
@@ -987,15 +840,6 @@ function parseProductJson(product) {
  */
 async function listCategories(request, env, tenantId) {
   try {
-    // Authentification requise
-    const authResult = await auth.requireAuth(request, env);
-    if (authResult.error) {
-      return errorResponse(authResult.error, authResult.status);
-    }
-    const { user, tenant } = authResult;
-    const tenantId = tenant.id;
-    const userId = user.id;
-
     const categories = await env.DB.prepare(`
       SELECT id, key, name, description, icon, color, fields, display_order
       FROM product_categories

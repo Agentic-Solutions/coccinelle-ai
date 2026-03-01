@@ -5,8 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, Download, Eye, Calendar, Loader2, AlertCircle } from 'lucide-react';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 interface Invoice {
   invoice_id: string;
@@ -29,6 +31,7 @@ interface InvoiceLineItem {
 }
 
 export default function InvoicesPage() {
+  const toast = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,7 +84,7 @@ export default function InvoicesPage() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading invoice:', error);
-      alert('Erreur lors du téléchargement de la facture');
+      toast.error('Erreur lors du téléchargement de la facture');
     }
   };
 
@@ -122,7 +125,8 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-4 sm:py-8 px-4">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div className="max-w-6xl mx-auto">
         {/* En-tête */}
         <div className="mb-6">

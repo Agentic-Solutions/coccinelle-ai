@@ -83,7 +83,8 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<'ai-insights' | 'analytics'>('analytics');
   const [period, setPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [loading, setLoading] = useState(true);
-  
+  const [error, setError] = useState<string | null>(null);
+
   // Stats globales
   const [stats, setStats] = useState<Stats>({
     totalDocuments: 0,
@@ -114,6 +115,7 @@ export default function AnalyticsPage() {
 
   const loadAnalytics = async () => {
     setLoading(true);
+    setError(null);
     try {
       // Mode démo - utiliser mockData
       if (isDemoMode()) {
@@ -199,6 +201,7 @@ export default function AnalyticsPage() {
 
     } catch (error) {
       console.error('Erreur chargement analytics:', error);
+      setError('Impossible de charger les donnees analytics. Verifiez votre connexion.');
     } finally {
       setLoading(false);
     }
@@ -413,48 +416,48 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 lg:mb-8">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link
               href="/dashboard"
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
-            <Logo size={48} />
+            <div className="hidden sm:block">
+              <Logo size={48} />
+            </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Analytics</h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Filtres période - uniquement pour onglet Analytics */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
             {activeTab === 'analytics' && (
-              <div className="flex gap-2">
+              <div className="flex gap-1 sm:gap-2 overflow-x-auto">
                 {(['7d', '30d', '90d', '1y'] as const).map((p) => (
                   <button
                     key={p}
                     onClick={() => setPeriod(p)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                       period === p
                         ? 'bg-gray-900 text-white'
                         : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                     }`}
                   >
-                    {p === '7d' ? '7 jours' : p === '30d' ? '30 jours' : p === '90d' ? '90 jours' : '1 an'}
+                    {p === '7d' ? '7j' : p === '30d' ? '30j' : p === '90d' ? '90j' : '1 an'}
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Bouton Export - uniquement pour onglet Analytics */}
             {activeTab === 'analytics' && (
               <button
                 onClick={exportPDF}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
               >
                 <Download className="w-4 h-4" />
                 Exporter PDF
@@ -463,8 +466,21 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
+        {/* Erreur */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+            <p className="text-sm text-red-700">{error}</p>
+            <button
+              onClick={loadAnalytics}
+              className="text-sm text-red-600 font-medium hover:underline ml-4"
+            >
+              Reessayer
+            </button>
+          </div>
+        )}
+
         {/* Onglets */}
-        <div className="flex gap-2 mb-8">
+        <div className="flex gap-2 mb-6 lg:mb-8">
           <button
             onClick={() => setActiveTab('analytics')}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all ${
@@ -505,7 +521,7 @@ export default function AnalyticsPage() {
         {activeTab === 'analytics' && (
           <div>
             {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
           {/* Documents KB */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">

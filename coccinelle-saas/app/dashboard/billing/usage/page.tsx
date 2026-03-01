@@ -15,7 +15,7 @@ import {
   Loader2
 } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 interface UsageItem {
   usage_id: string;
@@ -49,6 +49,7 @@ export default function UsagePage() {
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [period, setPeriod] = useState<'7days' | '30days' | 'all'>('30days');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadUsageData();
@@ -56,6 +57,7 @@ export default function UsagePage() {
 
   const loadUsageData = async () => {
     setLoading(true);
+    setError(null);
     try {
       // TODO: Remplacer par le vrai tenantId de l'utilisateur connecté
       const tenantId = 'tenant_123';
@@ -79,8 +81,9 @@ export default function UsagePage() {
       if (summaryData.success) {
         setSummary(summaryData.summary);
       }
-    } catch (error) {
-      console.error('Error loading usage data:', error);
+    } catch (err) {
+      console.error('Error loading usage data:', err);
+      setError('Impossible de charger les donnees de consommation. Verifiez votre connexion.');
     } finally {
       setLoading(false);
     }
@@ -192,6 +195,16 @@ export default function UsagePage() {
             Exporter CSV
           </Button>
         </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <p className="text-red-700 text-sm">{error}</p>
+            <button onClick={loadUsageData} className="text-red-700 hover:text-red-800 text-sm font-medium underline">
+              Reessayer
+            </button>
+          </div>
+        )}
 
         {/* Sélection de la période */}
         <div className="mb-6">

@@ -17,9 +17,10 @@ import {
   ArrowLeft,
   Settings
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import Logo from '@/components/Logo';
 import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '@/lib/mockData';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
 interface Appointment {
   id: string;
@@ -58,6 +59,7 @@ interface Agent {
 }
 
 export default function RdvPage() {
+  const toast = useToast();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
   const [stats, setStats] = useState<Stats>({
@@ -87,7 +89,7 @@ export default function RdvPage() {
     notes: ''
   });
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
   useEffect(() => {
     fetchData();
@@ -225,7 +227,8 @@ export default function RdvPage() {
     setSearchQuery('');
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import('xlsx');
     const dataToExport = filteredAppointments.map(a => ({
       'ID': a.id,
       'Prospect': a.prospect_name || 'N/A',
@@ -241,7 +244,7 @@ export default function RdvPage() {
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Rendez-vous');
-    
+
     const today = new Date().toISOString().split('T')[0];
     XLSX.writeFile(wb, `rdv_coccinelle_${today}.xlsx`);
   };
@@ -260,7 +263,7 @@ export default function RdvPage() {
       });
 
       if (response.ok) {
-        alert('Rendez-vous créé avec succès !');
+        toast.success('Rendez-vous créé avec succès !');
         setShowCreateModal(false);
         setNewAppointment({
           prospect_id: '',
@@ -271,11 +274,11 @@ export default function RdvPage() {
         });
         fetchData();
       } else {
-        alert('Erreur lors de la création du rendez-vous');
+        toast.error('Erreur lors de la création du rendez-vous');
       }
     } catch (error) {
       console.error('Erreur création RDV:', error);
-      alert('Erreur lors de la création du rendez-vous');
+      toast.error('Erreur lors de la création du rendez-vous');
     }
   };
 

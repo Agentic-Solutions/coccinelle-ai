@@ -8,8 +8,11 @@ import Logo from '../../../src/components/Logo';
 import { isDemoMode, mockCalls, mockAppointments, mockDocuments } from '../../../lib/mockData';
 import { buildApiUrl, getAuthHeaders, getCurrentTenantId, getTenantStorageKey, migrateOldDocuments } from '../../../lib/config';
 import { processLocalCrawl } from '../../../lib/crawl-processor';
+import { useToast } from '../../../hooks/useToast';
+import ActionToastContainer from '../../../src/components/ActionToast';
 
 export default function KnowledgePage() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'upload' | 'test' | 'builder'>('upload');
 
   // Upload states
@@ -71,13 +74,13 @@ export default function KnowledgePage() {
 
   const handleStructureWithAI = async () => {
     if (documents.length === 0) {
-      alert('Aucun document à structurer');
+      toast.error('Aucun document à structurer');
       return;
     }
 
     const crawledDocs = documents.filter(doc => doc.sourceType === 'crawl');
     if (crawledDocs.length === 0) {
-      alert('Aucune page crawlée à structurer');
+      toast.error('Aucune page crawlée à structurer');
       return;
     }
 
@@ -91,12 +94,12 @@ export default function KnowledgePage() {
       const { structureWithAI } = await import('../../../lib/knowledge-handlers');
       const data = await structureWithAI(documents);
 
-      alert(`✅ Succès !\n\n${data.structuredDocuments.length} document(s) structuré(s) créé(s) depuis ${data.originalCount} page(s).\n\nVous pouvez maintenant voir vos informations business organisées par catégorie !`);
+      toast.success(`${data.structuredDocuments.length} document(s) structuré(s) créé(s) depuis ${data.originalCount} page(s)`);
 
       await loadData();
     } catch (error) {
       console.error('❌ Erreur structuration:', error);
-      alert(`❌ Erreur lors de la structuration:\n${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      toast.error(`Erreur lors de la structuration: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     } finally {
       setDataLoading(false);
     }
@@ -106,7 +109,7 @@ export default function KnowledgePage() {
     const { saveManualInformation } = await import('../../../lib/knowledge-handlers');
     saveManualInformation(category, data);
     loadData();
-    alert(`✅ Information ajoutée avec succès !`);
+    toast.success('Information ajoutée avec succès !');
   };
 
   const handleCrawl = async () => {
@@ -356,24 +359,25 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
           <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <Logo size={48} />
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Knowledge Base</h1>
+          <Logo size={48} className="hidden sm:block" />
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Knowledge Base</h1>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('builder')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === 'builder' ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
             }`}
           >
@@ -382,12 +386,13 @@ export default function KnowledgePage() {
           </button>
           <button
             onClick={() => setActiveTab('upload')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
               activeTab === 'upload' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
             }`}
           >
             <Upload className="w-4 h-4" />
-            Ajouter des documents
+            <span className="hidden sm:inline">Ajouter des documents</span>
+            <span className="sm:hidden">Documents</span>
           </button>
           <button
             onClick={() => setActiveTab('test')}

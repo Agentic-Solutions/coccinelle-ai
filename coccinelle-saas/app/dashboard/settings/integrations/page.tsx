@@ -8,6 +8,8 @@ import {
   Database, Cloud, ShoppingCart, Package, Zap,
   Home, Users
 } from 'lucide-react';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
 // Types
 interface Integration {
@@ -29,6 +31,7 @@ interface Integration {
 }
 
 export default function IntegrationsPage() {
+  const toast = useToast();
   const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -432,7 +435,7 @@ export default function IntegrationsPage() {
       // Redirect to HubSpot OAuth
       window.location.href = '/api/crm/oauth/hubspot';
     } else {
-      alert(`OAuth flow pour ${integrationId} - À implémenter`);
+      toast.info('OAuth flow - fonctionnalité en cours de développement');
     }
   };
 

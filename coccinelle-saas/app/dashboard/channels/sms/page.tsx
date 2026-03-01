@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -12,6 +14,7 @@ function SMSConfigContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromOnboarding = searchParams.get('from') === 'onboarding';
+  const toast = useToast();
 
   const [config, setConfig] = useState({
     enabled: false,
@@ -142,7 +145,7 @@ function SMSConfigContent() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(`SMS de test envoyé avec succès à ${testNumber} !`);
+        toast.success(`SMS de test envoyé avec succès à ${testNumber} !`);
       } else {
         setError(data.error || 'Erreur lors de l\'envoi du SMS de test');
       }
@@ -155,24 +158,26 @@ function SMSConfigContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
+
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-4">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link href="/dashboard/settings/channels">
               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </button>
             </Link>
-            <Logo size={48} />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Configuration SMS</h1>
-              <p className="text-sm text-gray-600">Configuration du canal SMS via Twilio</p>
+            <Logo size={48} className="hidden sm:block" />
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Configuration SMS</h1>
+              <p className="text-xs sm:text-sm text-gray-600">Configuration du canal SMS via Twilio</p>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div>

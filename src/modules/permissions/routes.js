@@ -1,5 +1,6 @@
 // src/modules/permissions/routes.js - Routes de gestion des permissions
 import * as auth from '../auth/helpers.js';
+import { logger } from '../../utils/logger.js';
 import { getTenantPermissions, updatePermission, getAllPermissions, hasPermission } from '../../utils/permissions.js';
 
 /**
@@ -34,11 +35,10 @@ export async function handlePermissionsRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Get permissions error:', error);
+      logger.error('Get permissions error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la récupération des permissions',
-        message: error.message
+        error: 'Erreur lors de la récupération des permissions'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -71,11 +71,10 @@ export async function handlePermissionsRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Get tenant permissions error:', error);
+      logger.error('Get tenant permissions error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la récupération des permissions',
-        message: error.message
+        error: 'Erreur lors de la récupération des permissions'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -159,11 +158,10 @@ export async function handlePermissionsRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Update permission error:', error);
+      logger.error('Update permission error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la mise à jour de la permission',
-        message: error.message
+        error: 'Erreur lors de la mise à jour de la permission'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -199,11 +197,10 @@ export async function handlePermissionsRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Check permission error:', error);
+      logger.error('Check permission error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la vérification de la permission',
-        message: error.message
+        error: 'Erreur lors de la vérification de la permission'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

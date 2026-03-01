@@ -11,6 +11,7 @@
  */
 
 import * as auth from '../auth/helpers.js';
+import { logger } from '../../utils/logger.js';
 
 // ============================================
 // HELPER: Vérification Auth JWT
@@ -104,7 +105,19 @@ async function listCustomers(request, env) {
     });
 
   } catch (error) {
-    console.error('Error listing customers:', error);
+    logger.error('Error listing customers', { error: error.message });
+    // Handle missing table gracefully
+    if (error.message && error.message.includes('no such table')) {
+      return new Response(JSON.stringify({
+        success: true,
+        customers: [],
+        pagination: { total: 0, limit, offset, hasMore: false },
+        warning: 'Customers table not yet created. Run migration 0005_create_customers_table.sql.'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     return new Response(JSON.stringify({
       success: false,
       error: 'Erreur lors de la récupération des clients'
@@ -204,7 +217,16 @@ async function createCustomer(request, env) {
     });
 
   } catch (error) {
-    console.error('Error creating customer:', error);
+    logger.error('Error creating customer', { error: error.message });
+    if (error.message && error.message.includes('no such table')) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Customers table not yet created. Run migration 0005_create_customers_table.sql.'
+      }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     return new Response(JSON.stringify({
       success: false,
       error: 'Erreur lors de la création du client'
@@ -251,7 +273,16 @@ async function getCustomer(request, env, customerId) {
     });
 
   } catch (error) {
-    console.error('Error getting customer:', error);
+    logger.error('Error getting customer', { error: error.message });
+    if (error.message && error.message.includes('no such table')) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Client non trouvé'
+      }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     return new Response(JSON.stringify({
       success: false,
       error: 'Erreur lors de la récupération du client'
@@ -357,7 +388,16 @@ async function updateCustomer(request, env, customerId) {
     });
 
   } catch (error) {
-    console.error('Error updating customer:', error);
+    logger.error('Error updating customer', { error: error.message });
+    if (error.message && error.message.includes('no such table')) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Customers table not yet created. Run migration 0005_create_customers_table.sql.'
+      }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     return new Response(JSON.stringify({
       success: false,
       error: 'Erreur lors de la mise à jour du client'
@@ -409,7 +449,16 @@ async function deleteCustomer(request, env, customerId) {
     });
 
   } catch (error) {
-    console.error('Error deleting customer:', error);
+    logger.error('Error deleting customer', { error: error.message });
+    if (error.message && error.message.includes('no such table')) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Client non trouvé'
+      }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     return new Response(JSON.stringify({
       success: false,
       error: 'Erreur lors de la suppression du client'

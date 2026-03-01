@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Phone, Download, Filter, X, Calendar, TrendingUp, Clock, ArrowLeft } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import Logo from '../../../src/components/Logo';
 import { isDemoMode, mockCalls, mockStats } from '../../../lib/mockData';
 
@@ -155,7 +154,8 @@ export default function AppelsPage() {
     }
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await import('xlsx');
     const exportData = filteredCalls.map(call => ({
       'ID': call.id,
       'Call ID': call.call_id,

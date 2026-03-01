@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useToast } from '../../../../../hooks/useToast';
+import ActionToastContainer from '../../../../../src/components/ActionToast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function SMSConfigPage() {
+  const toast = useToast();
   const [config, setConfig] = useState({
     enabled: false,
     configured: false,
@@ -135,7 +138,7 @@ export default function SMSConfigPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(`SMS de test envoyé avec succès à ${testNumber} !`);
+        toast.success(`SMS de test envoyé avec succès à ${testNumber} !`);
       } else {
         setError(data.error || 'Erreur lors de l\'envoi du SMS de test');
       }

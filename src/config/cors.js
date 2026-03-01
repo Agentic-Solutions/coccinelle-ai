@@ -8,9 +8,6 @@ const allowedOrigins = [
   'http://localhost:9002',
   'https://agenticsolutions.fr',
   'https://www.agenticsolutions.fr',
-  'http://localhost:9002',
-  'https://agenticsolutions.fr',
-  'https://www.agenticsolutions.fr',
   'https://coccinelle.ai',
   'https://app.coccinelle.ai',
   'https://coccinelle-saas.vercel.app',
@@ -35,10 +32,11 @@ export function getCorsHeaders(request) {
   };
 }
 
-// CORRIGÉ : corsHeaders utilise maintenant l'origine de production par défaut
-// Note: Pour une meilleure sécurité, préférez getCorsHeaders(request) quand possible
+// DEPRECATED: Use getCorsHeaders(request) instead for proper origin checking.
+// This fallback uses the first allowed origin (localhost:3000) instead of wildcard
+// to avoid the browser spec violation of Access-Control-Allow-Origin: * with credentials.
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': allowedOrigins[0],
   'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-tenant-id, x-user-id',

@@ -1,6 +1,8 @@
 // src/auth-routes.js - Routes d'authentification complètes
 import * as auth from './helpers.js';
 import { initTenantPermissions } from '../../utils/permissions.js';
+import { logger } from '../../utils/logger.js';
+import { rateLimitResponse } from '../../utils/rate-limiter.js';
 
 // ========================================
 // FONCTIONS UTILITAIRES POUR LE SLUG
@@ -85,6 +87,12 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   const path = url.pathname;
   const method = request.method;
 
+  // Rate limit login/signup: 10 requests/minute per IP
+  if (path === '/api/v1/auth/login' || path === '/api/v1/auth/signup') {
+    const rateLimited = rateLimitResponse(request, path, { maxRequests: 10, windowMs: 60000 });
+    if (rateLimited) return rateLimited;
+  }
+
   // ========================================
   // POST /api/v1/auth/signup
   // ========================================
@@ -129,7 +137,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       const tenantName = company_name?.trim() || name.trim();
       const slug = await generateUniqueSlug(env.DB, tenantName);
       
-      console.log(`📧 Nouveau tenant: ${tenantName} → slug: ${slug}`);
+      logger.info('New tenant created', { name: tenantName, slug });
 
       // Créer tenant AVEC LE SLUG
       await env.DB.prepare(`
@@ -200,8 +208,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Signup error:', error);
-      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de l\'inscription', message: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      logger.error('Signup error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de l\'inscription' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -277,8 +285,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Login error:', error);
-      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la connexion', message: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      logger.error('Login error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la connexion' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -328,8 +336,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Get profile error:', error);
-      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la récupération du profil', message: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      logger.error('Get profile error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la récupération du profil' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -355,8 +363,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Logout error:', error);
-      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la déconnexion', message: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      logger.error('Logout error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la déconnexion' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -387,8 +395,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Refresh token error:', error);
-      return new Response(JSON.stringify({ success: false, error: 'Erreur lors du renouvellement du token', message: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      logger.error('Refresh token error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors du renouvellement du token' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -457,7 +465,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('Update profile error:', error);
+      logger.error('Update profile error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
         error: 'Erreur lors de la mise à jour du profil',
@@ -512,7 +520,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     } catch (error) {
-      console.error('Check slug error:', error);
+      logger.error('Check slug error', { error: error.message });
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'Erreur lors de la vérification du slug' 

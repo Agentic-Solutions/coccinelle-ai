@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Clock, Calendar, Plus, X, Save, Users, User } from 'lucide-react';
+import { useToast } from '../../../hooks/useToast';
+import ActionToastContainer from '../ActionToast';
 
 interface TimeSlot {
   start: string;
@@ -40,6 +42,7 @@ interface TeamMember {
 }
 
 export default function AvailabilitySettings() {
+  const toast = useToast();
   // Team members
   const [teamMembers] = useState<TeamMember[]>([
     {
@@ -172,7 +175,7 @@ export default function AvailabilitySettings() {
       schedule,
       blockedPeriods
     });
-    alert('Disponibilités sauvegardées !');
+    toast.success('Disponibilités sauvegardées !');
   };
 
   const getCalendarBadge = (member: TeamMember) => {
@@ -198,6 +201,7 @@ export default function AvailabilitySettings() {
 
   return (
     <div className="space-y-8">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Gestion des disponibilités</h2>
         <p className="text-gray-600">

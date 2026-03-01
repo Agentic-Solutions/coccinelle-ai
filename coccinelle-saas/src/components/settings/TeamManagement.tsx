@@ -1,305 +1,381 @@
 'use client';
 
-import { useState } from 'react';
-import { UserPlus, Mail, Shield, Calendar, Trash2, CheckCircle, XCircle, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Plus, MapPin, Crown, User, Loader2, Trash2, Edit, ChevronRight } from 'lucide-react';
+import { useTenant } from '@/hooks/useTenant';
+import { useAuth } from '@/hooks/useAuth';
 
 interface TeamMember {
   id: string;
+  role_in_team: string;
+  user_name: string;
+  user_email: string;
+  agent_id: string;
+  first_name: string;
+  last_name: string;
+  title: string;
+}
+
+interface Team {
+  id: string;
   name: string;
-  email: string;
-  role: 'manager' | 'agent';
-  status: 'active' | 'pending' | 'inactive';
-  hasCalendarSync: boolean;
-  calendarProvider?: 'google' | 'outlook' | 'apple' | 'internal';
-  joinedAt: string;
+  description: string;
+  location: string;
+  manager_name: string;
+  member_count: number;
+  is_active: number;
 }
 
 export default function TeamManagement() {
-  const [members, setMembers] = useState<TeamMember[]>([
-    {
-      id: '1',
-      name: 'Vous (Manager)',
-      email: 'manager@entreprise.com',
-      role: 'manager',
-      status: 'active',
-      hasCalendarSync: true,
-      calendarProvider: 'google',
-      joinedAt: '2025-01-01'
-    },
-    {
-      id: '2',
-      name: 'Sara (Agent IA)',
-      email: 'sara@coccinelle.ai',
-      role: 'agent',
-      status: 'active',
-      hasCalendarSync: true,
-      calendarProvider: 'internal',
-      joinedAt: '2025-01-01'
-    },
-    {
-      id: '3',
-      name: 'Agent Commercial 1',
-      email: 'agent1@entreprise.com',
-      role: 'agent',
-      status: 'active',
-      hasCalendarSync: false,
-      joinedAt: '2025-01-15'
-    }
-  ]);
+  const { tenantId } = useTenant();
+  const { user } = useAuth();
+  const [token, setToken] = useState<string | null>(null);
 
-  const [showInviteForm, setShowInviteForm] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'agent' | 'manager'>('agent');
+  useEffect(() => {
+    const storedToken = localStorage.getItem('auth_token');
+    setToken(storedToken);
+  }, []);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTeam, setNewTeam] = useState({ name: '', description: '', location: '' });
 
-  const handleInvite = () => {
-    if (inviteEmail) {
-      const newMember: TeamMember = {
-        id: Date.now().toString(),
-        name: inviteEmail.split('@')[0],
-        email: inviteEmail,
-        role: inviteRole,
-        status: 'pending',
-        hasCalendarSync: false,
-        joinedAt: new Date().toISOString().split('T')[0]
-      };
-      setMembers([...members, newMember]);
-      setInviteEmail('');
-      setShowInviteForm(false);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+  // Charger les équipes
+  useEffect(() => {
+    fetchTeams();
+  }, [token]);
+
+  const fetchTeams = async () => {
+    if (!token) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/api/v1/teams`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTeams(data.teams || []);
+      }
+    } catch (error) {
+      console.error('Erreur chargement équipes:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleMemberStatus = (id: string) => {
-    setMembers(members.map(m =>
-      m.id === id
-        ? { ...m, status: m.status === 'active' ? 'inactive' : 'active' }
-        : m
-    ));
+  // Charger les membres d'une équipe
+  const fetchMembers = async (teamId: string) => {
+    if (!token) return;
+
+    try {
+      setLoadingMembers(true);
+      const res = await fetch(`${API_URL}/api/v1/teams/${teamId}/members`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMembers(data.members || []);
+      }
+    } catch (error) {
+      console.error('Erreur chargement membres:', error);
+    } finally {
+      setLoadingMembers(false);
+    }
   };
 
-  const removeMember = (id: string) => {
-    if (confirm('Êtes-vous sûr de vouloir retirer ce membre ?')) {
-      setMembers(members.filter(m => m.id !== id));
+  // Créer une équipe
+  const handleCreateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !newTeam.name) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/v1/teams`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newTeam)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowCreateModal(false);
+        setNewTeam({ name: '', description: '', location: '' });
+        fetchTeams();
+      }
+    } catch (error) {
+      console.error('Erreur création équipe:', error);
     }
   };
 
-  const getRoleBadge = (role: string) => {
-    if (role === 'manager') {
-      return <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded">Manager</span>;
-    }
-    return <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">Agent</span>;
+  // Sélectionner une équipe
+  const handleSelectTeam = (team: Team) => {
+    setSelectedTeam(team);
+    fetchMembers(team.id);
   };
 
-  const getStatusBadge = (status: string) => {
-    if (status === 'active') {
-      return (
-        <span className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">
-          <CheckCircle className="w-3 h-3" />
-          Actif
-        </span>
-      );
-    }
-    if (status === 'pending') {
-      return (
-        <span className="flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
-          <Mail className="w-3 h-3" />
-          En attente
-        </span>
-      );
-    }
+  if (loading) {
     return (
-      <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded">
-        <XCircle className="w-3 h-3" />
-        Inactif
-      </span>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-900" />
+      </div>
     );
-  };
-
-  const getCalendarBadge = (member: TeamMember) => {
-    if (!member.hasCalendarSync) {
-      return <span className="text-xs text-gray-500">Aucun calendrier</span>;
-    }
-
-    const providers = {
-      google: { name: 'Google', color: 'bg-red-100 text-red-700' },
-      outlook: { name: 'Outlook', color: 'bg-blue-100 text-blue-700' },
-      apple: { name: 'Apple', color: 'bg-gray-100 text-gray-700' },
-      internal: { name: 'Interne', color: 'bg-green-100 text-green-700' }
-    };
-
-    const provider = providers[member.calendarProvider || 'internal'];
-
-    return (
-      <span className={`flex items-center gap-1 px-2 py-1 ${provider.color} text-xs font-medium rounded`}>
-        <Calendar className="w-3 h-3" />
-        {provider.name}
-      </span>
-    );
-  };
+  }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Gestion de l'équipe</h2>
-        <p className="text-gray-400">
-          Gérez les membres de votre équipe et leurs accès à Coccinelle.AI
-        </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Gestion des equipes</h2>
+          <p className="text-sm text-gray-600">Organisez vos collaborateurs en equipes</p>
+        </div>
+        {user?.role === 'admin' && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvelle equipe
+          </button>
+        )}
       </div>
 
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Membres totaux</p>
-          <p className="text-2xl font-bold text-gray-900">{members.length}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Liste des équipes */}
+        <div className="lg:col-span-1 space-y-3">
+          <h3 className="font-medium text-gray-700 text-sm uppercase tracking-wide">
+            Equipes ({teams.length})
+          </h3>
+
+          {teams.length === 0 ? (
+            <div className="bg-gray-50 rounded-lg p-6 text-center">
+              <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Aucune equipe</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {teams.map((team) => (
+                <button
+                  key={team.id}
+                  onClick={() => handleSelectTeam(team)}
+                  className={`w-full text-left p-4 rounded-lg border transition-all ${
+                    selectedTeam?.id === team.id
+                      ? 'border-gray-900 bg-gray-50'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        selectedTeam?.id === team.id ? 'bg-gray-900' : 'bg-gray-100'
+                      }`}>
+                        <Users className={`w-5 h-5 ${
+                          selectedTeam?.id === team.id ? 'text-white' : 'text-gray-500'
+                        }`} />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{team.name}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          {team.location && (
+                            <>
+                              <MapPin className="w-3 h-3" />
+                              <span>{team.location}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                        {team.member_count} membres
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Actifs</p>
-          <p className="text-2xl font-bold text-green-600">{members.filter(m => m.status === 'active').length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">En attente</p>
-          <p className="text-2xl font-bold text-yellow-600">{members.filter(m => m.status === 'pending').length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600 mb-1">Avec calendrier</p>
-          <p className="text-2xl font-bold text-blue-600">{members.filter(m => m.hasCalendarSync).length}</p>
+
+        {/* Détails de l'équipe sélectionnée */}
+        <div className="lg:col-span-2">
+          {selectedTeam ? (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{selectedTeam.name}</h3>
+                  {selectedTeam.description && (
+                    <p className="text-sm text-gray-600 mt-1">{selectedTeam.description}</p>
+                  )}
+                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                    {selectedTeam.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        {selectedTeam.location}
+                      </span>
+                    )}
+                    {selectedTeam.manager_name && (
+                      <span className="flex items-center gap-1">
+                        <Crown className="w-4 h-4 text-yellow-500" />
+                        Manager: {selectedTeam.manager_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {user?.role === 'admin' && (
+                  <div className="flex gap-2">
+                    <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Liste des membres */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-gray-700">Membres de l'equipe</h4>
+                  {user?.role === 'admin' && (
+                    <button className="text-sm text-gray-700 hover:text-gray-900 flex items-center gap-1">
+                      <Plus className="w-4 h-4" />
+                      Ajouter
+                    </button>
+                  )}
+                </div>
+
+                {loadingMembers ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-900" />
+                  </div>
+                ) : members.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <User className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500">Aucun membre dans cette equipe</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {members.map((member) => (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center text-white font-medium">
+                            {(member.first_name?.[0] || member.user_name?.[0] || '?').toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {member.first_name && member.last_name
+                                ? `${member.first_name} ${member.last_name}`
+                                : member.user_name || 'Sans nom'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {member.title || member.user_email || 'Pas de titre'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {member.role_in_team === 'manager' && (
+                            <span className="flex items-center gap-1 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                              <Crown className="w-3 h-3" />
+                              Manager
+                            </span>
+                          )}
+                          {member.role_in_team === 'member' && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                              Membre
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 p-12 text-center">
+              <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-600 mb-2">Selectionnez une equipe</h3>
+              <p className="text-gray-500">Cliquez sur une equipe pour voir ses membres</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Bouton invitation */}
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowInviteForm(!showInviteForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <UserPlus className="w-5 h-5" />
-          Inviter un membre
-        </button>
-      </div>
-
-      {/* Formulaire d'invitation */}
-      {showInviteForm && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Inviter un nouveau membre</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="agent@entreprise.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Rôle</label>
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as 'agent' | 'manager')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="agent">Agent</option>
-                <option value="manager">Manager</option>
-              </select>
-            </div>
-            <div className="flex items-end gap-2">
-              <button
-                onClick={handleInvite}
-                className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                Envoyer l'invitation
-              </button>
-              <button
-                onClick={() => setShowInviteForm(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Annuler
-              </button>
-            </div>
+      {/* Modal création équipe */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Nouvelle equipe</h3>
+            <form onSubmit={handleCreateTeam} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nom de l'equipe *
+                </label>
+                <input
+                  type="text"
+                  value={newTeam.name}
+                  onChange={(e) => setNewTeam({ ...newTeam, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="Ex: Equipe Paris"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newTeam.description}
+                  onChange={(e) => setNewTeam({ ...newTeam, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="Description de l'equipe..."
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Localisation
+                </label>
+                <input
+                  type="text"
+                  value={newTeam.location}
+                  onChange={(e) => setNewTeam({ ...newTeam, location: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="Ex: Paris 11eme"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                >
+                  Creer
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
-
-      {/* Liste des membres */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Membre</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Rôle</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Statut</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Calendrier</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Rejoint le</th>
-              <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {members.map((member) => (
-              <tr key={member.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4">
-                  <div>
-                    <p className="font-medium text-gray-900">{member.name}</p>
-                    <p className="text-sm text-gray-600">{member.email}</p>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  {getRoleBadge(member.role)}
-                </td>
-                <td className="px-6 py-4">
-                  {getStatusBadge(member.status)}
-                </td>
-                <td className="px-6 py-4">
-                  {getCalendarBadge(member)}
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-sm text-gray-600">
-                    {new Date(member.joinedAt).toLocaleDateString('fr-FR')}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center justify-end gap-2">
-                    {member.role !== 'manager' && (
-                      <>
-                        <button
-                          onClick={() => toggleMemberStatus(member.id)}
-                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                          title={member.status === 'active' ? 'Désactiver' : 'Activer'}
-                        >
-                          {member.status === 'active' ? (
-                            <XCircle className="w-4 h-4" />
-                          ) : (
-                            <CheckCircle className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => removeMember(member.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Retirer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                    <button
-                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Paramètres"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Informations */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <p className="text-sm text-gray-700">
-          <span className="font-semibold">Astuce :</span> Chaque membre peut configurer son propre calendrier (Google, Outlook, Apple) et ses disponibilités dans l'onglet "Calendrier & Intégrations".
-        </p>
-      </div>
     </div>
   );
 }

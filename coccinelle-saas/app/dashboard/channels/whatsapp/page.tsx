@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, ExternalLink } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 const META_APP_ID = '25451229527845708';
@@ -21,6 +23,7 @@ function WhatsAppConfigContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromOnboarding = searchParams.get('from') === 'onboarding';
+  const toast = useToast();
 
   const [config, setConfig] = useState({
     enabled: false,
@@ -263,7 +266,7 @@ function WhatsAppConfigContent() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert(data.message || 'Test WhatsApp effectué !');
+        toast.success(data.message || 'Test WhatsApp effectué !');
       } else {
         setError(data.error || 'Erreur lors du test WhatsApp');
       }

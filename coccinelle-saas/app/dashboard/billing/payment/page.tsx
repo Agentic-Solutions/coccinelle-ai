@@ -5,10 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CreditCard, Shield, ExternalLink, Loader2, Info } from 'lucide-react';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function PaymentPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
 
   const openStripePortal = async () => {
@@ -31,18 +34,19 @@ export default function PaymentPage() {
         window.location.href = data.url;
       } else {
         console.error('Error creating portal session:', data.error);
-        alert('Erreur lors de l\'ouverture du portail de paiement');
+        toast.error('Erreur lors de l\'ouverture du portail de paiement');
       }
     } catch (error) {
       console.error('Error opening Stripe portal:', error);
-      alert('Erreur lors de l\'ouverture du portail de paiement');
+      toast.error('Erreur lors de l\'ouverture du portail de paiement');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-4 sm:py-8 px-4">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div className="max-w-4xl mx-auto">
         {/* En-tête */}
         <div className="mb-6">

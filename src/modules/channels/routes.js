@@ -96,23 +96,29 @@ export async function handleChannelsRoutes(request, env, path, method) {
 // Liste tous les canaux avec leur statut
 async function listChannels(env, tenantId) {
   const channelTypes = ['phone', 'sms', 'email', 'whatsapp'];
-  const channels = [];
 
-  for (const type of channelTypes) {
-    const config = await env.DB.prepare(`
-      SELECT id, channel_type, enabled, configured, config_public, assistant_id, updated_at
-      FROM channel_configurations
-      WHERE tenant_id = ? AND channel_type = ?
-    `).bind(tenantId, type).first();
+  // Single query instead of N+1
+  const configs = await env.DB.prepare(`
+    SELECT channel_type, enabled, configured, assistant_id, updated_at
+    FROM channel_configurations
+    WHERE tenant_id = ? AND channel_type IN ('phone', 'sms', 'email', 'whatsapp')
+  `).bind(tenantId).all();
 
-    channels.push({
+  const configMap = {};
+  for (const c of (configs.results || [])) {
+    configMap[c.channel_type] = c;
+  }
+
+  const channels = channelTypes.map(type => {
+    const config = configMap[type];
+    return {
       type,
       enabled: config?.enabled === 1,
       configured: config?.configured === 1,
       assistantId: config?.assistant_id || null,
       updatedAt: config?.updated_at || null
-    });
-  }
+    };
+  });
 
   return successResponse({ channels });
 }

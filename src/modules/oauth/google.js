@@ -3,6 +3,8 @@
  * Permet aux clients de connecter leur compte Gmail
  */
 
+import { logger } from '../../utils/logger.js';
+
 // Configuration OAuth Google
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -185,7 +187,7 @@ export async function getValidAccessToken(db, tenantId, env) {
 
       return newTokens.access_token;
     } catch (error) {
-      console.error('Erreur refresh token:', error);
+      logger.error('Google refresh token error', { error: error.message });
       return null;
     }
   }
@@ -201,6 +203,10 @@ export async function getValidAccessToken(db, tenantId, env) {
  * GET /api/v1/oauth/google/authorize
  */
 export async function handleGoogleAuthorize(request, env, ctx, tenantId) {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_REDIRECT_URI) {
+    return Response.json({ error: 'Google OAuth not configured' }, { status: 503 });
+  }
+
   const url = new URL(request.url);
   const redirectAfterAuth = url.searchParams.get('redirect') || '/dashboard/channels';
 
@@ -213,50 +219,35 @@ export async function handleGoogleAuthorize(request, env, ctx, tenantId) {
  * GET /api/v1/oauth/google/callback
  */
 export async function handleGoogleCallback(request, env, ctx) {
-  console.log('=== GOOGLE CALLBACK START ===');
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const stateEncoded = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
-  console.log('code present:', !!code);
-  console.log('state present:', !!stateEncoded);
-  console.log('error:', error);
-
   if (error) {
-    console.error('Erreur OAuth Google:', error);
+    logger.error('OAuth Google denied', { error });
     return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels?error=oauth_denied`, 302);
   }
 
   if (!code || !stateEncoded) {
-    console.error('Missing code or state');
+    logger.error('Google callback missing code or state');
     return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels?error=missing_params`, 302);
   }
 
   try {
-    console.log('Decoding state...');
     const state = JSON.parse(atob(stateEncoded));
     const { tenantId, redirectAfterAuth } = state;
-    console.log('tenantId:', tenantId);
 
-    console.log('Exchanging code for tokens...');
     const tokens = await exchangeCodeForTokens(code, env);
-    console.log('Tokens received, access_token:', !!tokens.access_token);
-
-    console.log('Getting user info...');
     const userInfo = await getGoogleUserInfo(tokens.access_token);
-    console.log('User email:', userInfo.email);
-
-    console.log('Saving to DB...');
     await saveGoogleTokens(env.DB, tenantId, tokens, userInfo);
-    console.log('=== GOOGLE CALLBACK SUCCESS ===');
+
+    logger.info('Google OAuth connected', { tenantId, email: userInfo.email });
 
     return Response.redirect(`${env.FRONTEND_URL}${redirectAfterAuth}?gmail_connected=true&email=${encodeURIComponent(userInfo.email)}`, 302);
 
   } catch (err) {
-    console.error('=== GOOGLE CALLBACK ERROR ===');
-    console.error('Error:', err.message);
-    console.error('Stack:', err.stack);
+    logger.error('Google OAuth callback error', { error: err.message });
     return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels?error=oauth_failed`, 302);
   }
 }

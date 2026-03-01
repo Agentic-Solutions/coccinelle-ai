@@ -2,11 +2,14 @@
 // Migration VAPI → Twilio pour meilleure latence et qualité voix FR
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { logger } from '../../utils/logger.js';
+import { requireAuth } from '../auth/helpers.js';
 import { handleConversationWebSocket } from './websocket.js';
 import { TwilioSignatureValidator } from './validator.js';
 
 export async function handleTwilioRoutes(request, env, path, method) {
   try {
+    // ============ WEBHOOKS (no auth - called by Twilio servers) ============
+
     // POST /webhooks/twilio/voice - Webhook initial pour appel entrant (TwiML)
     if (path === '/webhooks/twilio/voice' && method === 'POST') {
       return await handleIncomingCall(request, env);
@@ -27,42 +30,54 @@ export async function handleTwilioRoutes(request, env, path, method) {
       return await handleConversationWebSocket(request, env);
     }
 
+    // ============ API ROUTES (require JWT auth) ============
+
+    // Authenticate all /api/v1/ routes
+    let authResult = null;
+    if (path.startsWith('/api/v1/')) {
+      authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return errorResponse(authResult.error, authResult.status);
+      }
+    }
+
+    const tenantId = authResult?.tenant?.id;
+
     // GET /api/v1/twilio/calls - Liste des appels
     if (path === '/api/v1/twilio/calls' && method === 'GET') {
-      return await handleListCalls(request, env);
+      return await handleListCalls(request, env, tenantId);
     }
 
     // GET /api/v1/twilio/stats - Statistiques
     if (path === '/api/v1/twilio/stats' && method === 'GET') {
-      return await handleStats(request, env);
+      return await handleStats(env, tenantId);
     }
 
+    // ============ SMS ROUTES (require JWT auth) ============
 
-    // ============ SMS ROUTES ============
-    
     // POST /api/v1/sms/send - Envoyer un SMS manuel
     if (path === '/api/v1/sms/send' && method === 'POST') {
-      return await handleSendSMS(request, env);
+      return await handleSendSMS(request, env, tenantId);
     }
-    
+
     // POST /api/v1/sms/confirmation - SMS confirmation RDV
     if (path === '/api/v1/sms/confirmation' && method === 'POST') {
-      return await handleSMSConfirmation(request, env);
+      return await handleSMSConfirmation(request, env, tenantId);
     }
-    
+
     // POST /api/v1/sms/reminder - SMS rappel RDV
     if (path === '/api/v1/sms/reminder' && method === 'POST') {
-      return await handleSMSReminder(request, env);
+      return await handleSMSReminder(request, env, tenantId);
     }
-    
+
     // POST /api/v1/sms/cancel - SMS annulation RDV
     if (path === '/api/v1/sms/cancel' && method === 'POST') {
-      return await handleSMSCancel(request, env);
+      return await handleSMSCancel(request, env, tenantId);
     }
-    
+
     // GET /api/v1/sms/history - Historique des SMS
     if (path === '/api/v1/sms/history' && method === 'GET') {
-      return await handleSMSHistory(request, env);
+      return await handleSMSHistory(env, tenantId);
     }
     return null;
 
@@ -293,10 +308,9 @@ async function handleCallStatus(request, env) {
 }
 
 // Liste des appels
-async function handleListCalls(request, env) {
+async function handleListCalls(request, env, tenantId) {
   const url = new URL(request.url);
-  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
-  const limit = parseInt(url.searchParams.get('limit')) || 50;
+  const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 200);
 
   const result = await env.DB.prepare(`
     SELECT id, twilio_call_sid, from_number, to_number, direction, status, duration, created_at
@@ -313,9 +327,7 @@ async function handleListCalls(request, env) {
 }
 
 // Statistiques des appels
-async function handleStats(request, env) {
-  const url = new URL(request.url);
-  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
+async function handleStats(env, tenantId) {
 
   const [totalCalls, completedCalls, avgDuration] = await Promise.all([
     env.DB.prepare(`SELECT COUNT(*) as count FROM calls WHERE tenant_id = ?`).bind(tenantId).first(),
@@ -478,14 +490,14 @@ function escapeXml(text) {
 /**
  * POST /api/v1/sms/send - Envoyer un SMS manuel
  */
-async function handleSendSMS(request, env) {
+async function handleSendSMS(request, env, tenantId) {
   const body = await request.json();
-  const { to, message, tenant_id } = body;
+  const { to, message } = body;
 
   if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
   if (!message) return errorResponse('Message requis', 400);
 
-  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  const result = await sendTwilioSMS(env, to, message, tenantId);
   
   if (result.success) {
     return successResponse({
@@ -502,19 +514,19 @@ async function handleSendSMS(request, env) {
 /**
  * POST /api/v1/sms/confirmation - SMS confirmation RDV (template)
  */
-async function handleSMSConfirmation(request, env) {
+async function handleSMSConfirmation(request, env, tenantId) {
   const body = await request.json();
-  const { to, customer_name, date, time, company_name, tenant_id } = body;
+  const { to, customer_name, date, time, company_name } = body;
 
   if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
   if (!date || !time) return errorResponse('Date et heure requises', 400);
 
   const name = customer_name || 'Client';
   const company = company_name || 'notre établissement';
-  
+
   const message = `Bonjour ${name}, votre RDV est confirmé pour le ${date} à ${time} chez ${company}. À bientôt !`;
 
-  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  const result = await sendTwilioSMS(env, to, message, tenantId);
   
   if (result.success) {
     return successResponse({
@@ -531,19 +543,19 @@ async function handleSMSConfirmation(request, env) {
 /**
  * POST /api/v1/sms/reminder - SMS rappel RDV (template)
  */
-async function handleSMSReminder(request, env) {
+async function handleSMSReminder(request, env, tenantId) {
   const body = await request.json();
-  const { to, customer_name, date, time, company_name, tenant_id } = body;
+  const { to, customer_name, date, time, company_name } = body;
 
   if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
   if (!date || !time) return errorResponse('Date et heure requises', 400);
 
   const name = customer_name || 'Client';
   const company = company_name || 'notre établissement';
-  
+
   const message = `Rappel ${name} : votre RDV est demain ${date} à ${time} chez ${company}. Besoin de modifier ? Répondez à ce SMS.`;
 
-  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  const result = await sendTwilioSMS(env, to, message, tenantId);
   
   if (result.success) {
     return successResponse({
@@ -560,15 +572,15 @@ async function handleSMSReminder(request, env) {
 /**
  * POST /api/v1/sms/cancel - SMS annulation RDV (template)
  */
-async function handleSMSCancel(request, env) {
+async function handleSMSCancel(request, env, tenantId) {
   const body = await request.json();
-  const { to, customer_name, date, time, company_name, tenant_id } = body;
+  const { to, customer_name, date, time, company_name } = body;
 
   if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
 
   const name = customer_name || 'Client';
   const company = company_name || 'notre établissement';
-  
+
   let message;
   if (date && time) {
     message = `Bonjour ${name}, votre RDV du ${date} à ${time} chez ${company} a été annulé. Contactez-nous pour reprogrammer.`;
@@ -576,7 +588,7 @@ async function handleSMSCancel(request, env) {
     message = `Bonjour ${name}, votre RDV chez ${company} a été annulé. Contactez-nous pour reprogrammer.`;
   }
 
-  const result = await sendTwilioSMS(env, to, message, tenant_id);
+  const result = await sendTwilioSMS(env, to, message, tenantId);
   
   if (result.success) {
     return successResponse({
@@ -593,10 +605,8 @@ async function handleSMSCancel(request, env) {
 /**
  * GET /api/v1/sms/history - Historique des SMS
  */
-async function handleSMSHistory(request, env) {
-  const url = new URL(request.url);
-  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
-  const limit = parseInt(url.searchParams.get('limit')) || 50;
+async function handleSMSHistory(env, tenantId) {
+  const limit = 50;
 
   try {
     const result = await env.DB.prepare(`

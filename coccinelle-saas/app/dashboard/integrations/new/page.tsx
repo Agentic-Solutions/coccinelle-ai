@@ -7,12 +7,15 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Plug, Save, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 function NewIntegrationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const toast = useToast();
   const integrationType = searchParams.get('type');
 
   const [integration, setIntegration] = useState<any>(null);
@@ -112,7 +115,7 @@ function NewIntegrationContent() {
 
   const handleOAuthConnect = () => {
     // TODO: Implémenter OAuth flow
-    alert('OAuth flow à implémenter');
+    toast.info('OAuth flow - fonctionnalité en cours de développement');
   };
 
   if (loading) {

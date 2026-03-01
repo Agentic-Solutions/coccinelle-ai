@@ -1,4 +1,4 @@
-import { handleCORS, corsHeaders, getCorsHeaders } from './config/cors.js';
+import { handleCORS, getCorsHeaders } from './config/cors.js';
 import { logger } from './utils/logger.js';
 import { errorResponse } from './utils/response.js';
 import { handlePublicRoutes } from './modules/public/routes.js';
@@ -23,7 +23,6 @@ import { handleTeamsRoutes } from './modules/teams/routes.js';
 import { handleCustomersRoutes } from './modules/customers/routes.js';
 import { handleOAuthRoutes } from './modules/oauth/routes.js';
 import { handleCheckEmails, handleGetInbox, handleGetHistory, handleGetStatus, handleProcessAll, handleAutoReply, handleGetConversation, handleGetStats } from './modules/email/routes.js';
-// FIX BUG #1 : Import statique depuis helpers.js
 import { verifyToken } from './modules/auth/helpers.js';
 
 export default {
@@ -48,29 +47,27 @@ export default {
       }
 
       if (path.startsWith("/api/v1/teams")) {
-      response = await handleTeamsRoutes(request, env, ctx, corsHeaders);
-      if (response) return response;
-    }
+        response = await handleTeamsRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
 
-    if (path.startsWith("/api/v1/permissions")) {
-      response = await handlePermissionsRoutes(request, env, ctx, corsHeaders);
-      if (response) return response;
-      if (response) return response;
-    }
-    if (path.startsWith("/api/v1/auth/")) {
-        response = await handleAuthRoutes(request, env, ctx, corsHeaders);
+      if (path.startsWith("/api/v1/permissions")) {
+        response = await handlePermissionsRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      if (path.startsWith("/api/v1/auth/")) {
+        response = await handleAuthRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 
       // Routes Email Service
-      console.log("EMAIL BLOCK REACHED", path);
       if (path.startsWith('/api/v1/email/')) {
         const authHeader = request.headers.get('Authorization');
         if (!authHeader) {
           return Response.json({ error: 'Authorization required' }, { status: 401, headers: getCorsHeaders(request) });
         }
         const token = authHeader.replace('Bearer ', '');
-        // FIX BUG #1 : Import statique + env.JWT_SECRET (pas env)
         const payload = verifyToken(token, env.JWT_SECRET);
         if (!payload) {
           return Response.json({ error: 'Invalid token' }, { status: 401, headers: getCorsHeaders(request) });
@@ -86,7 +83,7 @@ export default {
         } else if (path === '/api/v1/email/status' && method === 'GET') {
           response = await handleGetStatus(request, env, ctx, tenantId);
         } else if (path === "/api/v1/email/stats" && method === "GET") {
-          response = await handleGetStats(request, env, ctx, tenantId, corsHeaders);
+          response = await handleGetStats(request, env, ctx, tenantId, getCorsHeaders(request));
         } else if (path.startsWith("/api/v1/email/conversation/") && method === "GET") {
           response = await handleGetConversation(request, env, ctx, tenantId);
         } else if (path === "/api/v1/email/auto-reply" && method === "POST") {
@@ -104,18 +101,18 @@ export default {
 
       // Routes OAuth (Google, Outlook, Yahoo)
       if (path.startsWith('/api/v1/oauth/')) {
-        response = await handleOAuthRoutes(request, env, ctx, corsHeaders);
+        response = await handleOAuthRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
       
       if (path.startsWith('/api/v1/onboarding/')) {
-        response = await handleOnboardingRoutes(request, env, ctx, corsHeaders);
+        response = await handleOnboardingRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
       
       if (path.startsWith('/api/v1/knowledge/')) {
         if (path.includes('/faq') || path.includes('/snippets')) {
-          response = await handleKnowledgeManualRoutes(request, env, ctx, corsHeaders);
+          response = await handleKnowledgeManualRoutes(request, env, ctx, getCorsHeaders(request));
           if (response) return response;
         }
         response = await handleKnowledgeRoutes(request, env, path, method);
@@ -163,7 +160,7 @@ export default {
       }
 
       // Twilio ConversationRelay routes
-    if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio') || path.startsWith('/api/v1/sms')) {
+      if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio') || path.startsWith('/api/v1/sms')) {
         response = await handleTwilioRoutes(request, env, path, method);
         if (response) return response;
       }
@@ -220,7 +217,7 @@ export default {
 
     } catch (error) {
       logger.error('Unhandled error', { method, path, error: error.message, stack: error.stack });
-      return Response.json({ error: error.message, stack: error.stack, type: error.name }, { status: 500, headers: getCorsHeaders(request) });
+      return Response.json({ error: 'Internal server error' }, { status: 500, headers: getCorsHeaders(request) });
     }
   }
 };

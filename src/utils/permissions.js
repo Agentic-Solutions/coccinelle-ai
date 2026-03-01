@@ -14,7 +14,7 @@ export async function initTenantPermissions(env, tenantId) {
   `).all();
   
   if (!permissions.results || permissions.results.length === 0) {
-    console.log('No permissions found in database');
+    // No permissions found - skip initialization
     return;
   }
   

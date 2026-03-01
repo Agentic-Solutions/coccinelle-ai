@@ -3,6 +3,8 @@
  * Permet aux clients de connecter leur compte Outlook/Hotmail/Live/M365
  */
 
+import { logger } from '../../utils/logger.js';
+
 // Configuration OAuth Microsoft
 const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
 const MICROSOFT_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
@@ -190,7 +192,7 @@ async function getValidAccessToken(db, env, tenantId) {
 
       return newTokens.access_token;
     } catch (error) {
-      console.error('Erreur refresh token Outlook:', error);
+      logger.error('Outlook refresh token error', { error: error.message });
       return null;
     }
   }
@@ -203,11 +205,15 @@ async function getValidAccessToken(db, env, tenantId) {
 // ============================================
 
 export async function handleOutlookAuthorize(request, env, ctx, tenantId) {
+  if (!env.MICROSOFT_CLIENT_ID || !env.MICROSOFT_REDIRECT_URI) {
+    return Response.json({ error: 'Outlook OAuth not configured' }, { status: 503 });
+  }
+
   const url = new URL(request.url);
   const redirectAfterAuth = url.searchParams.get('redirect') || '/dashboard/channels/email';
-  
+
   const authUrl = getAuthorizationUrl(env, tenantId, redirectAfterAuth);
-  
+
   return Response.redirect(authUrl, 302);
 }
 
@@ -218,7 +224,7 @@ export async function handleOutlookCallback(request, env, ctx) {
   const error = url.searchParams.get('error');
 
   if (error) {
-    console.error('Erreur OAuth Microsoft:', error);
+    logger.error('OAuth Microsoft denied', { error });
     return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels/email?error=oauth_denied`, 302);
   }
 
@@ -238,7 +244,7 @@ export async function handleOutlookCallback(request, env, ctx) {
     return Response.redirect(`${env.FRONTEND_URL}${redirectAfterAuth}?provider=outlook&connected=true&email=${encodeURIComponent(email)}`, 302);
 
   } catch (err) {
-    console.error('Erreur callback OAuth Microsoft:', err);
+    logger.error('Outlook OAuth callback error', { error: err.message });
     return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels/email?error=oauth_failed`, 302);
   }
 }

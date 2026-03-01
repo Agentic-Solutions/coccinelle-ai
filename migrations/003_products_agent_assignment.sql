@@ -6,12 +6,9 @@
 -- 1. Ajouter colonne agent_id (optionnel)
 -- Si NULL → produit partagé à tous les agents du tenant
 -- Si défini → produit spécifique à cet agent
-ALTER TABLE products ADD COLUMN agent_id TEXT;
-
--- 2. Ajouter colonne assignment_type pour clarté
--- 'shared' → visible par tous les agents du tenant (agent_id = NULL)
--- 'agent_specific' → visible uniquement par l'agent spécifié (agent_id défini)
-ALTER TABLE products ADD COLUMN assignment_type TEXT DEFAULT 'shared';
+-- Colonnes déjà existantes en production (appliquées manuellement)
+-- ALTER TABLE products ADD COLUMN agent_id TEXT;
+-- ALTER TABLE products ADD COLUMN assignment_type TEXT DEFAULT 'shared';
 
 -- 3. Ajouter foreign key vers agents
 -- Note: SQLite ne supporte pas ADD CONSTRAINT après création

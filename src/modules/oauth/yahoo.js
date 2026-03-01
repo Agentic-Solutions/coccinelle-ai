@@ -3,6 +3,8 @@
  * Permet aux clients de connecter leur compte Yahoo Mail
  */
 
+import { logger } from '../../utils/logger.js';
+
 // Configuration OAuth Yahoo
 const YAHOO_AUTH_URL = 'https://api.login.yahoo.com/oauth2/request_auth';
 const YAHOO_TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token';
@@ -183,7 +185,7 @@ async function getValidAccessToken(db, env, tenantId) {
 
       return newTokens.access_token;
     } catch (error) {
-      console.error('Erreur refresh token Yahoo:', error);
+      logger.error('Yahoo refresh token error', { error: error.message });
       return null;
     }
   }
@@ -196,11 +198,15 @@ async function getValidAccessToken(db, env, tenantId) {
 // ============================================
 
 export async function handleYahooAuthorize(request, env, ctx, tenantId) {
+  if (!env.YAHOO_CLIENT_ID || !env.YAHOO_REDIRECT_URI) {
+    return Response.json({ error: 'Yahoo OAuth not configured. Set YAHOO_CLIENT_ID and YAHOO_REDIRECT_URI.' }, { status: 503 });
+  }
+
   const url = new URL(request.url);
   const redirectAfterAuth = url.searchParams.get('redirect') || '/dashboard/channels/email';
-  
+
   const authUrl = getAuthorizationUrl(env, tenantId, redirectAfterAuth);
-  
+
   return Response.redirect(authUrl, 302);
 }
 
@@ -211,7 +217,7 @@ export async function handleYahooCallback(request, env, ctx) {
   const error = url.searchParams.get('error');
 
   if (error) {
-    console.error('Erreur OAuth Yahoo:', error);
+    logger.error('OAuth Yahoo denied', { error });
     return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels/email?error=oauth_denied`, 302);
   }
 
@@ -230,7 +236,7 @@ export async function handleYahooCallback(request, env, ctx) {
     return Response.redirect(`${env.FRONTEND_URL}${redirectAfterAuth}?provider=yahoo&connected=true&email=${encodeURIComponent(userInfo.email)}`, 302);
 
   } catch (err) {
-    console.error('Erreur callback OAuth Yahoo:', err);
+    logger.error('Yahoo OAuth callback error', { error: err.message });
     return Response.redirect(`${env.FRONTEND_URL}/dashboard/channels/email?error=oauth_failed`, 302);
   }
 }

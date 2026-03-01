@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useToast } from '../../../hooks/useToast';
+import ActionToastContainer from '../ActionToast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function SecuritySettings() {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [passwords, setPasswords] = useState({
@@ -25,13 +28,19 @@ export default function SecuritySettings() {
     }
 
     if (passwords.newPassword.length < 8) {
-      setMessage('Le mot de passe doit contenir au moins 8 caractères');
+      setMessage('Le mot de passe doit contenir au moins 8 caracteres');
+      setLoading(false);
+      return;
+    }
+
+    if (!/[A-Z]/.test(passwords.newPassword) || !/[0-9]/.test(passwords.newPassword)) {
+      setMessage('Le mot de passe doit contenir au moins une majuscule et un chiffre');
       setLoading(false);
       return;
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_URL}/api/v1/auth/change-password`, {
         method: 'PUT',
         headers: {
@@ -65,6 +74,7 @@ export default function SecuritySettings() {
 
   return (
     <div className="space-y-8">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Sécurité</h2>
         <p className="text-gray-600">Gérez la sécurité de votre compte</p>
@@ -160,7 +170,7 @@ export default function SecuritySettings() {
           type="button"
           onClick={() => {
             if (confirm('Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.')) {
-              alert('Fonctionnalité en développement');
+              toast.info('Fonctionnalité en développement');
             }
           }}
           className="px-6 py-3 bg-white text-red-700 rounded-lg font-medium hover:bg-red-50 transition-colors border-2 border-red-700"

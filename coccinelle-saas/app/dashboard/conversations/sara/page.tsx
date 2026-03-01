@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Mic, Phone, Zap, Brain, Settings as SettingsIcon, Volume2, MessageSquare, Target, Clock } from 'lucide-react';
 import Logo from '@/components/Logo';
 import Link from 'next/link';
+import { useToast } from '../../../../hooks/useToast';
+import ActionToastContainer from '../../../../src/components/ActionToast';
 
 interface VoiceConfig {
   voice: string;
@@ -27,6 +29,7 @@ interface QualificationCriteria {
 }
 
 export default function AssistantConfigPage() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'voice' | 'personality' | 'scripts' | 'qualification'>('voice');
 
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>({
@@ -83,7 +86,7 @@ Puis-je vous proposer un rendez-vous avec un de nos conseillers ?`);
       qualificationCriteria,
       script
     });
-    alert('Configuration de Assistant sauvegardée avec succès !');
+    toast.success('Configuration de Assistant sauvegardée avec succès !');
   };
 
   return (

@@ -9,6 +9,8 @@ import {
   Calendar, ShoppingBag, Euro, Home, Settings, Upload, X, FileText,
   Edit2, Trash2, Eye
 } from 'lucide-react';
+import { useToast } from '@/hooks/useToast';
+import ActionToastContainer from '@/components/ActionToast';
 
 // Types adaptés au schéma DB
 interface Customer {
@@ -53,11 +55,13 @@ interface ApiResponse {
 }
 
 export default function CustomersPage() {
+  const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -99,7 +103,7 @@ export default function CustomersPage() {
   };
 
   // API URL
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
   // Charger les clients depuis l'API
   const fetchCustomers = async () => {
@@ -180,12 +184,30 @@ export default function CustomersPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Créer un client
+  // Validation du formulaire
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!formData.first_name.trim() && !formData.last_name.trim()) {
+      errors.first_name = 'Le prenom ou le nom est requis';
+      errors.last_name = 'Le prenom ou le nom est requis';
+    }
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Adresse email invalide';
+    }
+    if (formData.phone && !/^\+?[\d\s-]{6,}$/.test(formData.phone)) {
+      errors.phone = 'Numero de telephone invalide';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Creer un client
   const handleCreate = async () => {
+    if (!validateForm()) return;
     setSaving(true);
     try {
       const token = getToken();
-      if (!token) throw new Error('Non authentifié');
+      if (!token) throw new Error('Non authentifie');
 
       const response = await fetch(`${API_URL}/api/v1/customers`, {
         method: 'POST',
@@ -207,14 +229,15 @@ export default function CustomersPage() {
 
       const data: ApiResponse = await response.json();
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Erreur lors de la création');
+        throw new Error(data.error || 'Erreur lors de la creation');
       }
 
       setShowCreateModal(false);
       resetForm();
+      toast.success('Client cree avec succes');
       await fetchCustomers();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erreur lors de la création');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la creation');
     } finally {
       setSaving(false);
     }
@@ -254,9 +277,10 @@ export default function CustomersPage() {
       setShowEditModal(false);
       setSelectedCustomer(null);
       resetForm();
+      toast.success('Client modifie avec succes');
       await fetchCustomers();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erreur lors de la modification');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la modification');
     } finally {
       setSaving(false);
     }
@@ -268,7 +292,7 @@ export default function CustomersPage() {
     setSaving(true);
     try {
       const token = getToken();
-      if (!token) throw new Error('Non authentifié');
+      if (!token) throw new Error('Non authentifie');
 
       const response = await fetch(`${API_URL}/api/v1/customers/${selectedCustomer.id}`, {
         method: 'DELETE',
@@ -285,9 +309,10 @@ export default function CustomersPage() {
 
       setShowDeleteModal(false);
       setSelectedCustomer(null);
+      toast.success('Client supprime');
       await fetchCustomers();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
     } finally {
       setSaving(false);
     }
@@ -298,6 +323,7 @@ export default function CustomersPage() {
       first_name: '', last_name: '', email: '', phone: '',
       status: 'active', source: '', tags: '', preferred_contact_method: ''
     });
+    setFormErrors({});
   };
 
   const openEditModal = (customer: Customer) => {
@@ -381,50 +407,29 @@ export default function CustomersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Logo size={40} />
-              <h1 className="text-2xl font-bold text-gray-900">Coccinelle.AI</h1>
-            </div>
-            <nav className="flex items-center gap-6">
-              <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                <Home className="w-5 h-5" /> Dashboard
-              </Link>
-              <Link href="/dashboard/customers" className="flex items-center gap-2 text-red-600 font-medium">
-                <Users className="w-5 h-5" /> Clients
-              </Link>
-              <Link href="/dashboard/settings" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                <Settings className="w-5 h-5" /> Paramètres
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </div>
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Page Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Users className="w-8 h-8 text-red-600" /> Clients
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <div className="pl-10 lg:pl-0">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <Users className="w-7 h-7 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" /> Clients
             </h2>
-            <p className="text-gray-600 mt-1">Gérez vos clients et suivez leur activité</p>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez vos clients et suivez leur activite</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
-              <Download className="w-5 h-5" /> Exporter CSV
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+              <Download className="w-4 h-4" /> <span className="hidden sm:inline">Exporter</span> CSV
             </button>
-            <button onClick={() => { resetForm(); setShowCreateModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium">
-              <Plus className="w-5 h-5" /> Nouveau client
+            <button onClick={() => { resetForm(); setShowCreateModal(true); }} className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm">
+              <Plus className="w-4 h-4" /> Nouveau
             </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div><p className="text-sm text-gray-600">Total clients</p><p className="text-2xl font-bold">{stats.total}</p></div>
@@ -554,33 +559,51 @@ export default function CustomersPage() {
               <h3 className="text-xl font-bold flex items-center gap-2"><Plus className="w-6 h-6 text-green-600" />Nouveau client</h3>
               <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
-                  <input type="text" value={formData.first_name} onChange={(e) => setFormData(p => ({...p, first_name: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                  <input type="text" value={formData.last_name} onChange={(e) => setFormData(p => ({...p, last_name: e.target.value}))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prenom</label>
+                  <input type="text" value={formData.first_name} onChange={(e) => { setFormData(p => ({...p, first_name: e.target.value})); setFormErrors(prev => ({...prev, first_name: ''})); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.first_name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                  {formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+                  <input type="text" value={formData.last_name} onChange={(e) => { setFormData(p => ({...p, last_name: e.target.value})); setFormErrors(prev => ({...prev, last_name: ''})); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.last_name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                  {formErrors.last_name && <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>}
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" value={formData.email} onChange={(e) => setFormData(p => ({...p, email: e.target.value}))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-                <input type="tel" value={formData.phone} onChange={(e) => setFormData(p => ({...p, phone: e.target.value}))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" value={formData.email} onChange={(e) => { setFormData(p => ({...p, email: e.target.value})); setFormErrors(prev => ({...prev, email: ''})); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telephone</label>
+                <input type="tel" value={formData.phone} onChange={(e) => { setFormData(p => ({...p, phone: e.target.value})); setFormErrors(prev => ({...prev, phone: ''})); }}
+                  placeholder="+33..." className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                {formErrors.phone && <p className="text-xs text-red-600 mt-1">{formErrors.phone}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
                 <select value={formData.status} onChange={(e) => setFormData(p => ({...p, status: e.target.value}))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg">
                   <option value="active">Actif</option><option value="vip">VIP</option>
                   <option value="prospect">Prospect</option><option value="inactive">Inactif</option>
-                </select></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
                 <input type="text" value={formData.source} onChange={(e) => setFormData(p => ({...p, source: e.target.value}))}
-                  placeholder="ex: site web, téléphone..." className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Tags (séparés par virgule)</label>
+                  placeholder="ex: site web, telephone..." className="w-full px-3 py-2.5 border border-gray-300 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tags (separes par virgule)</label>
                 <input type="text" value={formData.tags} onChange={(e) => setFormData(p => ({...p, tags: e.target.value}))}
-                  placeholder="ex: premium, fidèle" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                  placeholder="ex: premium, fidele" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg" />
+              </div>
             </div>
             <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
               <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">Annuler</button>

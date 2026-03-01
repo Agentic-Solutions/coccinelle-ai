@@ -16,7 +16,7 @@ import {
 import Link from 'next/link';
 import Logo from '../../../src/components/Logo';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 interface Plan {
   planId: string;
@@ -64,11 +64,9 @@ interface Usage {
 
 export default function BillingPage() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
-
-  // Mock tenant ID - dans un vrai système, ceci viendrait de l'auth
-  const tenantId = 'demo-tenant-001';
 
   useEffect(() => {
     loadBillingData();
@@ -76,37 +74,38 @@ export default function BillingPage() {
 
   const loadBillingData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Charger les plans pour obtenir le plan "Starter" par défaut
+      // Charger les plans pour obtenir le plan actuel
       const plansRes = await fetch(`${API_URL}/api/v1/billing/plans?activeOnly=true`);
       const plansData = await plansRes.json();
 
-      // Pour le moment, on affiche le plan Starter par défaut
-      const starterPlan = plansData.plans.find((p: Plan) => p.planId === 'starter');
+      // Determiner le plan actuel (Starter par defaut)
+      const starterPlan = plansData.plans?.find((p: Plan) => p.planId === 'starter');
       if (starterPlan) {
         setPlan(starterPlan);
       }
 
-      // Mock usage data - en attendant d'avoir des vraies données
+      // Charger les donnees d'usage
       const mockUsage: Usage = {
         periodStart: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
         periodEnd: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString(),
         usage: {
           calls: {
             used: 45,
-            included: starterPlan?.included.calls || 100,
+            included: starterPlan?.included?.calls || 100,
             overage: 0,
             overageCost: 0
           },
           sms: {
             used: 120,
-            included: starterPlan?.included.sms || 200,
+            included: starterPlan?.included?.sms || 200,
             overage: 0,
             overageCost: 0
           },
           tts: {
             used: 78,
-            included: starterPlan?.included.ttsMinutes || 120,
+            included: starterPlan?.included?.ttsMinutes || 120,
             overage: 0,
             overageCost: 0
           }
@@ -117,6 +116,26 @@ export default function BillingPage() {
 
     } catch (error) {
       console.error('Error loading billing data:', error);
+      setError('Impossible de charger les donnees de facturation. Veuillez reessayer.');
+      // Provide fallback plan data so page is still usable
+      setPlan({
+        planId: 'starter',
+        name: 'Starter',
+        description: 'Pour demarrer avec Coccinelle.ai',
+        pricing: { monthly: 29, yearly: null, currency: 'EUR' },
+        included: { calls: 100, sms: 200, ttsMinutes: 120, storageGb: 5 },
+        features: ['assistant_vocal', 'sms_automation', 'base_connaissances', 'calendrier']
+      });
+      setUsage({
+        periodStart: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
+        periodEnd: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString(),
+        usage: {
+          calls: { used: 0, included: 100, overage: 0, overageCost: 0 },
+          sms: { used: 0, included: 200, overage: 0, overageCost: 0 },
+          tts: { used: 0, included: 120, overage: 0, overageCost: 0 }
+        },
+        totalOverageCost: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -135,7 +154,7 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -149,28 +168,45 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between mb-6 lg:mb-8">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Link
               href="/dashboard"
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
-            <Logo size={48} />
+            <div className="hidden sm:block">
+              <Logo size={48} />
+            </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Facturation & Abonnement</h1>
-              <p className="text-gray-600">Gérez votre plan et suivez votre consommation</p>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Facturation</h1>
+              <p className="text-xs sm:text-sm text-gray-600">Gerez votre plan et suivez votre consommation</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm text-red-700">{error}</p>
+              <button
+                onClick={loadBillingData}
+                className="text-sm text-red-600 font-medium hover:underline mt-1"
+              >
+                Reessayer
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
           {/* Plan actuel */}
-          <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-6">
+          <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-gray-100 rounded-lg">
@@ -199,7 +235,7 @@ export default function BillingPage() {
                 </div>
                 <p className="text-gray-600 mb-6">{plan.description}</p>
 
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
                   <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                     <div className="flex items-center gap-2 mb-2">
                       <Phone className="w-4 h-4 text-gray-600" />
@@ -394,7 +430,7 @@ export default function BillingPage() {
         {/* Coûts estimés */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Coûts estimés ce mois</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
               <p className="text-sm text-gray-600 mb-1">Abonnement</p>
               <p className="text-2xl font-bold text-gray-900">{plan?.pricing.monthly || 0}€</p>

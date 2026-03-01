@@ -1,6 +1,7 @@
 // src/auth.js - Fonctions d'authentification
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Génère un ID unique avec préfixe
@@ -140,7 +141,7 @@ export async function requireAuth(request, env) {
     return { user, tenant, session };
     
   } catch (error) {
-    console.error('Auth error:', error);
+    logger.error('Auth error', { error: error.message });
     return { error: 'Erreur d\'authentification', status: 500 };
   }
 }
@@ -176,7 +177,7 @@ export async function logAudit(env, {
       user_agent
     ).run();
   } catch (error) {
-    console.error('Audit log error:', error);
+    logger.error('Audit log error', { error: error.message });
     // Ne pas bloquer la requête si l'audit échoue
   }
 }

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Phone, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useToast } from '../../../../../hooks/useToast';
+import ActionToastContainer from '../../../../../src/components/ActionToast';
 
 const TWILIO_SHARED_NUMBER = '+33 9 39 03 57 61';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
@@ -20,6 +22,7 @@ function PhoneConfigContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromOnboarding = searchParams.get('from') === 'onboarding';
+  const toast = useToast();
 
   const [config, setConfig] = useState({
     enabled: false,
@@ -184,7 +187,7 @@ function PhoneConfigContent() {
     setError(null);
     await new Promise(resolve => setTimeout(resolve, 2000));
     setTesting(false);
-    alert(`Pour tester : Appelez votre numéro ${config.clientPhoneNumber}`);
+    toast.info(`Pour tester : Appelez votre numéro ${config.clientPhoneNumber}`);
   };
 
   const transferGuides = [

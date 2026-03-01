@@ -1,71 +1,81 @@
 // Module Retell - Routes et Webhooks CRUD complet
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { logger } from '../../utils/logger.js';
+import { requireAuth } from '../auth/helpers.js';
 import { getRetellHeaders, RETELL_CONFIG } from './config.js';
 
 const RETELL_API_BASE = 'https://api.retellai.com';
 
 export async function handleRetellRoutes(request, env, path, method) {
   logger.info('Retell routes called', { path, method });
-  
+
   try {
+    // Authenticate all /api/v1/retell/* routes (webhooks are excluded - called by Retell servers)
+    let authResult = null;
+    if (path.startsWith('/api/v1/retell')) {
+      authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return errorResponse(authResult.error, authResult.status);
+      }
+    }
+
     // ============ AGENTS CRUD ============
-    
+
     // GET /api/v1/retell/agents - Liste tous les agents
     if (path === '/api/v1/retell/agents' && method === 'GET') {
       return await listAgents(env);
     }
-    
+
     // POST /api/v1/retell/agents - Créer un nouvel agent
     if (path === '/api/v1/retell/agents' && method === 'POST') {
       return await createAgent(request, env);
     }
-    
+
     // GET /api/v1/retell/agents/:id - Voir un agent
     const getAgentMatch = path.match(/^\/api\/v1\/retell\/agents\/([^\/]+)$/);
     if (getAgentMatch && method === 'GET') {
       return await getAgent(getAgentMatch[1], env);
     }
-    
+
     // PATCH /api/v1/retell/agents/:id/webhook - Mettre à jour le webhook
     const webhookMatch = path.match(/^\/api\/v1\/retell\/agents\/([^\/]+)\/webhook$/);
     if (webhookMatch && method === 'PATCH') {
       return await updateAgentWebhook(webhookMatch[1], request, env);
     }
-    
+
     // PATCH /api/v1/retell/agents/:id - Modifier un agent
     const patchAgentMatch = path.match(/^\/api\/v1\/retell\/agents\/([^\/]+)$/);
     if (patchAgentMatch && method === 'PATCH') {
       return await updateAgent(patchAgentMatch[1], request, env);
     }
-    
+
     // DELETE /api/v1/retell/agents/:id - Supprimer un agent
     const deleteAgentMatch = path.match(/^\/api\/v1\/retell\/agents\/([^\/]+)$/);
     if (deleteAgentMatch && method === 'DELETE') {
       return await deleteAgent(deleteAgentMatch[1], env);
     }
-    
+
     // ============ WEBHOOKS ============
-    
+
     // POST /webhooks/retell/call - Events d'appel Retell
     if (path === '/webhooks/retell/call' && method === 'POST') {
       return await handleRetellWebhook(request, env);
     }
-    
+
     // ============ CALLS ============
-    
-    // GET /api/v1/retell/calls - Liste appels depuis DB
+
+    // GET /api/v1/retell/calls - Liste appels depuis DB (uses JWT tenant_id)
     if (path === '/api/v1/retell/calls' && method === 'GET') {
-      return await listCalls(request, env);
+      return await listCalls(request, env, authResult.tenant.id);
     }
-    
+
     // POST /api/v1/retell/call - Lancer un appel sortant
     if (path === '/api/v1/retell/call' && method === 'POST') {
       return await initiateOutboundCall(request, env);
     }
-    
+
     // ============ UTILS ============
-    
+
     // POST /api/v1/retell/setup-webhooks - Configurer tous les webhooks
     if (path === '/api/v1/retell/setup-webhooks' && method === 'POST') {
       return await setupAllWebhooks(request, env);
@@ -75,11 +85,11 @@ export async function handleRetellRoutes(request, env, path, method) {
     // POST /webhooks/retell/variables - Variables dynamiques par tenant
     if (path === '/webhooks/retell/variables' && method === 'POST') {
       return await handleRetellVariables(request, env);
+    }
 
     // POST /webhooks/retell/function - Fonctions custom
     if (path === '/webhooks/retell/function' && method === 'POST') {
       return await handleRetellFunction(request, env);
-    }
     }
     return null;
   } catch (error) {
@@ -123,7 +133,7 @@ async function createAgent(request, env) {
   // Valeurs par défaut pour un agent Coccinelle
   const agentData = {
     agent_name: body.agent_name || 'Nouvel Agent Coccinelle',
-    voice_id: body.voice_id || RETELL_CONFIG.customVoiceId,
+    voice_id: body.voice_id || RETELL_CONFIG.CUSTOM_VOICE_ID,
     language: body.language || 'fr-FR',
     webhook_url: body.webhook_url || `https://coccinelle-api.youssef-amrouche.workers.dev/webhooks/retell/call`,
     
@@ -134,9 +144,9 @@ async function createAgent(request, env) {
     },
     
     // Voice settings
-    voice_temperature: body.voice_temperature || RETELL_CONFIG.voiceSettings.temperature,
-    voice_speed: body.voice_speed || RETELL_CONFIG.voiceSettings.speed,
-    volume: body.volume || RETELL_CONFIG.voiceSettings.volume,
+    voice_temperature: body.voice_temperature || RETELL_CONFIG.VOICE_CONFIG.voice_temperature,
+    voice_speed: body.voice_speed || RETELL_CONFIG.VOICE_CONFIG.voice_speed,
+    volume: body.volume || RETELL_CONFIG.VOICE_CONFIG.volume,
     
     // Call settings
     max_call_duration_ms: body.max_call_duration_ms || 1800000, // 30 min
@@ -164,7 +174,7 @@ async function createAgent(request, env) {
   const agent = await response.json();
   logger.info('Agent created', { agent_id: agent.agent_id, name: agent.agent_name });
   
-  return successResponse({ 
+  return successResponse({
     agent,
     message: `Agent "${agent.agent_name}" créé avec succès`
   }, 201);
@@ -431,15 +441,14 @@ async function sendDemoRecapEmail(env, data) {
 
 // ============ CALLS FUNCTIONS ============
 
-async function listCalls(request, env) {
+async function listCalls(request, env, tenantId) {
   const url = new URL(request.url);
-  const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
-  const limit = parseInt(url.searchParams.get('limit')) || 50;
-  
+  const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 200);
+
   const result = await env.DB.prepare(
     'SELECT * FROM calls WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?'
   ).bind(tenantId, limit).all();
-  
+
   return successResponse({ calls: result.results, count: result.results.length });
 }
 
@@ -546,11 +555,6 @@ export default { handleRetellRoutes };
  * Retourne les variables dynamiques selon le tenant
  */
 async function handleRetellVariables(request, env) {
-
-    // POST /webhooks/retell/function - Fonctions custom
-    if (path === '/webhooks/retell/function' && method === 'POST') {
-      return await handleRetellFunction(request, env);
-    }
   const body = await request.json();
   const { call, agent_id } = body;
   
