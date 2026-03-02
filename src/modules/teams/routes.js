@@ -134,6 +134,88 @@ export async function handleTeamsRoutes(request, env, ctx, corsHeaders) {
     }
   }
 
+  // PUT /api/v1/teams/:id - Modifier une équipe
+  if (path.match(/^\/api\/v1\/teams\/[^/]+$/) && method === 'PUT') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const { user, tenant } = authResult;
+      const canManage = await hasPermission(env, tenant.id, user.role, 'manage_employees');
+      if (!canManage) {
+        return new Response(JSON.stringify({ success: false, error: 'Permission refusée' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const teamId = path.split('/')[4];
+      const existing = await env.DB.prepare('SELECT * FROM teams WHERE id = ? AND tenant_id = ?').bind(teamId, tenant.id).first();
+      if (!existing) {
+        return new Response(JSON.stringify({ success: false, error: 'Équipe non trouvée' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const body = await request.json();
+      const now = new Date().toISOString();
+      await env.DB.prepare(`
+        UPDATE teams SET name = ?, description = ?, manager_user_id = ?, location = ?, updated_at = ?
+        WHERE id = ? AND tenant_id = ?
+      `).bind(
+        body.name || existing.name,
+        body.description !== undefined ? body.description : existing.description,
+        body.manager_user_id !== undefined ? body.manager_user_id : existing.manager_user_id,
+        body.location !== undefined ? body.location : existing.location,
+        now, teamId, tenant.id
+      ).run();
+      return new Response(JSON.stringify({ success: true, message: 'Équipe mise à jour' }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Update team error:', error);
+      return new Response(JSON.stringify({ success: false, error: error.message }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // DELETE /api/v1/teams/:id - Désactiver une équipe (soft delete)
+  if (path.match(/^\/api\/v1\/teams\/[^/]+$/) && method === 'DELETE') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const { user, tenant } = authResult;
+      const canManage = await hasPermission(env, tenant.id, user.role, 'manage_employees');
+      if (!canManage) {
+        return new Response(JSON.stringify({ success: false, error: 'Permission refusée' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const teamId = path.split('/')[4];
+      const existing = await env.DB.prepare('SELECT * FROM teams WHERE id = ? AND tenant_id = ?').bind(teamId, tenant.id).first();
+      if (!existing) {
+        return new Response(JSON.stringify({ success: false, error: 'Équipe non trouvée' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      await env.DB.prepare('UPDATE teams SET is_active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?')
+        .bind(new Date().toISOString(), teamId, tenant.id).run();
+      return new Response(JSON.stringify({ success: true, message: 'Équipe supprimée' }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Delete team error:', error);
+      return new Response(JSON.stringify({ success: false, error: error.message }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
   // GET /api/v1/teams/agents - Agents visibles par l'utilisateur
   if (path === '/api/v1/teams/agents' && method === 'GET') {
     try {

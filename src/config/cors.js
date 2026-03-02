@@ -22,7 +22,7 @@ export function getCorsHeaders(request) {
 
   // Vérifier si l'origine est dans la liste OU correspond au pattern Cloudflare Pages
   const isAllowed = allowedOrigins.includes(origin) || cloudflarePreviewPattern.test(origin);
-  const allowedOrigin = isAllowed ? origin : allowedOrigins[0];
+  const allowedOrigin = isAllowed ? origin : 'https://coccinelle-saas.pages.dev';
 
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
@@ -33,10 +33,8 @@ export function getCorsHeaders(request) {
 }
 
 // DEPRECATED: Use getCorsHeaders(request) instead for proper origin checking.
-// This fallback uses the first allowed origin (localhost:3000) instead of wildcard
-// to avoid the browser spec violation of Access-Control-Allow-Origin: * with credentials.
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': allowedOrigins[0],
+  'Access-Control-Allow-Origin': 'https://coccinelle-saas.pages.dev',
   'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-tenant-id, x-user-id',
