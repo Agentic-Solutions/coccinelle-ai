@@ -174,7 +174,7 @@ async function handleCreateAppointment(request, env) {
   const { user, tenant } = authResult;
 
   const body = await request.json();
-  const { prospect_id, agent_id, scheduled_at, service_id, notes, customer } = body;
+  const { prospect_id, agent_id, scheduled_at, service_id, notes, customer, type } = body;
 
   if (!scheduled_at) {
     return errorResponse('scheduled_at est requis', 400);
@@ -193,10 +193,11 @@ async function handleCreateAppointment(request, env) {
   const appointmentId = `apt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = new Date().toISOString();
 
+  const managementToken = Math.random().toString(36).substr(2, 16);
   await env.DB.prepare(`
-    INSERT INTO appointments (id, tenant_id, prospect_id, agent_id, service_id, scheduled_at, status, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
-  `).bind(appointmentId, tenant.id, prospect_id || null, agent_id || null, service_id || null, scheduled_at, notes || null, now).run();
+    INSERT INTO appointments (id, tenant_id, prospect_id, agent_id, service_id, type, scheduled_at, management_token, status, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
+  `).bind(appointmentId, tenant.id, prospect_id || 'unknown', agent_id || null, service_id || null, type || 'visit', scheduled_at, managementToken, notes || null, now).run();
 
   const appointment = {
     id: appointmentId,
