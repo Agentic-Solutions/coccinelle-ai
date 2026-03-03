@@ -30,6 +30,11 @@ export async function handleTwilioRoutes(request, env, path, method) {
       return await handleConversationWebSocket(request, env);
     }
 
+    // POST /webhooks/twilio/sms - Webhook pour SMS entrants depuis Twilio
+    if (path === '/webhooks/twilio/sms' && method === 'POST') {
+      return await handleIncomingSMS(request, env);
+    }
+
     // ============ API ROUTES (require JWT auth) ============
 
     // Authenticate all /api/v1/ routes
@@ -54,31 +59,33 @@ export async function handleTwilioRoutes(request, env, path, method) {
     }
 
     // ============ SMS ROUTES (require JWT auth) ============
+    // Supportent /api/v1/sms/*, /api/v1/twilio/sms/* et /api/v1/channels/sms/*
 
-    // POST /api/v1/sms/send - Envoyer un SMS manuel
-    if (path === '/api/v1/sms/send' && method === 'POST') {
+    // POST /api/v1/sms/send | /api/v1/twilio/sms/send | /api/v1/channels/sms/send
+    if ((path === '/api/v1/sms/send' || path === '/api/v1/twilio/sms/send' || path === '/api/v1/channels/sms/send') && method === 'POST') {
       return await handleSendSMS(request, env, tenantId);
     }
 
-    // POST /api/v1/sms/confirmation - SMS confirmation RDV
-    if (path === '/api/v1/sms/confirmation' && method === 'POST') {
+    // POST /api/v1/sms/confirmation | /api/v1/twilio/sms/confirmation
+    if ((path === '/api/v1/sms/confirmation' || path === '/api/v1/twilio/sms/confirmation') && method === 'POST') {
       return await handleSMSConfirmation(request, env, tenantId);
     }
 
-    // POST /api/v1/sms/reminder - SMS rappel RDV
-    if (path === '/api/v1/sms/reminder' && method === 'POST') {
+    // POST /api/v1/sms/reminder | /api/v1/twilio/sms/reminder
+    if ((path === '/api/v1/sms/reminder' || path === '/api/v1/twilio/sms/reminder') && method === 'POST') {
       return await handleSMSReminder(request, env, tenantId);
     }
 
-    // POST /api/v1/sms/cancel - SMS annulation RDV
-    if (path === '/api/v1/sms/cancel' && method === 'POST') {
+    // POST /api/v1/sms/cancel | /api/v1/twilio/sms/cancel
+    if ((path === '/api/v1/sms/cancel' || path === '/api/v1/twilio/sms/cancel') && method === 'POST') {
       return await handleSMSCancel(request, env, tenantId);
     }
 
-    // GET /api/v1/sms/history - Historique des SMS
-    if (path === '/api/v1/sms/history' && method === 'GET') {
+    // GET /api/v1/sms/history | /api/v1/twilio/sms/history
+    if ((path === '/api/v1/sms/history' || path === '/api/v1/twilio/sms/history') && method === 'GET') {
       return await handleSMSHistory(env, tenantId);
     }
+
     return null;
 
   } catch (error) {
@@ -483,6 +490,68 @@ function escapeXml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+// ============ WEBHOOK SMS ENTRANT ============
+
+/**
+ * POST /webhooks/twilio/sms - Réception de SMS entrant depuis Twilio
+ */
+async function handleIncomingSMS(request, env) {
+  try {
+    const formData = await request.formData();
+    const from = formData.get('From');
+    const to = formData.get('To');
+    const body = formData.get('Body');
+    const messageSid = formData.get('MessageSid');
+
+    logger.info('Incoming SMS received', { from, to, messageSid, body: body?.substring(0, 50) });
+
+    // Identifier le tenant par le numéro Twilio destinataire
+    const normalizedTo = to?.replace(/^\+/, '');
+    const tenantResult = await env.DB.prepare(`
+      SELECT t.id as tenant_id
+      FROM tenants t
+      INNER JOIN channel_configurations cc ON t.id = cc.tenant_id AND cc.channel_type = 'sms'
+      WHERE cc.enabled = 1
+        AND (
+          JSON_EXTRACT(cc.config_public, '$.phoneNumber') = ?
+          OR JSON_EXTRACT(cc.config_public, '$.phoneNumber') = ?
+        )
+      LIMIT 1
+    `).bind(to, normalizedTo).first();
+
+    const tenantId = tenantResult?.tenant_id || 'tenant_demo_001';
+
+    // Sauvegarder le SMS entrant en DB
+    try {
+      await env.DB.prepare(`
+        INSERT INTO sms_messages (id, tenant_id, to_number, from_number, message, status, direction, twilio_sid, created_at)
+        VALUES (?, ?, ?, ?, ?, 'received', 'inbound', ?, datetime('now'))
+      `).bind(
+        `sms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        tenantId,
+        to,
+        from,
+        body || '',
+        messageSid
+      ).run();
+    } catch (dbError) {
+      logger.warn('Could not save incoming SMS to DB', { error: dbError.message });
+    }
+
+    // Répondre avec TwiML vide (accusé de réception sans réponse auto)
+    return new Response(
+      '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+      { headers: { 'Content-Type': 'application/xml' } }
+    );
+  } catch (error) {
+    logger.error('Incoming SMS webhook error', { error: error.message });
+    return new Response(
+      '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+      { headers: { 'Content-Type': 'application/xml' } }
+    );
+  }
 }
 
 // ============ SMS ROUTES ============

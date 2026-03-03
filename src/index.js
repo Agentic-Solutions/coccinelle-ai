@@ -208,8 +208,9 @@ export default {
         if (response) return response;
       }
 
-      // Twilio ConversationRelay routes
-      if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio') || path.startsWith('/api/v1/sms')) {
+      // Twilio ConversationRelay + SMS routes
+      // Inclut /api/v1/twilio/*, /webhooks/twilio/*, /api/v1/sms/* et /api/v1/channels/sms/send
+      if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio') || path.startsWith('/api/v1/sms') || (path.startsWith('/api/v1/channels/sms/') && path !== '/api/v1/channels/sms')) {
         response = await handleTwilioRoutes(request, env, path, method);
         if (response) return response;
       }
