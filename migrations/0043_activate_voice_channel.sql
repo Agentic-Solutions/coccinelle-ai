@@ -8,10 +8,8 @@
 -- Tenant ID calculé: tenant_${btoa('admin@coccinelle-prod.com')} = tenant_YWRtaW5AY29jY2luZWxsZS1wcm9kLmNvbQ
 
 -- =====================================================
--- 1. Ajouter la colonne retell_agent_id a omni_agent_configs
---    (requise par src/modules/retell/routes.js pour les web calls)
+-- 1. retell_agent_id deja present dans omni_agent_configs (ajouté anterieurement)
 -- =====================================================
-ALTER TABLE omni_agent_configs ADD COLUMN retell_agent_id TEXT;
 
 -- =====================================================
 -- 2. Inserer la configuration du canal voix (phone) dans channel_configurations
