@@ -2,6 +2,7 @@
 import * as auth from '../auth/helpers.js';
 import { getCorsHeaders } from '../../config/cors.js';
 import { logger } from '../../utils/logger.js';
+import { getPlans, getPlanDetails, comparePlans } from './controllers/plans.js';
 
 // ========================================
 // PLANS PRICING (price IDs from env)
@@ -72,6 +73,22 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method;
+
+  // ========================================
+  // 0. PLANS ROUTES - /api/v1/billing/plans
+  // ========================================
+  if (path === '/api/v1/billing/plans' && method === 'GET') {
+    return await getPlans(request, env);
+  }
+  if (path === '/api/v1/billing/plans/compare' && method === 'GET') {
+    return await comparePlans(request, env);
+  }
+  if (path.startsWith('/api/v1/billing/plans/') && method === 'GET') {
+    const planId = path.split('/').pop();
+    if (planId !== 'compare') {
+      return await getPlanDetails(request, env, planId);
+    }
+  }
 
   // ========================================
   // 1. POST /api/v1/billing/create-checkout-session
