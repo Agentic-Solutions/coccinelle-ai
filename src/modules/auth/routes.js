@@ -163,8 +163,22 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       const catStatements = defaultCategories.map(cat => env.DB.prepare(`INSERT INTO product_categories (id, tenant_id, key, name, description, icon, color, is_system, fields, display_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`).bind(cat.id, tenantId, cat.key, cat.name, cat.description, cat.icon, cat.color, cat.fields, cat.display_order, now, now));
       await env.DB.batch(catStatements);
 
+      // Mettre à jour le secteur d'activité si fourni
+      if (body.industry) {
+        await env.DB.prepare('UPDATE tenants SET industry = ? WHERE id = ?').bind(body.industry, tenantId).run();
+      }
+
       // Créer les permissions par défaut pour ce tenant
       await initTenantPermissions(env, tenantId);
+
+      // Créer subscription trial (14 jours)
+      const subscriptionId = auth.generateId('sub');
+      const trialEnds = new Date();
+      trialEnds.setDate(trialEnds.getDate() + 14);
+      await env.DB.prepare(`
+        INSERT INTO subscriptions (id, tenant_id, plan, status, trial_ends_at, created_at)
+        VALUES (?, ?, 'trial', 'trialing', ?, ?)
+      `).bind(subscriptionId, tenantId, trialEnds.toISOString(), now).run();
 
       // Créer user admin
       await env.DB.prepare(`INSERT INTO users (id, tenant_id, email, password_hash, name, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(userId, tenantId, email.toLowerCase().trim(), passwordHash, name.trim(), 'admin', 1, now, now).run();
@@ -179,6 +193,42 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
 
       await env.DB.prepare(`INSERT INTO sessions (id, user_id, tenant_id, token, ip_address, user_agent, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(sessionId, userId, tenantId, token, clientIp, userAgent, expiresAt.toISOString(), now).run();
       await auth.logAudit(env, { tenant_id: tenantId, user_id: userId, action: 'user.signup', resource_type: 'user', resource_id: userId, changes: { email: email.toLowerCase().trim(), role: 'admin', tenant_created: true, slug: slug }, ip_address: clientIp, user_agent: userAgent });
+
+      // ========================================
+      // Email de vérification
+      // ========================================
+      const verificationToken = crypto.randomUUID();
+      await env.DB.prepare('UPDATE users SET verification_token = ? WHERE id = ?').bind(verificationToken, userId).run();
+
+      const verifyLink = `https://coccinelle-saas.pages.dev/verify-email?token=${verificationToken}`;
+      try {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai',
+            to: email.toLowerCase().trim(),
+            subject: 'Bienvenue sur Coccinelle.ai ! Confirmez votre email',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h1 style="color: #1a1a1a; font-size: 24px;">Bienvenue sur Coccinelle.ai !</h1>
+                <p style="color: #4a4a4a; font-size: 16px;">Bonjour ${name.trim()},</p>
+                <p style="color: #4a4a4a; font-size: 16px;">Merci de vous être inscrit. Confirmez votre adresse email en cliquant sur le bouton ci-dessous :</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${verifyLink}" style="background-color: #1a1a1a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-size: 16px;">Confirmer mon email</a>
+                </div>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p style="color: #aaa; font-size: 12px;">Coccinelle.ai - Votre assistant IA</p>
+              </div>
+            `
+          })
+        });
+      } catch (emailError) {
+        logger.error('Failed to send verification email on signup', { error: emailError.message });
+      }
 
       // ========================================
       // NOUVEAU : Retourner aussi le slug et l'email Coccinelle
@@ -527,6 +577,360 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       }), { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+  }
+
+  // ========================================
+  // POST /api/v1/auth/forgot-password
+  // ========================================
+  if (path === '/api/v1/auth/forgot-password' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const { email } = body;
+
+      if (!email || !auth.isValidEmail(email)) {
+        return new Response(JSON.stringify({ success: true, message: 'Si cet email existe, un lien a été envoyé' }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const user = await env.DB.prepare('SELECT id, name FROM users WHERE email = ?').bind(email.toLowerCase().trim()).first();
+
+      if (user) {
+        const resetToken = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1h
+
+        await env.DB.prepare(
+          'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?'
+        ).bind(resetToken, expiresAt, user.id).run();
+
+        // Envoyer email via Resend
+        const resetLink = `https://coccinelle-saas.pages.dev/reset-password?token=${resetToken}`;
+        try {
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              from: env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai',
+              to: email.toLowerCase().trim(),
+              subject: 'Réinitialisez votre mot de passe Coccinelle.ai',
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <h1 style="color: #1a1a1a; font-size: 24px;">Réinitialisation de votre mot de passe</h1>
+                  <p style="color: #4a4a4a; font-size: 16px;">Bonjour ${user.name || ''},</p>
+                  <p style="color: #4a4a4a; font-size: 16px;">Vous avez demandé la réinitialisation de votre mot de passe Coccinelle.ai.</p>
+                  <p style="color: #4a4a4a; font-size: 16px;">Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe :</p>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${resetLink}" style="background-color: #1a1a1a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-size: 16px;">Réinitialiser mon mot de passe</a>
+                  </div>
+                  <p style="color: #888; font-size: 14px;">Ce lien expire dans 1 heure.</p>
+                  <p style="color: #888; font-size: 14px;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                  <p style="color: #aaa; font-size: 12px;">Coccinelle.ai - Votre assistant IA</p>
+                </div>
+              `
+            })
+          });
+        } catch (emailError) {
+          logger.error('Failed to send reset email', { error: emailError.message });
+        }
+      }
+
+      // Toujours retourner 200 pour ne pas révéler si l'email existe
+      return new Response(JSON.stringify({ success: true, message: 'Si cet email existe, un lien a été envoyé' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      logger.error('Forgot password error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la demande' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // ========================================
+  // POST /api/v1/auth/reset-password
+  // ========================================
+  if (path === '/api/v1/auth/reset-password' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const { token, newPassword } = body;
+
+      if (!token || !newPassword) {
+        return new Response(JSON.stringify({ success: false, error: 'Token et nouveau mot de passe requis' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!auth.isStrongPassword(newPassword)) {
+        return new Response(JSON.stringify({ success: false, error: 'Le mot de passe doit contenir minimum 8 caractères, 1 majuscule, 1 minuscule et 1 chiffre' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const user = await env.DB.prepare(
+        'SELECT id, tenant_id FROM users WHERE reset_token = ?'
+      ).bind(token).first();
+
+      if (!user) {
+        return new Response(JSON.stringify({ success: false, error: 'Token invalide ou expiré' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Vérifier expiration
+      const fullUser = await env.DB.prepare(
+        'SELECT reset_token_expires FROM users WHERE id = ?'
+      ).bind(user.id).first();
+
+      if (!fullUser.reset_token_expires || new Date(fullUser.reset_token_expires) < new Date()) {
+        return new Response(JSON.stringify({ success: false, error: 'Token invalide ou expiré' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const passwordHash = await auth.hashPassword(newPassword);
+      const now = new Date().toISOString();
+
+      await env.DB.prepare(
+        'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, updated_at = ? WHERE id = ?'
+      ).bind(passwordHash, now, user.id).run();
+
+      const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const userAgent = request.headers.get('User-Agent') || 'unknown';
+      await auth.logAudit(env, {
+        tenant_id: user.tenant_id,
+        user_id: user.id,
+        action: 'user.password_reset',
+        resource_type: 'user',
+        resource_id: user.id,
+        ip_address: clientIp,
+        user_agent: userAgent
+      });
+
+      return new Response(JSON.stringify({ success: true, message: 'Mot de passe réinitialisé avec succès' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      logger.error('Reset password error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la réinitialisation' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // ========================================
+  // GET /api/v1/auth/verify-email
+  // ========================================
+  if (path === '/api/v1/auth/verify-email' && method === 'GET') {
+    try {
+      const verificationToken = url.searchParams.get('token');
+
+      if (!verificationToken) {
+        return new Response(JSON.stringify({ success: false, error: 'Token de vérification requis' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const user = await env.DB.prepare(
+        'SELECT id, tenant_id FROM users WHERE verification_token = ?'
+      ).bind(verificationToken).first();
+
+      if (!user) {
+        return new Response(JSON.stringify({ success: false, error: 'Token invalide ou expiré' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        'UPDATE users SET email_verified = 1, verification_token = NULL, updated_at = ? WHERE id = ?'
+      ).bind(now, user.id).run();
+
+      const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const userAgent = request.headers.get('User-Agent') || 'unknown';
+      await auth.logAudit(env, {
+        tenant_id: user.tenant_id,
+        user_id: user.id,
+        action: 'user.email_verified',
+        resource_type: 'user',
+        resource_id: user.id,
+        ip_address: clientIp,
+        user_agent: userAgent
+      });
+
+      return new Response(JSON.stringify({ success: true, message: 'Email vérifié avec succès' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      logger.error('Verify email error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la vérification' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // ========================================
+  // POST /api/v1/auth/resend-verification
+  // ========================================
+  if (path === '/api/v1/auth/resend-verification' && method === 'POST') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const { user } = authResult;
+
+      const verificationToken = crypto.randomUUID();
+      const now = new Date().toISOString();
+
+      await env.DB.prepare(
+        'UPDATE users SET verification_token = ?, updated_at = ? WHERE id = ?'
+      ).bind(verificationToken, now, user.id).run();
+
+      // Envoyer email via Resend
+      const verifyLink = `https://coccinelle-saas.pages.dev/verify-email?token=${verificationToken}`;
+      try {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai',
+            to: user.email,
+            subject: 'Confirmez votre adresse email - Coccinelle.ai',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h1 style="color: #1a1a1a; font-size: 24px;">Confirmez votre email</h1>
+                <p style="color: #4a4a4a; font-size: 16px;">Bonjour ${user.name || ''},</p>
+                <p style="color: #4a4a4a; font-size: 16px;">Cliquez sur le bouton ci-dessous pour confirmer votre adresse email :</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${verifyLink}" style="background-color: #1a1a1a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-size: 16px;">Confirmer mon email</a>
+                </div>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p style="color: #aaa; font-size: 12px;">Coccinelle.ai - Votre assistant IA</p>
+              </div>
+            `
+          })
+        });
+      } catch (emailError) {
+        logger.error('Failed to send verification email', { error: emailError.message });
+      }
+
+      return new Response(JSON.stringify({ success: true, message: 'Email de vérification envoyé' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      logger.error('Resend verification error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de l\'envoi' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // ========================================
+  // DELETE /api/v1/auth/account (RGPD)
+  // ========================================
+  if (path === '/api/v1/auth/account' && method === 'DELETE') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const { user, tenant } = authResult;
+      const body = await request.json();
+      const { password, confirmation } = body;
+
+      if (!password || !confirmation) {
+        return new Response(JSON.stringify({ success: false, error: 'Mot de passe et confirmation requis' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (confirmation !== 'SUPPRIMER') {
+        return new Response(JSON.stringify({ success: false, error: 'Tapez SUPPRIMER pour confirmer' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Vérifier le mot de passe
+      const fullUser = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?').bind(user.id).first();
+      const passwordValid = await auth.verifyPassword(password, fullUser.password_hash);
+
+      if (!passwordValid) {
+        return new Response(JSON.stringify({ success: false, error: 'Mot de passe incorrect' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Log audit AVANT suppression
+      const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const userAgent = request.headers.get('User-Agent') || 'unknown';
+      await auth.logAudit(env, {
+        tenant_id: tenant.id,
+        user_id: user.id,
+        action: 'account.deleted',
+        resource_type: 'tenant',
+        resource_id: tenant.id,
+        changes: { email: user.email, tenant_name: tenant.name },
+        ip_address: clientIp,
+        user_agent: userAgent
+      });
+
+      // Supprimer toutes les données du tenant
+      const deleteStatements = [
+        env.DB.prepare('DELETE FROM sessions WHERE tenant_id = ?').bind(tenant.id),
+        env.DB.prepare('DELETE FROM prospects WHERE tenant_id = ?').bind(tenant.id),
+        env.DB.prepare('DELETE FROM customers WHERE tenant_id = ?').bind(tenant.id),
+        env.DB.prepare('DELETE FROM appointments WHERE tenant_id = ?').bind(tenant.id),
+        env.DB.prepare('DELETE FROM products WHERE tenant_id = ?').bind(tenant.id),
+        env.DB.prepare('DELETE FROM users WHERE tenant_id = ?').bind(tenant.id),
+        env.DB.prepare('DELETE FROM tenants WHERE id = ?').bind(tenant.id)
+      ];
+
+      await env.DB.batch(deleteStatements);
+
+      return new Response(JSON.stringify({ success: true, message: 'Compte supprimé avec succès. Toutes vos données ont été effacées.' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      logger.error('Delete account error', { error: error.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur lors de la suppression du compte' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
   }

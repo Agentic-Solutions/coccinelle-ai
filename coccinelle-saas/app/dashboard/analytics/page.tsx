@@ -12,7 +12,8 @@ import {
   FileText,
   Phone,
   Download,
-  ArrowLeft
+  ArrowLeft,
+  Users
 } from 'lucide-react';
 import Link from 'next/link';
 import Logo from '../../../src/components/Logo';
@@ -158,46 +159,55 @@ export default function AnalyticsPage() {
         return;
       }
 
-      // Mode production - fetch API
-      const [documentsRes, callsRes, appointmentsRes, statsRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/knowledge/documents`),
-        fetch(`${API_URL}/api/v1/vapi/calls`),
-        fetch(`${API_URL}/api/v1/appointments`),
-        fetch(`${API_URL}/api/v1/vapi/stats`)
+      // Mode production - fetch API avec overview reel
+      const token = localStorage.getItem('auth_token');
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const [overviewRes, saraRes] = await Promise.all([
+        fetch(`${API_URL}/api/v1/analytics/overview`, { headers: authHeaders }),
+        fetch(`${API_URL}/api/v1/analytics/sara?period=${period}`, { headers: authHeaders }),
       ]);
 
-      const documentsData = await documentsRes.json();
-      const callsData = await callsRes.json();
-      const appointmentsData = await appointmentsRes.json();
-      const vapiStats = await statsRes.json();
+      const overviewData = overviewRes.ok ? await overviewRes.json() : {};
+      const saraData = saraRes.ok ? await saraRes.json() : {};
 
-      // Store raw data for AI Insights
-      setCalls(callsData.calls || []);
-      setAppointments(appointmentsData.appointments || []);
-      setDocuments(documentsData.documents || []);
+      // Store raw data for AI Insights (empty in real mode, populated by API)
+      setCalls([]);
+      setAppointments([]);
+      setDocuments([]);
 
-      // Calculer les stats globales
-      const totalDocs = documentsData.documents?.length || 0;
-      const totalCalls = callsData.calls?.length || 0;
-      const totalAppts = appointmentsData.appointments?.length || 0;
-      const convRate = totalCalls > 0 ? (totalAppts / totalCalls) * 100 : 0;
+      const totalProspects = overviewData.total_prospects || 0;
+      const totalCalls = saraData.total_calls || 0;
+      const totalAppts = overviewData.total_appointments_month || 0;
+      const convRate = saraData.conversion_rate || 0;
 
       setStats({
-        totalDocuments: totalDocs,
+        totalDocuments: totalProspects,
         totalCalls: totalCalls,
         totalAppointments: totalAppts,
         conversionRate: convRate,
-        totalCost: vapiStats.total_cost || 0,
-        avgDuration: vapiStats.average_duration || 0
+        totalCost: overviewData.total_customers || 0,
+        avgDuration: saraData.avg_duration_seconds || 0
       });
 
-      // Traiter les données pour les graphiques
-      processCallsByDay(callsData.calls || []);
-      processAppointmentsByWeekday(appointmentsData.appointments || []);
-      processStatusDistribution(appointmentsData.appointments || []);
-      processCostData(callsData.calls || []);
-      processTopQuestions(callsData.calls || []);
-      processAgentPerformance(appointmentsData.appointments || []);
+      // Traiter les donnees pour les graphiques a partir de Sara data
+      const saraCalls = (saraData.calls_by_day || []).map((d: any) => ({
+        created_at: d.day + 'T00:00:00Z',
+        cost: '0'
+      }));
+      // Repeat entries per count for chart processing
+      const expandedCalls: any[] = [];
+      for (const d of (saraData.calls_by_day || [])) {
+        for (let i = 0; i < d.count; i++) {
+          expandedCalls.push({ created_at: d.day + 'T00:00:00Z', cost: '0' });
+        }
+      }
+      processCallsByDay(expandedCalls);
+      processAppointmentsByWeekday([]);
+      processStatusDistribution([]);
+      processCostData([]);
+      processTopQuestions([]);
+      processAgentPerformance([]);
 
     } catch (error) {
       console.error('Erreur chargement analytics:', error);
@@ -522,14 +532,14 @@ export default function AnalyticsPage() {
           <div>
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
-          {/* Documents KB */}
+          {/* Prospects */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-gray-100 rounded-lg">
-                <FileText className="w-6 h-6 text-gray-700" />
+                <Users className="w-6 h-6 text-gray-700" />
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-1">Documents indexés</p>
+            <p className="text-sm text-gray-600 mb-1">Total prospects</p>
             <p className="text-3xl font-bold text-gray-900">{stats.totalDocuments}</p>
           </div>
 
@@ -567,15 +577,15 @@ export default function AnalyticsPage() {
             <p className="text-xs text-gray-500 mt-1">Appels → RDV</p>
           </div>
 
-          {/* Coût Total */}
+          {/* Total Clients */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-gray-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-gray-700" />
+                <Users className="w-6 h-6 text-gray-700" />
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-1">Coût total VAPI</p>
-            <p className="text-3xl font-bold text-gray-900">${stats.totalCost.toFixed(2)}</p>
+            <p className="text-sm text-gray-600 mb-1">Total clients</p>
+            <p className="text-3xl font-bold text-gray-900">{Math.round(stats.totalCost)}</p>
           </div>
 
           {/* Durée Moyenne */}

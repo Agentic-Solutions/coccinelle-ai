@@ -343,33 +343,49 @@ export default function ProspectsPage() {
     }
   };
 
-  // Export CSV
-  const handleExport = () => {
-    const headers = ['Prenom', 'Nom', 'Email', 'Telephone', 'Canal prefere', 'Segment', 'Statut', 'Source', 'Tags', 'Total commandes', 'Total depense'];
-    const csvData = filteredProspects.map(c => [
-      c.firstName,
-      c.lastName,
-      c.email || '',
-      c.phone || '',
-      c.preferredChannel || '',
-      c.segment || '',
-      c.status || '',
-      c.source || '',
-      c.tags?.join(';') || '',
-      c.totalOrders.toString(),
-      `${c.totalSpent.amount} ${c.totalSpent.currency}`
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `prospects_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+  // Export CSV via API backend
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_URL}/api/v1/prospects/export?format=csv`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Erreur export');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `prospects_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Export telecharge');
+    } catch (err) {
+      // Fallback : export local
+      const headers = ['Prenom', 'Nom', 'Email', 'Telephone', 'Canal prefere', 'Segment', 'Statut', 'Source', 'Tags', 'Total commandes', 'Total depense'];
+      const csvData = filteredProspects.map(c => [
+        c.firstName,
+        c.lastName,
+        c.email || '',
+        c.phone || '',
+        c.preferredChannel || '',
+        c.segment || '',
+        c.status || '',
+        c.source || '',
+        c.tags?.join(';') || '',
+        c.totalOrders.toString(),
+        `${c.totalSpent.amount} ${c.totalSpent.currency}`
+      ]);
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `prospects_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      toast.success('Export telecharge (local)');
+    }
   };
 
   // Import CSV

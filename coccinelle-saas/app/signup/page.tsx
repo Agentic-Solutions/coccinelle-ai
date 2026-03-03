@@ -10,7 +10,8 @@ export default function SignupPage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: ''
+    password: '',
+    industry: ''
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,7 +83,8 @@ export default function SignupPage() {
             company_name: '',
             name: formData.name,
             email: formData.email,
-            password: formData.password
+            password: formData.password,
+            industry: formData.industry || undefined
           })
         }
       );
@@ -190,6 +192,29 @@ export default function SignupPage() {
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
                 placeholder="Minimum 8 caractères"
               />
+            </div>
+
+            <div>
+              <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-1">
+                Secteur d'activité
+              </label>
+              <select
+                id="industry"
+                name="industry"
+                value={formData.industry}
+                onChange={handleChange}
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
+              >
+                <option value="">Sélectionnez votre secteur</option>
+                <option value="immobilier">Immobilier</option>
+                <option value="coiffure_beaute">Coiffure / Beauté</option>
+                <option value="sante">Santé</option>
+                <option value="restauration">Restauration</option>
+                <option value="fitness">Fitness</option>
+                <option value="services_domicile">Services à domicile</option>
+                <option value="garage_auto">Garage auto</option>
+                <option value="autre">Autre</option>
+              </select>
             </div>
           </div>
 

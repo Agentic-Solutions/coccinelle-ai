@@ -38,7 +38,7 @@ export default function TestChannelsPage() {
         });
         setResults([...newResults]);
 
-        const response = await fetch('/api/channels/auto', {
+        const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/channels/auto', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -88,7 +88,7 @@ export default function TestChannelsPage() {
         });
         setResults([...newResults]);
 
-        const response = await fetch('/api/channels/sms/send', {
+        const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/channels/sms/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: phoneNumber, message }),
@@ -123,7 +123,7 @@ export default function TestChannelsPage() {
         });
         setResults([...newResults]);
 
-        const response = await fetch('/api/channels/email/send', {
+        const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/channels/email/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -162,7 +162,7 @@ export default function TestChannelsPage() {
         });
         setResults([...newResults]);
 
-        const response = await fetch('/api/channels/whatsapp/send', {
+        const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/channels/whatsapp/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: phoneNumber, message }),

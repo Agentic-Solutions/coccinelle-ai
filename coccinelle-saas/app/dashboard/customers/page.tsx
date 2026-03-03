@@ -367,18 +367,36 @@ export default function CustomersPage() {
     );
   };
 
-  const handleExport = () => {
-    const headers = ['Prénom', 'Nom', 'Email', 'Téléphone', 'Statut', 'Source', 'Créé le'];
-    const csvData = customers.map(c => [
-      c.first_name || '', c.last_name || '', c.email || '', c.phone || '',
-      c.status || '', c.source || '', new Date(c.created_at).toLocaleDateString('fr-FR')
-    ]);
-    const csvContent = [headers.join(','), ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `clients_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+  const handleExport = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/api/v1/customers/export?format=csv`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Erreur export');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `clients_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Export telecharge');
+    } catch (err) {
+      // Fallback : export local
+      const headers = ['Prenom', 'Nom', 'Email', 'Telephone', 'Statut', 'Source', 'Cree le'];
+      const csvData = customers.map(c => [
+        c.first_name || '', c.last_name || '', c.email || '', c.phone || '',
+        c.status || '', c.source || '', new Date(c.created_at).toLocaleDateString('fr-FR')
+      ]);
+      const csvContent = [headers.join(','), ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `clients_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      toast.success('Export telecharge (local)');
+    }
   };
 
   if (isLoading && customers.length === 0) {

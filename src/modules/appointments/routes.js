@@ -5,6 +5,7 @@ import { sendAppointmentNotifications } from './notifications.js';
 import * as auth from '../auth/helpers.js';
 import { getVisibleAgents, canViewAgent } from '../../utils/teams.js';
 import { hasPermission } from '../../utils/permissions.js';
+import { createNotification } from '../../utils/notifications.js';
 
 export async function handleAppointmentsRoutes(request, env, path, method) {
   try {
@@ -263,7 +264,7 @@ async function handleUpdateAppointment(request, env, appointmentId) {
   const now = new Date().toISOString();
 
   await env.DB.prepare(`
-    UPDATE appointments 
+    UPDATE appointments
     SET scheduled_at = COALESCE(?, scheduled_at),
         status = COALESCE(?, status),
         notes = COALESCE(?, notes),
@@ -273,6 +274,57 @@ async function handleUpdateAppointment(request, env, appointmentId) {
     WHERE id = ? AND tenant_id = ?
   `).bind(scheduled_at, status, notes, agent_id, service_id, now, appointmentId, tenant.id).run();
 
+  // Feature 13: Workflow Prospect → Client quand le RDV est marqué 'completed'
+  let convertedCustomerId = null;
+  if (status === 'completed' && existing.status !== 'completed' && existing.prospect_id && existing.prospect_id !== 'unknown') {
+    try {
+      const prospect = await env.DB.prepare(
+        'SELECT * FROM prospects WHERE id = ? AND tenant_id = ?'
+      ).bind(existing.prospect_id, tenant.id).first();
+
+      if (prospect && prospect.status !== 'converted') {
+        const customerId = auth.generateId('cust');
+        convertedCustomerId = customerId;
+
+        await env.DB.prepare(`
+          INSERT INTO customers (id, tenant_id, first_name, last_name, email, phone, status, source, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, 'active', 'prospect_conversion', datetime('now'), datetime('now'))
+        `).bind(
+          customerId, tenant.id,
+          prospect.first_name || null, prospect.last_name || null,
+          prospect.email || null, prospect.phone || null
+        ).run();
+
+        await env.DB.prepare(
+          'UPDATE prospects SET status = ? WHERE id = ? AND tenant_id = ?'
+        ).bind('converted', existing.prospect_id, tenant.id).run();
+
+        try {
+          await env.DB.prepare(`
+            INSERT INTO analytics_events (id, tenant_id, type, data, created_at)
+            VALUES (?, ?, 'prospect_converted', ?, datetime('now'))
+          `).bind(
+            auth.generateId('evt'), tenant.id,
+            JSON.stringify({ prospect_id: existing.prospect_id, customer_id: customerId })
+          ).run();
+        } catch (e) {
+          logger.warn('Analytics event insert skipped', { error: e.message });
+        }
+
+        await createNotification(env, {
+          tenant_id: tenant.id,
+          user_id: user.id,
+          type: 'prospect_converted',
+          title: 'Prospect converti en client',
+          message: `${prospect.first_name || ''} ${prospect.last_name || ''} a ete converti en client suite au RDV termine.`,
+          data: { prospect_id: existing.prospect_id, customer_id: customerId }
+        });
+      }
+    } catch (convErr) {
+      logger.error('Prospect conversion error', { error: convErr.message });
+    }
+  }
+
   // Log audit
   await auth.logAudit(env, {
     tenant_id: tenant.id,
@@ -280,10 +332,10 @@ async function handleUpdateAppointment(request, env, appointmentId) {
     action: 'appointment.update',
     resource_type: 'appointment',
     resource_id: appointmentId,
-    changes: { scheduled_at, status, notes, agent_id, service_id }
+    changes: { scheduled_at, status, notes, agent_id, service_id, convertedCustomerId }
   });
 
-  return successResponse({ message: 'RDV mis à jour avec succès' });
+  return successResponse({ message: 'RDV mis à jour avec succes', customer_id: convertedCustomerId });
 }
 
 // Annule un RDV

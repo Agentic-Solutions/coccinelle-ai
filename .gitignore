@@ -19,6 +19,8 @@ dist/
 # Secrets
 *secret*
 *password*
+!coccinelle-saas/app/forgot-password/
+!coccinelle-saas/app/reset-password/
 *api_key*
 *.pem
 *.key

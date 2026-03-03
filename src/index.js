@@ -24,6 +24,13 @@ import { handleCustomersRoutes } from './modules/customers/routes.js';
 import { handleOAuthRoutes } from './modules/oauth/routes.js';
 import { handleCheckEmails, handleGetInbox, handleGetHistory, handleGetStatus, handleProcessAll, handleAutoReply, handleGetConversation, handleGetStats } from './modules/email/routes.js';
 import { verifyToken } from './modules/auth/helpers.js';
+import { handleBillingSubscriptionRoutes } from './modules/billing/routes.js';
+import { handleAvailabilityRoutes } from './modules/availability/routes.js';
+import { handleAppointmentTypesRoutes } from './modules/appointment-types/routes.js';
+import { handleUsersRoutes } from './modules/users/routes.js';
+import { handleNotificationsRoutes } from './modules/notifications/routes.js';
+import { handleRemindersRoutes } from './modules/reminders/routes.js';
+import { handleAnalyticsRoutes } from './modules/analytics/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -58,6 +65,48 @@ export default {
 
       if (path.startsWith("/api/v1/auth/")) {
         response = await handleAuthRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Billing & Stripe
+      if (path.startsWith('/api/v1/billing')) {
+        response = await handleBillingSubscriptionRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Availability management
+      if (path.startsWith('/api/v1/availability') || path.startsWith('/api/v1/business-hours')) {
+        response = await handleAvailabilityRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Appointment types
+      if (path.startsWith('/api/v1/appointment-types')) {
+        response = await handleAppointmentTypesRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Users & invitations
+      if (path.startsWith('/api/v1/users')) {
+        response = await handleUsersRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Notifications
+      if (path.startsWith('/api/v1/notifications')) {
+        response = await handleNotificationsRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Reminders & followups
+      if (path.startsWith('/api/v1/appointments/send-reminders') || path.startsWith('/api/v1/appointments/send-followups') || path.startsWith('/api/v1/feedback')) {
+        response = await handleRemindersRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Analytics & export (CSV exports must be before regular entity routes)
+      if (path.startsWith('/api/v1/analytics') || path.endsWith('/export')) {
+        response = await handleAnalyticsRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 

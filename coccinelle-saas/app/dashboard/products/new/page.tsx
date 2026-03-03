@@ -53,6 +53,11 @@ export default function NewProductPage() {
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [agentId, setAgentId] = useState<string>('');
 
+  // Appointment types state
+  const [appointmentTypes, setAppointmentTypes] = useState<Array<{id: string; name: string; duration_minutes: number}>>([]);
+  const [loadingAppointmentTypes, setLoadingAppointmentTypes] = useState(true);
+  const [appointmentTypeId, setAppointmentTypeId] = useState<string>('');
+
   // Form state
   const [category, setCategory] = useState<string>('');
   const [type, setType] = useState<string>('product'); // 'service' ou 'product'
@@ -83,6 +88,7 @@ export default function NewProductPage() {
     if (tenantId) {
       fetchCategories();
       fetchAgents();
+      fetchAppointmentTypes();
     }
   }, [tenantId]); // Re-charger si tenantId change
 
@@ -117,6 +123,25 @@ export default function NewProductPage() {
       console.error('Error fetching agents:', error);
     } finally {
       setLoadingAgents(false);
+    }
+  };
+
+  const fetchAppointmentTypes = async () => {
+    try {
+      setLoadingAppointmentTypes(true);
+      const token = localStorage.getItem('auth_token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+      const response = await fetch(`${apiUrl}/api/v1/appointment-types`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success && data.types) {
+        setAppointmentTypes(data.types);
+      }
+    } catch (error) {
+      console.error('Error fetching appointment types:', error);
+    } finally {
+      setLoadingAppointmentTypes(false);
     }
   };
 
@@ -168,7 +193,8 @@ export default function NewProductPage() {
         attributes,
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
         agent_id: agentId || null,
-        assignment_type: agentId ? 'exclusive' : 'shared'
+        assignment_type: agentId ? 'exclusive' : 'shared',
+        appointment_type_id: appointmentTypeId || null
       };
 
       // Ajouter la localisation uniquement pour l'immobilier
@@ -411,6 +437,34 @@ export default function NewProductPage() {
               )}
               <p className="text-xs text-gray-500 mt-1">
                 {agentId ? 'Agent exclusif pour ce produit' : 'Produit visible par tous les agents'}
+              </p>
+            </div>
+
+            {/* Appointment Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Type de RDV associe
+              </label>
+              {loadingAppointmentTypes ? (
+                <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                  Chargement des types de RDV...
+                </div>
+              ) : (
+                <select
+                  value={appointmentTypeId}
+                  onChange={(e) => setAppointmentTypeId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Aucun type de RDV</option>
+                  {appointmentTypes.map((at) => (
+                    <option key={at.id} value={at.id}>
+                      {at.name} ({at.duration_minutes} min)
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Associez un type de rendez-vous a ce produit (optionnel)
               </p>
             </div>
 

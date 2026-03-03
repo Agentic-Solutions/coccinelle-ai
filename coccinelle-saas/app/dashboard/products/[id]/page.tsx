@@ -1,8 +1,9 @@
-export const runtime = 'edge';
-
 import ProductDetailClient from './ProductDetailClient';
 
-export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <ProductDetailClient productId={id} />;
+export function generateStaticParams() {
+  return [{ id: '_' }];
+}
+
+export default function ProductDetailPage() {
+  return <ProductDetailClient />;
 }

@@ -1,234 +1,262 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Phone, RefreshCw } from 'lucide-react';
+import { Phone, Clock, Target, Star, RefreshCw, ArrowLeft, TrendingUp, Users, Calendar } from 'lucide-react';
 import Link from 'next/link';
-import Logo from '../../../src/components/Logo';
-import CallFunnelComponent from '../../../src/components/dashboard/CallFunnel';
-import CallPerformanceComponent from '../../../src/components/dashboard/CallPerformance';
-import CallInsights from '../../../src/components/dashboard/CallInsights';
-import { analyzeAssistant, generateDemoCallEvents } from '../../../lib/sara-analytics';
-import { isDemoMode, mockCalls } from '../../../lib/mockData';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-export default function AssistantAnalyticsPage() {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+interface SaraData {
+  total_calls: number;
+  avg_duration_seconds: number;
+  calls_by_day: { day: string; count: number }[];
+  appointments_from_calls: number;
+  conversion_rate: number;
+  avg_rating: number;
+  total_prospects: number;
+  total_customers: number;
+  total_appointments: number;
+}
+
+export default function SaraAnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [analytics, setAnalytics] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'funnel' | 'performance' | 'insights'>('funnel');
+  const [data, setData] = useState<SaraData | null>(null);
+  const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadAnalytics();
-  }, []);
+    loadData();
+  }, [period]);
 
-  const loadAnalytics = async () => {
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-
-      // Mode démo - utiliser données simulées
-      if (isDemoMode()) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-        // Générer des événements d'appels basés sur mockCalls
-        const events = generateDemoCallEvents(mockCalls.length);
-
-        // Analyser avec le moteur Assistant Analytics
-        const result = analyzeAssistant({
-          events,
-          calls: mockCalls
-        });
-
-        setAnalytics(result);
-        setLoading(false);
-        return;
-      }
-
-      // Mode production - fetch real data
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/sara/analytics`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/api/v1/analytics/sara?period=${period}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const data = await response.json();
-      setAnalytics(data);
-    } catch (error) {
-      console.error('Erreur chargement analytics:', error);
+      if (!res.ok) throw new Error('Erreur chargement');
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error('Erreur chargement Sara analytics:', err);
+      setError('Impossible de charger les donnees. Verifiez votre connexion.');
     } finally {
       setLoading(false);
     }
   };
 
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const chartData = (data?.calls_by_day || []).map(d => ({
+    day: d.day.substring(5), // "03-01" format
+    appels: d.count,
+  }));
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-          <p className="text-gray-600">Analyse des performances de Assistant...</p>
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Skeleton header */}
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse" />
+            <div>
+              <div className="h-7 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+            </div>
+          </div>
+          {/* Skeleton cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-3" />
+                <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+          {/* Skeleton chart */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="h-4 w-40 bg-gray-200 rounded animate-pulse mb-4" />
+            <div className="h-64 bg-gray-100 rounded animate-pulse" />
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-              </Link>
-              <Logo size={48} />
-              <div>
-                <h1 className="text-2xl font-bold">Assistant Analytics</h1>
-                <p className="text-sm text-gray-600">Performance des appels entrants</p>
-              </div>
-            </div>
+  const hasData = data && data.total_calls > 0;
 
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 lg:mb-8">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Sara Analytics</h1>
+              <p className="text-xs sm:text-sm text-gray-600">Performance de l'agent vocal Sara</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex gap-1">
+              {(['7d', '30d', '90d'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                    period === p
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  {p === '7d' ? '7 jours' : p === '30d' ? '30 jours' : '90 jours'}
+                </button>
+              ))}
+            </div>
             <button
-              onClick={loadAnalytics}
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+              onClick={loadData}
+              className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Rafraichir"
             >
               <RefreshCw className="w-4 h-4" />
-              Rafraîchir
             </button>
           </div>
         </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* Résumé avec score */}
-        {analytics && (
-          <div className="mb-8 bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <h2 className="text-3xl font-bold text-gray-900">Score : {analytics.score}/100</h2>
-                  <span className={`px-3 py-1 rounded text-sm font-semibold ${
-                    analytics.score >= 80 ? 'bg-green-100 text-green-700' :
-                    analytics.score >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                    analytics.score >= 40 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {analytics.score >= 80 ? 'Excellent' :
-                     analytics.score >= 60 ? 'Bien' :
-                     analytics.score >= 40 ? 'Moyen' : 'Faible'}
-                  </span>
-                </div>
-                <p className="text-gray-600 mb-4">
-                  {analytics.score >= 80
-                    ? 'Assistant performe excellemment sur les appels entrants.'
-                    : analytics.score >= 60
-                    ? 'Bonne performance avec des optimisations possibles.'
-                    : 'Des améliorations significatives sont recommandées.'}
-                </p>
-                <div className="grid grid-cols-3 gap-6">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Taux de prise en charge</p>
-                    <p className="text-2xl font-bold text-gray-900">{analytics.funnel.rates.handleRate.toFixed(1)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Conversion RDV</p>
-                    <p className="text-2xl font-bold text-green-600">{analytics.funnel.rates.conversionRate.toFixed(1)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">RDV créés</p>
-                    <p className="text-2xl font-bold text-green-600">{analytics.funnel.rdvCreated}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Score circulaire */}
-              <div className="relative">
-                <svg className="w-32 h-32 transform -rotate-90">
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke="#E5E7EB"
-                    strokeWidth="12"
-                    fill="none"
-                  />
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke={
-                      analytics.score >= 80 ? '#10B981' :
-                      analytics.score >= 60 ? '#F59E0B' :
-                      analytics.score >= 40 ? '#F97316' : '#EF4444'
-                    }
-                    strokeWidth="12"
-                    fill="none"
-                    strokeDasharray={`${(analytics.score / 100) * 351.86} 351.86`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-gray-900">{analytics.score}</span>
-                </div>
-              </div>
-            </div>
+        {/* Error */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
 
-        {/* Onglets */}
-        <div className="mb-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-1 inline-flex">
-            <button
-              onClick={() => setActiveTab('funnel')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                activeTab === 'funnel'
-                  ? 'bg-black text-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Funnel d'appels
-            </button>
-            <button
-              onClick={() => setActiveTab('performance')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                activeTab === 'performance'
-                  ? 'bg-black text-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Performance
-            </button>
-            <button
-              onClick={() => setActiveTab('insights')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                activeTab === 'insights'
-                  ? 'bg-black text-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Recommandations
-              {analytics && analytics.insights.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">
-                  {analytics.insights.length}
-                </span>
+        {!hasData && !error ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+            <Phone className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun appel enregistre</h3>
+            <p className="text-gray-500">Sara commencera a collecter des donnees des le premier appel.</p>
+          </div>
+        ) : data && (
+          <>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 lg:mb-8">
+              {/* Total appels */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 sm:p-3 bg-orange-100 rounded-lg">
+                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Total appels</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{data.total_calls}</p>
+              </div>
+
+              {/* Duree moyenne */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 sm:p-3 bg-blue-100 rounded-lg">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Duree moyenne</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{formatDuration(data.avg_duration_seconds)}</p>
+              </div>
+
+              {/* Taux de conversion */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 sm:p-3 bg-green-100 rounded-lg">
+                    <Target className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Taux de conversion</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{data.conversion_rate}%</p>
+                <p className="text-xs text-gray-500 mt-1">{data.appointments_from_calls} RDV</p>
+              </div>
+
+              {/* Note moyenne */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 sm:p-3 bg-yellow-100 rounded-lg">
+                    <Star className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
+                  </div>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Note moyenne</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{data.avg_rating || '-'}<span className="text-base font-normal text-gray-500">/5</span></p>
+              </div>
+            </div>
+
+            {/* Chart - Appels par jour */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 mb-6 lg:mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Appels par jour</h3>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="day" stroke="#6B7280" fontSize={12} />
+                    <YAxis stroke="#6B7280" fontSize={12} allowDecimals={false} />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="appels"
+                      stroke="#F97316"
+                      strokeWidth={2}
+                      dot={{ fill: '#F97316', r: 3 }}
+                      activeDot={{ r: 5 }}
+                      name="Appels"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-400">
+                  Aucune donnee pour cette periode
+                </div>
               )}
-            </button>
-          </div>
-        </div>
+            </div>
 
-        {/* Contenu des onglets */}
-        {analytics && (
-          <div>
-            {activeTab === 'funnel' && (
-              <CallFunnelComponent funnel={analytics.funnel} />
-            )}
-
-            {activeTab === 'performance' && (
-              <CallPerformanceComponent performance={analytics.performance} />
-            )}
-
-            {activeTab === 'insights' && (
-              <CallInsights
-                insights={analytics.insights}
-                score={analytics.score}
-              />
-            )}
-          </div>
+            {/* Stats supplementaires */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <Users className="w-5 h-5 text-gray-700" />
+                  </div>
+                  <p className="text-sm text-gray-600">Total prospects</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{data.total_prospects}</p>
+              </div>
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <TrendingUp className="w-5 h-5 text-gray-700" />
+                  </div>
+                  <p className="text-sm text-gray-600">Total clients</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{data.total_customers}</p>
+              </div>
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <Calendar className="w-5 h-5 text-gray-700" />
+                  </div>
+                  <p className="text-sm text-gray-600">Total RDV</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900">{data.total_appointments}</p>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import * as auth from '../auth/helpers.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
+import { createNotification } from '../../utils/notifications.js';
 
 export async function handleProspectsRoutes(request, env, path, method) {
   try {
@@ -37,6 +38,17 @@ export async function handleProspectsRoutes(request, env, path, method) {
       return await handleGetProspect(request, env, getMatch[1]);
     }
     
+    // POST /api/v1/prospects/:id/convert - Conversion manuelle prospect → client
+    const convertMatch = path.match(/^\/api\/v1\/prospects\/([^\/]+)\/convert$/);
+    if (convertMatch && method === 'POST') {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return errorResponse(authResult.error, authResult.status);
+      }
+      request.user = authResult.user;
+      return await handleConvertProspect(request, env, convertMatch[1]);
+    }
+
     // PUT /api/v1/prospects/:id - Modifier un prospect
     const putMatch = path.match(/^\/api\/v1\/prospects\/([^\/]+)$/);
     if (putMatch && method === 'PUT') {
@@ -225,20 +237,74 @@ async function handleUpdateProspect(request, env, prospectId) {
 
 async function handleDeleteProspect(request, env, prospectId) {
   const tenantId = request.user.tenant_id;
-  
+
   const existing = await env.DB.prepare(`
     SELECT id FROM prospects WHERE id = ? AND tenant_id = ?
   `).bind(prospectId, tenantId).first();
-  
+
   if (!existing) {
     return errorResponse('Prospect not found', 404);
   }
-  
+
   await env.DB.prepare(`
     DELETE FROM prospects WHERE id = ? AND tenant_id = ?
   `).bind(prospectId, tenantId).run();
-  
+
   logger.info('Prospect deleted', { prospectId, tenantId });
-  
+
   return successResponse({ success: true, message: 'Prospect deleted successfully' });
+}
+
+// POST /api/v1/prospects/:id/convert - Conversion manuelle prospect → client
+async function handleConvertProspect(request, env, prospectId) {
+  const tenantId = request.user.tenant_id;
+
+  const prospect = await env.DB.prepare(
+    'SELECT * FROM prospects WHERE id = ? AND tenant_id = ?'
+  ).bind(prospectId, tenantId).first();
+
+  if (!prospect) {
+    return errorResponse('Prospect non trouve', 404);
+  }
+
+  if (prospect.status === 'converted') {
+    return errorResponse('Ce prospect a deja ete converti', 400);
+  }
+
+  const customerId = auth.generateId('cust');
+
+  await env.DB.prepare(`
+    INSERT INTO customers (id, tenant_id, first_name, last_name, email, phone, status, source, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'active', 'manual_conversion', datetime('now'), datetime('now'))
+  `).bind(
+    customerId, tenantId,
+    prospect.first_name || null, prospect.last_name || null,
+    prospect.email || null, prospect.phone || null
+  ).run();
+
+  await env.DB.prepare(
+    'UPDATE prospects SET status = ? WHERE id = ? AND tenant_id = ?'
+  ).bind('converted', prospectId, tenantId).run();
+
+  await createNotification(env, {
+    tenant_id: tenantId,
+    user_id: request.user.id,
+    type: 'prospect_converted',
+    title: 'Prospect converti en client',
+    message: `${prospect.first_name || ''} ${prospect.last_name || ''} a ete converti manuellement en client.`,
+    data: { prospect_id: prospectId, customer_id: customerId }
+  });
+
+  await auth.logAudit(env, {
+    tenant_id: tenantId,
+    user_id: request.user.id,
+    action: 'prospect.convert',
+    resource_type: 'prospect',
+    resource_id: prospectId,
+    changes: { customer_id: customerId }
+  });
+
+  logger.info('Prospect converted to customer', { prospectId, customerId, tenantId });
+
+  return successResponse({ customer_id: customerId, message: 'Prospect converti en client avec succes' }, 201);
 }

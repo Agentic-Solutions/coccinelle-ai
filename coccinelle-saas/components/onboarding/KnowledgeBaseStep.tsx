@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Globe, Upload, FileText } from 'lucide-react';
+import { Globe, Upload, FileText, Loader2 } from 'lucide-react';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 interface KnowledgeBaseStepProps {
   sessionId: string | null;
@@ -13,20 +15,59 @@ interface KnowledgeBaseStepProps {
 export default function KnowledgeBaseStep({ onNext, onBack, loading }: KnowledgeBaseStepProps) {
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [crawling, setCrawling] = useState(false);
+  const [crawlProgress, setCrawlProgress] = useState(0);
   const [crawlResult, setCrawlResult] = useState<any>(null);
+  const [crawlError, setCrawlError] = useState<string | null>(null);
 
   const handleCrawl = async () => {
     if (!websiteUrl) return;
-    
+
     setCrawling(true);
-    // Simuler le crawl pour l'instant
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setCrawlResult({
-      pages: 5,
-      faq: 12,
-      services: 4
-    });
-    setCrawling(false);
+    setCrawlError(null);
+    setCrawlResult(null);
+    setCrawlProgress(0);
+
+    // Simuler une progression pendant le crawl
+    const progressInterval = setInterval(() => {
+      setCrawlProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + Math.random() * 15;
+      });
+    }, 500);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/api/v1/knowledge/crawl`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ url: websiteUrl })
+      });
+
+      clearInterval(progressInterval);
+      setCrawlProgress(100);
+
+      const data = await res.json();
+      if (res.ok && (data.success || data.pages_crawled)) {
+        setCrawlResult({
+          pages: data.pages_crawled || data.pages || 0,
+          faq: data.faq_generated || data.faq || 0,
+          services: data.services_found || data.services || 0
+        });
+      } else {
+        setCrawlError(data.error || 'Erreur lors de l\'analyse du site');
+      }
+    } catch {
+      clearInterval(progressInterval);
+      setCrawlError('Erreur réseau. Veuillez réessayer.');
+    } finally {
+      setCrawling(false);
+    }
   };
 
   return (
@@ -49,21 +90,53 @@ export default function KnowledgeBaseStep({ onNext, onBack, loading }: Knowledge
               onChange={(e) => setWebsiteUrl(e.target.value)}
               placeholder="https://www.monsite.fr"
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              disabled={crawling}
             />
           </div>
           <button
             onClick={handleCrawl}
             disabled={!websiteUrl || crawling}
-            className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50"
+            className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
           >
-            {crawling ? 'Analyse...' : 'Analyser'}
+            {crawling ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analyse...
+              </>
+            ) : (
+              'Analyser'
+            )}
           </button>
         </div>
       </div>
 
+      {/* Barre de progression */}
+      {crawling && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-gray-600">Analyse de votre site en cours...</p>
+            <span className="text-sm font-medium text-gray-700">{Math.round(crawlProgress)}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-gray-900 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${crawlProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Erreur */}
+      {crawlError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-red-800">{crawlError}</p>
+        </div>
+      )}
+
+      {/* Résultat */}
       {crawlResult && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold text-green-800 mb-2">✅ Site analysé avec succès !</h3>
+          <h3 className="font-semibold text-green-800 mb-2">Site analysé avec succès !</h3>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-2xl font-bold text-green-700">{crawlResult.pages}</div>
@@ -99,13 +172,21 @@ export default function KnowledgeBaseStep({ onNext, onBack, loading }: Knowledge
         <button onClick={onBack} className="px-6 py-2 text-gray-600 hover:text-gray-900">
           Retour
         </button>
-        <button
-          onClick={() => onNext({ websiteUrl, crawlResult })}
-          disabled={loading}
-          className="bg-black text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50"
-        >
-          {loading ? 'Chargement...' : 'Continuer'}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => onNext({ websiteUrl: null, crawlResult: null })}
+            className="px-6 py-2 text-gray-500 hover:text-gray-700 text-sm"
+          >
+            Passer cette étape
+          </button>
+          <button
+            onClick={() => onNext({ websiteUrl, crawlResult })}
+            disabled={loading}
+            className="bg-black text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-800 disabled:opacity-50"
+          >
+            {loading ? 'Chargement...' : 'Continuer'}
+          </button>
+        </div>
       </div>
     </div>
   );

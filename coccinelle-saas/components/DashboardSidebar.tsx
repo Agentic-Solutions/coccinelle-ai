@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Home, MessageSquare, Users, Calendar, Settings,
-  Package, ChevronLeft, ChevronRight, Sliders, Menu, X
+  Package, ChevronLeft, ChevronRight, Sliders, Menu, X,
+  Clock, BarChart3, CreditCard, UserPlus
 } from 'lucide-react';
 import Logo from '../src/components/Logo';
 
@@ -35,7 +36,10 @@ export default function DashboardSidebar() {
     { icon: Sliders, label: 'Configuration', href: '/dashboard/configuration' },
     { icon: Users, label: 'CRM', href: '/dashboard/crm' },
     { icon: Calendar, label: 'Rendez-vous', href: '/dashboard/appointments' },
+    { icon: Clock, label: 'Disponibilités', href: '/dashboard/availability' },
     { icon: Package, label: 'Produits', href: '/dashboard/products' },
+    { icon: BarChart3, label: 'Analytics', href: '/dashboard/sara-analytics' },
+    { icon: CreditCard, label: 'Facturation', href: '/dashboard/billing' },
     { icon: Settings, label: 'Paramètres', href: '/dashboard/settings' },
   ];
 

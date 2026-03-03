@@ -1,16 +1,55 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Calendar, Clock, Bell, BarChart3 } from 'lucide-react';
+import { Calendar, Clock, Bell, BarChart3, Download } from 'lucide-react';
+import { useToast } from '@/hooks/useToast';
+import ActionToastContainer from '@/components/ActionToast';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
 export default function AppointmentsPage() {
+  const toast = useToast();
+
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_URL}/api/v1/appointments/export?format=csv`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Erreur export');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rendez-vous_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Export telecharge');
+    } catch (err) {
+      toast.error('Impossible d\'exporter les rendez-vous');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 pl-10 lg:pl-0">Gestion de RDV</h1>
-        <p className="text-sm sm:text-base lg:text-xl text-gray-600 mb-6 lg:mb-8 pl-10 lg:pl-0">
-          Prise, rappels et confirmations 100% automatiques
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 lg:mb-8">
+          <div className="pl-10 lg:pl-0">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Gestion de RDV</h1>
+            <p className="text-sm sm:text-base lg:text-xl text-gray-600">
+              Prise, rappels et confirmations 100% automatiques
+            </p>
+          </div>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm whitespace-nowrap self-start sm:self-auto"
+          >
+            <Download className="w-4 h-4" />
+            Exporter CSV
+          </button>
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
