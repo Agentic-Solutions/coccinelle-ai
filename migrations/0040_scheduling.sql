@@ -1,6 +1,5 @@
 -- Migration 0040: Scheduling & Availability
--- Ajouter tenant_id à availability_slots (manquant dans le schéma original)
-ALTER TABLE availability_slots ADD COLUMN tenant_id TEXT;
+-- tenant_id already exists in prod
 ALTER TABLE availability_slots ADD COLUMN break_start TEXT;
 ALTER TABLE availability_slots ADD COLUMN break_end TEXT;
 ALTER TABLE availability_slots ADD COLUMN slot_duration INTEGER DEFAULT 30;
