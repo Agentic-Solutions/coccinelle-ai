@@ -139,17 +139,20 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       
       logger.info('New tenant created', { name: tenantName, slug });
 
-      // Créer tenant AVEC LE SLUG
+      // Créer tenant AVEC LE SLUG + TRIAL
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
       await env.DB.prepare(`
-        INSERT INTO tenants (id, name, company_name, email, api_key, slug, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tenants (id, name, company_name, email, api_key, slug, trial_ends_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        tenantId, 
-        tenantName, 
-        tenantName, 
-        email.toLowerCase().trim(), 
-        apiKey, 
-        slug,  // ← NOUVEAU : slug ajouté
+        tenantId,
+        tenantName,
+        tenantName,
+        email.toLowerCase().trim(),
+        apiKey,
+        slug,
+        trialEndsAt.toISOString(),
         now
       ).run();
 
@@ -351,36 +354,50 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       }
 
       const { user, tenant, session } = authResult;
-      
-      // ========================================
-      // NOUVEAU : Retourner aussi le slug et l'email Coccinelle
-      // ========================================
-      return new Response(JSON.stringify({ 
-        success: true, 
-        user: { 
-          id: user.id, 
-          email: user.email, 
-          name: user.name, 
-          role: user.role, 
-          tenant_id: user.tenant_id, 
-          is_active: user.is_active, 
-          created_at: user.created_at 
-        }, 
-        tenant: { 
-          id: tenant.id, 
-          name: tenant.name, 
-          email: tenant.email, 
-          api_key: tenant.api_key, 
-          timezone: tenant.timezone, 
-          slug: tenant.slug,  // ← NOUVEAU
-          coccinelle_email: tenant.slug ? `${tenant.slug}@coccinelle.ai` : null,  // ← NOUVEAU
-          created_at: tenant.created_at 
-        }, 
-        session: { 
-          id: session.id, 
-          expires_at: session.expires_at, 
-          created_at: session.created_at 
-        } 
+
+      // Calculer trial_active et jours restants
+      let trialActive = false;
+      let trialDaysRemaining = 0;
+      if (tenant.trial_ends_at) {
+        const trialEnd = new Date(tenant.trial_ends_at);
+        const now = new Date();
+        const diff = trialEnd.getTime() - now.getTime();
+        trialDaysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+        trialActive = diff > 0;
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          tenant_id: user.tenant_id,
+          is_active: user.is_active,
+          weekly_report_enabled: user.weekly_report_enabled ?? 1,
+          created_at: user.created_at
+        },
+        tenant: {
+          id: tenant.id,
+          name: tenant.name,
+          email: tenant.email,
+          api_key: tenant.api_key,
+          timezone: tenant.timezone,
+          slug: tenant.slug,
+          coccinelle_email: tenant.slug ? `${tenant.slug}@coccinelle.ai` : null,
+          trial_ends_at: tenant.trial_ends_at,
+          trial_active: trialActive,
+          trial_days_remaining: trialDaysRemaining,
+          setup_completed_at: tenant.setup_completed_at,
+          test_call_done: tenant.test_call_done === 1,
+          created_at: tenant.created_at
+        },
+        session: {
+          id: session.id,
+          expires_at: session.expires_at,
+          created_at: session.created_at
+        }
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -462,7 +479,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
 
       const { user, tenant } = authResult;
       const body = await request.json();
-      const { name, phone, company_name, industry } = body;
+      const { name, phone, company_name, industry, weekly_report_enabled } = body;
 
       const now = new Date().toISOString();
 
@@ -473,6 +490,15 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
           SET name = ?, updated_at = ?
           WHERE id = ?
         `).bind(name.trim(), now, user.id).run();
+      }
+
+      // Mettre à jour weekly_report_enabled
+      if (weekly_report_enabled !== undefined) {
+        await env.DB.prepare(`
+          UPDATE users
+          SET weekly_report_enabled = ?, updated_at = ?
+          WHERE id = ?
+        `).bind(weekly_report_enabled ? 1 : 0, now, user.id).run();
       }
 
       // Mettre à jour les informations du tenant (entreprise, téléphone, secteur)

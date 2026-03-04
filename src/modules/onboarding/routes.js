@@ -791,6 +791,100 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
       });
     }
 
+    // ========================================
+    // GET /api/v1/onboarding/checklist
+    // Vérifie 6 étapes de setup en DB
+    // ========================================
+    if (path === '/api/v1/onboarding/checklist' && method === 'GET') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const tenantId = authResult.tenant.id;
+      const tenant = authResult.tenant;
+
+      try {
+        // 1. Compte cree (toujours vrai si on est auth)
+        const accountCreated = true;
+
+        // 2. Profil entreprise complete (company_name + sector)
+        const profileCompleted = !!(tenant.company_name && tenant.sector);
+
+        // 3. Base de connaissances (au moins 1 document)
+        let kbCount = 0;
+        try {
+          const kbResult = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM knowledge_documents WHERE tenant_id = ?'
+          ).bind(tenantId).first();
+          kbCount = kbResult?.count || 0;
+        } catch (e) { /* table may not exist */ }
+
+        // 4. Agent vocal configure (omni_agent_configs)
+        let agentConfigured = false;
+        try {
+          const agentResult = await env.DB.prepare(
+            'SELECT id FROM omni_agent_configs WHERE tenant_id = ? LIMIT 1'
+          ).bind(tenantId).first();
+          agentConfigured = !!agentResult;
+        } catch (e) { /* table may not exist */ }
+
+        // 5. Appel test effectue
+        const testCallDone = tenant.test_call_done === 1;
+
+        // 6. Integrations (au moins un canal active ou OAuth)
+        let integrationsDone = false;
+        try {
+          const oauthResult = await env.DB.prepare(
+            'SELECT id FROM oauth_tokens WHERE tenant_id = ? LIMIT 1'
+          ).bind(tenantId).first();
+          integrationsDone = !!oauthResult;
+        } catch (e) { /* table may not exist */ }
+
+        const steps = [
+          { id: 'account', title: 'Compte cree', completed: accountCreated, href: null },
+          { id: 'profile', title: 'Profil entreprise', completed: profileCompleted, href: '/dashboard/settings' },
+          { id: 'knowledge', title: 'Base de connaissances', completed: kbCount >= 1, href: '/dashboard/knowledge' },
+          { id: 'agent', title: 'Agent vocal configure', completed: agentConfigured, href: '/dashboard/sara' },
+          { id: 'test_call', title: 'Appel test effectue', completed: testCallDone, href: '/dashboard/sara' },
+          { id: 'integrations', title: 'Integrations connectees', completed: integrationsDone, href: '/dashboard/settings/integrations' }
+        ];
+
+        const completedCount = steps.filter(s => s.completed).length;
+        const totalSteps = steps.length;
+        const progressPercent = Math.round((completedCount / totalSteps) * 100);
+
+        // Marquer setup_completed_at si 100%
+        if (completedCount === totalSteps && !tenant.setup_completed_at) {
+          await env.DB.prepare(
+            'UPDATE tenants SET setup_completed_at = datetime(\'now\') WHERE id = ?'
+          ).bind(tenantId).run();
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          checklist: {
+            steps,
+            completed: completedCount,
+            total: totalSteps,
+            progress_percent: progressPercent,
+            setup_completed: completedCount === totalSteps
+          }
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        logger.error('Checklist error', { error: error.message });
+        return new Response(JSON.stringify({ success: false, error: 'Erreur checklist' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // Route non trouvée
     return null;
 

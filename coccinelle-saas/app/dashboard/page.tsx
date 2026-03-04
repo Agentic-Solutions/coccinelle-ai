@@ -12,6 +12,8 @@ import SmartAlerts from '../../src/components/dashboard/SmartAlerts';
 import NotificationCenter from '../../src/components/dashboard/NotificationCenter';
 import { ToastContainer } from '../../src/components/dashboard/ToastNotification';
 import GettingStartedChecklist from '../../src/components/dashboard/GettingStartedChecklist';
+import TrialBanner from '../../src/components/dashboard/TrialBanner';
+import SetupChecklist from '../../src/components/dashboard/SetupChecklist';
 import { useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { LiveNotification } from '../../lib/live-updates';
 import { isDemoMode, mockCalls, mockAppointments, mockDocuments } from '../../lib/mockData';
@@ -31,6 +33,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toastNotifications, setToastNotifications] = useState<LiveNotification[]>([]);
   const [showGettingStarted, setShowGettingStarted] = useState(false);
+  const [trialInfo, setTrialInfo] = useState({
+    trialEndsAt: null as string | null,
+    trialActive: false,
+    trialDaysRemaining: 0
+  });
 
   // Live updates
   const liveUpdates = useLiveUpdates(
@@ -60,6 +67,30 @@ export default function DashboardPage() {
     // Vérifier si la checklist doit être affichée
     const checklistDismissed = localStorage.getItem('getting_started_dismissed') === 'true';
     setShowGettingStarted(!checklistDismissed);
+
+    // Charger les infos trial depuis /auth/me
+    const loadTrialInfo = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token || isDemoMode()) return;
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.tenant) {
+            setTrialInfo({
+              trialEndsAt: data.tenant.trial_ends_at,
+              trialActive: data.tenant.trial_active,
+              trialDaysRemaining: data.tenant.trial_days_remaining
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error loading trial info:', e);
+      }
+    };
+    loadTrialInfo();
   }, []);
 
   const loadStats = async () => {
@@ -210,6 +241,16 @@ export default function DashboardPage() {
         </header>
 
         <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
+          {/* Trial Banner */}
+          <TrialBanner
+            trialEndsAt={trialInfo.trialEndsAt}
+            trialActive={trialInfo.trialActive}
+            trialDaysRemaining={trialInfo.trialDaysRemaining}
+          />
+
+          {/* Setup Checklist (fetches from API) */}
+          <SetupChecklist />
+
           {/* Métriques clés - 4 cards avec micro-trends */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <Link href="/dashboard/conversations/appels">

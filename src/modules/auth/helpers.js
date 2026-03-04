@@ -113,7 +113,7 @@ export async function requireAuth(request, env) {
     
     // Récupérer user
     const user = await env.DB.prepare(
-      'SELECT id, tenant_id, email, name, role, is_active FROM users WHERE id = ?'
+      'SELECT id, tenant_id, email, name, role, is_active, weekly_report_enabled FROM users WHERE id = ?'
     ).bind(decoded.user_id).first();
     
     if (!user) {

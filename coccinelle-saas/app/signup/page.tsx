@@ -218,10 +218,22 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-900">
-              💡 Après la création de votre compte, vous serez guidé pour configurer votre assistant IA et vos canaux de communication.
-            </p>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-green-900">
+                  Essai gratuit 14 jours — Pas de carte bancaire requise
+                </p>
+                <p className="text-xs text-green-700 mt-1">
+                  Acces complet a toutes les fonctionnalites. Vous serez guide pour configurer votre assistant IA.
+                </p>
+              </div>
+            </div>
           </div>
 
           <div>

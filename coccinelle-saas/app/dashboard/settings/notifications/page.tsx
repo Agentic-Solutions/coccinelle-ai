@@ -35,6 +35,93 @@ interface ChannelConfig {
   };
 }
 
+// Composant toggle recap hebdomadaire
+function WeeklyReportToggle() {
+  const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const loadStatus = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) { setLoading(false); return; }
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.user) {
+            setEnabled(data.user.weekly_report_enabled !== 0);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading weekly report status:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadStatus();
+  }, []);
+
+  const handleToggle = async () => {
+    setSaving(true);
+    const newValue = !enabled;
+    setEnabled(newValue);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/profile`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ weekly_report_enabled: newValue ? 1 : 0 })
+        });
+      }
+    } catch (e) {
+      console.error('Error saving weekly report preference:', e);
+      setEnabled(!newValue); // rollback
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+            <Mail className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">Recap hebdomadaire</p>
+            <p className="text-xs text-gray-600">
+              Recevez chaque lundi un resume de vos metriques : appels, RDV, prospects, conversions.
+            </p>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <span className="text-sm text-gray-600">
+            {enabled ? 'Active' : 'Desactive'}
+          </span>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={handleToggle}
+            disabled={saving}
+            className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900 disabled:opacity-50"
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
 // Composant interne qui utilise useSearchParams
 function NotificationsContent() {
   const searchParams = useSearchParams();
@@ -486,6 +573,9 @@ function NotificationsContent() {
         </div>
         </>
         )}
+
+        {/* Recap hebdomadaire (M13) */}
+        <WeeklyReportToggle />
 
         {/* Boutons d'action */}
         {preferredChannel === 'phone' ? (
