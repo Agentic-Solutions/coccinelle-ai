@@ -3,6 +3,7 @@ import { jsonResponse, errorResponse, successResponse } from '../../utils/respon
 import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
 import { getRetellHeaders, RETELL_CONFIG } from './config.js';
+import { findOrCreateProspect } from '../prospects/dedup.js';
 
 const RETELL_API_BASE = 'https://api.retellai.com';
 
@@ -301,7 +302,7 @@ async function handleCallStarted(call, env) {
 async function handleCallEnded(call, env) {
   try {
     await env.DB.prepare(`
-      UPDATE calls 
+      UPDATE calls
       SET status = ?, duration = ?, ended_at = datetime('now')
       WHERE retell_call_id = ?
     `).bind(
@@ -311,6 +312,26 @@ async function handleCallEnded(call, env) {
     ).run();
   } catch (error) {
     logger.error('Failed to update call', { error: error.message });
+  }
+
+  // M9 — Dedup : créer ou fusionner le prospect à la fin de l'appel
+  try {
+    const tenantId = call.metadata?.tenant_id || 'tenant_demo_001';
+    const phone = call.from_number || null;
+    const email = call.metadata?.prospect_email || null;
+    const firstName = call.metadata?.prospect_name || null;
+
+    if (phone || email) {
+      const result = await findOrCreateProspect(env, tenantId, {
+        phone,
+        email,
+        first_name: firstName,
+        source: 'retell_call'
+      });
+      logger.info('Prospect dedup after call', { merged: result.merged, prospectId: result.prospect.id });
+    }
+  } catch (dedupError) {
+    logger.warn('Prospect dedup failed after call', { error: dedupError.message });
   }
 }
 
@@ -621,7 +642,17 @@ async function handleRetellFunction(request, env) {
       
       case 'search_products':
         return await searchProducts(env, tenantId, args);
-      
+
+      // M8 — Channel Switching : envoi SMS/Email depuis l'agent vocal
+      // TODO: Déclarer ces fonctions dans le dashboard Retell (Custom LLM > Functions)
+      //   send_sms: { to: string, message: string }
+      //   send_email: { to: string, subject: string, message: string }
+      case 'send_sms':
+        return await functionSendSMS(env, tenantId, args, call);
+
+      case 'send_email':
+        return await functionSendEmail(env, tenantId, args, call);
+
       default:
         return successResponse({ result: "Fonction non reconnue" });
     }
@@ -747,6 +778,146 @@ async function searchProducts(env, tenantId, args) {
     return successResponse({
       result: `Nous proposons différents services. Pouvez-vous me préciser ce que vous recherchez ?`
     });
+  }
+}
+
+// ============ M8 — CHANNEL SWITCHING FUNCTIONS ============
+
+/**
+ * send_sms — Fonction appelée par l'agent vocal pour envoyer un SMS
+ * Utilise Twilio, logue dans omni_messages
+ */
+async function functionSendSMS(env, tenantId, args, call) {
+  const { to, message } = args;
+
+  if (!to || !message) {
+    return successResponse({ result: "Il me faut un numéro de téléphone et un message pour envoyer le SMS." });
+  }
+
+  const accountSid = env.TWILIO_ACCOUNT_SID;
+  const authToken = env.TWILIO_AUTH_TOKEN;
+  const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
+
+  if (!accountSid || !authToken) {
+    logger.warn('Twilio credentials not configured for send_sms function');
+    return successResponse({ result: "Le service SMS n'est pas configuré pour le moment." });
+  }
+
+  try {
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const formData = new URLSearchParams();
+    formData.append('From', from);
+    formData.append('To', to);
+    formData.append('Body', message);
+
+    const response = await fetch(twilioUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      logger.error('Twilio SMS error in Retell function', { error: data });
+      return successResponse({ result: "Je n'ai pas pu envoyer le SMS. Veuillez réessayer plus tard." });
+    }
+
+    logger.info('SMS sent via Retell function', { messageSid: data.sid, to, tenantId });
+
+    // Logger dans omni_messages (best effort)
+    try {
+      const conversationId = call?.metadata?.conversation_id || call?.call_id || `retell_${Date.now()}`;
+      await env.DB.prepare(`
+        INSERT INTO omni_messages (id, conversation_id, channel, direction, content, content_type, sender_role, message_sid)
+        VALUES (?, ?, 'sms', 'outbound', ?, 'text', 'agent', ?)
+      `).bind(
+        `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        conversationId,
+        message,
+        data.sid
+      ).run();
+    } catch (dbError) {
+      logger.warn('Could not log SMS to omni_messages', { error: dbError.message });
+    }
+
+    return successResponse({ result: `SMS envoyé avec succès au ${to}.` });
+  } catch (error) {
+    logger.error('send_sms function error', { error: error.message });
+    return successResponse({ result: "Une erreur s'est produite lors de l'envoi du SMS." });
+  }
+}
+
+/**
+ * send_email — Fonction appelée par l'agent vocal pour envoyer un email
+ * Utilise Resend (env.RESEND_API_KEY), logue dans omni_messages
+ */
+async function functionSendEmail(env, tenantId, args, call) {
+  const { to, subject, message } = args;
+
+  if (!to || !message) {
+    return successResponse({ result: "Il me faut une adresse email et un message pour envoyer l'email." });
+  }
+
+  if (!env.RESEND_API_KEY) {
+    logger.warn('RESEND_API_KEY not configured for send_email function');
+    return successResponse({ result: "Le service email n'est pas configuré pour le moment." });
+  }
+
+  try {
+    const emailSubject = subject || 'Message de votre assistant Coccinelle';
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + env.RESEND_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Sara - coccinelle.ai <sara@coccinelle.ai>',
+        reply_to: 'contact@agenticsolutions.fr',
+        to: [to],
+        subject: emailSubject,
+        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <p>${message.replace(/\n/g, '<br/>')}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+          <p style="color: #9ca3af; font-size: 12px;">Envoyé par l'assistant vocal coccinelle.ai</p>
+        </div>`
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      logger.error('Resend API error in Retell function', { error: data });
+      return successResponse({ result: "Je n'ai pas pu envoyer l'email. Veuillez réessayer plus tard." });
+    }
+
+    logger.info('Email sent via Retell function', { emailId: data.id, to, tenantId });
+
+    // Logger dans omni_messages (best effort)
+    try {
+      const conversationId = call?.metadata?.conversation_id || call?.call_id || `retell_${Date.now()}`;
+      await env.DB.prepare(`
+        INSERT INTO omni_messages (id, conversation_id, channel, direction, content, content_type, sender_role, message_sid)
+        VALUES (?, ?, 'email', 'outbound', ?, 'text', 'agent', ?)
+      `).bind(
+        `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        conversationId,
+        `[${emailSubject}] ${message}`,
+        data.id || null
+      ).run();
+    } catch (dbError) {
+      logger.warn('Could not log email to omni_messages', { error: dbError.message });
+    }
+
+    return successResponse({ result: `Email envoyé avec succès à ${to}.` });
+  } catch (error) {
+    logger.error('send_email function error', { error: error.message });
+    return successResponse({ result: "Une erreur s'est produite lors de l'envoi de l'email." });
   }
 }
 

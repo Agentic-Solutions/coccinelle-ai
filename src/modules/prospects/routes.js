@@ -4,6 +4,7 @@ import * as auth from '../auth/helpers.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
 import { createNotification } from '../../utils/notifications.js';
+import { findOrCreateProspect } from './dedup.js';
 
 export async function handleProspectsRoutes(request, env, path, method) {
   try {
@@ -134,54 +135,38 @@ async function handleListProspects(request, env) {
 async function handleCreateProspect(request, env) {
   const tenantId = request.user.tenant_id;
   const body = await request.json();
-  
+
   const { first_name, last_name, email, phone, source, status = 'new' } = body;
-  
+
   if (!first_name || !email) {
     return errorResponse('first_name and email are required', 400);
   }
-  
-  const existing = await env.DB.prepare(`
-    SELECT id FROM prospects WHERE tenant_id = ? AND email = ?
-  `).bind(tenantId, email).first();
-  
-  if (existing) {
-    return errorResponse('A prospect with this email already exists', 409);
-  }
-  
-  const prospectId = `prospect_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const now = new Date().toISOString();
-  
-  await env.DB.prepare(`
-    INSERT INTO prospects (id, tenant_id, first_name, last_name, email, phone, status, source, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    prospectId,
-    tenantId,
+
+  // M9 — Deduplication : chercher par phone OU email avant d'inserer
+  const result = await findOrCreateProspect(env, tenantId, {
     first_name,
-    last_name || null,
+    last_name,
     email,
-    phone || null,
-    status,
-    source || null,
-    now
-  ).run();
-  
-  logger.info('Prospect created', { prospectId, tenantId, email });
-  
+    phone,
+    source,
+    status
+  });
+
+  if (result.merged) {
+    logger.info('Prospect merged via API', { prospectId: result.prospect.id, tenantId, email });
+    return successResponse({
+      success: true,
+      merged: true,
+      prospect: result.prospect
+    });
+  }
+
+  logger.info('Prospect created via API', { prospectId: result.prospect.id, tenantId, email });
+
   return successResponse({
     success: true,
-    prospect: {
-      id: prospectId,
-      tenant_id: tenantId,
-      first_name,
-      last_name: last_name || null,
-      email,
-      phone: phone || null,
-      status,
-      source: source || null,
-      created_at: now
-    }
+    merged: false,
+    prospect: result.prospect
   }, 201);
 }
 

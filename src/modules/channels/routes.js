@@ -48,6 +48,11 @@ export async function handleChannelsRoutes(request, env, path, method) {
       return await testChannel(request, env, tenantId, testMatch[1]);
     }
 
+    // POST /api/v1/channels/test-sms - Test rapide d'envoi SMS (M8)
+    if (path === '/api/v1/channels/test-sms' && method === 'POST') {
+      return await handleTestSMS(request, env, tenantId);
+    }
+
     // GET /api/v1/channels/stats - Stats globales des canaux
     if (path === '/api/v1/channels/stats' && method === 'GET') {
       return await getChannelsStats(env, tenantId);
@@ -647,6 +652,74 @@ async function getChannelsStats(env, tenantId) {
     calls: callStats,
     totalCostCents: (stats.results.reduce((sum, s) => sum + (s.total_cost_cents || 0), 0)) + (callStats?.total_cost_cents || 0)
   });
+}
+
+// M8 — Test rapide d'envoi SMS via Twilio
+async function handleTestSMS(request, env, tenantId) {
+  const body = await request.json();
+  const { to, message } = body;
+
+  if (!to) return errorResponse('Numero destinataire (to) requis', 400);
+  if (!message) return errorResponse('Message requis', 400);
+
+  const accountSid = env.TWILIO_ACCOUNT_SID;
+  const authToken = env.TWILIO_AUTH_TOKEN;
+  const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
+
+  if (!accountSid || !authToken) {
+    return errorResponse('Twilio non configure (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN manquants)', 400);
+  }
+
+  try {
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const formData = new URLSearchParams();
+    formData.append('From', from);
+    formData.append('To', to);
+    formData.append('Body', message);
+
+    const response = await fetch(twilioUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      logger.error('Test SMS Twilio error', { error: data, tenantId });
+      return errorResponse(data.message || 'Echec envoi SMS', 400);
+    }
+
+    logger.info('Test SMS sent', { messageSid: data.sid, to, tenantId });
+
+    // Logger dans omni_messages (best effort)
+    try {
+      await env.DB.prepare(`
+        INSERT INTO omni_messages (id, conversation_id, channel, direction, content, content_type, sender_role, message_sid)
+        VALUES (?, ?, 'sms', 'outbound', ?, 'text', 'agent', ?)
+      `).bind(
+        `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        `test_${tenantId}_${Date.now()}`,
+        message,
+        data.sid
+      ).run();
+    } catch (dbError) {
+      logger.warn('Could not log test SMS to omni_messages', { error: dbError.message });
+    }
+
+    return successResponse({
+      message_sid: data.sid,
+      to,
+      status: 'sent',
+      message: 'SMS de test envoye avec succes'
+    });
+  } catch (error) {
+    logger.error('Test SMS error', { error: error.message, tenantId });
+    return errorResponse('Erreur envoi SMS: ' + error.message, 500);
+  }
 }
 
 // Configuration par défaut selon le type de canal
