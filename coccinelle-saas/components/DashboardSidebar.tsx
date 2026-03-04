@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home, MessageSquare, Users, Calendar, Settings,
   Package, ChevronLeft, ChevronRight, Sliders, Menu, X,
-  Clock, BarChart3, CreditCard, UserPlus
+  Clock, BarChart3, CreditCard, UserPlus, LifeBuoy
 } from 'lucide-react';
 import Logo from '../src/components/Logo';
 
@@ -40,6 +40,7 @@ export default function DashboardSidebar() {
     { icon: Package, label: 'Produits', href: '/dashboard/products' },
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/sara-analytics' },
     { icon: CreditCard, label: 'Facturation', href: '/dashboard/billing' },
+    { icon: LifeBuoy, label: 'Aide & Support', href: '/dashboard/support' },
     { icon: Settings, label: 'Paramètres', href: '/dashboard/settings' },
   ];
 

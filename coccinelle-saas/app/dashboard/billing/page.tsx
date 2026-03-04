@@ -96,6 +96,11 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [showChurnModal, setShowChurnModal] = useState(false);
+  const [churnReason, setChurnReason] = useState('');
+  const [churnDetails, setChurnDetails] = useState('');
+  const [churnRecommend, setChurnRecommend] = useState<number | null>(null);
+  const [churnLoading, setChurnLoading] = useState(false);
 
   // Check for success/canceled query params
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -206,6 +211,47 @@ export default function BillingPage() {
       setError('Erreur de connexion au serveur.');
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  const CHURN_REASONS = [
+    { value: 'too_expensive', label: 'Trop cher' },
+    { value: 'missing_features', label: 'Fonctionnalites manquantes' },
+    { value: 'not_using', label: 'Je ne l\'utilise pas assez' },
+    { value: 'switched_competitor', label: 'Je suis passe a un concurrent' },
+    { value: 'technical_issues', label: 'Problemes techniques' },
+    { value: 'bad_support', label: 'Support insatisfaisant' },
+    { value: 'temporary', label: 'Pause temporaire' },
+    { value: 'other', label: 'Autre raison' },
+  ];
+
+  const handleChurnSubmitAndCancel = async () => {
+    if (!churnReason) return;
+    setChurnLoading(true);
+    try {
+      const token = getToken();
+      // Submit churn feedback
+      await fetch(`${API_URL}/api/v1/churn/feedback`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reason: churnReason,
+          details: churnDetails || null,
+          would_recommend: churnRecommend,
+          plan_at_cancel: subscription?.plan || null,
+        }),
+      });
+      // Proceed to Stripe portal for cancellation
+      setShowChurnModal(false);
+      await handleManageSubscription();
+    } catch (err) {
+      console.error('Churn feedback error:', err);
+      setError('Erreur lors de l\'envoi du sondage.');
+    } finally {
+      setChurnLoading(false);
     }
   };
 
@@ -352,18 +398,28 @@ export default function BillingPage() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={handleManageSubscription}
-                disabled={portalLoading}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50"
-              >
-                {portalLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ExternalLink className="w-4 h-4" />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleManageSubscription}
+                  disabled={portalLoading}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  {portalLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ExternalLink className="w-4 h-4" />
+                  )}
+                  Gerer mon abonnement
+                </button>
+                {!subscription.cancel_at_period_end && (
+                  <button
+                    onClick={() => setShowChurnModal(true)}
+                    className="px-4 py-2.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
+                  >
+                    Annuler
+                  </button>
                 )}
-                Gerer mon abonnement
-              </button>
+              </div>
             </div>
           </div>
         )}
@@ -485,6 +541,119 @@ export default function BillingPage() {
           </div>
         </div>
       </div>
+
+      {/* Churn Survey Modal */}
+      {showChurnModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Avant de partir...</h2>
+              <p className="text-sm text-gray-500 mb-6">
+                Aidez-nous a ameliorer Coccinelle.AI en repondant a quelques questions.
+              </p>
+
+              {/* Reason selection */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Pourquoi souhaitez-vous annuler ? <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {CHURN_REASONS.map((r) => (
+                    <label
+                      key={r.value}
+                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        churnReason === r.value
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="churn_reason"
+                        value={r.value}
+                        checked={churnReason === r.value}
+                        onChange={(e) => setChurnReason(e.target.value)}
+                        className="text-blue-600"
+                      />
+                      <span className="text-sm text-gray-700">{r.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Des details supplementaires ?
+                </label>
+                <textarea
+                  value={churnDetails}
+                  onChange={(e) => setChurnDetails(e.target.value)}
+                  rows={3}
+                  placeholder="Dites-nous en plus (facultatif)..."
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              {/* NPS */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Recommanderiez-vous Coccinelle.AI ?
+                </label>
+                <div className="flex gap-1">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setChurnRecommend(n)}
+                      className={`w-8 h-8 rounded text-xs font-medium transition-colors ${
+                        churnRecommend === n
+                          ? n <= 6
+                            ? 'bg-red-500 text-white'
+                            : n <= 8
+                            ? 'bg-yellow-500 text-white'
+                            : 'bg-green-500 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-xs text-gray-400">Pas du tout</span>
+                  <span className="text-xs text-gray-400">Absolument</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowChurnModal(false);
+                    setChurnReason('');
+                    setChurnDetails('');
+                    setChurnRecommend(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Rester abonne
+                </button>
+                <button
+                  onClick={handleChurnSubmitAndCancel}
+                  disabled={!churnReason || churnLoading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {churnLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Confirmer l\'annulation'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

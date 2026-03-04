@@ -31,6 +31,10 @@ import { handleUsersRoutes } from './modules/users/routes.js';
 import { handleNotificationsRoutes } from './modules/notifications/routes.js';
 import { handleRemindersRoutes } from './modules/reminders/routes.js';
 import { handleAnalyticsRoutes } from './modules/analytics/routes.js';
+import { handleSupportRoutes } from './modules/support/routes.js';
+import { handleFaqRoutes } from './modules/faq/routes.js';
+import { handleChurnRoutes } from './modules/churn/routes.js';
+import { handleReportsRoutes } from './modules/reports/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -107,6 +111,12 @@ export default {
       // Analytics & export (CSV exports must be before regular entity routes)
       if (path.startsWith('/api/v1/analytics') || path.endsWith('/export')) {
         response = await handleAnalyticsRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Reports (weekly recap)
+      if (path.startsWith('/api/v1/reports')) {
+        response = await handleReportsRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 
@@ -246,6 +256,24 @@ export default {
             headers
           });
         }
+      }
+
+      // Support tickets
+      if (path.startsWith('/api/v1/support')) {
+        response = await handleSupportRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // FAQ
+      if (path.startsWith('/api/v1/faq')) {
+        response = await handleFaqRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Churn feedback
+      if (path.startsWith('/api/v1/churn')) {
+        response = await handleChurnRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
       }
 
       if (path.startsWith('/api/v1/channels')) {
