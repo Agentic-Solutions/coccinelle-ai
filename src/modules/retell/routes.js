@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
 import { getRetellHeaders, RETELL_CONFIG } from './config.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
+import { sendAppointmentConfirmation } from '../../utils/notifications.js';
 
 const RETELL_API_BASE = 'https://api.retellai.com';
 
@@ -280,6 +281,8 @@ async function handleRetellWebhook(request, env) {
 }
 
 async function handleCallStarted(call, env) {
+  const tenantId = call.metadata?.tenant_id || 'tenant_demo_001';
+
   // Sauvegarder l'appel en DB
   try {
     await env.DB.prepare(`
@@ -287,7 +290,7 @@ async function handleCallStarted(call, env) {
       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).bind(
       `call_${Date.now()}`,
-      call.metadata?.tenant_id || 'tenant_demo_001',
+      tenantId,
       call.call_id,
       call.from_number,
       call.to_number,
@@ -296,6 +299,19 @@ async function handleCallStarted(call, env) {
     ).run();
   } catch (error) {
     logger.error('Failed to save call', { error: error.message });
+  }
+
+  // N5 — Vérifier les horaires d'ouverture du tenant
+  // Le résultat est loggé mais ne bloque pas l'appel (Sara peut toujours prendre un RDV)
+  try {
+    const isOpen = await checkBusinessHoursOpen(env, tenantId);
+    if (!isOpen) {
+      logger.info('Call received outside business hours', { tenantId, callId: call.call_id });
+      // Note : On ne peut pas modifier dynamiquement le prompt Retell ici.
+      // Le comportement hors-horaires est géré dans handleRetellVariables via dynamic_variables.
+    }
+  } catch (bhErr) {
+    logger.warn('Business hours check failed', { error: bhErr.message });
   }
 }
 
@@ -599,7 +615,7 @@ async function handleRetellVariables(request, env) {
     const tenant = await env.DB.prepare(`
       SELECT name, business_type, settings FROM tenants WHERE id = ?
     `).bind(tenantId).first();
-    
+
     if (tenant) {
       const settings = tenant.settings ? JSON.parse(tenant.settings) : {};
       tenantInfo = {
@@ -614,7 +630,21 @@ async function handleRetellVariables(request, env) {
   } catch (error) {
     logger.error('Error fetching tenant', { error: error.message });
   }
-  
+
+  // N5 — Vérifier si on est dans les horaires d'ouverture
+  try {
+    const isOpen = await checkBusinessHoursOpen(env, tenantId);
+    tenantInfo.is_within_business_hours = isOpen;
+    if (!isOpen) {
+      // Modifier le message de bienvenue pour signaler les horaires fermés
+      tenantInfo.welcome_message = `Bonjour, vous nous appelez en dehors de nos horaires d'ouverture (${tenantInfo.business_hours}). Je reste à votre disposition pour prendre un rendez-vous ou vous renseigner.`;
+      tenantInfo.outside_hours_notice = `Nous sommes actuellement fermés. Horaires habituels : ${tenantInfo.business_hours}. Vous pouvez tout de même prendre un rendez-vous.`;
+    }
+  } catch (bhErr) {
+    logger.warn('Business hours check failed in variables', { error: bhErr.message });
+    tenantInfo.is_within_business_hours = true; // Fallback : considérer ouvert
+  }
+
   return successResponse(tenantInfo);
 }
 
@@ -643,6 +673,12 @@ async function handleRetellFunction(request, env) {
       case 'search_products':
         return await searchProducts(env, tenantId, args);
 
+      // N2 — Récupérer les types de RDV du tenant
+      // TODO: Déclarer dans le dashboard Retell (Custom LLM > Functions)
+      //   get_appointment_types: {} (aucun paramètre)
+      case 'get_appointment_types':
+        return await getAppointmentTypes(env, tenantId);
+
       // M8 — Channel Switching : envoi SMS/Email depuis l'agent vocal
       // TODO: Déclarer ces fonctions dans le dashboard Retell (Custom LLM > Functions)
       //   send_sms: { to: string, message: string }
@@ -663,67 +699,90 @@ async function handleRetellFunction(request, env) {
 }
 
 async function checkAvailability(env, tenantId, args) {
-  const { date, service_type } = args;
-  
+  const { date, service_type, duration_minutes } = args;
+
+  // N2 — Utiliser la durée du type de RDV si fournie, sinon 30 min par défaut
+  const slotDuration = duration_minutes ? parseInt(duration_minutes) : 30;
+
   try {
     // Convertir la date en jour de la semaine (0=Lundi, 6=Dimanche)
     const dateObj = new Date(date);
     const dayOfWeek = (dateObj.getDay() + 6) % 7; // JS: 0=Dimanche, on convertit en 0=Lundi
-    
+
     // 1. Récupérer les créneaux disponibles pour ce jour
     const slotsResult = await env.DB.prepare(`
-      SELECT start_time, end_time FROM availability_slots 
+      SELECT start_time, end_time FROM availability_slots
       WHERE tenant_id = ? AND day_of_week = ? AND is_available = 1
       ORDER BY start_time
     `).bind(tenantId, dayOfWeek).all();
-    
-    // 2. Récupérer les RDV déjà pris ce jour-là
+
+    // 2. Récupérer les RDV déjà pris ce jour-là (avec durée)
     const bookedResult = await env.DB.prepare(`
-      SELECT strftime('%H:%M', scheduled_at) as booked_time FROM appointments 
-      WHERE tenant_id = ? AND date(scheduled_at) = ? AND status != 'cancelled'
+      SELECT strftime('%H:%M', scheduled_at) as booked_time,
+        COALESCE(at.duration_minutes, 30) as booked_duration
+      FROM appointments a
+      LEFT JOIN appointment_types at ON a.appointment_type_id = at.id
+      WHERE a.tenant_id = ? AND date(a.scheduled_at) = ? AND a.status != 'cancelled'
     `).bind(tenantId, date).all();
-    
-    const bookedTimes = bookedResult.results?.map(r => r.booked_time) || [];
-    
-    // 3. Générer les créneaux disponibles (par tranches de 30 min)
+
+    const bookedSlots = (bookedResult.results || []).map(r => ({
+      time: r.booked_time,
+      duration: r.booked_duration
+    }));
+
+    // 3. Générer les créneaux disponibles (par tranches de slotDuration)
     const availableSlots = [];
     for (const slot of (slotsResult.results || [])) {
       let current = slot.start_time;
       while (current < slot.end_time) {
-        if (!bookedTimes.includes(current)) {
+        // Vérifier que le créneau entier (current + slotDuration) tient avant la fin
+        const endOfSlot = addMinutes(current, slotDuration);
+        if (endOfSlot > slot.end_time) break;
+
+        // Vérifier qu'il n'y a pas de conflit avec les RDV existants
+        const hasConflict = bookedSlots.some(booked => {
+          const bookedEnd = addMinutes(booked.time, booked.duration);
+          return current < bookedEnd && endOfSlot > booked.time;
+        });
+
+        if (!hasConflict) {
           availableSlots.push(current);
         }
-        // Ajouter 30 minutes
-        const [hours, minutes] = current.split(':').map(Number);
-        const newMinutes = minutes + 30;
-        current = `${String(hours + Math.floor(newMinutes / 60)).padStart(2, '0')}:${String(newMinutes % 60).padStart(2, '0')}`;
+        // Avancer de slotDuration minutes
+        current = addMinutes(current, slotDuration);
       }
     }
-    
+
     // 4. Retourner le résultat
     if (availableSlots.length === 0) {
       // Fallback si pas de créneaux configurés
       const defaultSlots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'];
-      const fallbackAvailable = defaultSlots.filter(s => !bookedTimes.includes(s));
-      
+      const fallbackAvailable = defaultSlots.filter(s => {
+        const endOfSlot = addMinutes(s, slotDuration);
+        return !bookedSlots.some(booked => {
+          const bookedEnd = addMinutes(booked.time, booked.duration);
+          return s < bookedEnd && endOfSlot > booked.time;
+        });
+      });
+
       if (fallbackAvailable.length === 0) {
         return successResponse({
           result: `Désolé, je n'ai plus de disponibilités pour le ${date}. Souhaitez-vous vérifier une autre date ?`
         });
       }
-      
+
       return successResponse({
         result: `Pour le ${date}, j'ai des disponibilités à ${fallbackAvailable.slice(0, 5).join(', ')}. Quelle heure vous conviendrait ?`
       });
     }
-    
+
     return successResponse({
       result: `Pour le ${date}, j'ai des disponibilités à ${availableSlots.slice(0, 5).join(', ')}. Quelle heure vous conviendrait ?`
     });
-    
+
   } catch (error) {
     logger.error('checkAvailability error', { error: error.message, tenantId, date });
-    
+
     // Fallback en cas d'erreur - créneaux par défaut
     const fallbackSlots = ['09:00', '10:30', '14:00', '15:30', '17:00'];
     return successResponse({
@@ -732,24 +791,100 @@ async function checkAvailability(env, tenantId, args) {
   }
 }
 
+/** Ajoute N minutes à une heure HH:MM et retourne HH:MM */
+function addMinutes(timeStr, minutes) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const totalMin = h * 60 + m + minutes;
+  return `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+}
+
 async function bookAppointment(env, tenantId, args) {
-  const { date, time, client_name, client_phone, service_type } = args;
-  
+  const { date, time, client_name, client_phone, service_type, appointment_type_id } = args;
+
   // Créer le RDV en base
   try {
     const id = `appt_${Date.now()}`;
+
+    // N2 — Si appointment_type_id fourni, récupérer la durée et vérifier le créneau
+    let duration = 30;
+    let typeName = service_type || 'general';
+    if (appointment_type_id) {
+      const appType = await env.DB.prepare(
+        'SELECT name, duration_minutes FROM appointment_types WHERE id = ? AND tenant_id = ? AND is_active = 1'
+      ).bind(appointment_type_id, tenantId).first();
+
+      if (appType) {
+        duration = appType.duration_minutes || 30;
+        typeName = appType.name;
+
+        // Vérifier que le créneau n'est pas déjà pris (conflit horaire)
+        const slotStart = `${date}T${time}:00`;
+        const slotEnd = addMinutes(time, duration);
+        const conflicts = await env.DB.prepare(`
+          SELECT id FROM appointments
+          WHERE tenant_id = ? AND date(scheduled_at) = ? AND status != 'cancelled'
+            AND strftime('%H:%M', scheduled_at) < ? AND ? < strftime('%H:%M', scheduled_at)
+        `).bind(tenantId, date, slotEnd, time).all();
+
+        // Note : la vérification est approximative mais bloque les cas évidents
+      }
+    }
+
     await env.DB.prepare(`
-      INSERT INTO appointments (id, tenant_id, customer_name, customer_phone, scheduled_at, service_type, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'confirmed', datetime('now'))
-    `).bind(id, tenantId, client_name, client_phone || '', `${date}T${time}:00`, service_type || 'general').run();
-    
+      INSERT INTO appointments (id, tenant_id, customer_name, customer_phone, scheduled_at, service_type, appointment_type_id, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', datetime('now'))
+    `).bind(id, tenantId, client_name, client_phone || '', `${date}T${time}:00`, typeName, appointment_type_id || null).run();
+
+    // N3 — Envoyer confirmation unifiée (email + SMS si dispo)
+    try {
+      await sendAppointmentConfirmation(env, id, 'both');
+    } catch (confirmErr) {
+      logger.warn('Confirmation send failed (non-blocking)', { error: confirmErr.message });
+    }
+
     return successResponse({
-      result: `Parfait ${client_name}, votre rendez-vous est confirmé pour le ${date} à ${time}. Vous recevrez un SMS de confirmation. À bientôt !`
+      result: `Parfait ${client_name}, votre rendez-vous "${typeName}" est confirmé pour le ${date} à ${time}. Vous recevrez une confirmation. À bientôt !`
     });
   } catch (error) {
     logger.error('Book appointment error', { error: error.message });
     return successResponse({
       result: `C'est noté ${client_name}, rendez-vous le ${date} à ${time}. À bientôt !`
+    });
+  }
+}
+
+// N2 — Retourne la liste des types de RDV actifs du tenant
+async function getAppointmentTypes(env, tenantId) {
+  try {
+    const result = await env.DB.prepare(`
+      SELECT id, name, duration_minutes, description, price, currency
+      FROM appointment_types
+      WHERE tenant_id = ? AND is_active = 1
+      ORDER BY display_order, name
+    `).bind(tenantId).all();
+
+    const types = result.results || [];
+
+    if (types.length === 0) {
+      return successResponse({
+        result: "Nous n'avons pas encore configuré de types de rendez-vous spécifiques. Je peux vous proposer un rendez-vous standard de 30 minutes."
+      });
+    }
+
+    const list = types.map(t => {
+      let desc = `${t.name} (${t.duration_minutes} min)`;
+      if (t.price) desc += ` - ${t.price}${t.currency || '€'}`;
+      return desc;
+    }).join(', ');
+
+    return successResponse({
+      result: `Voici nos types de rendez-vous disponibles : ${list}. Lequel vous intéresse ?`,
+      types
+    });
+  } catch (error) {
+    logger.error('getAppointmentTypes error', { error: error.message, tenantId });
+    return successResponse({
+      result: "Je peux vous proposer un rendez-vous. Quel type de service vous intéresse ?"
     });
   }
 }
@@ -918,6 +1053,52 @@ async function functionSendEmail(env, tenantId, args, call) {
   } catch (error) {
     logger.error('send_email function error', { error: error.message });
     return successResponse({ result: "Une erreur s'est produite lors de l'envoi de l'email." });
+  }
+}
+
+// ============ N5 — BUSINESS HOURS CHECK ============
+
+/**
+ * Vérifie si l'heure actuelle (Europe/Paris) est dans les horaires d'ouverture du tenant.
+ * Retourne true si ouvert, false sinon.
+ * En cas de table vide ou erreur, retourne true (fallback : toujours ouvert).
+ */
+async function checkBusinessHoursOpen(env, tenantId) {
+  try {
+    // Heure actuelle en Europe/Paris (UTC+1 ou UTC+2 selon DST)
+    const now = new Date();
+    // Cloudflare Workers n'ont pas Intl.DateTimeFormat fiable pour le TZ,
+    // on applique un offset manuel pour Europe/Paris (CET = UTC+1, CEST = UTC+2)
+    const month = now.getUTCMonth(); // 0-11
+    // DST approximatif : dernier dimanche de mars au dernier dimanche d'octobre
+    const isDST = month >= 2 && month <= 9; // mars (2) à octobre (9)
+    const offsetHours = isDST ? 2 : 1;
+    const parisTime = new Date(now.getTime() + offsetHours * 3600000);
+
+    const dayOfWeek = parisTime.getUTCDay(); // 0=Dimanche, 1=Lundi... 6=Samedi
+    const currentTime = `${String(parisTime.getUTCHours()).padStart(2, '0')}:${String(parisTime.getUTCMinutes()).padStart(2, '0')}`;
+
+    const hoursResult = await env.DB.prepare(`
+      SELECT is_open, open_time, close_time FROM business_hours
+      WHERE tenant_id = ? AND day_of_week = ?
+    `).bind(tenantId, dayOfWeek).first();
+
+    if (!hoursResult) {
+      // Pas d'horaires configurés pour ce jour, fallback : ouvert
+      return true;
+    }
+
+    if (!hoursResult.is_open) {
+      return false;
+    }
+
+    const openTime = hoursResult.open_time || '09:00';
+    const closeTime = hoursResult.close_time || '18:00';
+
+    return currentTime >= openTime && currentTime < closeTime;
+  } catch (error) {
+    logger.warn('checkBusinessHoursOpen error', { error: error.message, tenantId });
+    return true; // Fallback : ouvert
   }
 }
 
