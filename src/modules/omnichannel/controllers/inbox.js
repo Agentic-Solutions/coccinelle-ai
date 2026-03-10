@@ -48,9 +48,9 @@ export async function listInboxConversations(request, env) {
         c.id,
         c.conversation_sid,
         c.tenant_id,
-        c.customer_phone,
-        c.customer_email,
-        c.customer_name,
+        c.client_phone,
+        c.client_email,
+        c.client_name,
         c.current_channel,
         c.active_channels,
         c.last_intent,
@@ -81,9 +81,9 @@ export async function listInboxConversations(request, env) {
       success: true,
       conversations: (conversations.results || []).map(c => ({
         id: c.id,
-        customer_phone: c.customer_phone,
-        customer_email: c.customer_email,
-        customer_name: c.customer_name,
+        customer_phone: c.client_phone,
+        customer_email: c.client_email,
+        customer_name: c.client_name,
         current_channel: c.current_channel,
         active_channels: safeJsonParse(c.active_channels, []),
         last_intent: c.last_intent,
@@ -171,9 +171,9 @@ export async function getInboxConversation(request, env, conversationId) {
       success: true,
       conversation: {
         id: conversation.id,
-        customer_phone: conversation.customer_phone,
-        customer_email: conversation.customer_email,
-        customer_name: conversation.customer_name,
+        customer_phone: conversation.client_phone,
+        customer_email: conversation.client_email,
+        customer_name: conversation.client_name,
         current_channel: conversation.current_channel,
         active_channels: safeJsonParse(conversation.active_channels, []),
         last_intent: conversation.last_intent,
@@ -239,15 +239,15 @@ export async function linkConversationToProspect(request, env, conversationId) {
       prospectId = body.prospect_id;
     } else {
       // Auto-linking by phone or email
-      prospectId = await autoLinkProspect(env, tenantId, conversation.customer_phone, conversation.customer_email);
+      prospectId = await autoLinkProspect(env, tenantId, conversation.client_phone, conversation.client_email);
     }
 
     if (!prospectId) {
       return jsonResp({
         success: false,
         message: 'Aucun prospect trouve pour auto-liaison. Utilisez prospect_id pour lier manuellement.',
-        customer_phone: conversation.customer_phone,
-        customer_email: conversation.customer_email
+        customer_phone: conversation.client_phone,
+        customer_email: conversation.client_email
       });
     }
 

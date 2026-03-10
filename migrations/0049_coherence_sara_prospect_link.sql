@@ -1,4 +1,4 @@
--- Migration 0048 : Coherence — Harmoniser Sara + lier prospect aux RDV
+-- Migration 0049 : Coherence — Harmoniser Sara + lier prospect aux RDV
 -- Date : 2026-03-10
 
 -- =====================================================
@@ -22,8 +22,6 @@ WHERE config_public LIKE '%Julien%';
 -- I3 : Ajouter prospect_id aux appointments (si manquant)
 -- =====================================================
 
--- Ajout colonne prospect_id sur appointments (idempotent sur D1)
-ALTER TABLE appointments ADD COLUMN prospect_id TEXT;
-
--- Index pour retrouver rapidement les RDV d'un prospect
+-- prospect_id already exists on appointments (added in earlier migration)
+-- Just create the index if missing
 CREATE INDEX IF NOT EXISTS idx_appointments_prospect ON appointments(prospect_id);

@@ -99,10 +99,12 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   if (path === '/api/v1/auth/signup' && method === 'POST') {
     try {
       const body = await request.json();
-      const { company_name, email, password, name, phone, sector } = body;
+      const { company_name, email, password, name, phone, sector, cgu_accepted } = body;
 
       // Validation des données
       const errors = [];
+      // CGU obligatoire
+      if (!cgu_accepted) errors.push('Vous devez accepter les Conditions Générales d\'Utilisation');
       // company_name est optionnel au signup, sera rempli dans l'onboarding
       if (!email || !auth.isValidEmail(email)) errors.push('email invalide');
       if (!password || !auth.isStrongPassword(password)) errors.push('password faible (min 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre)');
@@ -183,8 +185,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         VALUES (?, ?, 'trial', 'trialing', ?, ?)
       `).bind(subscriptionId, tenantId, trialEnds.toISOString(), now).run();
 
-      // Créer user admin
-      await env.DB.prepare(`INSERT INTO users (id, tenant_id, email, password_hash, name, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(userId, tenantId, email.toLowerCase().trim(), passwordHash, name.trim(), 'admin', 1, now, now).run();
+      // Créer user admin (avec cgu_accepted_at)
+      await env.DB.prepare(`INSERT INTO users (id, tenant_id, email, password_hash, name, role, is_active, cgu_accepted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(userId, tenantId, email.toLowerCase().trim(), passwordHash, name.trim(), 'admin', 1, cgu_accepted ? now : null, now, now).run();
 
       // Générer JWT et créer session
       const token = auth.generateToken({ user_id: userId, tenant_id: tenantId, role: 'admin', email: email.toLowerCase().trim() }, env.JWT_SECRET, '7d');

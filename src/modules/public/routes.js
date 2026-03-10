@@ -4,6 +4,7 @@ import { createWebCall } from '../retell/routes.js';
 import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { rateLimitResponse } from '../../utils/rate-limiter.js';
+import { handleGetBookingInfo, handleGetBookingSlots, handleCreatePublicBooking } from './booking.js';
 
 export async function handlePublicRoutes(request, env, path, method) {
   const url = new URL(request.url);
@@ -13,6 +14,32 @@ export async function handlePublicRoutes(request, env, path, method) {
   if (rateLimited) return rateLimited;
 
   try {
+    // ========================================
+    // BOOKING PUBLIC ROUTES (par slug)
+    // ========================================
+
+    // GET /api/v1/public/booking/:slug - Infos tenant + types de RDV
+    const bookingInfoMatch = path.match(/^\/api\/v1\/public\/booking\/([^\/]+)$/);
+    if (bookingInfoMatch && method === 'GET') {
+      return await handleGetBookingInfo(request, env, bookingInfoMatch[1]);
+    }
+
+    // GET /api/v1/public/booking/:slug/slots?date=...&type_id=... - Créneaux disponibles
+    const bookingSlotsMatch = path.match(/^\/api\/v1\/public\/booking\/([^\/]+)\/slots$/);
+    if (bookingSlotsMatch && method === 'GET') {
+      return await handleGetBookingSlots(request, env, bookingSlotsMatch[1]);
+    }
+
+    // POST /api/v1/public/booking/:slug/book - Créer un RDV
+    const bookingCreateMatch = path.match(/^\/api\/v1\/public\/booking\/([^\/]+)\/book$/);
+    if (bookingCreateMatch && method === 'POST') {
+      return await handleCreatePublicBooking(request, env, bookingCreateMatch[1]);
+    }
+
+    // ========================================
+    // LEGACY PUBLIC ROUTES (par tenantId)
+    // ========================================
+
     // GET /api/v1/public/:tenantId/info - Infos tenant publiques
     if (path.match(/^\/api\/v1\/public\/([^\/]+)\/info$/) && method === 'GET') {
       return await handleGetTenantInfo(request, env, path);

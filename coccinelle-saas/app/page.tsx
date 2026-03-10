@@ -766,11 +766,11 @@ export default function LandingPage() {
 
             {/* Legal */}
             <div>
-              <h4 className="font-semibold text-white mb-4">Légal</h4>
+              <h4 className="font-semibold text-white mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="/legal/privacy" className="hover:text-white transition">Confidentialité</a></li>
-                <li><a href="/legal/terms" className="hover:text-white transition">CGU</a></li>
-                <li><a href="/legal/mentions" className="hover:text-white transition">Mentions légales</a></li>
+                <li><Link href="/confidentialite" className="hover:text-white transition">Confidentialite</Link></li>
+                <li><Link href="/cgu" className="hover:text-white transition">CGU</Link></li>
+                <li><Link href="/mentions-legales" className="hover:text-white transition">Mentions legales</Link></li>
               </ul>
             </div>
           </div>

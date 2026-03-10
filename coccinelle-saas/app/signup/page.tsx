@@ -13,6 +13,7 @@ export default function SignupPage() {
     password: '',
     industry: ''
   });
+  const [cguAccepted, setCguAccepted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -34,6 +35,9 @@ export default function SignupPage() {
     if (!formData.email) newErrors.push('L\'email est requis');
     if (!formData.password || formData.password.length < 8) {
       newErrors.push('Le mot de passe doit contenir au moins 8 caractères');
+    }
+    if (!cguAccepted) {
+      newErrors.push('Vous devez accepter les Conditions Generales d\'Utilisation');
     }
 
     if (newErrors.length > 0) {
@@ -84,7 +88,8 @@ export default function SignupPage() {
             name: formData.name,
             email: formData.email,
             password: formData.password,
-            industry: formData.industry || undefined
+            industry: formData.industry || undefined,
+            cgu_accepted: cguAccepted
           })
         }
       );
@@ -299,16 +304,26 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <p className="text-xs text-center text-gray-500">
-            En créant un compte, vous acceptez nos{' '}
-            <a href="#" className="text-gray-700 hover:text-black">
-              Conditions d'utilisation
-            </a>{' '}
-            et notre{' '}
-            <a href="#" className="text-gray-700 hover:text-black">
-              Politique de confidentialité
-            </a>
-          </p>
+          <div className="flex items-start gap-3">
+            <input
+              id="cgu"
+              type="checkbox"
+              checked={cguAccepted}
+              onChange={(e) => setCguAccepted(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-black focus:ring-black"
+            />
+            <label htmlFor="cgu" className="text-xs text-gray-500">
+              J&apos;accepte les{' '}
+              <Link href="/cgu" target="_blank" className="text-gray-700 hover:text-black underline">
+                Conditions Generales d&apos;Utilisation
+              </Link>{' '}
+              et la{' '}
+              <Link href="/confidentialite" target="_blank" className="text-gray-700 hover:text-black underline">
+                Politique de Confidentialite
+              </Link>{' '}
+              *
+            </label>
+          </div>
         </form>
       </div>
     </div>

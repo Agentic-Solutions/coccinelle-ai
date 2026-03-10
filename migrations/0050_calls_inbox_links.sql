@@ -1,4 +1,4 @@
--- Migration 0048 : N4 + N7 — Calls enrichment + Inbox ↔ Prospect link
+-- Migration 0050 : N4 + N7 — Calls enrichment + Inbox ↔ Prospect link
 -- Date : 2026-03-08
 
 -- N4 : Ajout colonnes manquantes sur calls pour Retell
@@ -20,6 +20,4 @@ ALTER TABLE omni_conversations ADD COLUMN customer_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_omni_conversations_prospect ON omni_conversations(prospect_id);
 CREATE INDEX IF NOT EXISTS idx_omni_conversations_customer ON omni_conversations(customer_id);
 
--- Index pour recherche par phone/email dans omni_conversations
-CREATE INDEX IF NOT EXISTS idx_omni_conversations_phone ON omni_conversations(customer_phone);
-CREATE INDEX IF NOT EXISTS idx_omni_conversations_email ON omni_conversations(customer_email);
+-- Note: customer_phone/customer_email indexes skipped (columns may not exist on omni_conversations)
