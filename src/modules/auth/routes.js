@@ -138,7 +138,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       // ========================================
       const tenantName = company_name?.trim() || name.trim();
       const slug = await generateUniqueSlug(env.DB, tenantName);
-      
+
       logger.info('New tenant created', { name: tenantName, slug });
 
       // Créer tenant AVEC LE SLUG + TRIAL
@@ -263,7 +263,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      logger.error('Signup error', { error: error.message });
+      logger.error('Signup error', { error: error.message, stack: error.stack });
       return new Response(JSON.stringify({ success: false, error: 'Erreur lors de l\'inscription' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
   }
