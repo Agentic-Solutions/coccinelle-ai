@@ -383,7 +383,7 @@ async function handleCallAnalyzed(call, analysis, env) {
         to: prospectEmail,
         name: prospectName,
         duration: call.duration_ms ? Math.round(call.duration_ms / 1000) : 0,
-        summary: analysis?.call_summary || 'Merci pour votre appel avec Julien.',
+        summary: analysis?.call_summary || 'Merci pour votre appel avec Sara.',
         transcript: call.transcript || '',
         sector: call?.metadata?.prospect_sector || '',
         callId: call.call_id
@@ -419,7 +419,7 @@ async function sendDemoRecapEmail(env, data) {
       <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
         <p style="font-size: 16px; color: #374151;">Bonjour ${data.name},</p>
         
-        <p style="color: #374151; line-height: 1.6;">Vous venez de discuter avec <strong>Julien</strong>, notre agent vocal IA. En quelques minutes, vous avez pu voir comment coccinelle.ai peut transformer la gestion de vos appels clients.</p>
+        <p style="color: #374151; line-height: 1.6;">Vous venez de discuter avec <strong>Sara</strong>, notre agent vocal IA. En quelques minutes, vous avez pu voir comment coccinelle.ai peut transformer la gestion de vos appels clients.</p>
         
         <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0;">
           <table style="width: 100%;">
@@ -458,10 +458,11 @@ async function sendDemoRecapEmail(env, data) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Julien - coccinelle.ai <julien@coccinelle.ai>',
+        // TODO MANUEL : Mettre a jour le nom d'expediteur dans le dashboard Retell (Julien -> Sara)
+        from: 'Sara - coccinelle.ai <sara@coccinelle.ai>',
         reply_to: 'contact@agenticsolutions.fr',
         to: [data.to],
-        subject: data.name + ', voici le recap de votre appel avec Julien',
+        subject: data.name + ', voici le recap de votre appel avec Sara',
         html: html
       })
     });
@@ -799,11 +800,32 @@ function addMinutes(timeStr, minutes) {
 }
 
 async function bookAppointment(env, tenantId, args) {
-  const { date, time, client_name, client_phone, service_type, appointment_type_id } = args;
+  const { date, time, client_name, client_phone, client_email, service_type, appointment_type_id } = args;
 
   // Créer le RDV en base
   try {
     const id = `appt_${Date.now()}`;
+
+    // I3 — Dedup : creer ou retrouver le prospect avant de creer le RDV
+    let prospectId = null;
+    try {
+      if (client_phone || client_email) {
+        const dedupResult = await findOrCreateProspect(env, tenantId, {
+          phone: client_phone || null,
+          email: client_email || null,
+          first_name: client_name || null,
+          source: 'retell_booking'
+        });
+        prospectId = dedupResult.prospect.id;
+        logger.info('Prospect linked to appointment', {
+          prospectId,
+          merged: dedupResult.merged,
+          appointmentId: id
+        });
+      }
+    } catch (dedupErr) {
+      logger.warn('Prospect dedup failed during booking (non-blocking)', { error: dedupErr.message });
+    }
 
     // N2 — Si appointment_type_id fourni, récupérer la durée et vérifier le créneau
     let duration = 30;
@@ -831,9 +853,9 @@ async function bookAppointment(env, tenantId, args) {
     }
 
     await env.DB.prepare(`
-      INSERT INTO appointments (id, tenant_id, customer_name, customer_phone, scheduled_at, service_type, appointment_type_id, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', datetime('now'))
-    `).bind(id, tenantId, client_name, client_phone || '', `${date}T${time}:00`, typeName, appointment_type_id || null).run();
+      INSERT INTO appointments (id, tenant_id, prospect_id, customer_name, customer_phone, scheduled_at, service_type, appointment_type_id, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', datetime('now'))
+    `).bind(id, tenantId, prospectId, client_name, client_phone || '', `${date}T${time}:00`, typeName, appointment_type_id || null).run();
 
     // N3 — Envoyer confirmation unifiée (email + SMS si dispo)
     try {

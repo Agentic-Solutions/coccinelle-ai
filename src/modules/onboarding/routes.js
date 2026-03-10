@@ -811,6 +811,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
         const accountCreated = true;
 
         // 2. Profil entreprise complete (company_name + sector)
+        // Marque aussi comme fait si l'onboarding a renseigne ces champs
         const profileCompleted = !!(tenant.company_name && tenant.sector);
 
         // 3. Base de connaissances (au moins 1 document)
@@ -831,25 +832,51 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
           agentConfigured = !!agentResult;
         } catch (e) { /* table may not exist */ }
 
-        // 5. Appel test effectue
-        const testCallDone = tenant.test_call_done === 1;
+        // 5. Disponibilites configurees (au moins 1 creneau)
+        let availabilityDone = false;
+        try {
+          const availResult = await env.DB.prepare(
+            'SELECT id FROM availability_slots WHERE tenant_id = ? AND is_available = 1 LIMIT 1'
+          ).bind(tenantId).first();
+          availabilityDone = !!availResult;
+          // L'onboarding auto-generate cree des creneaux Lun-Ven 9h-18h => deja fait
+        } catch (e) { /* table may not exist */ }
 
-        // 6. Integrations (au moins un canal active ou OAuth)
-        let integrationsDone = false;
+        // 6. Types de RDV configures (au moins 1 type actif)
+        let appointmentTypesDone = false;
+        try {
+          const typesResult = await env.DB.prepare(
+            'SELECT id FROM appointment_types WHERE tenant_id = ? AND is_active = 1 LIMIT 1'
+          ).bind(tenantId).first();
+          appointmentTypesDone = !!typesResult;
+        } catch (e) { /* table may not exist */ }
+
+        // 7. Connexion email (OAuth token ou config email)
+        let emailConnected = false;
         try {
           const oauthResult = await env.DB.prepare(
             'SELECT id FROM oauth_tokens WHERE tenant_id = ? LIMIT 1'
           ).bind(tenantId).first();
-          integrationsDone = !!oauthResult;
+          emailConnected = !!oauthResult;
         } catch (e) { /* table may not exist */ }
 
+        // 8. Appel test effectue
+        const testCallDone = tenant.test_call_done === 1;
+
+        // Onboarding flow = config initiale rapide (etapes 1-4)
+        // Checklist = tout ce qui reste apres l'onboarding
+        // Les etapes faites pendant l'onboarding sont marquees comme completees
+        const onboardingDone = tenant.onboarding_completed === 1;
+
         const steps = [
-          { id: 'account', title: 'Compte cree', completed: accountCreated, href: null },
-          { id: 'profile', title: 'Profil entreprise', completed: profileCompleted, href: '/dashboard/settings' },
-          { id: 'knowledge', title: 'Base de connaissances', completed: kbCount >= 1, href: '/dashboard/knowledge' },
-          { id: 'agent', title: 'Agent vocal configure', completed: agentConfigured, href: '/dashboard/sara' },
-          { id: 'test_call', title: 'Appel test effectue', completed: testCallDone, href: '/dashboard/sara' },
-          { id: 'integrations', title: 'Integrations connectees', completed: integrationsDone, href: '/dashboard/settings/integrations' }
+          { id: 'account', title: 'Compte cree', completed: accountCreated, href: null, category: 'onboarding' },
+          { id: 'profile', title: 'Profil entreprise', completed: profileCompleted, href: '/dashboard/settings', category: 'onboarding' },
+          { id: 'agent', title: 'Agent vocal Sara configure', completed: agentConfigured, href: '/dashboard/sara', category: 'onboarding' },
+          { id: 'knowledge', title: 'Base de connaissances', completed: kbCount >= 1, href: '/dashboard/knowledge', category: 'onboarding' },
+          { id: 'availability', title: 'Disponibilites configurees', completed: availabilityDone, href: '/dashboard/settings', category: 'setup' },
+          { id: 'appointment_types', title: 'Types de rendez-vous', completed: appointmentTypesDone, href: '/dashboard/settings', category: 'setup' },
+          { id: 'email', title: 'Connexion email', completed: emailConnected, href: '/dashboard/channels/email', category: 'setup' },
+          { id: 'test_call', title: 'Appel test effectue', completed: testCallDone, href: '/dashboard/sara', category: 'setup' }
         ];
 
         const completedCount = steps.filter(s => s.completed).length;
