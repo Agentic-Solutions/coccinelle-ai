@@ -35,6 +35,7 @@ import { handleSupportRoutes } from './modules/support/routes.js';
 import { handleFaqRoutes } from './modules/faq/routes.js';
 import { handleChurnRoutes } from './modules/churn/routes.js';
 import { handleReportsRoutes } from './modules/reports/routes.js';
+import { handleCallsRoutes } from './modules/calls/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -222,6 +223,12 @@ export default {
       // Inclut /api/v1/twilio/*, /webhooks/twilio/*, /api/v1/sms/* et /api/v1/channels/sms/send
       if (path.startsWith('/api/v1/twilio') || path.startsWith('/webhooks/twilio') || path.startsWith('/api/v1/sms') || (path.startsWith('/api/v1/channels/sms/') && path !== '/api/v1/channels/sms')) {
         response = await handleTwilioRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Calls API (historique appels reels)
+      if (path.startsWith('/api/v1/calls')) {
+        response = await handleCallsRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 

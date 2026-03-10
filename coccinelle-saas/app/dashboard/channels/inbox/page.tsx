@@ -1,139 +1,179 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, MessageSquare, Mail, Phone, Send, Search, Filter } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, MessageSquare, Mail, Phone, Search, User, ExternalLink, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import Logo from '@/components/Logo';
 
-interface Message {
+const API_URL = 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+interface Prospect {
   id: string;
-  channel: 'sms' | 'email' | 'whatsapp' | 'telegram' | 'voice';
-  from: string;
-  fromName: string;
-  content: string;
-  timestamp: Date;
-  read: boolean;
-  direction: 'inbound' | 'outbound';
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  email: string | null;
+  status: string | null;
 }
 
 interface Conversation {
   id: string;
-  prospectName: string;
-  prospectPhone: string;
-  channel: 'sms' | 'email' | 'whatsapp' | 'telegram';
-  lastMessage: string;
-  lastMessageAt: Date;
-  unreadCount: number;
-  status: 'active' | 'closed';
+  customer_phone: string | null;
+  customer_email: string | null;
+  customer_name: string | null;
+  current_channel: string;
+  active_channels: string[];
+  last_intent: string | null;
+  last_sentiment: string | null;
+  status: string;
+  last_message: string | null;
+  message_count: number;
+  first_message_at: string | null;
+  last_message_at: string | null;
+  created_at: string;
+  prospect: Prospect | null;
+  customer_id: string | null;
+}
+
+interface Message {
+  id: string;
+  channel: string;
+  direction: string;
+  content: string;
+  content_type: string;
+  sender_role: string;
+  sentiment: string | null;
+  created_at: string;
 }
 
 export default function InboxPage() {
-  const [activeTab, setActiveTab] = useState<'all' | 'sms' | 'email' | 'whatsapp' | 'telegram'>('all');
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [messageInput, setMessageInput] = useState('');
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
+  const [linking, setLinking] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Données de démo
-  const demoConversations: Conversation[] = [
-    {
-      id: '1',
-      prospectName: 'Marie Dupont',
-      prospectPhone: '+33612345678',
-      channel: 'sms',
-      lastMessage: 'Merci pour le rappel RDV!',
-      lastMessageAt: new Date(Date.now() - 1000 * 60 * 5),
-      unreadCount: 2,
-      status: 'active',
-    },
-    {
-      id: '2',
-      prospectName: 'Jean Martin',
-      prospectPhone: '+33687654321',
-      channel: 'sms',
-      lastMessage: 'Je confirme ma visite demain',
-      lastMessageAt: new Date(Date.now() - 1000 * 60 * 30),
-      unreadCount: 0,
-      status: 'active',
-    },
-    {
-      id: '3',
-      prospectName: 'Sophie Bernard',
-      prospectPhone: '+33623456789',
-      channel: 'sms',
-      lastMessage: 'Besoin d\'annuler le RDV',
-      lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      unreadCount: 1,
-      status: 'active',
-    },
-  ];
+  const getToken = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('auth_token');
+    }
+    return null;
+  };
 
-  const demoMessages: Message[] = [
-    {
-      id: '1',
-      channel: 'sms',
-      from: '+33612345678',
-      fromName: 'Marie Dupont',
-      content: 'Bonjour, je souhaite prendre RDV',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      read: true,
-      direction: 'inbound',
-    },
-    {
-      id: '2',
-      channel: 'sms',
-      from: 'Coccinelle.AI',
-      fromName: 'Assistant (IA)',
-      content: 'Bonjour Marie! Avec plaisir. Quelle date vous conviendrait?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 28),
-      read: true,
-      direction: 'outbound',
-    },
-    {
-      id: '3',
-      channel: 'sms',
-      from: '+33612345678',
-      fromName: 'Marie Dupont',
-      content: 'Demain après-midi si possible',
-      timestamp: new Date(Date.now() - 1000 * 60 * 25),
-      read: true,
-      direction: 'inbound',
-    },
-    {
-      id: '4',
-      channel: 'sms',
-      from: 'Coccinelle.AI',
-      fromName: 'Assistant (IA)',
-      content: 'Parfait! RDV confirmé demain 15h. Vous recevrez un rappel 24h avant.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 23),
-      read: true,
-      direction: 'outbound',
-    },
-    {
-      id: '5',
-      channel: 'sms',
-      from: '+33612345678',
-      fromName: 'Marie Dupont',
-      content: 'Merci pour le rappel RDV!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      read: false,
-      direction: 'inbound',
-    },
-  ];
+  const fetchConversations = async () => {
+    const token = getToken();
+    if (!token) { setLoading(false); return; }
 
-  const filteredConversations = demoConversations.filter(conv => {
-    if (activeTab !== 'all' && conv.channel !== activeTab) return false;
-    if (searchQuery && !conv.prospectName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
+    try {
+      const params = new URLSearchParams({ status: 'all', limit: '100' });
+      if (activeTab !== 'all') params.set('channel', activeTab);
+
+      const res = await fetch(`${API_URL}/api/v1/omnichannel/inbox/conversations?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data.conversations || []);
+      }
+    } catch (err) {
+      console.error('Fetch conversations error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchConversationDetail = async (convId: string) => {
+    const token = getToken();
+    if (!token) return;
+
+    setLoadingMessages(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/omnichannel/inbox/conversations/${convId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data.messages || []);
+        setSelectedConv(data.conversation || null);
+      }
+    } catch (err) {
+      console.error('Fetch detail error:', err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const handleAutoLink = async () => {
+    if (!selectedId) return;
+    const token = getToken();
+    if (!token) return;
+
+    setLinking(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/omnichannel/inbox/conversations/${selectedId}/link`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.prospect) {
+          setSelectedConv(prev => prev ? { ...prev, prospect: data.prospect } : null);
+          setConversations(prev => prev.map(c =>
+            c.id === selectedId ? { ...c, prospect: data.prospect } : c
+          ));
+        }
+      }
+    } catch (err) {
+      console.error('Link error:', err);
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (selectedId) {
+      fetchConversationDetail(selectedId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const filteredConversations = conversations.filter(conv => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      conv.customer_name?.toLowerCase().includes(q) ||
+      conv.customer_phone?.includes(q) ||
+      conv.customer_email?.toLowerCase().includes(q) ||
+      conv.prospect?.first_name?.toLowerCase().includes(q) ||
+      conv.prospect?.last_name?.toLowerCase().includes(q) ||
+      conv.last_message?.toLowerCase().includes(q)
+    );
   });
-
-  const selectedConv = demoConversations.find(c => c.id === selectedConversation);
 
   const getChannelIcon = (channel: string) => {
     switch (channel) {
       case 'sms': return <MessageSquare className="w-4 h-4" />;
       case 'email': return <Mail className="w-4 h-4" />;
-      case 'whatsapp': return <MessageSquare className="w-4 h-4" />;
-      case 'telegram': return <Send className="w-4 h-4" />;
       case 'voice': return <Phone className="w-4 h-4" />;
       default: return <MessageSquare className="w-4 h-4" />;
     }
@@ -144,227 +184,307 @@ export default function InboxPage() {
       case 'sms': return 'text-blue-600 bg-blue-50';
       case 'email': return 'text-green-600 bg-green-50';
       case 'whatsapp': return 'text-emerald-600 bg-emerald-50';
-      case 'telegram': return 'text-sky-600 bg-sky-50';
       case 'voice': return 'text-purple-600 bg-purple-50';
       default: return 'text-gray-600 bg-gray-50';
     }
   };
 
-  const formatTimestamp = (date: Date) => {
+  const formatTimestamp = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 60) return `Il y a ${minutes}min`;
-    if (hours < 24) return `Il y a ${hours}h`;
+    if (minutes < 1) return 'Maintenant';
+    if (minutes < 60) return `${minutes}min`;
+    if (hours < 24) return `${hours}h`;
     if (days === 1) return 'Hier';
-    return `Il y a ${days}j`;
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
   };
 
-  const handleSendMessage = () => {
-    if (!messageInput.trim()) return;
-
-    // TODO: Envoyer le message via l'API
-    console.log('Envoi message:', messageInput);
-    setMessageInput('');
+  const getDisplayName = (conv: Conversation) => {
+    if (conv.prospect) {
+      return [conv.prospect.first_name, conv.prospect.last_name].filter(Boolean).join(' ');
+    }
+    if (conv.customer_name) return conv.customer_name;
+    return conv.customer_phone || conv.customer_email || 'Inconnu';
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            </Link>
-            <Logo size={48} />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Inbox Omnicanal</h1>
-              <p className="text-sm text-gray-600">Tous vos messages en un seul endroit</p>
-            </div>
+      <header className="bg-white border-b border-gray-200 flex-shrink-0">
+        <div className="px-4 sm:px-6 py-3 flex items-center gap-3">
+          <Link href="/dashboard/conversations" className="p-2 hover:bg-gray-100 rounded-lg">
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </Link>
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Inbox</h1>
+            <p className="text-xs text-gray-500">{conversations.length} conversation{conversations.length > 1 ? 's' : ''}</p>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
-        <div className="flex gap-6 h-[calc(100vh-200px)]">
-          {/* Liste des conversations */}
-          <div className="w-96 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col">
-            {/* Tabs canaux */}
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex gap-2 mb-4">
+      <div className="flex-1 flex overflow-hidden">
+        {/* Conversation list */}
+        <div className={`w-full sm:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col ${selectedId ? 'hidden sm:flex' : 'flex'}`}>
+          {/* Channel tabs */}
+          <div className="p-3 border-b border-gray-200">
+            <div className="flex gap-1 mb-3">
+              {['all', 'sms', 'email', 'whatsapp', 'voice'].map(tab => (
                 <button
-                  onClick={() => setActiveTab('all')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === 'all'
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                    activeTab === tab
                       ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  Tous
-                </button>
-                <button
-                  onClick={() => setActiveTab('sms')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === 'sms'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  SMS
-                </button>
-                <button
-                  onClick={() => setActiveTab('email')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === 'email'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Email
-                </button>
-              </div>
-
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
-              </div>
-            </div>
-
-            {/* Liste des conversations */}
-            <div className="flex-1 overflow-y-auto">
-              {filteredConversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => setSelectedConversation(conv.id)}
-                  className={`w-full p-4 border-b border-gray-200 text-left hover:bg-gray-50 transition-colors ${
-                    selectedConversation === conv.id ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${getChannelColor(conv.channel)}`}>
-                      {getChannelIcon(conv.channel)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-medium text-gray-900 truncate">
-                          {conv.prospectName}
-                        </h3>
-                        <span className="text-xs text-gray-500">
-                          {formatTimestamp(conv.lastMessageAt)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 truncate">{conv.lastMessage}</p>
-                      {conv.unreadCount > 0 && (
-                        <div className="mt-2">
-                          <span className="inline-block px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
-                            {conv.unreadCount} nouveau{conv.unreadCount > 1 ? 'x' : ''}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {tab === 'all' ? 'Tous' : tab.toUpperCase()}
                 </button>
               ))}
             </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Rechercher..."
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-gray-900"
+              />
+            </div>
           </div>
 
-          {/* Zone de conversation */}
-          <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col">
-            {selectedConv ? (
-              <>
-                {/* Header conversation */}
-                <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${getChannelColor(selectedConv.channel)}`}>
-                        {getChannelIcon(selectedConv.channel)}
+          {/* List */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="p-8 text-center">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">
+                <MessageSquare className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">Aucune conversation</p>
+              </div>
+            ) : (
+              filteredConversations.map(conv => (
+                <button
+                  key={conv.id}
+                  onClick={() => setSelectedId(conv.id)}
+                  className={`w-full p-3 border-b border-gray-100 text-left transition-colors ${
+                    selectedId === conv.id ? 'bg-blue-50' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className={`p-1.5 rounded-lg flex-shrink-0 ${getChannelColor(conv.current_channel)}`}>
+                      {getChannelIcon(conv.current_channel)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-medium text-gray-900 text-sm truncate">
+                          {getDisplayName(conv)}
+                        </h3>
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {formatTimestamp(conv.last_message_at)}
+                        </span>
                       </div>
-                      <div>
-                        <h2 className="font-semibold text-gray-900">{selectedConv.prospectName}</h2>
-                        <p className="text-sm text-gray-600">{selectedConv.prospectPhone}</p>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{conv.last_message || 'Pas de message'}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {conv.prospect && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Prospect lie</span>
+                        )}
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          conv.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {conv.status === 'active' ? 'Actif' : 'Ferme'}
+                        </span>
                       </div>
                     </div>
-                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                      <Filter className="w-5 h-5 text-gray-600" />
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Right panel: messages + prospect info */}
+        <div className={`flex-1 flex ${selectedId ? 'flex' : 'hidden sm:flex'}`}>
+          {selectedConv ? (
+            <>
+              {/* Messages area */}
+              <div className="flex-1 flex flex-col">
+                {/* Conversation header */}
+                <div className="p-3 border-b border-gray-200 bg-white flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedId(null)}
+                      className="sm:hidden p-1 hover:bg-gray-100 rounded"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
                     </button>
+                    <div className={`p-1.5 rounded-lg ${getChannelColor(selectedConv.current_channel)}`}>
+                      {getChannelIcon(selectedConv.current_channel)}
+                    </div>
+                    <div>
+                      <h2 className="font-medium text-gray-900 text-sm">{getDisplayName(selectedConv)}</h2>
+                      <p className="text-xs text-gray-500">
+                        {selectedConv.customer_phone || selectedConv.customer_email}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {demoMessages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                    >
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-gray-400">
+                      <p className="text-sm">Aucun message</p>
+                    </div>
+                  ) : (
+                    messages.map(msg => (
                       <div
-                        className={`max-w-[70%] rounded-lg px-4 py-2 ${
-                          msg.direction === 'outbound'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                        }`}
+                        key={msg.id}
+                        className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                       >
-                        <p className="text-sm">{msg.content}</p>
-                        <p
-                          className={`text-xs mt-1 ${
-                            msg.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500'
+                        <div
+                          className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                            msg.direction === 'outbound'
+                              ? 'bg-gray-900 text-white'
+                              : 'bg-white text-gray-900 border border-gray-200'
                           }`}
                         >
-                          {formatTimestamp(msg.timestamp)}
-                        </p>
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          <div className="flex items-center gap-1 mt-1 text-gray-400">
+                            <span className="text-xs">{msg.sender_role === 'agent' ? 'IA' : ''}</span>
+                            <span className="text-xs">{formatTimestamp(msg.created_at)}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Input message */}
-                <div className="p-4 border-t border-gray-200">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="Tapez votre message..."
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                    <button
-                      onClick={handleSendMessage}
-                      disabled={!messageInput.trim()}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Envoyer
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Canal: <span className="font-medium capitalize">{selectedConv.channel}</span> •
-                    Pressez Entrée pour envoyer
-                  </p>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-500">
-                <div className="text-center">
-                  <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium">Sélectionnez une conversation</p>
-                  <p className="text-sm">Choisissez une conversation pour commencer à échanger</p>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Prospect panel (right sidebar) */}
+              <div className="w-72 bg-white border-l border-gray-200 hidden xl:flex flex-col">
+                <div className="p-3 border-b border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-900">Fiche contact</h3>
+                </div>
+
+                <div className="p-3 flex-1 overflow-y-auto">
+                  {selectedConv.prospect ? (
+                    <div className="space-y-3">
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <User className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-900">
+                            {[selectedConv.prospect.first_name, selectedConv.prospect.last_name].filter(Boolean).join(' ')}
+                          </span>
+                        </div>
+                        {selectedConv.prospect.phone && (
+                          <p className="text-xs text-blue-700 mb-1">{selectedConv.prospect.phone}</p>
+                        )}
+                        {selectedConv.prospect.email && (
+                          <p className="text-xs text-blue-700 mb-1">{selectedConv.prospect.email}</p>
+                        )}
+                        {selectedConv.prospect.status && (
+                          <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded capitalize">
+                            {selectedConv.prospect.status}
+                          </span>
+                        )}
+                      </div>
+
+                      <Link
+                        href={`/dashboard/crm/prospects/${selectedConv.prospect.id}`}
+                        className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Voir la fiche
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="bg-gray-50 rounded-lg p-3 text-center">
+                        <User className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500 mb-1">Aucun prospect lie</p>
+                        <p className="text-xs text-gray-400">
+                          {selectedConv.customer_phone || selectedConv.customer_email || 'Contact inconnu'}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={handleAutoLink}
+                        disabled={linking}
+                        className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      >
+                        {linking ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Search className="w-4 h-4" />
+                        )}
+                        Lier automatiquement
+                      </button>
+
+                      <Link
+                        href={`/dashboard/crm/prospects/new?phone=${encodeURIComponent(selectedConv.customer_phone || '')}&email=${encodeURIComponent(selectedConv.customer_email || '')}&name=${encodeURIComponent(selectedConv.customer_name || '')}`}
+                        className="flex items-center justify-center gap-2 w-full px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Creer un prospect
+                      </Link>
+                    </div>
+                  )}
+
+                  {/* Conversation metadata */}
+                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                    <h4 className="text-xs font-medium text-gray-500 uppercase">Info conversation</h4>
+                    <div className="text-xs text-gray-600 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Canal</span>
+                        <span className="font-medium capitalize">{selectedConv.current_channel}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Statut</span>
+                        <span className={`font-medium ${selectedConv.status === 'active' ? 'text-green-600' : 'text-gray-500'}`}>
+                          {selectedConv.status === 'active' ? 'Actif' : 'Ferme'}
+                        </span>
+                      </div>
+                      {selectedConv.last_sentiment && (
+                        <div className="flex justify-between">
+                          <span>Sentiment</span>
+                          <span className="font-medium capitalize">{selectedConv.last_sentiment}</span>
+                        </div>
+                      )}
+                      {selectedConv.last_intent && (
+                        <div className="flex justify-between">
+                          <span>Intent</span>
+                          <span className="font-medium">{selectedConv.last_intent}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-400 bg-gray-50">
+              <div className="text-center">
+                <MessageSquare className="w-16 h-16 mx-auto mb-3 text-gray-200" />
+                <p className="font-medium text-gray-500">Selectionnez une conversation</p>
+                <p className="text-sm mt-1">Choisissez une conversation pour voir les messages</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

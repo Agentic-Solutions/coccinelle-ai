@@ -32,6 +32,7 @@ import {
 } from './controllers/email-config.js';
 import { sendEmail } from './controllers/email-send.js';
 import { handleOAuthCallback, getSharedWABAs } from './controllers/whatsapp-oauth.js';
+import { listInboxConversations, getInboxConversation, linkConversationToProspect } from './controllers/inbox.js';
 
 // Webhooks
 import { handleIncomingCall } from './webhooks/voice.js';
@@ -175,6 +176,27 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
     // POST /api/v1/omnichannel/email/send
     if (path === '/api/v1/omnichannel/email/send' && method === 'POST') {
       return await sendEmail(request, env);
+    }
+
+    // ============================================
+    // INBOX ROUTES — N7 Lien Inbox <-> Prospect
+    // ============================================
+
+    // GET /api/v1/omnichannel/inbox/conversations
+    if (path === '/api/v1/omnichannel/inbox/conversations' && method === 'GET') {
+      return await listInboxConversations(request, env);
+    }
+
+    // GET /api/v1/omnichannel/inbox/conversations/:id
+    const inboxDetailMatch = path.match(/^\/api\/v1\/omnichannel\/inbox\/conversations\/([^\/]+)$/);
+    if (inboxDetailMatch && method === 'GET') {
+      return await getInboxConversation(request, env, inboxDetailMatch[1]);
+    }
+
+    // POST /api/v1/omnichannel/inbox/conversations/:id/link
+    const inboxLinkMatch = path.match(/^\/api\/v1\/omnichannel\/inbox\/conversations\/([^\/]+)\/link$/);
+    if (inboxLinkMatch && method === 'POST') {
+      return await linkConversationToProspect(request, env, inboxLinkMatch[1]);
     }
 
     // ============================================
