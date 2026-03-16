@@ -1,5 +1,6 @@
 import DashboardSidebar from '../../components/DashboardSidebar';
 import NotificationBell from '../../components/NotificationBell';
+import PushBanner from '../../components/PushBanner';
 
 export default function DashboardLayout({
   children,
@@ -13,6 +14,7 @@ export default function DashboardLayout({
         <div className="flex justify-end items-center px-4 py-2 lg:px-6">
           <NotificationBell />
         </div>
+        <PushBanner />
         {children}
       </main>
     </div>

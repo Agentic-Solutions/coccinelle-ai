@@ -61,7 +61,7 @@ function StatusBadge({ status, color }: { status: string; color: string }) {
 function DashboardScreen() {
   const kpis = [
     { label: "Appels aujourd'hui", value: '23', change: '+15%', positive: true },
-    { label: 'RDV confirmes', value: '8', change: '+3', positive: true },
+    { label: 'RDV confirmés', value: '8', change: '+3', positive: true },
     { label: 'Taux conversion', value: '68%', change: '+5pts', positive: true },
   ];
   const weekData = [
@@ -110,7 +110,7 @@ function CallHistoryScreen() {
     { caller: 'Jean Dupont', duration: '3:24', result: 'RDV pris', sentiment: 'Positif', sentimentColor: 'green' },
     { caller: 'Marie Lambert', duration: '1:48', result: 'Information', sentiment: 'Neutre', sentimentColor: 'gray' },
     { caller: 'Pierre Roux', duration: '5:12', result: 'Rappel demande', sentiment: 'Positif', sentimentColor: 'green' },
-    { caller: 'Sophie Bernard', duration: '2:35', result: 'Transfere', sentiment: 'Neutre', sentimentColor: 'gray' },
+    { caller: 'Sophie Bernard', duration: '2:35', result: 'Transféré', sentiment: 'Neutre', sentimentColor: 'gray' },
     { caller: 'Luc Martin', duration: '4:07', result: 'RDV pris', sentiment: 'Positif', sentimentColor: 'green' },
   ];
   return (
@@ -119,8 +119,8 @@ function CallHistoryScreen() {
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200">
             <th className="text-left px-3 py-2 font-medium text-gray-600">Appelant</th>
-            <th className="text-left px-3 py-2 font-medium text-gray-600">Duree</th>
-            <th className="text-left px-3 py-2 font-medium text-gray-600">Resultat</th>
+            <th className="text-left px-3 py-2 font-medium text-gray-600">Durée</th>
+            <th className="text-left px-3 py-2 font-medium text-gray-600">Résultat</th>
             <th className="text-left px-3 py-2 font-medium text-gray-600">Sentiment</th>
           </tr>
         </thead>
@@ -129,7 +129,7 @@ function CallHistoryScreen() {
             <tr key={i} className="border-b border-gray-100 last:border-0">
               <td className="px-3 py-2 font-medium text-gray-900">{c.caller}</td>
               <td className="px-3 py-2 text-gray-600">{c.duration}</td>
-              <td className="px-3 py-2"><StatusBadge status={c.result} color={c.result === 'RDV pris' ? 'green' : c.result === 'Transfere' ? 'blue' : 'yellow'} /></td>
+              <td className="px-3 py-2"><StatusBadge status={c.result} color={c.result === 'RDV pris' ? 'green' : c.result === 'Transféré' ? 'blue' : 'yellow'} /></td>
               <td className="px-3 py-2"><StatusBadge status={c.sentiment} color={c.sentimentColor} /></td>
             </tr>
           ))}
@@ -145,7 +145,7 @@ function InboxScreen() {
     { name: 'Jean Dupont', channel: 'SMS', time: '14:32', unread: 0, preview: 'Merci pour le RDV de demain' },
     { name: 'Marie Lambert', channel: 'Email', time: '13:15', unread: 2, preview: 'Question sur vos tarifs...' },
     { name: 'Pierre Roux', channel: 'Appel', time: '12:04', unread: 0, preview: 'RDV pris pour jeudi 10h' },
-    { name: 'Sophie Bernard', channel: 'Email', time: '11:30', unread: 0, preview: 'Bien recu, a bientot' },
+    { name: 'Sophie Bernard', channel: 'Email', time: '11:30', unread: 0, preview: 'Bien reçu, à bientôt' },
   ];
   return (
     <div className="space-y-2">
@@ -181,9 +181,9 @@ function AppointmentsScreen() {
   const today = 16;
   const daysWithRdv = [3, 7, 10, 14, 16, 18, 21, 24, 28];
   const rdvs = [
-    { time: '09:00', name: 'Jean Dupont', type: 'Consultation', status: 'Confirme', color: 'green' },
+    { time: '09:00', name: 'Jean Dupont', type: 'Consultation', status: 'Confirmé', color: 'green' },
     { time: '10:30', name: 'Marie Lambert', type: 'Premiere visite', status: 'En attente', color: 'yellow' },
-    { time: '14:00', name: 'Pierre Roux', type: 'Suivi', status: 'Confirme', color: 'green' },
+    { time: '14:00', name: 'Pierre Roux', type: 'Suivi', status: 'Confirmé', color: 'green' },
   ];
   return (
     <div className="space-y-4">
@@ -295,9 +295,9 @@ function ProductsScreen() {
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200">
             <th className="text-left px-3 py-2 font-medium text-gray-600">Service</th>
-            <th className="text-left px-3 py-2 font-medium text-gray-600">Duree</th>
+            <th className="text-left px-3 py-2 font-medium text-gray-600">Durée</th>
             <th className="text-left px-3 py-2 font-medium text-gray-600">Prix</th>
-            <th className="text-left px-3 py-2 font-medium text-gray-600">Categorie</th>
+            <th className="text-left px-3 py-2 font-medium text-gray-600">Catégorie</th>
           </tr>
         </thead>
         <tbody>
@@ -318,9 +318,9 @@ function ProductsScreen() {
 // ── Screen 7: Knowledge Base ──
 function KnowledgeScreen() {
   const sources = [
-    { type: 'Crawl web', detail: 'https://mon-salon.fr — 32 pages indexees', time: 'Indexe il y a 2h', active: true },
+    { type: 'Crawl web', detail: 'https://mon-salon.fr — 32 pages indexées', time: 'Indexe il y a 2h', active: true },
     { type: 'Brochure PDF', detail: 'catalogue-services-2026.pdf', time: 'Indexe hier', active: true },
-    { type: 'FAQ manuelle', detail: '15 questions/reponses', time: 'Mis a jour ce matin', active: true },
+    { type: 'FAQ manuelle', detail: '15 questions/réponses', time: 'Mis à jour ce matin', active: true },
   ];
   const questions = [
     'Quels sont vos horaires ?',
@@ -343,7 +343,7 @@ function KnowledgeScreen() {
         ))}
       </div>
       <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-        <p className="text-xs font-medium text-gray-600 mb-2">Exemples de questions traitees</p>
+        <p className="text-xs font-medium text-gray-600 mb-2">Exemples de questions traitées</p>
         <div className="flex flex-wrap gap-2">
           {questions.map((q, i) => (
             <span key={i} className="text-xs bg-white px-2 py-1 rounded border border-gray-200 text-gray-700">
@@ -360,8 +360,8 @@ function KnowledgeScreen() {
 function ChannelsScreen() {
   const channels = [
     { name: 'Telephone', status: 'Actif', color: 'green', detail: '+33 9 39 03 57 61' },
-    { name: 'SMS', status: 'Actif', color: 'green', detail: 'Envoie automatique apres appel' },
-    { name: 'Email Gmail', status: 'Connecte', color: 'green', detail: 'contact@mon-salon.fr' },
+    { name: 'SMS', status: 'Actif', color: 'green', detail: 'Envoi automatique après appel' },
+    { name: 'Email Gmail', status: 'Connecté', color: 'green', detail: 'contact@mon-salon.fr' },
     { name: 'WhatsApp', status: 'En configuration', color: 'yellow', detail: 'Connexion en cours...' },
   ];
   return (
@@ -386,7 +386,7 @@ function ChannelsScreen() {
 function AnalyticsScreen() {
   const kpis = [
     { label: 'Appels ce mois', value: '342', change: '+22%' },
-    { label: 'Duree moyenne', value: '2m48s', change: '' },
+    { label: 'Durée moyenne', value: '2m48s', change: '' },
     { label: 'Satisfaction', value: '4.6/5', change: '' },
   ];
   const months = [
@@ -394,7 +394,7 @@ function AnalyticsScreen() {
     { m: 'Nov', h: 55 },
     { m: 'Dec', h: 48 },
     { m: 'Jan', h: 65 },
-    { m: 'Fev', h: 72 },
+    { m: 'Fév', h: 72 },
     { m: 'Mar', h: 90 },
   ];
   return (
@@ -456,7 +456,7 @@ function BookingScreen() {
         </div>
       </div>
       <div className="bg-white rounded-lg p-4 border border-gray-200">
-        <p className="text-xs font-medium text-gray-600 mb-2">Creneaux disponibles — Lundi 17 mars</p>
+        <p className="text-xs font-medium text-gray-600 mb-2">Créneaux disponibles — Lundi 17 mars</p>
         <div className="grid grid-cols-4 gap-2">
           {slots.map((s, i) => (
             <div
@@ -479,7 +479,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard',
     sidebarIndex: 0,
     value:
-      "En un coup d'oeil, vous savez combien d'appels ont ete traites, combien de RDV sont prevus et comment evolue votre conversion.",
+      "En un coup d'oeil, vous savez combien d'appels ont ete traités, combien de RDV sont prévus et comment evolue votre conversion.",
     content: <DashboardScreen />,
   },
   {
@@ -487,7 +487,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/appels',
     sidebarIndex: 1,
     value:
-      "Chaque appel est transcrit et analyse. Vous voyez qui a appele, si un RDV a ete pris, et le niveau de satisfaction.",
+      "Chaque appel est transcrit et analysé. Vous voyez qui a appelé, si un RDV a ete pris, et le niveau de satisfaction.",
     content: <CallHistoryScreen />,
   },
   {
@@ -495,7 +495,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/inbox',
     sidebarIndex: 2,
     value:
-      "Fini les allers-retours entre telephone, SMS et emails. Tout l'historique d'un contact est regroupe dans un seul fil.",
+      "Fini les allers-retours entre telephone, SMS et emails. Tout l'historique d'un contact est regroupé dans un seul fil.",
     content: <InboxScreen />,
   },
   {
@@ -503,7 +503,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/appointments',
     sidebarIndex: 3,
     value:
-      'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Le client recoit une confirmation immediate.',
+      'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Le client reçoit une confirmation immédiate.',
     content: <AppointmentsScreen />,
   },
   {
@@ -511,7 +511,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/prospects',
     sidebarIndex: 4,
     value:
-      'Chaque contact est enregistre, deduplique et score automatiquement. Vous savez qui relancer en priorite.',
+      'Chaque contact est enregistré, dédupliqué et classé automatiquement. Vous savez qui relancer en priorité.',
     content: <ProspectsScreen />,
   },
   {
@@ -519,7 +519,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/products',
     sidebarIndex: 5,
     value:
-      "L'assistant connait vos services, durees et prix. Il repond immediatement et propose des creneaux adaptes.",
+      "L'assistant connait vos services, durees et prix. Il répond immédiatement et propose des créneaux adaptés.",
     content: <ProductsScreen />,
   },
   {
@@ -535,7 +535,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/channels',
     sidebarIndex: 7,
     value:
-      "Vos clients vous contactent par le canal de leur choix. L'assistant gere tout et peut basculer d'un canal a l'autre.",
+      "Vos clients vous contactent par le canal de leur choix. L'assistant gère tout et peut basculer d'un canal à l'autre.",
     content: <ChannelsScreen />,
   },
   {
@@ -543,7 +543,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/analytics',
     sidebarIndex: 8,
     value:
-      'Recap hebdomadaire par email. Tableaux de bord, tendances, export CSV.',
+      'Récap hebdomadaire par email. Tableaux de bord, tendances, export CSV.',
     content: <AnalyticsScreen />,
   },
   {
@@ -551,7 +551,7 @@ const tourScreens: TourScreen[] = [
     url: '/booking/mon-salon',
     sidebarIndex: 9,
     value:
-      'Vos clients reservent en ligne 24h/24 sans vous appeler. Prospect cree, confirmation envoyee, rappel programme.',
+      'Vos clients réservent en ligne 24h/24 sans vous appeler. Prospect créé, confirmation envoyée, rappel programmé.',
     content: <BookingScreen />,
   },
 ];
@@ -681,7 +681,7 @@ export default function ProductTourModal({ isOpen, onClose }: ProductTourModalPr
             className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed transition"
           >
             <ChevronLeftIcon className="w-4 h-4" />
-            Precedent
+            Précédent
           </button>
 
           {/* Dots */}
@@ -702,7 +702,7 @@ export default function ProductTourModal({ isOpen, onClose }: ProductTourModalPr
               href="/signup"
               className="inline-flex items-center gap-1 px-5 py-2 text-sm font-semibold text-white bg-[#D85A30] hover:bg-[#993C1D] rounded-lg transition"
             >
-              Demarrer gratuitement
+              Démarrer gratuitement
               <ArrowRightIcon className="w-4 h-4" />
             </Link>
           ) : (

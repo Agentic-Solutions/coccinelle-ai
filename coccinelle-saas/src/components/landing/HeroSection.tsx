@@ -16,12 +16,12 @@ export default function HeroSection({ onOpenTour }: HeroSectionProps) {
         <div className="text-center max-w-4xl mx-auto mb-16">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
             La plateforme tout-en-un qui{' '}
-            <span className="text-[#D85A30]">gere vos clients, vos rendez-vous et vos appels</span>
+            <span className="text-[#D85A30]">gère vos clients, vos rendez-vous et vos appels</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-gray-600 mb-10 leading-relaxed max-w-3xl mx-auto">
-            CRM, agenda, messagerie, catalogue de services, reservation en ligne et assistant vocal
-            — tout ce dont votre entreprise a besoin, dans un seul outil. Pret en 5 minutes.
+            CRM, agenda, messagerie, catalogue de services, réservation en ligne et assistant vocal
+            — tout ce dont votre entreprise a besoin, dans un seul outil. Prêt en 5 minutes.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -29,14 +29,14 @@ export default function HeroSection({ onOpenTour }: HeroSectionProps) {
               href="/signup"
               className="inline-flex items-center px-8 py-4 text-base font-semibold rounded-lg text-white bg-[#D85A30] hover:bg-[#993C1D] shadow-lg hover:shadow-xl transition-all"
             >
-              Demarrer gratuitement
+              Démarrer gratuitement
               <ArrowRightIcon className="ml-2 h-5 w-5" />
             </Link>
             <button
               onClick={onOpenTour}
               className="inline-flex items-center px-8 py-4 border-2 border-gray-300 text-base font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all"
             >
-              Voir la demo
+              Voir la démo
             </button>
           </div>
 
@@ -65,7 +65,7 @@ export default function HeroSection({ onOpenTour }: HeroSectionProps) {
           </div>
           <div className="bg-white rounded-xl p-5 shadow-lg border border-gray-100 text-center">
             <div className="text-3xl font-bold text-gray-900 mb-1">6</div>
-            <div className="text-sm text-gray-600">Canaux integres</div>
+            <div className="text-sm text-gray-600">Canaux intégrés</div>
           </div>
           <div className="bg-white rounded-xl p-5 shadow-lg border border-gray-100 text-center">
             <div className="text-3xl font-bold text-gray-900 mb-1">24/7</div>

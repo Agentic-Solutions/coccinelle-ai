@@ -7,28 +7,28 @@ interface ComparisonRow {
 
 const comparisons: ComparisonRow[] = [
   {
-    before: 'Vos prospects sont notes sur un carnet ou un fichier Excel',
-    after: 'Tous vos contacts sont centralises et classes automatiquement',
+    before: 'Vos prospects sont notés sur un carnet ou un fichier Excel',
+    after: 'Tous vos contacts sont centralisés et classés automatiquement',
   },
   {
-    before: 'Vous manquez 30% des appels quand vous etes occupe',
-    after: 'Un assistant vocal repond a votre place 24h/24',
+    before: 'Vous manquez 30% des appels quand vous êtes occupé',
+    after: 'Un assistant vocal répond à votre place 24h/24',
   },
   {
-    before: 'Les clients prennent RDV par telephone, avec des allers-retours',
-    after: 'Une page de reservation en ligne accessible 24h/24',
+    before: 'Les clients prennent RDV par téléphone, avec des allers-retours',
+    after: 'Une page de réservation en ligne accessible 24h/24',
   },
   {
-    before: 'Vos messages sont disperses entre telephone, SMS et email',
-    after: 'Tous vos echanges regroupes dans une seule boite de reception',
+    before: 'Vos messages sont dispersés entre téléphone, SMS et email',
+    after: 'Tous vos échanges regroupés dans une seule boîte de réception',
   },
   {
-    before: 'Vous envoyez les rappels de RDV a la main (ou vous oubliez)',
-    after: 'Confirmations et rappels envoyes automatiquement par SMS',
+    before: 'Vous envoyez les rappels de RDV à la main (ou vous oubliez)',
+    after: 'Confirmations et rappels envoyés automatiquement par SMS',
   },
   {
-    before: 'Vous n\'avez aucune vue d\'ensemble sur votre activite',
-    after: 'Un tableau de bord en temps reel et un recapitulatif chaque lundi',
+    before: 'Vous n\'avez aucune vue d\'ensemble sur votre activité',
+    after: 'Un tableau de bord en temps réel et un récapitulatif chaque lundi',
   },
 ];
 
@@ -41,7 +41,7 @@ export default function ComparisonSection() {
             Pourquoi Coccinelle ?
           </h2>
           <p className="text-lg text-gray-600">
-            Comparez votre quotidien avant et apres
+            Comparez votre quotidien avant et après
           </p>
         </div>
 

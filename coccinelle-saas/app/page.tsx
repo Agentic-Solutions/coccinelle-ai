@@ -20,13 +20,13 @@ import {
 const sectors = [
   {
     icon: ScissorsIcon,
-    title: 'Coiffure et beaute',
-    description: 'Vos clientes reservent en ligne pendant que vous coiffez. Rappels automatiques, zero appel a gerer.',
+    title: 'Coiffure et beauté',
+    description: 'Vos clientes réservent en ligne pendant que vous coiffez. Rappels automatiques, zéro appel à gérer.',
   },
   {
     icon: HeartPulseIcon,
-    title: 'Sante et medical',
-    description: 'Vos patients prennent RDV sans attendre au telephone. L\'assistant gere les demandes de renouvellement et les urgences.',
+    title: 'Santé et médical',
+    description: 'Vos patients prennent RDV sans attendre au téléphone. L\'assistant gère les demandes de renouvellement et les urgences.',
   },
   {
     icon: BuildingIcon,
@@ -36,12 +36,12 @@ const sectors = [
   {
     icon: UtensilsIcon,
     title: 'Restauration',
-    description: 'Reservation de tables par telephone et en ligne, meme a minuit. Confirmations automatiques, annulations gerees.',
+    description: 'Réservation de tables par téléphone et en ligne, même à minuit. Confirmations automatiques, annulations gérées.',
   },
   {
     icon: DumbbellIcon,
     title: 'Fitness et sport',
-    description: 'Reservation de cours et de creneaux en self-service. Vos adherents gerent tout depuis leur telephone.',
+    description: 'Réservation de cours et de créneaux en self-service. Vos adhérents gèrent tout depuis leur téléphone.',
   },
   {
     icon: BriefcaseIcon,
@@ -66,9 +66,9 @@ export default function LandingPage() {
               <span className="ml-3 text-xl font-bold text-gray-900">coccinelle.ai</span>
             </Link>
             <nav className="hidden md:flex items-center space-x-8">
-              <a href="#fonctionnalites" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Fonctionnalites</a>
+              <a href="#fonctionnalites" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Fonctionnalités</a>
               <a href="#secteurs" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Secteurs</a>
-              <a href="#demo" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Demo</a>
+              <a href="#demo" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Démo</a>
               <a href="#tarifs" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Tarifs</a>
               <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">
                 Connexion
@@ -87,21 +87,21 @@ export default function LandingPage() {
       {/* 1. Hero */}
       <HeroSection onOpenTour={() => setTourOpen(true)} />
 
-      {/* 2. Fonctionnalites */}
+      {/* 2. Fonctionnalités */}
       <FeaturesSection />
 
       {/* 3. Pourquoi Coccinelle */}
       <ComparisonSection />
 
-      {/* 4. Decouvrez la plateforme */}
+      {/* 4. Découvrez la plateforme */}
       <section id="demo" className="py-20 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Decouvrez la plateforme
+              Découvrez la plateforme
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Une interface intuitive qui gere tous vos appels, rendez-vous et clients en une seule plateforme
+              Une interface intuitive qui gère tous vos appels, rendez-vous et clients en une seule plateforme
             </p>
           </div>
 
@@ -109,7 +109,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 5. Demo interactive */}
+      {/* 5. Démo interactive */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -117,7 +117,7 @@ export default function LandingPage() {
               Regardez comme c&apos;est facile
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Decouvrez en 2 minutes comment Coccinelle simplifie votre quotidien
+              Découvrez en 2 minutes comment Coccinelle simplifie votre quotidien
             </p>
           </div>
 
@@ -129,10 +129,10 @@ export default function LandingPage() {
               <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5v14l11-7z" />
               </svg>
-              Lancer la demonstration
+              Lancer la démonstration
             </button>
             <p className="mt-4 text-sm text-gray-500">
-              Duree : 2 minutes -- 10 modules essentiels
+              Durée : 2 minutes — 10 modules essentiels
             </p>
           </div>
         </div>
@@ -146,7 +146,7 @@ export default function LandingPage() {
               Pour tous types de secteurs
             </h2>
             <p className="text-lg text-gray-600">
-              Coccinelle s&apos;adapte a votre metier
+              Coccinelle s&apos;adapte à votre métier
             </p>
           </div>
 
@@ -169,7 +169,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 7. Temoignages */}
+      {/* 7. Témoignages */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -186,7 +186,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6">
-                &quot;Avec Coccinelle, 95% de nos appels clients sont maintenant traites immediatement. La satisfaction client a explose et nos equipes peuvent se concentrer sur les cas complexes.&quot;
+                &quot;Avec Coccinelle, 95% de nos appels clients sont maintenant traités immédiatement. La satisfaction client a explosé et nos équipes peuvent se concentrer sur les cas complexes.&quot;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -206,7 +206,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6">
-                &quot;Depuis que j&apos;utilise Coccinelle, je ne rate plus aucun appel. Mes clientes reservent en ligne et je recois un recapitulatif chaque matin. Un vrai gain de temps.&quot;
+                &quot;Depuis que j&apos;utilise Coccinelle, je ne rate plus aucun appel. Mes clientes réservent en ligne et je reçois un récapitulatif chaque matin. Un vrai gain de temps.&quot;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -214,7 +214,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <div className="font-semibold text-gray-900">Thomas Dupont</div>
-                  <div className="text-sm text-gray-600">Gerant de salon</div>
+                  <div className="text-sm text-gray-600">Gérant de salon</div>
                 </div>
               </div>
             </div>
@@ -226,7 +226,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6">
-                &quot;Installation en 5 minutes, interface claire. Mon equipe traite maintenant 3 fois plus de demandes sans effort. Les clients apprecient les reponses instantanees.&quot;
+                &quot;Installation en 5 minutes, interface claire. Mon équipe traite maintenant 3 fois plus de demandes sans effort. Les clients apprécient les réponses instantanées.&quot;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -250,7 +250,7 @@ export default function LandingPage() {
               Tarification simple et transparente
             </h2>
             <p className="text-xl text-gray-600">
-              Choisissez l&apos;offre adaptee a votre activite
+              Choisissez l&apos;offre adaptée à votre activité
             </p>
           </div>
 
@@ -270,6 +270,10 @@ export default function LandingPage() {
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
                   <span className="text-gray-700">1 assistant vocal</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">50 SMS/mois inclus</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
@@ -307,7 +311,7 @@ export default function LandingPage() {
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>Appels illimites</span>
+                  <span>Appels illimités</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -315,15 +319,19 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>200 SMS/mois inclus</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   <span>Tout Starter +</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>Rapports detailles</span>
+                  <span>Rapports détaillés</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>Equipes et droits d&apos;acces</span>
+                  <span>Équipes et droits d&apos;accès</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -347,11 +355,15 @@ export default function LandingPage() {
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Volume personnalise</span>
+                  <span className="text-gray-700">Volume personnalisé</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Assistants illimites</span>
+                  <span className="text-gray-700">Assistants illimités</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">SMS illimités</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
@@ -363,11 +375,11 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">API & integrations</span>
+                  <span className="text-gray-700">API & intégrations</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Interlocuteur dedie</span>
+                  <span className="text-gray-700">Interlocuteur dédié</span>
                 </li>
               </ul>
               <a
@@ -378,18 +390,22 @@ export default function LandingPage() {
               </a>
             </div>
           </div>
+
+          <p className="text-center text-sm text-gray-500 mt-8">
+            Les SMS de confirmation et de rappel sont inclus dans chaque plan. Au-delà du quota, chaque SMS supplémentaire est facturé 0,07 €.
+          </p>
         </div>
       </section>
 
-      {/* 9. Securite et conformite */}
+      {/* 9. Sécurité et conformité */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Securite et conformite
+              Sécurité et conformité
             </h2>
             <p className="text-lg text-gray-600">
-              Vos donnees sont protegees et conformes aux normes les plus strictes
+              Vos données sont protégées et conformes aux normes les plus strictes
             </p>
           </div>
 
@@ -407,15 +423,15 @@ export default function LandingPage() {
                 <Shield className="w-8 h-8 text-gray-900" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-2">ISO 27001</h3>
-              <p className="text-sm text-gray-600">Certification securite</p>
+              <p className="text-sm text-gray-600">Certification sécurité</p>
             </div>
 
             <div className="text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Shield className="w-8 h-8 text-gray-900" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Hebergement EU</h3>
-              <p className="text-sm text-gray-600">Donnees en France</p>
+              <h3 className="font-semibold text-gray-900 mb-2">Hébergement EU</h3>
+              <p className="text-sm text-gray-600">Données en France</p>
             </div>
 
             <div className="text-center">
@@ -433,10 +449,10 @@ export default function LandingPage() {
       <section className="py-20 px-4 bg-gradient-to-br from-gray-900 to-gray-800">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold text-white mb-6">
-            Pret a simplifier votre quotidien ?
+            Prêt à simplifier votre quotidien ?
           </h2>
           <p className="text-xl text-gray-300 mb-10">
-            Rejoignez les professionnels qui gerent leurs clients, rendez-vous et appels avec coccinelle.ai.
+            Rejoignez les professionnels qui gèrent leurs clients, rendez-vous et appels avec coccinelle.ai.
             <br />
             Essai gratuit de 14 jours, sans engagement.
           </p>
@@ -445,14 +461,14 @@ export default function LandingPage() {
               href="/signup"
               className="inline-flex items-center justify-center px-8 py-4 border border-transparent text-base font-semibold rounded-lg text-gray-900 bg-white hover:bg-gray-50 shadow-lg transition-all"
             >
-              Demarrer gratuitement
+              Démarrer gratuitement
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
             <button
               onClick={() => setTourOpen(true)}
               className="inline-flex items-center justify-center px-8 py-4 border-2 border-white text-base font-semibold rounded-lg text-white hover:bg-gray-800 transition-all"
             >
-              Voir la demo
+              Voir la démo
             </button>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-8 mt-10 text-sm text-gray-300">
@@ -466,7 +482,7 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-2">
               <Check className="w-5 h-5" />
-              Annulation a tout moment
+              Annulation à tout moment
             </div>
           </div>
         </div>
@@ -484,34 +500,34 @@ export default function LandingPage() {
                 <span className="ml-3 text-xl font-bold text-white">coccinelle.ai</span>
               </div>
               <p className="text-sm text-gray-400">
-                La plateforme tout-en-un qui gere vos clients, rendez-vous et appels 24/7.
+                La plateforme tout-en-un qui gère vos clients, rendez-vous et appels 24/7.
               </p>
             </div>
 
             <div>
               <h4 className="font-semibold text-white mb-4">Produit</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#fonctionnalites" className="hover:text-white transition">Fonctionnalites</a></li>
+                <li><a href="#fonctionnalites" className="hover:text-white transition">Fonctionnalités</a></li>
                 <li><a href="#tarifs" className="hover:text-white transition">Tarifs</a></li>
-                <li><a href="#demo" className="hover:text-white transition">Demo</a></li>
+                <li><a href="#demo" className="hover:text-white transition">Démo</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-semibold text-white mb-4">Entreprise</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="/about" className="hover:text-white transition">A propos</a></li>
+                <li><a href="/about" className="hover:text-white transition">À propos</a></li>
                 <li><a href="/blog" className="hover:text-white transition">Blog</a></li>
                 <li><a href="mailto:contact@coccinelle.ai" className="hover:text-white transition">Contact</a></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold text-white mb-4">Legal</h4>
+              <h4 className="font-semibold text-white mb-4">Légal</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="/confidentialite" className="hover:text-white transition">Confidentialite</Link></li>
+                <li><Link href="/confidentialite" className="hover:text-white transition">Confidentialité</Link></li>
                 <li><Link href="/cgu" className="hover:text-white transition">CGU</Link></li>
-                <li><Link href="/mentions-legales" className="hover:text-white transition">Mentions legales</Link></li>
+                <li><Link href="/mentions-legales" className="hover:text-white transition">Mentions légales</Link></li>
               </ul>
             </div>
           </div>
@@ -519,7 +535,7 @@ export default function LandingPage() {
           <div className="border-t border-gray-800 pt-8">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <p className="text-sm text-gray-400">
-                &copy; 2025 coccinelle.ai. Tous droits reserves.
+                &copy; 2025 coccinelle.ai. Tous droits réservés.
               </p>
               <div className="flex items-center gap-6">
                 <a href="mailto:contact@coccinelle.ai" className="text-gray-400 hover:text-white transition">

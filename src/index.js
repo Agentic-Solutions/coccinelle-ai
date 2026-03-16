@@ -36,6 +36,7 @@ import { handleFaqRoutes } from './modules/faq/routes.js';
 import { handleChurnRoutes } from './modules/churn/routes.js';
 import { handleReportsRoutes } from './modules/reports/routes.js';
 import { handleCallsRoutes } from './modules/calls/routes.js';
+import { handlePushRoutes } from './modules/push/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -100,6 +101,12 @@ export default {
       // Notifications
       if (path.startsWith('/api/v1/notifications')) {
         response = await handleNotificationsRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Push notifications
+      if (path.startsWith('/api/v1/push')) {
+        response = await handlePushRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 

@@ -1,7 +1,8 @@
 import { logger } from './logger.js';
+import { sendPushToTenant } from '../modules/push/push-service.js';
 
 /**
- * Helper pour créer des notifications en base
+ * Helper pour créer des notifications en base + envoi push navigateur
  */
 export async function createNotification(env, { tenant_id, user_id, type, title, message, data }) {
   const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -9,6 +10,27 @@ export async function createNotification(env, { tenant_id, user_id, type, title,
     INSERT INTO notifications (id, tenant_id, user_id, type, title, message, data, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `).bind(id, tenant_id, user_id || null, type, title, message || null, data ? JSON.stringify(data) : null).run();
+
+  // Send browser push notification (best-effort, non-blocking)
+  try {
+    if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY_JWK) {
+      const pushUrl = type === 'new_appointment' ? '/dashboard/appointments'
+        : type === 'missed_call' ? '/dashboard/calls'
+        : type === 'new_prospect' ? '/dashboard/prospects'
+        : type === 'new_message' ? '/dashboard/inbox'
+        : '/dashboard';
+
+      await sendPushToTenant(env, tenant_id, {
+        title: title,
+        body: message || '',
+        url: pushUrl,
+        tag: type,
+      });
+    }
+  } catch (pushErr) {
+    logger.warn('Push notification failed (non-blocking)', { error: pushErr.message });
+  }
+
   return id;
 }
 
