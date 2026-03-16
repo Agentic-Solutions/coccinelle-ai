@@ -3,7 +3,6 @@ import {
   FileTextIcon,
   ClockIcon,
   InboxIcon,
-  SettingsIcon,
   SwitchIcon,
   UsersIcon,
   CalendarIcon,
@@ -11,6 +10,14 @@ import {
   ShoppingBagIcon,
   BookOpenIcon,
   BarChartIcon,
+  BellIcon,
+  UploadIcon,
+  MessageCircleIcon,
+  SearchIcon,
+  HelpCircleIcon,
+  MailIcon,
+  HomeIcon,
+  LinkIcon,
 } from './icons';
 
 interface FeatureCard {
@@ -30,7 +37,115 @@ interface FeatureGroup {
 
 const featureGroups: FeatureGroup[] = [
   {
-    label: 'Votre assistant vocal IA',
+    label: 'Gestion de vos contacts',
+    color: 'text-[#185FA5]',
+    borderColor: 'border-l-[#185FA5]',
+    bgColor: 'bg-blue-50',
+    iconBg: 'bg-blue-100 text-[#185FA5]',
+    cards: [
+      {
+        icon: UsersIcon,
+        title: 'Fiches prospects et clients',
+        description:
+          'Chaque personne qui vous contacte est automatiquement enregistree avec son nom, telephone et email. Les doublons sont detectes et fusionnes. Vous retrouvez tout l\'historique en un clic.',
+      },
+      {
+        icon: BarChartIcon,
+        title: 'Classement automatique',
+        description:
+          'Vos contacts sont classes automatiquement : chaud (pret a acheter), tiede (interesse) ou froid (a relancer). Vous savez immediatement qui appeler en priorite.',
+      },
+      {
+        icon: UploadIcon,
+        title: 'Import et export',
+        description:
+          'Importez vos contacts existants depuis un fichier Excel ou CSV. Exportez vos donnees a tout moment. Vos informations vous appartiennent.',
+      },
+    ],
+  },
+  {
+    label: 'Rendez-vous et reservation',
+    color: 'text-[#0F6E56]',
+    borderColor: 'border-l-[#0F6E56]',
+    bgColor: 'bg-emerald-50',
+    iconBg: 'bg-emerald-100 text-[#0F6E56]',
+    cards: [
+      {
+        icon: CalendarIcon,
+        title: 'Agenda intelligent',
+        description:
+          'Calendrier visuel avec vue jour, semaine et mois. Creez vos types de rendez-vous (consultation, coupe, visite...) avec la duree correspondante.',
+      },
+      {
+        icon: BellIcon,
+        title: 'Confirmations et rappels automatiques',
+        description:
+          'Des qu\'un RDV est pris, votre client recoit un SMS de confirmation. Un rappel est envoye la veille et 1 heure avant. Fini les oublis et les rendez-vous rates.',
+      },
+      {
+        icon: GlobeIcon,
+        title: 'Page de reservation en ligne',
+        description:
+          'Vos clients prennent RDV directement depuis un lien personnalise, 24h/24, sans vous appeler. Partagez ce lien sur votre site, Google ou Instagram.',
+      },
+    ],
+  },
+  {
+    label: 'Tous vos messages au meme endroit',
+    color: 'text-[#534AB7]',
+    borderColor: 'border-l-[#534AB7]',
+    bgColor: 'bg-violet-50',
+    iconBg: 'bg-violet-100 text-[#534AB7]',
+    cards: [
+      {
+        icon: InboxIcon,
+        title: 'Boite de reception unifiee',
+        description:
+          'Retrouvez tous vos echanges avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications differentes.',
+      },
+      {
+        icon: MessageCircleIcon,
+        title: '6 canaux integres',
+        description:
+          'Telephone, SMS, Email (Gmail, Outlook), WhatsApp. Activez chaque canal en quelques clics. Vos clients vous contactent comme ils preferent.',
+      },
+      {
+        icon: BellIcon,
+        title: 'Notifications en temps reel',
+        description:
+          'Nouveau message, RDV confirme, appel manque : vous etes prevenu instantanement.',
+      },
+    ],
+  },
+  {
+    label: 'Votre catalogue de produits et services',
+    color: 'text-[#854F0B]',
+    borderColor: 'border-l-[#854F0B]',
+    bgColor: 'bg-amber-50',
+    iconBg: 'bg-amber-100 text-[#854F0B]',
+    cards: [
+      {
+        icon: ShoppingBagIcon,
+        title: 'Gerez votre offre',
+        description:
+          'Ajoutez vos services (coupe, coloration, consultation...) avec leur duree et leur prix. Organisez-les par categorie. Modifiez a tout moment.',
+      },
+      {
+        icon: MicIcon,
+        title: 'Votre assistant connait votre catalogue',
+        description:
+          'Quand un client demande "Combien coute une coloration ?", l\'assistant repond avec le bon tarif et peut proposer un creneau adapte a la duree du service.',
+      },
+      {
+        icon: UploadIcon,
+        title: 'Plusieurs methodes d\'ajout',
+        description:
+          'Importez un fichier, laissez l\'outil analyser votre site web automatiquement, ou saisissez vos services a la main. Comme vous preferez.',
+      },
+    ],
+  },
+  {
+    label: 'Assistant vocal intelligent',
     color: 'text-[#D85A30]',
     borderColor: 'border-l-[#D85A30]',
     bgColor: 'bg-orange-50',
@@ -38,102 +153,75 @@ const featureGroups: FeatureGroup[] = [
     cards: [
       {
         icon: MicIcon,
-        title: 'Assistant vocal IA',
+        title: 'Reponse automatique 24h/24',
         description:
-          'Repond aux appels 24/7, qualifie les prospects, prend les RDV et envoie des confirmations en temps reel.',
-      },
-      {
-        icon: FileTextIcon,
-        title: 'Historique des appels',
-        description:
-          'Chaque appel transcrit, resume et analyse (sentiment, duree, resultat).',
-      },
-      {
-        icon: ClockIcon,
-        title: 'Horaires intelligents',
-        description:
-          "L'assistant adapte son discours : prise de RDV en heures ouvrees, collecte de coordonnees hors horaires.",
-      },
-    ],
-  },
-  {
-    label: 'Tous vos canaux, une seule boite',
-    color: 'text-blue-600',
-    borderColor: 'border-l-blue-500',
-    bgColor: 'bg-blue-50',
-    iconBg: 'bg-blue-100 text-blue-600',
-    cards: [
-      {
-        icon: InboxIcon,
-        title: 'Inbox omnicanal',
-        description:
-          'Appels, SMS, email et WhatsApp regroupes dans un fil unique par contact.',
-      },
-      {
-        icon: SettingsIcon,
-        title: 'Canaux configurables',
-        description:
-          'Activez telephone, SMS, email Gmail/Outlook, WhatsApp en quelques clics.',
-      },
-      {
-        icon: SwitchIcon,
-        title: 'Channel switching',
-        description:
-          "L'assistant peut envoyer un SMS ou email pendant un appel vocal.",
-      },
-    ],
-  },
-  {
-    label: 'Gestion commerciale automatisee',
-    color: 'text-[#0F6E56]',
-    borderColor: 'border-l-[#0F6E56]',
-    bgColor: 'bg-emerald-50',
-    iconBg: 'bg-emerald-100 text-[#0F6E56]',
-    cards: [
-      {
-        icon: UsersIcon,
-        title: 'CRM et prospects',
-        description:
-          'Deduplication automatique, scoring IA, conversion prospect vers client en 1 clic.',
+          'Un assistant repond a vos appels quand vous etes occupe ou en dehors de vos horaires. Il se presente au nom de votre entreprise, avec un message d\'accueil que vous personnalisez.',
       },
       {
         icon: CalendarIcon,
-        title: 'Rendez-vous',
+        title: 'Prise de RDV par telephone',
         description:
-          'Calendrier, types de RDV avec durees, rappels automatiques, confirmations unifiees.',
+          'L\'assistant consulte votre agenda et votre catalogue, identifie le besoin du client et reserve un creneau en temps reel. Votre client recoit une confirmation par SMS dans la seconde.',
       },
       {
-        icon: GlobeIcon,
-        title: 'Page de reservation publique',
+        icon: SwitchIcon,
+        title: 'Envoi de SMS ou email pendant l\'appel',
         description:
-          'Vos clients prennent RDV en ligne 24h/24, lien partageable type Calendly.',
+          'L\'assistant peut envoyer un recapitulatif, un lien de reservation ou des informations complementaires par SMS ou email pendant la conversation telephonique.',
       },
     ],
   },
   {
-    label: 'Tout pour piloter votre activite',
-    color: 'text-violet-600',
-    borderColor: 'border-l-violet-500',
-    bgColor: 'bg-violet-50',
-    iconBg: 'bg-violet-100 text-violet-600',
+    label: 'Base de connaissances',
+    color: 'text-[#993556]',
+    borderColor: 'border-l-[#993556]',
+    bgColor: 'bg-pink-50',
+    iconBg: 'bg-pink-100 text-[#993556]',
     cards: [
       {
-        icon: ShoppingBagIcon,
-        title: 'Produits et services',
+        icon: SearchIcon,
+        title: 'Votre site analyse automatiquement',
         description:
-          "Catalogue avec durees et prix, utilise par l'assistant pour repondre.",
+          'Indiquez l\'adresse de votre site web et l\'outil extrait automatiquement vos services, horaires, tarifs et informations utiles. En 2 minutes, l\'assistant sait tout.',
+      },
+      {
+        icon: FileTextIcon,
+        title: 'Ajoutez vos propres documents',
+        description:
+          'Importez des fichiers PDF (brochure, menu, tarifs) ou creez des questions-reponses manuellement. Vous gardez le controle sur ce que l\'assistant sait.',
       },
       {
         icon: BookOpenIcon,
-        title: 'Base de connaissances',
+        title: 'Reponses precises',
         description:
-          'Crawl automatique de votre site, import PDF, FAQ sur mesure.',
+          'Quand un client demande "Vous etes ouvert le samedi ?", "Comment venir chez vous ?" ou "Vous acceptez la carte ?", l\'assistant repond correctement. Sans improvisation.',
+      },
+    ],
+  },
+  {
+    label: 'Pilotage et support',
+    color: 'text-[#5F5E5A]',
+    borderColor: 'border-l-[#5F5E5A]',
+    bgColor: 'bg-gray-50',
+    iconBg: 'bg-gray-200 text-[#5F5E5A]',
+    cards: [
+      {
+        icon: HomeIcon,
+        title: 'Tableau de bord',
+        description:
+          'Des votre connexion, vous voyez l\'essentiel : appels du jour, rendez-vous prevus, nouveaux contacts, tendances. Tout est mis a jour en temps reel.',
       },
       {
-        icon: BarChartIcon,
-        title: 'Analytics et rapports',
+        icon: MailIcon,
+        title: 'Rapports et recapitulatifs',
         description:
-          'Tableaux de bord, tendances, export CSV, email recap hebdomadaire.',
+          'Chaque lundi, vous recevez par email le bilan de votre semaine : nombre d\'appels, RDV pris, contacts ajoutes. Vous pouvez aussi exporter vos donnees en un clic.',
+      },
+      {
+        icon: HelpCircleIcon,
+        title: 'Aide et support integre',
+        description:
+          'Une FAQ complete, un formulaire de contact et un suivi de vos demandes directement dans l\'application. Invitez vos collaborateurs et gerez leurs droits d\'acces simplement.',
       },
     ],
   },
@@ -148,14 +236,14 @@ export default function FeaturesSection() {
             Tout ce dont vous avez besoin
           </h2>
           <p className="text-lg sm:text-xl text-gray-600">
-            Une plateforme complete pour gerer votre relation client
+            Une plateforme complete pour gerer votre activite au quotidien
           </p>
         </div>
 
         <div className="space-y-12">
           {featureGroups.map((group) => (
             <div key={group.label}>
-              <div className={`flex items-center gap-3 mb-6`}>
+              <div className="flex items-center gap-3 mb-6">
                 <div className={`w-1 h-8 rounded-full ${group.borderColor} border-l-4`} />
                 <h3 className={`text-xl font-bold ${group.color}`}>
                   {group.label}

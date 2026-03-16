@@ -7,28 +7,28 @@ interface ComparisonRow {
 
 const comparisons: ComparisonRow[] = [
   {
-    before: "30% d'appels manques",
-    after: "0% d'appels perdus — l'assistant repond 24/7",
+    before: 'Vos prospects sont notes sur un carnet ou un fichier Excel',
+    after: 'Tous vos contacts sont centralises et classes automatiquement',
   },
   {
-    before: 'Secretariat a 2 000 EUR/mois',
-    after: 'A partir de 79 EUR/mois tout compris',
+    before: 'Vous manquez 30% des appels quand vous etes occupe',
+    after: 'Un assistant vocal repond a votre place 24h/24',
   },
   {
-    before: 'Prise de RDV manuelle',
-    after: 'RDV pris et confirmes automatiquement',
+    before: 'Les clients prennent RDV par telephone, avec des allers-retours',
+    after: 'Une page de reservation en ligne accessible 24h/24',
   },
   {
-    before: 'Prospects perdus dans des cahiers',
-    after: 'CRM centralise avec scoring intelligent',
+    before: 'Vos messages sont disperses entre telephone, SMS et email',
+    after: 'Tous vos echanges regroupes dans une seule boite de reception',
   },
   {
-    before: "Aucune visibilite sur l'activite",
-    after: 'Analytics et recap hebdomadaire par email',
+    before: 'Vous envoyez les rappels de RDV a la main (ou vous oubliez)',
+    after: 'Confirmations et rappels envoyes automatiquement par SMS',
   },
   {
-    before: '5 outils differents (tel + SMS + email + agenda + CRM)',
-    after: 'Une seule plateforme unifiee',
+    before: 'Vous n\'avez aucune vue d\'ensemble sur votre activite',
+    after: 'Un tableau de bord en temps reel et un recapitulatif chaque lundi',
   },
 ];
 

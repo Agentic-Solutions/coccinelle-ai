@@ -15,14 +15,13 @@ export default function HeroSection({ onOpenTour }: HeroSectionProps) {
       <div className="max-w-7xl mx-auto">
         <div className="text-center max-w-4xl mx-auto mb-16">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-            Le CRM tout-en-un avec{' '}
-            <span className="text-[#D85A30]">assistant vocal IA</span>{' '}
-            pour les TPE/PME
+            La plateforme tout-en-un qui{' '}
+            <span className="text-[#D85A30]">gere vos clients, vos rendez-vous et vos appels</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-gray-600 mb-10 leading-relaxed max-w-3xl mx-auto">
-            Repondez a 100% de vos appels, prenez des RDV automatiquement et gerez tous vos clients
-            depuis une seule plateforme. Pret en 5 minutes.
+            CRM, agenda, messagerie, catalogue de services, reservation en ligne et assistant vocal
+            — tout ce dont votre entreprise a besoin, dans un seul outil. Pret en 5 minutes.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -61,12 +60,12 @@ export default function HeroSection({ onOpenTour }: HeroSectionProps) {
         {/* 4 mini-KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
           <div className="bg-white rounded-xl p-5 shadow-lg border border-gray-100 text-center">
-            <div className="text-3xl font-bold text-gray-900 mb-1">95%</div>
-            <div className="text-sm text-gray-600">Taux de reponse</div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">26</div>
+            <div className="text-sm text-gray-600">Modules</div>
           </div>
           <div className="bg-white rounded-xl p-5 shadow-lg border border-gray-100 text-center">
-            <div className="text-3xl font-bold text-gray-900 mb-1">3x</div>
-            <div className="text-sm text-gray-600">Plus de RDV</div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">6</div>
+            <div className="text-sm text-gray-600">Canaux integres</div>
           </div>
           <div className="bg-white rounded-xl p-5 shadow-lg border border-gray-100 text-center">
             <div className="text-3xl font-bold text-gray-900 mb-1">24/7</div>

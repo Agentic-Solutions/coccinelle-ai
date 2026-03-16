@@ -2,12 +2,53 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Users, TrendingUp, Building2, Star, Check, ArrowRight, Shield, Mail } from 'lucide-react';
+import { Star, Check, ArrowRight, Shield, Mail } from 'lucide-react';
 import AnimatedAppPreview from '@/components/landing/AnimatedAppPreview';
 import HeroSection from '@/components/landing/HeroSection';
 import FeaturesSection from '@/components/landing/FeaturesSection';
 import ComparisonSection from '@/components/landing/ComparisonSection';
 import ProductTourModal from '@/components/ProductTourModal';
+import {
+  ScissorsIcon,
+  HeartPulseIcon,
+  BuildingIcon,
+  UtensilsIcon,
+  DumbbellIcon,
+  BriefcaseIcon,
+} from '@/components/landing/icons';
+
+const sectors = [
+  {
+    icon: ScissorsIcon,
+    title: 'Coiffure et beaute',
+    description: 'Vos clientes reservent en ligne pendant que vous coiffez. Rappels automatiques, zero appel a gerer.',
+  },
+  {
+    icon: HeartPulseIcon,
+    title: 'Sante et medical',
+    description: 'Vos patients prennent RDV sans attendre au telephone. L\'assistant gere les demandes de renouvellement et les urgences.',
+  },
+  {
+    icon: BuildingIcon,
+    title: 'Immobilier',
+    description: 'Ne perdez plus de prospects pendant vos visites. L\'assistant qualifie les demandes et planifie les rendez-vous pour vous.',
+  },
+  {
+    icon: UtensilsIcon,
+    title: 'Restauration',
+    description: 'Reservation de tables par telephone et en ligne, meme a minuit. Confirmations automatiques, annulations gerees.',
+  },
+  {
+    icon: DumbbellIcon,
+    title: 'Fitness et sport',
+    description: 'Reservation de cours et de creneaux en self-service. Vos adherents gerent tout depuis leur telephone.',
+  },
+  {
+    icon: BriefcaseIcon,
+    title: 'Services et conseil',
+    description: 'Prise de RDV, qualification des demandes et suivi client. Concentrez-vous sur votre expertise.',
+  },
+];
 
 export default function LandingPage() {
   const [tourOpen, setTourOpen] = useState(false);
@@ -26,6 +67,7 @@ export default function LandingPage() {
             </Link>
             <nav className="hidden md:flex items-center space-x-8">
               <a href="#fonctionnalites" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Fonctionnalites</a>
+              <a href="#secteurs" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Secteurs</a>
               <a href="#demo" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Demo</a>
               <a href="#tarifs" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Tarifs</a>
               <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">
@@ -42,16 +84,16 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* 1. Hero (refait) */}
+      {/* 1. Hero */}
       <HeroSection onOpenTour={() => setTourOpen(true)} />
 
-      {/* 2. Fonctionnalites (refait) */}
+      {/* 2. Fonctionnalites */}
       <FeaturesSection />
 
-      {/* 3. Pourquoi Coccinelle (nouveau) */}
+      {/* 3. Pourquoi Coccinelle */}
       <ComparisonSection />
 
-      {/* 4. Decouvrez la plateforme (existant) */}
+      {/* 4. Decouvrez la plateforme */}
       <section id="demo" className="py-20 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -59,7 +101,7 @@ export default function LandingPage() {
               Decouvrez la plateforme
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Une interface intuitive qui gere tous vos appels, tickets et clients en une seule plateforme
+              Une interface intuitive qui gere tous vos appels, rendez-vous et clients en une seule plateforme
             </p>
           </div>
 
@@ -67,7 +109,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 5. Demo interactive (existant — bouton ouvre la modale) */}
+      {/* 5. Demo interactive */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -75,7 +117,7 @@ export default function LandingPage() {
               Regardez comme c&apos;est facile
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Decouvrez en 1 minute comment Coccinelle transforme votre relation client
+              Decouvrez en 2 minutes comment Coccinelle simplifie votre quotidien
             </p>
           </div>
 
@@ -96,50 +138,38 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 6. Pour tous types de secteurs (existant) */}
-      <section className="py-20 px-4 bg-white">
+      {/* 6. Secteurs */}
+      <section id="secteurs" className="py-20 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
               Pour tous types de secteurs
             </h2>
+            <p className="text-lg text-gray-600">
+              Coccinelle s&apos;adapte a votre metier
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center p-6">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Building2 className="w-8 h-8 text-gray-900" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">E-commerce & Retail</h3>
-              <p className="text-gray-600">
-                Gerez les demandes clients, commandes, retours et support 24/7. Augmentez la satisfaction.
-              </p>
-            </div>
-
-            <div className="text-center p-6">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-gray-900" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Services & Conseil</h3>
-              <p className="text-gray-600">
-                Qualification des demandes, prise de RDV automatique et suivi client personnalise.
-              </p>
-            </div>
-
-            <div className="text-center p-6">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="w-8 h-8 text-gray-900" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">SAV & Support Client</h3>
-              <p className="text-gray-600">
-                Support technique, traitement des reclamations et ticketing automatise en temps reel.
-              </p>
-            </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {sectors.map((sector) => {
+              const Icon = sector.icon;
+              return (
+                <div key={sector.title} className="text-center p-6 rounded-xl border border-gray-100 hover:shadow-lg transition-shadow">
+                  <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon className="w-7 h-7 text-gray-900" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{sector.title}</h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    {sector.description}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* 7. Temoignages (existant) */}
+      {/* 7. Temoignages */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -176,7 +206,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6">
-                &quot;L&apos;IA qualifie automatiquement chaque appel et RDV. Nos temps de reponse ont diminue de 80% et la qualite des interactions client a ameliore drastiquement.&quot;
+                &quot;Depuis que j&apos;utilise Coccinelle, je ne rate plus aucun appel. Mes clientes reservent en ligne et je recois un recapitulatif chaque matin. Un vrai gain de temps.&quot;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -184,7 +214,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <div className="font-semibold text-gray-900">Thomas Dupont</div>
-                  <div className="text-sm text-gray-600">Manager Centre d&apos;Appels</div>
+                  <div className="text-sm text-gray-600">Gerant de salon</div>
                 </div>
               </div>
             </div>
@@ -196,7 +226,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <p className="text-gray-700 mb-6">
-                &quot;Setup rapide et interface intuitive. Notre equipe support traite maintenant 3x plus de demandes sans effort. Les clients apprecient les reponses instantanees.&quot;
+                &quot;Installation en 5 minutes, interface claire. Mon equipe traite maintenant 3 fois plus de demandes sans effort. Les clients apprecient les reponses instantanees.&quot;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -212,7 +242,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 8. Tarification (existant) */}
+      {/* 8. Tarification */}
       <section id="tarifs" className="py-20 px-4 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
@@ -239,7 +269,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">1 agent vocal IA</span>
+                  <span className="text-gray-700">1 assistant vocal</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
@@ -247,11 +277,11 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Gestion RDV</span>
+                  <span className="text-gray-700">Gestion des rendez-vous</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">CRM prospects</span>
+                  <span className="text-gray-700">Fiches contacts</span>
                 </li>
               </ul>
               <Link
@@ -281,7 +311,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>3 agents vocaux IA</span>
+                  <span>3 assistants vocaux</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -289,11 +319,11 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>Analytics avances</span>
+                  <span>Rapports detailles</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>API & Integrations</span>
+                  <span>Equipes et droits d&apos;acces</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -321,7 +351,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Agents IA illimites</span>
+                  <span className="text-gray-700">Assistants illimites</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
@@ -333,11 +363,11 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Deploiement dedie</span>
+                  <span className="text-gray-700">API & integrations</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Account manager</span>
+                  <span className="text-gray-700">Interlocuteur dedie</span>
                 </li>
               </ul>
               <a
@@ -351,7 +381,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 9. Securite et conformite (existant) */}
+      {/* 9. Securite et conformite */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
@@ -399,14 +429,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 10. CTA final (existant + bouton demo) */}
+      {/* 10. CTA final */}
       <section className="py-20 px-4 bg-gradient-to-br from-gray-900 to-gray-800">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold text-white mb-6">
-            Pret a transformer votre relation client ?
+            Pret a simplifier votre quotidien ?
           </h2>
           <p className="text-xl text-gray-300 mb-10">
-            Rejoignez les equipes qui ameliorent leur experience client avec coccinelle.ai.
+            Rejoignez les professionnels qui gerent leurs clients, rendez-vous et appels avec coccinelle.ai.
             <br />
             Essai gratuit de 14 jours, sans engagement.
           </p>
@@ -442,7 +472,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 11. Footer (existant) */}
+      {/* 11. Footer */}
       <footer className="bg-gray-900 text-gray-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
@@ -454,7 +484,7 @@ export default function LandingPage() {
                 <span className="ml-3 text-xl font-bold text-white">coccinelle.ai</span>
               </div>
               <p className="text-sm text-gray-400">
-                L&apos;agent IA qui gere vos appels et ameliore votre relation client 24/7.
+                La plateforme tout-en-un qui gere vos clients, rendez-vous et appels 24/7.
               </p>
             </div>
 
