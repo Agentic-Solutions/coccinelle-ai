@@ -155,7 +155,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
         <h2 className="text-2xl font-bold text-gray-900">Base de connaissances</h2>
       </div>
       <p className="text-center text-gray-500 mb-8">
-        Alimentez les connaissances de votre assistant pour qu&apos;il reponde precisement a vos clients.
+        Alimentez les connaissances de votre assistant pour qu&apos;il réponde précisément à vos clients.
       </p>
 
       {error && (
@@ -167,7 +167,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
       {totalDocs > 0 && (
         <div className="mb-6 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-center">
           <span className="text-[#0F6E56] font-semibold">
-            {totalDocs} document{totalDocs > 1 ? 's' : ''} ajoute{totalDocs > 1 ? 's' : ''}
+            {totalDocs} document{totalDocs > 1 ? 's' : ''} ajouté{totalDocs > 1 ? 's' : ''}
           </span>
         </div>
       )}
@@ -188,7 +188,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="text-sm text-[#0F6E56] font-medium">
-                {crawlResult.pagesAnalyzed} page{crawlResult.pagesAnalyzed > 1 ? 's' : ''} analysee{crawlResult.pagesAnalyzed > 1 ? 's' : ''} — {crawlResult.documentsCount} document{crawlResult.documentsCount > 1 ? 's' : ''} cree{crawlResult.documentsCount > 1 ? 's' : ''}
+                {crawlResult.pagesAnalyzed} page{crawlResult.pagesAnalyzed > 1 ? 's' : ''} analysée{crawlResult.pagesAnalyzed > 1 ? 's' : ''} — {crawlResult.documentsCount} document{crawlResult.documentsCount > 1 ? 's' : ''} créé{crawlResult.documentsCount > 1 ? 's' : ''}
               </span>
             </div>
           ) : (
@@ -241,13 +241,13 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="text-sm text-[#0F6E56] font-medium">
-                {uploadResult.filesCount} fichier{uploadResult.filesCount > 1 ? 's' : ''} importe{uploadResult.filesCount > 1 ? 's' : ''}
+                {uploadResult.filesCount} fichier{uploadResult.filesCount > 1 ? 's' : ''} importé{uploadResult.filesCount > 1 ? 's' : ''}
               </span>
             </div>
           ) : (
             <label className="block border-2 border-dashed border-gray-200 hover:border-[#D85A30] rounded-lg p-4 cursor-pointer transition-colors text-center">
               <span className="text-sm text-gray-600">
-                {uploading ? 'Upload en cours...' : 'Cliquez pour selectionner des fichiers'}
+                {uploading ? 'Upload en cours...' : 'Cliquez pour sélectionner des fichiers'}
               </span>
               <p className="text-xs text-gray-400 mt-1">PDF, Word, texte — brochures, menus, tarifs</p>
               <input
@@ -268,7 +268,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
             <svg className="w-5 h-5 text-[#D85A30] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
             </svg>
-            <h3 className="font-semibold text-gray-900">Ajouter des questions-reponses</h3>
+            <h3 className="font-semibold text-gray-900">Ajouter des questions-réponses</h3>
           </div>
 
           <div className="space-y-2">
@@ -283,7 +283,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
             <textarea
               value={currentQA.answer}
               onChange={e => setCurrentQA({ ...currentQA, answer: e.target.value })}
-              placeholder="Reponse : ex. Nous sommes ouverts du lundi au samedi, de 9h a 19h."
+              placeholder="Réponse : ex. Nous sommes ouverts du lundi au samedi, de 9h à 19h."
               disabled={savingQA}
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D85A30] focus:border-transparent outline-none text-sm disabled:bg-gray-100 resize-none"
@@ -294,7 +294,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
               disabled={savingQA || !currentQA.question.trim() || !currentQA.answer.trim()}
               className="text-sm text-[#D85A30] hover:text-[#993C1D] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {savingQA ? 'Ajout...' : '+ Ajouter cette question-reponse'}
+              {savingQA ? 'Ajout...' : '+ Ajouter cette question-réponse'}
             </button>
           </div>
 
@@ -311,7 +311,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
         </div>
 
         <p className="text-xs text-gray-400 text-center">
-          Vous pourrez completer ces informations a tout moment depuis votre tableau de bord.
+          Vous pourrez compléter ces informations à tout moment depuis votre tableau de bord.
         </p>
       </div>
 
@@ -330,7 +330,7 @@ export default function KnowledgeStep({ sessionId, kbData, onKbChange, onNext, o
             disabled={isProcessing}
             className="px-6 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
           >
-            Passer cette etape
+            Passer cette étape
           </button>
           {totalDocs > 0 && (
             <button

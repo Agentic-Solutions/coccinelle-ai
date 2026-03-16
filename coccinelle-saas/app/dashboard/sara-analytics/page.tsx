@@ -105,8 +105,8 @@ export default function SaraAnalyticsPage() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Sara Analytics</h1>
-              <p className="text-xs sm:text-sm text-gray-600">Performance de l'agent vocal Sara</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Analytics appels</h1>
+              <p className="text-xs sm:text-sm text-gray-600">Performance de l&apos;assistant vocal</p>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -146,7 +146,7 @@ export default function SaraAnalyticsPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
             <Phone className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun appel enregistre</h3>
-            <p className="text-gray-500">Sara commencera a collecter des donnees des le premier appel.</p>
+            <p className="text-gray-500">L&apos;assistant commencera à collecter des données dès le premier appel.</p>
           </div>
         ) : data && (
           <>

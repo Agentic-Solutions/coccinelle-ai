@@ -55,8 +55,8 @@ export default function AvailabilitySettings() {
     },
     {
       id: '2',
-      name: 'Sara (Agent IA)',
-      email: 'sara@coccinelle.ai',
+      name: 'Assistant vocal (Agent IA)',
+      email: 'assistant@coccinelle.ai',
       role: 'agent',
       hasCalendarSync: true,
       calendarProvider: 'internal'

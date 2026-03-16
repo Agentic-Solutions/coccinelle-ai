@@ -38,9 +38,9 @@ export default function ConversationsPage() {
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors flex-shrink-0">
                   <Users className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 group-hover:text-white" />
                 </div>
-                <h3 className="text-base sm:text-xl font-bold text-gray-900">Configuration SARA</h3>
+                <h3 className="text-base sm:text-xl font-bold text-gray-900">Configuration assistant</h3>
               </div>
-              <p className="text-sm sm:text-base text-gray-600">Personnalisez votre agent IA et ses reponses</p>
+              <p className="text-sm sm:text-base text-gray-600">Personnalisez votre agent IA et ses réponses</p>
             </div>
           </Link>
 

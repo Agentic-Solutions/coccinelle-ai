@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Coccinelle AI - Assistant vocal intelligent 24/7",
-  description: "Call center IA et relation client omnicanale. Gérez vos appels, SMS, WhatsApp et emails avec Sara, votre assistante virtuelle intelligente.",
+  description: "Call center IA et relation client omnicanale. Gérez vos appels, SMS, WhatsApp et emails avec votre assistant vocal intelligent.",
 };
 
 export default function RootLayout({

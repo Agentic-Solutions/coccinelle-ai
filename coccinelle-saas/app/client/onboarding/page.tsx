@@ -24,9 +24,9 @@ export default function ClientOnboardingPage() {
   const channels: ChannelOption[] = [
     {
       id: 'phone',
-      name: 'Téléphone (Sara)',
+      name: 'Téléphone (Assistant vocal)',
       icon: Phone,
-      description: 'Appelez Sara, notre assistant vocal IA disponible 24/7',
+      description: 'Appelez votre assistant vocal IA disponible 24/7',
       benefits: [
         'Réponses instantanées par téléphone',
         'Disponible jour et nuit',

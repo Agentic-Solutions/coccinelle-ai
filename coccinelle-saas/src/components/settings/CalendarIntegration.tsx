@@ -437,7 +437,7 @@ export default function CalendarIntegration() {
                 Que faire en cas de conflit entre calendriers ?
               </p>
               <p className="text-xs text-blue-700">
-                Si un créneau est marqué occupé dans un calendrier mais libre dans un autre, Sara ne proposera pas ce créneau pour éviter les doubles réservations.
+                Si un créneau est marqué occupé dans un calendrier mais libre dans un autre, l&apos;assistant ne proposera pas ce créneau pour éviter les doubles réservations.
               </p>
             </div>
           </div>

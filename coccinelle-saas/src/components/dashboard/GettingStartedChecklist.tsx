@@ -66,8 +66,8 @@ export default function GettingStartedChecklist({
         icon: <CheckCircle className="w-5 h-5" />
       },
       {
-        id: 'sara',
-        title: 'Assistant configurée',
+        id: 'assistant',
+        title: 'Assistant configuré',
         description: 'Votre assistant vocal est prêt',
         status: onboardingCompleted ? 'completed' : 'in-progress',
         icon: <Zap className="w-5 h-5" />
@@ -105,7 +105,7 @@ export default function GettingStartedChecklist({
         icon: <Phone className="w-5 h-5" />,
         action: callsCount === 0 ? {
           label: 'Voir le numéro',
-          href: '/dashboard/sara'
+          href: '/dashboard/configuration/assistant'
         } : undefined
       },
       {

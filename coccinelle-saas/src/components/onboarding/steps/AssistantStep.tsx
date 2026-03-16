@@ -19,7 +19,7 @@ interface AgentType {
 }
 
 export default function AssistantStep({ sessionId, assistantData, onAssistantChange, onNext, onBack, onSkip }: AssistantStepProps) {
-  const [agentName, setAgentName] = useState(assistantData?.agent_name || 'Sara');
+  const [agentName, setAgentName] = useState(assistantData?.agent_name || '');
   const [voice, setVoice] = useState(assistantData?.voice || 'female');
   const [agentType, setAgentType] = useState(assistantData?.agent_type || '');
   const [agentTypes, setAgentTypes] = useState<AgentType[]>([]);
@@ -51,9 +51,9 @@ export default function AssistantStep({ sessionId, assistantData, onAssistantCha
     setAgentTypes(prev => {
       if (prev.length > 0) return prev;
       const fallback = [
-        { id: 'receptionist', name: 'Receptionniste', description: 'Gere les appels entrants et la prise de rendez-vous' },
+        { id: 'receptionist', name: 'Réceptionniste', description: 'Gère les appels entrants et la prise de rendez-vous' },
         { id: 'sales', name: 'Commercial', description: 'Qualifie les prospects et propose vos services' },
-        { id: 'support', name: 'Support client', description: 'Repond aux questions et resout les problemes' },
+        { id: 'support', name: 'Support client', description: 'Répond aux questions et résout les problèmes' },
       ];
       if (!agentType) setAgentType(fallback[0].id);
       return fallback;
@@ -65,7 +65,7 @@ export default function AssistantStep({ sessionId, assistantData, onAssistantCha
     setError('');
 
     const finalData = {
-      agent_name: agentName.trim() || 'Sara',
+      agent_name: agentName.trim() || 'Assistant',
       voice,
       agent_type: agentType,
     };
@@ -125,7 +125,7 @@ export default function AssistantStep({ sessionId, assistantData, onAssistantCha
             type="text"
             value={agentName}
             onChange={e => setAgentName(e.target.value)}
-            placeholder="Sara"
+            placeholder="Ex : Lina, Julie, Marc..."
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D85A30] focus:border-transparent outline-none"
           />
         </div>
@@ -143,7 +143,7 @@ export default function AssistantStep({ sessionId, assistantData, onAssistantCha
                   : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
             >
-              Feminine
+              Féminine
             </button>
             <button
               type="button"
@@ -200,7 +200,7 @@ export default function AssistantStep({ sessionId, assistantData, onAssistantCha
             onClick={onSkip}
             className="px-6 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
           >
-            Passer cette etape
+            Passer cette étape
           </button>
           <button
             type="button"

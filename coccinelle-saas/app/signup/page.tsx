@@ -11,7 +11,6 @@ export default function SignupPage() {
     name: '',
     email: '',
     password: '',
-    industry: ''
   });
   const [cguAccepted, setCguAccepted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -88,7 +87,6 @@ export default function SignupPage() {
             name: formData.name,
             email: formData.email,
             password: formData.password,
-            industry: formData.industry || undefined,
             cgu_accepted: cguAccepted
           })
         }
@@ -199,28 +197,6 @@ export default function SignupPage() {
               />
             </div>
 
-            <div>
-              <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-1">
-                Secteur d'activité
-              </label>
-              <select
-                id="industry"
-                name="industry"
-                value={formData.industry}
-                onChange={handleChange}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black focus:z-10 sm:text-sm"
-              >
-                <option value="">Sélectionnez votre secteur</option>
-                <option value="immobilier">Immobilier</option>
-                <option value="coiffure_beaute">Coiffure / Beauté</option>
-                <option value="sante">Santé</option>
-                <option value="restauration">Restauration</option>
-                <option value="fitness">Fitness</option>
-                <option value="services_domicile">Services à domicile</option>
-                <option value="garage_auto">Garage auto</option>
-                <option value="autre">Autre</option>
-              </select>
-            </div>
           </div>
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">

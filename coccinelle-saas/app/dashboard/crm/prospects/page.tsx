@@ -766,7 +766,7 @@ export default function ProspectsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 >
                   <option value="manual">Saisie manuelle</option>
-                  <option value="sara">Agent Sara</option>
+                  <option value="sara">Assistant vocal</option>
                   <option value="website">Site web</option>
                   <option value="appel">Appel telephonique</option>
                   <option value="recommandation">Recommandation</option>

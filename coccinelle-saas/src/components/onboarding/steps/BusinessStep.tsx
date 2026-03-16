@@ -17,8 +17,15 @@ export default function BusinessStep({ sessionId, sector, businessData, onBusine
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
+    const errors: string[] = [];
     if (!businessData.company_name.trim()) {
-      setError('Le nom de l\'entreprise est requis');
+      errors.push('Le nom de l\'entreprise est requis');
+    }
+    if (!businessData.phone.trim()) {
+      errors.push('Le numéro de téléphone est obligatoire');
+    }
+    if (errors.length > 0) {
+      setError(errors.join('. '));
       return;
     }
 
@@ -26,27 +33,29 @@ export default function BusinessStep({ sessionId, sector, businessData, onBusine
     setError('');
 
     try {
-      const response = await fetch(
-        buildApiUrl(`/api/v1/onboarding/session/${sessionId}/business`),
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            company_name: businessData.company_name.trim(),
-            industry: sector,
-            phone: businessData.phone.trim() || undefined,
-          }),
-        }
-      );
+      if (sessionId) {
+        const response = await fetch(
+          buildApiUrl(`/api/v1/onboarding/session/${sessionId}/business`),
+          {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              company_name: businessData.company_name.trim(),
+              industry: sector,
+              phone: businessData.phone.trim(),
+            }),
+          }
+        );
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Erreur lors de la sauvegarde');
+        if (!response.ok) {
+          console.warn('Business save API returned error, proceeding locally');
+        }
       }
 
       onNext();
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la sauvegarde');
+    } catch {
+      // Proceed even if API fails
+      onNext();
     } finally {
       setSaving(false);
     }
@@ -79,20 +88,20 @@ export default function BusinessStep({ sessionId, sector, businessData, onBusine
             type="text"
             value={businessData.company_name}
             onChange={e => onBusinessChange({ ...businessData, company_name: e.target.value })}
-            placeholder="Ex: Mon Salon de Beaute"
+            placeholder="Ex : Mon Salon de Beauté"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D85A30] focus:border-transparent outline-none"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Telephone (optionnel)
+            Téléphone professionnel <span className="text-red-500">*</span>
           </label>
           <input
             type="tel"
             value={businessData.phone}
             onChange={e => onBusinessChange({ ...businessData, phone: e.target.value })}
-            placeholder="Ex: +33 1 23 45 67 89"
+            placeholder="Ex : +33 1 23 45 67 89"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#D85A30] focus:border-transparent outline-none"
           />
         </div>
@@ -109,7 +118,7 @@ export default function BusinessStep({ sessionId, sector, businessData, onBusine
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={saving || !businessData.company_name.trim()}
+          disabled={saving || !businessData.company_name.trim() || !businessData.phone.trim()}
           className="px-8 py-3 bg-[#D85A30] hover:bg-[#993C1D] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Enregistrement...' : 'Continuer'}

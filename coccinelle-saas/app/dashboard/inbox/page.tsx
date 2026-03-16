@@ -111,7 +111,7 @@ export default function InboxPage() {
       const data = await response.json();
       
       if (data.success) {
-        setSuccess(`Sara a traité ${data.processed} email(s) !`);
+        setSuccess(`L'assistant a traité ${data.processed} email(s) !`);
         // Recharger la conversation si un email est sélectionné
         if (selectedEmail) {
           selectEmail(selectedEmail);
@@ -236,14 +236,14 @@ export default function InboxPage() {
                 onClick={handleAutoReply}
                 disabled={processingAutoReply}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50"
-                title="Sara répond automatiquement"
+                title="L'assistant répond automatiquement"
               >
                 {processingAutoReply ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Sparkles className="w-4 h-4" />
                 )}
-                <span className="hidden sm:inline">Sara répond</span>
+                <span className="hidden sm:inline">IA répond</span>
               </button>
               <button 
                 onClick={loadEmails}
@@ -399,7 +399,7 @@ export default function InboxPage() {
                       </div>
                     </div>
 
-                    {/* Réponse de Sara */}
+                    {/* Réponse de l'assistant */}
                     {loadingSaraReply ? (
                       <div className="flex justify-end">
                         <div className="flex items-center gap-2 text-gray-500">
@@ -415,7 +415,7 @@ export default function InboxPage() {
                           </div>
                           <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                             <Bot className="w-3 h-3" />
-                            Sara • {formatDate(saraReply.processedAt)}
+                            Assistant • {formatDate(saraReply.processedAt)}
                           </div>
                         </div>
                         <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center flex-shrink-0">
@@ -426,13 +426,13 @@ export default function InboxPage() {
                       <div className="flex justify-center py-4">
                         <div className="text-center text-gray-500">
                           <Bot className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                          <p className="text-sm">Sara n'a pas encore répondu</p>
+                          <p className="text-sm">L&apos;assistant n&apos;a pas encore répondu</p>
                           <button
                             onClick={handleAutoReply}
                             disabled={processingAutoReply}
                             className="mt-2 text-purple-600 hover:text-purple-700 text-sm font-medium"
                           >
-                            Cliquez sur "Sara répond" pour traiter cet email
+                            Cliquez sur &quot;IA répond&quot; pour traiter cet email
                           </button>
                         </div>
                       </div>

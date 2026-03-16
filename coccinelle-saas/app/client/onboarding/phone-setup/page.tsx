@@ -10,7 +10,7 @@ export default function PhoneSetupPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [testCallRequested, setTestCallRequested] = useState(false);
 
-  const saraPhoneNumber = '+33 1 23 45 67 89'; // Numéro de Sara (à remplacer par le vrai)
+  const assistantPhoneNumber = '+33 1 23 45 67 89'; // Numéro de l'assistant (à remplacer par le vrai)
 
   const handleContinue = () => {
     // Sauvegarder le numéro de téléphone
@@ -40,7 +40,7 @@ export default function PhoneSetupPage() {
           <div className="flex items-center gap-4">
             <Logo size={48} />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Configuration Sara</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Configuration de l&apos;assistant vocal</h1>
               <p className="text-sm text-gray-600">Votre assistant vocal disponible 24/7</p>
             </div>
           </div>
@@ -56,10 +56,10 @@ export default function PhoneSetupPage() {
                 <Phone className="w-10 h-10 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">Rencontrez Sara</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">Votre assistant vocal</h2>
                 <p className="text-gray-700 mb-4">
-                  Sara est votre assistante vocale intelligente, propulsée par l'IA. Elle peut répondre à vos questions,
-                  prendre vos rendez-vous et vous accompagner dans votre recherche immobilière.
+                  Votre assistant vocal intelligent, propulsé par l&apos;IA, peut répondre à vos questions,
+                  prendre vos rendez-vous et vous accompagner dans votre recherche.
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3 text-gray-700">
@@ -81,21 +81,21 @@ export default function PhoneSetupPage() {
 
           {/* Sara's Phone Number */}
           <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Numéro de Sara</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Numéro de l&apos;assistant</h3>
             <div className="bg-white rounded-lg border-2 border-gray-900 p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Phone className="w-6 h-6 text-gray-900" />
-                <span className="text-2xl font-bold text-gray-900">{saraPhoneNumber}</span>
+                <span className="text-2xl font-bold text-gray-900">{assistantPhoneNumber}</span>
               </div>
               <button
-                onClick={() => window.open(`tel:${saraPhoneNumber}`)}
+                onClick={() => window.open(`tel:${assistantPhoneNumber}`)}
                 className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
               >
                 Appeler maintenant
               </button>
             </div>
             <p className="text-sm text-gray-600 mt-3">
-              Enregistrez ce numéro dans vos contacts pour pouvoir contacter Sara à tout moment.
+              Enregistrez ce numéro dans vos contacts pour pouvoir contacter l&apos;assistant à tout moment.
             </p>
           </div>
 
@@ -103,7 +103,7 @@ export default function PhoneSetupPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Votre numéro de téléphone</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Indiquez le numéro où Sara pourra vous joindre pour vous rappeler si nécessaire.
+              Indiquez le numéro où l&apos;assistant pourra vous joindre pour vous rappeler si nécessaire.
             </p>
             <input
               type="tel"
@@ -126,7 +126,7 @@ export default function PhoneSetupPage() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Recevoir un appel de test</h3>
                 <p className="text-sm text-gray-600">
-                  Sara vous appellera dans les prochaines minutes pour vous présenter ses capacités et
+                  L&apos;assistant vous appellera dans les prochaines minutes pour vous présenter ses capacités et
                   vérifier que tout fonctionne correctement.
                 </p>
               </div>

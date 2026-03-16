@@ -353,7 +353,7 @@ function WhatsAppConfigContent() {
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-green-600" />
-                      Sara répond immédiatement sur votre numéro
+                      L&apos;assistant répond immédiatement sur votre numéro
                     </li>
                   </ul>
                 </div>
@@ -407,7 +407,7 @@ function WhatsAppConfigContent() {
               <div>
                 <p className="text-green-900 font-medium mb-1">WhatsApp Business connecté ✅</p>
                 <p className="text-sm text-green-800">
-                  Votre compte WhatsApp <strong>{config.whatsappNumber}</strong> est connecté. Sara peut maintenant répondre à vos clients !
+                  Votre compte WhatsApp <strong>{config.whatsappNumber}</strong> est connecté. L&apos;assistant peut maintenant répondre à vos clients !
                 </p>
               </div>
             </div>
@@ -420,7 +420,7 @@ function WhatsAppConfigContent() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Canal WhatsApp</h2>
-                    <p className="text-sm text-gray-600">Sara répond automatiquement aux messages</p>
+                    <p className="text-sm text-gray-600">L&apos;assistant répond automatiquement aux messages</p>
                   </div>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">

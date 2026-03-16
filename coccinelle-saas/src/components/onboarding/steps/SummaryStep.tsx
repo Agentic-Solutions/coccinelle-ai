@@ -17,16 +17,20 @@ interface SummaryStepProps {
 }
 
 const SECTOR_LABELS: Record<string, string> = {
-  beaute: 'Beaute',
-  sante: 'Sante',
+  coiffure_beaute: 'Coiffure / Beauté',
+  sante: 'Santé / Médical',
   immobilier: 'Immobilier',
   restauration: 'Restauration',
-  fitness: 'Fitness',
-  services: 'Services',
+  fitness: 'Fitness / Sport',
+  services_domicile: 'Services à domicile',
+  garage_auto: 'Garage automobile',
+  commerce: 'Commerce / Retail',
+  services_b2b: 'Services B2B / Conseil',
+  autre: 'Autre',
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
-  phone: 'Telephone',
+  phone: 'Téléphone',
   sms: 'SMS',
   email: 'Email',
   whatsapp: 'WhatsApp',
@@ -108,7 +112,7 @@ export default function SummaryStep({
     },
     {
       label: 'Assistant vocal',
-      value: assistantData ? `${assistantData.agent_name} (${assistantData.voice === 'female' ? 'voix feminine' : 'voix masculine'})` : null,
+      value: assistantData ? `${assistantData.agent_name} (${assistantData.voice === 'female' ? 'voix féminine' : 'voix masculine'})` : null,
       completed: completedSteps.has(5),
       skipped: !assistantData,
     },
@@ -120,10 +124,10 @@ export default function SummaryStep({
         <svg className="w-6 h-6 text-[#0F6E56] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <h2 className="text-2xl font-bold text-gray-900">Recapitulatif</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Récapitulatif</h2>
       </div>
       <p className="text-center text-gray-500 mb-8">
-        Votre configuration est prete
+        Votre configuration est prête
       </p>
 
       {error && (
@@ -159,7 +163,7 @@ export default function SummaryStep({
                 <p className="text-sm text-gray-500 truncate">{item.value}</p>
               )}
               {item.skipped && (
-                <p className="text-xs text-gray-400">Passe</p>
+                <p className="text-xs text-gray-400">Passé</p>
               )}
             </div>
           </div>
@@ -180,7 +184,7 @@ export default function SummaryStep({
           disabled={completing}
           className="px-8 py-3 bg-[#D85A30] hover:bg-[#993C1D] text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
         >
-          {completing ? 'Finalisation...' : 'Acceder au tableau de bord'}
+          {completing ? 'Finalisation...' : 'Accéder au tableau de bord'}
         </button>
       </div>
     </div>

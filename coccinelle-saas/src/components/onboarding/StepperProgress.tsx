@@ -15,7 +15,7 @@ const STEP_LABELS = [
   'Produits',
   'Canaux',
   'Assistant',
-  'Recapitulatif',
+  'Récap.',
 ];
 
 const TOTAL_STEPS = STEP_LABELS.length;
@@ -26,7 +26,7 @@ export default function StepperProgress({ currentStep, completedSteps, onGotoSte
       {/* Step counter */}
       <div className="flex justify-end mb-3">
         <span className="text-sm text-gray-500 font-medium">
-          Etape {currentStep + 1} / {TOTAL_STEPS}
+          Étape {currentStep + 1} / {TOTAL_STEPS}
         </span>
       </div>
 

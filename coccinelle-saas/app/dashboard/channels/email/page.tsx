@@ -104,7 +104,7 @@ export default function EmailConfigPage() {
       });
       const data = await response.json();
       if (data.success) {
-        setSuccess(`Sara a traité ${data.processed} email(s) !`);
+        setSuccess(`L'assistant a traité ${data.processed} email(s) !`);
         loadEmailStats();
       } else {
         throw new Error(data.error || "Erreur");
@@ -187,7 +187,7 @@ export default function EmailConfigPage() {
   };
 
   const handleDisconnectProvider = async (provider: 'google' | 'outlook' | 'yahoo', setStatus: (s: ProviderStatus) => void, providerName: string) => {
-    if (!confirm(`Déconnecter ${providerName} ? Sara ne pourra plus lire ni envoyer d'emails depuis ce compte.`)) return;
+    if (!confirm(`Déconnecter ${providerName} ? L'assistant ne pourra plus lire ni envoyer d'emails depuis ce compte.`)) return;
     try {
       setDisconnecting(provider);
       const response = await fetch(`${API_URL}/api/v1/oauth/${provider}/disconnect`, {
@@ -361,7 +361,7 @@ export default function EmailConfigPage() {
         </div>
         <div>
           <h2 className="text-xl font-bold text-gray-900">Connecter {providerName}</h2>
-          <p className="text-gray-500">Permettez à Sara de lire et répondre aux emails de votre compte {providerName}</p>
+          <p className="text-gray-500">Permettez à l&apos;assistant de lire et répondre aux emails de votre compte {providerName}</p>
         </div>
       </div>
 
@@ -382,7 +382,7 @@ export default function EmailConfigPage() {
           </div>
           
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-medium text-blue-900 mb-2">Sara peut maintenant :</h3>
+            <h3 className="font-medium text-blue-900 mb-2">L&apos;assistant peut maintenant :</h3>
             <ul className="space-y-1 text-blue-800 text-sm">
               <li>📥 Lire les emails reçus sur {status.email}</li>
               <li>📤 Répondre aux emails au nom de {status.email}</li>
@@ -405,7 +405,7 @@ export default function EmailConfigPage() {
       ) : (
         <div className="space-y-4">
           <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-2">En connectant {providerName}, Sara pourra :</h3>
+            <h3 className="font-medium text-gray-900 mb-2">En connectant {providerName}, l&apos;assistant pourra :</h3>
             <ul className="space-y-1 text-gray-600 text-sm">
               <li>✓ Lire les emails de votre boîte de réception</li>
               <li>✓ Répondre aux clients automatiquement</li>
@@ -548,7 +548,7 @@ export default function EmailConfigPage() {
               ) : (
                 <div className="space-y-4">
                   <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                    <p className="text-gray-600 text-sm">Connectez votre compte Gmail pour que Sara puisse lire et répondre à vos emails automatiquement.</p>
+                    <p className="text-gray-600 text-sm">Connectez votre compte Gmail pour que l&apos;assistant puisse lire et répondre à vos emails automatiquement.</p>
                   </div>
                   <button
                     onClick={() => handleConnectProvider('google')}
@@ -576,7 +576,7 @@ export default function EmailConfigPage() {
                         <Bot className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <p className="font-medium text-purple-900">Sara répond aux emails</p>
+                        <p className="font-medium text-purple-900">L&apos;assistant répond aux emails</p>
                         <p className="text-sm text-purple-700">{autoReplyEnabled ? 'Activé' : 'Désactivé'}</p>
                       </div>
                     </div>
@@ -596,7 +596,7 @@ export default function EmailConfigPage() {
                     {processingAutoReply ? (
                       <><Loader2 className="w-5 h-5 animate-spin" /> Traitement en cours...</>
                     ) : (
-                      <><Send className="w-5 h-5" /> Sara répond maintenant</>
+                      <><Send className="w-5 h-5" /> L&apos;assistant répond maintenant</>
                     )}
                   </button>
                 </div>
@@ -633,7 +633,7 @@ export default function EmailConfigPage() {
                       <Bot className="w-5 h-5 text-green-600" />
                       <span className="text-2xl font-bold text-green-900">{emailStats.replied}</span>
                     </div>
-                    <p className="text-sm text-green-700">Réponses Sara</p>
+                    <p className="text-sm text-green-700">Réponses IA</p>
                   </div>
                 </div>
                 
@@ -660,7 +660,7 @@ export default function EmailConfigPage() {
                 <div className="mt-4 space-y-4 text-sm text-blue-800">
                   <div>
                     <p className="font-medium">Pourquoi connecter Gmail ?</p>
-                    <p>Sara peut lire et répondre aux emails de vos clients automatiquement, directement depuis votre adresse Gmail professionnelle.</p>
+                    <p>L&apos;assistant peut lire et répondre aux emails de vos clients automatiquement, directement depuis votre adresse Gmail professionnelle.</p>
                   </div>
                   <div>
                     <p className="font-medium">Mes données sont-elles sécurisées ?</p>
