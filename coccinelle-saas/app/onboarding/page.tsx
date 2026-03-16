@@ -1,182 +1,291 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import ProgressBar from '@/components/onboarding/ProgressBar';
-import WelcomeStep from '@/components/onboarding/WelcomeStep';
-import ChannelSelectionStep from '@/components/onboarding/ChannelSelectionStep';
-import PhoneConfigStep from '@/components/onboarding/PhoneConfigStep';
-import SMSConfigStep from '@/components/onboarding/SMSConfigStep';
-import EmailConfigStep from '@/components/onboarding/EmailConfigStep';
-import WhatsAppConfigStep from '@/components/onboarding/WhatsAppConfigStep';
-import KnowledgeBaseStep from '@/components/onboarding/KnowledgeBaseStep';
-import CompletionStep from '@/components/onboarding/CompletionStep';
+import { buildApiUrl, getAuthHeaders } from '@/lib/config';
+import StepperProgress from '@/components/onboarding/StepperProgress';
+import SectorStep from '@/components/onboarding/steps/SectorStep';
+import BusinessStep from '@/components/onboarding/steps/BusinessStep';
+import KnowledgeStep from '@/components/onboarding/steps/KnowledgeStep';
+import ProductsStep from '@/components/onboarding/steps/ProductsStep';
+import ChannelsStep from '@/components/onboarding/steps/ChannelsStep';
+import AssistantStep from '@/components/onboarding/steps/AssistantStep';
+import SummaryStep from '@/components/onboarding/steps/SummaryStep';
 
-export default function Onboarding() {
+const TOTAL_STEPS = 7; // 0-6
+
+interface OnboardingState {
+  sessionId: string | null;
+  currentStep: number;
+  loading: boolean;
+  sector: string;
+  businessData: { company_name: string; phone: string };
+  productsData: { count: number } | null;
+  kbData: { method: string; documentsCount: number } | null;
+  channelsData: string[];
+  assistantData: { agent_name: string; voice: string; agent_type: string } | null;
+}
+
+export default function OnboardingPage() {
   const router = useRouter();
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [state, setState] = useState<OnboardingState>({
+    sessionId: null,
+    currentStep: 0,
+    loading: true,
+    sector: '',
+    businessData: { company_name: '', phone: '' },
+    productsData: null,
+    kbData: null,
+    channelsData: ['phone'],
+    assistantData: null,
+  });
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [error, setError] = useState('');
 
-  // Données de configuration
-  const [selectedChannels, setSelectedChannels] = useState([]);
-  const [channelConfigs, setChannelConfigs] = useState({});
-  const [kbData, setKbData] = useState(null);
-
-  // Construire dynamiquement la liste des étapes
-  const steps = useMemo(() => {
-    const baseSteps = [
-      { id: 'welcome', label: 'Bienvenue' },
-      { id: 'channel-selection', label: 'Canaux' }
-    ];
-
-    // Ajouter les étapes de configuration par canal sélectionné
-    const channelSteps = (selectedChannels || []).map(channelId => ({
-      id: `config-${channelId}`,
-      label: `Config ${channelId}`,
-      channelId
-    }));
-
-    const endSteps = [
-      { id: 'knowledge-base', label: 'Base de connaissances' },
-      { id: 'completion', label: 'Terminé' }
-    ];
-
-    return [...baseSteps, ...channelSteps, ...endSteps];
-  }, [selectedChannels]);
-
-  const currentStep = steps[currentStepIndex];
-  const totalSteps = steps.length;
-
-  const handleNext = async (stepData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Sauvegarder les données selon l'étape actuelle
-      if (currentStep.id === 'channel-selection') {
-        setSelectedChannels(stepData.selectedChannels);
-      } else if (currentStep.id.startsWith('config-')) {
-        // Fusionner la config du canal avec les configs existantes
-        setChannelConfigs(prev => ({ ...prev, ...stepData }));
-      } else if (currentStep.id === 'knowledge-base') {
-        setKbData(stepData);
+  // Initialize onboarding session
+  useEffect(() => {
+    async function init() {
+      // 1. Check auth
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        router.replace('/login');
+        return;
       }
 
-      // Passer à l'étape suivante
-      setCurrentStepIndex(currentStepIndex + 1);
-    } catch (err) {
-      setError('Erreur lors de la sauvegarde');
-      console.error('Error saving step:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      // 2. Check if onboarding already completed
+      try {
+        const meResponse = await fetch(buildApiUrl('/api/v1/auth/me'), {
+          headers: getAuthHeaders(),
+        });
+        if (meResponse.ok) {
+          const meData = await meResponse.json();
+          if (meData.tenant?.onboarding_completed || localStorage.getItem('onboarding_completed') === 'true') {
+            router.replace('/dashboard');
+            return;
+          }
+        }
+      } catch {
+        // Continue with onboarding setup
+      }
 
-  const handleBack = () => {
-    if (currentStepIndex > 0) {
-      setCurrentStepIndex(currentStepIndex - 1);
-    }
-  };
+      // Pre-fill sector from signup
+      let preSector = '';
+      try {
+        const tenant = JSON.parse(localStorage.getItem('tenant') || '{}');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        preSector = tenant.industry || user.industry || '';
+      } catch {
+        // ignore
+      }
 
-  const handleComplete = async () => {
-    // Sauvegarder toute la configuration dans localStorage
-    try {
-      localStorage.setItem('onboarding_channels', JSON.stringify(selectedChannels));
-      localStorage.setItem('onboarding_channel_configs', JSON.stringify(channelConfigs));
-      localStorage.setItem('onboarding_kb', JSON.stringify(kbData));
-      localStorage.setItem('onboarding_completed', 'true');
-    } catch (e) {
-      console.error('Error saving onboarding data:', e);
+      // 3. Check for existing session
+      const existingSessionId = localStorage.getItem('onboarding_session_id');
+      if (existingSessionId) {
+        try {
+          const statusResponse = await fetch(
+            buildApiUrl(`/api/v1/onboarding/session/${existingSessionId}/status`),
+            { headers: getAuthHeaders() }
+          );
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            if (statusData.status === 'completed') {
+              localStorage.setItem('onboarding_completed', 'true');
+              router.replace('/dashboard');
+              return;
+            }
+            // Resume at saved step
+            const savedStep = parseInt(localStorage.getItem('onboarding_current_step') || '0', 10);
+            setState(prev => ({
+              ...prev,
+              sessionId: existingSessionId,
+              currentStep: Math.min(savedStep, TOTAL_STEPS - 1),
+              loading: false,
+              sector: preSector || prev.sector,
+            }));
+            return;
+          }
+        } catch {
+          // Session invalid, create new one
+          localStorage.removeItem('onboarding_session_id');
+        }
+      }
+
+      // 4. Create new session
+      try {
+        const startResponse = await fetch(buildApiUrl('/api/v1/onboarding/start'), {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        });
+
+        if (startResponse.ok) {
+          const startData = await startResponse.json();
+          const newSessionId = startData.session_id || startData.sessionId || startData.id;
+          if (newSessionId) {
+            localStorage.setItem('onboarding_session_id', newSessionId);
+            if (startData.tenant_id) {
+              sessionStorage.setItem('onboarding_session', JSON.stringify({ tenant_id: startData.tenant_id }));
+            }
+            setState(prev => ({
+              ...prev,
+              sessionId: newSessionId,
+              loading: false,
+              sector: preSector || prev.sector,
+            }));
+          } else {
+            setState(prev => ({ ...prev, loading: false, sector: preSector || prev.sector }));
+          }
+        } else {
+          setState(prev => ({ ...prev, loading: false, sector: preSector || prev.sector }));
+        }
+      } catch {
+        setState(prev => ({ ...prev, loading: false, sector: preSector || prev.sector }));
+      }
     }
 
+    init();
+  }, [router]);
+
+  // Persist current step
+  useEffect(() => {
+    if (!state.loading) {
+      localStorage.setItem('onboarding_current_step', String(state.currentStep));
+    }
+  }, [state.currentStep, state.loading]);
+
+  const goToStep = useCallback((step: number) => {
+    setState(prev => ({ ...prev, currentStep: step }));
+  }, []);
+
+  const markCompleted = useCallback((step: number) => {
+    setCompletedSteps(prev => new Set(prev).add(step));
+  }, []);
+
+  const nextStep = useCallback(() => {
+    markCompleted(state.currentStep);
+    setState(prev => ({ ...prev, currentStep: Math.min(prev.currentStep + 1, TOTAL_STEPS - 1) }));
+  }, [state.currentStep, markCompleted]);
+
+  const prevStep = useCallback(() => {
+    setState(prev => ({ ...prev, currentStep: Math.max(prev.currentStep - 1, 0) }));
+  }, []);
+
+  const skipStep = useCallback(() => {
+    setState(prev => ({ ...prev, currentStep: Math.min(prev.currentStep + 1, TOTAL_STEPS - 1) }));
+  }, []);
+
+  const handleComplete = useCallback(() => {
+    markCompleted(TOTAL_STEPS - 1);
+    localStorage.removeItem('onboarding_session_id');
+    localStorage.removeItem('onboarding_current_step');
     router.push('/dashboard');
-  };
+  }, [router, markCompleted]);
 
-  // Render le composant correspondant à l'étape actuelle
+  if (state.loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-[#D85A30] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="mt-4 text-gray-500">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   const renderStep = () => {
-    switch (currentStep.id) {
-      case 'welcome':
-        return <WelcomeStep onNext={() => setCurrentStepIndex(1)} />;
-
-      case 'channel-selection':
+    switch (state.currentStep) {
+      case 0:
         return (
-          <ChannelSelectionStep
-            onNext={handleNext}
-            onBack={handleBack}
-            loading={loading}
+          <SectorStep
+            sector={state.sector}
+            onSectorChange={s => setState(prev => ({ ...prev, sector: s }))}
+            onNext={nextStep}
           />
         );
-
-      case 'config-phone':
+      case 1:
         return (
-          <PhoneConfigStep
-            onNext={handleNext}
-            onBack={handleBack}
-            loading={loading}
+          <BusinessStep
+            sessionId={state.sessionId || ''}
+            sector={state.sector}
+            businessData={state.businessData}
+            onBusinessChange={d => setState(prev => ({ ...prev, businessData: d }))}
+            onNext={nextStep}
+            onBack={prevStep}
           />
         );
-
-      case 'config-sms':
+      case 2:
         return (
-          <SMSConfigStep
-            onNext={handleNext}
-            onBack={handleBack}
-            loading={loading}
+          <KnowledgeStep
+            sessionId={state.sessionId || ''}
+            kbData={state.kbData}
+            onKbChange={d => setState(prev => ({ ...prev, kbData: d }))}
+            onNext={nextStep}
+            onBack={prevStep}
+            onSkip={skipStep}
           />
         );
-
-      case 'config-email':
+      case 3:
         return (
-          <EmailConfigStep
-            onNext={handleNext}
-            onBack={handleBack}
-            loading={loading}
+          <ProductsStep
+            productsData={state.productsData}
+            onProductsChange={d => setState(prev => ({ ...prev, productsData: d }))}
+            onNext={nextStep}
+            onBack={prevStep}
+            onSkip={skipStep}
           />
         );
-
-      case 'config-whatsapp':
+      case 4:
         return (
-          <WhatsAppConfigStep
-            onNext={handleNext}
-            onBack={handleBack}
-            loading={loading}
+          <ChannelsStep
+            channelsData={state.channelsData}
+            onChannelsChange={d => setState(prev => ({ ...prev, channelsData: d }))}
+            onNext={nextStep}
+            onBack={prevStep}
+            onSkip={skipStep}
           />
         );
-
-      case 'knowledge-base':
+      case 5:
         return (
-          <KnowledgeBaseStep
-            sessionId={null}
-            onNext={handleNext}
-            onBack={handleBack}
-            loading={loading}
+          <AssistantStep
+            sessionId={state.sessionId || ''}
+            assistantData={state.assistantData}
+            onAssistantChange={d => setState(prev => ({ ...prev, assistantData: d }))}
+            onNext={nextStep}
+            onBack={prevStep}
+            onSkip={skipStep}
           />
         );
-
-      case 'completion':
+      case 6:
         return (
-          <CompletionStep
-            kbData={kbData}
-            saraConfig={channelConfigs}
+          <SummaryStep
+            sessionId={state.sessionId || ''}
+            sector={state.sector}
+            businessData={state.businessData}
+            productsData={state.productsData}
+            kbData={state.kbData}
+            channelsData={state.channelsData}
+            assistantData={state.assistantData}
+            completedSteps={completedSteps}
+            onBack={prevStep}
             onComplete={handleComplete}
-            loading={loading}
           />
         );
-
       default:
-        return <div>Étape inconnue</div>;
+        return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-white py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <ProgressBar currentStep={currentStepIndex + 1} totalSteps={totalSteps} />
+    <div className="min-h-screen bg-white py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto">
+        <StepperProgress
+          currentStep={state.currentStep}
+          completedSteps={completedSteps}
+          onGotoStep={goToStep}
+        />
 
-        <div className="mt-8 bg-white border border-gray-200 rounded-lg p-8">
+        <div className="mt-8 bg-white border border-gray-200 rounded-xl p-6 sm:p-8">
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {error}
             </div>
           )}
