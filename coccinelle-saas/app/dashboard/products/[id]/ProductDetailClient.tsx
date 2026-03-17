@@ -6,6 +6,13 @@ import { ArrowLeft, Package, MapPin, Tag, Calendar, Edit, Briefcase } from 'luci
 import Link from 'next/link';
 import { useTenant } from '@/hooks/useTenant';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+const getAuthHeaders = (): Record<string, string> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  return token ? { 'Authorization': `Bearer ${token}` } : { 'x-api-key': 'demo-key-12345' };
+};
+
 interface Product {
   id: string;
   title: string;
@@ -43,7 +50,7 @@ export default function ProductDetailClient() {
   const fetchProduct = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/proxy?path=/api/v1/products/${productId}&tenantId=${tenantId}`);
+      const response = await fetch(`${API_URL}/api/v1/products/${productId}`, { headers: getAuthHeaders() });
       if (!response.ok) throw new Error('Produit non trouvé');
       const data = await response.json();
       setProduct(data.product);

@@ -6,6 +6,13 @@ import Link from 'next/link';
 import { ArrowLeft, Upload, FileSpreadsheet, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+const getAuthHeaders = (): Record<string, string> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  return token ? { 'Authorization': `Bearer ${token}` } : { 'x-api-key': 'demo-key-12345' };
+};
+
 interface PreviewData {
   headers: string[];
   preview: any[];
@@ -57,8 +64,9 @@ export default function ImportProductsPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(`/api/proxy?path=/api/v1/products/preview-import&tenantId=${tenantId}`, {
+      const res = await fetch(`${API_URL}/api/v1/products/preview-import`, {
         method: 'POST',
+        headers: getAuthHeaders(),
         body: formData
       });
 
@@ -100,8 +108,9 @@ export default function ImportProductsPage() {
       formData.append('file', file);
       formData.append('columnMapping', JSON.stringify(columnMapping));
 
-      const res = await fetch(`/api/proxy?path=/api/v1/products/import&tenantId=${tenantId}`, {
+      const res = await fetch(`${API_URL}/api/v1/products/import`, {
         method: 'POST',
+        headers: getAuthHeaders(),
         body: formData
       });
 

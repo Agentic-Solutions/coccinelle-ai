@@ -53,6 +53,8 @@ const ICON_MAP: Record<string, any> = {
   Laptop
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
 export default function ProductsPage() {
   const { tenantId, loading: tenantLoading } = useTenant();
   const [products, setProducts] = useState<Product[]>([]);
@@ -63,6 +65,13 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all'); // 'all', 'product', 'service'
   const [searchTerm, setSearchTerm] = useState('');
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('auth_token');
+    return token
+      ? { 'Authorization': `Bearer ${token}` }
+      : { 'x-api-key': 'demo-key-12345' };
+  };
 
   // Charger les catégories depuis l'API - ATTENDRE que le tenant soit chargé
   useEffect(() => {
@@ -80,7 +89,9 @@ export default function ProductsPage() {
   const fetchCategories = async () => {
     try {
       setLoadingCategories(true);
-      const response = await fetch(`/api/proxy?path=/api/v1/product-categories&tenantId=${tenantId}`);
+      const response = await fetch(`${API_URL}/api/v1/product-categories`, {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
 
       if (data.success) {
@@ -97,8 +108,10 @@ export default function ProductsPage() {
     try {
       setLoading(true);
       setError(null);
-      const categoryParam = selectedCategory !== 'all' ? `&category=${selectedCategory}` : '';
-      const response = await fetch(`/api/proxy?path=/api/v1/products&tenantId=${tenantId}${categoryParam}`);
+      const categoryParam = selectedCategory !== 'all' ? `?category=${selectedCategory}` : '';
+      const response = await fetch(`${API_URL}/api/v1/products${categoryParam}`, {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
 
       if (data.success) {

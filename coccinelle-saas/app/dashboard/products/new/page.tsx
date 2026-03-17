@@ -9,6 +9,11 @@ import { useTenant } from '@/hooks/useTenant';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
+const getAuthHeaders = (): Record<string, string> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  return token ? { 'Authorization': `Bearer ${token}` } : { 'x-api-key': 'demo-key-12345' };
+};
+
 interface CategoryConfig {
   key: string;
   name: string;
@@ -95,7 +100,7 @@ export default function NewProductPage() {
   const fetchCategories = async () => {
     try {
       setLoadingCategories(true);
-      const response = await fetch(`/api/proxy?path=/api/v1/product-categories&tenantId=${tenantId}`);
+      const response = await fetch(`${API_URL}/api/v1/product-categories`, { headers: getAuthHeaders() });
       const data = await response.json();
 
       if (data.success && data.categories.length > 0) {
@@ -113,7 +118,7 @@ export default function NewProductPage() {
   const fetchAgents = async () => {
     try {
       setLoadingAgents(true);
-      const response = await fetch(`/api/proxy?path=/api/v1/agents&tenantId=${tenantId}`);
+      const response = await fetch(`${API_URL}/api/v1/agents`, { headers: getAuthHeaders() });
       const data = await response.json();
 
       if (data.success && data.agents) {
@@ -217,10 +222,11 @@ export default function NewProductPage() {
         }));
       }
 
-      const res = await fetch(`/api/proxy?path=/api/v1/products&tenantId=${tenantId}`, {
+      const res = await fetch(`${API_URL}/api/v1/products`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
         },
         body: JSON.stringify(payload)
       });

@@ -25,6 +25,11 @@ interface Product {
   price_currency: string;
 }
 
+const getAuthHeaders = (): Record<string, string> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  return token ? { 'Authorization': `Bearer ${token}` } : { 'x-api-key': 'demo-key-12345' };
+};
+
 export default function AgentAssignmentPage() {
   const { tenantId } = useTenant();
   const [products, setProducts] = useState<Product[]>([]);
@@ -51,8 +56,8 @@ export default function AgentAssignmentPage() {
     try {
       setLoading(true);
       const [productsRes, agentsRes] = await Promise.all([
-        fetch(`/api/proxy?path=/api/v1/products&tenantId=${tenantId}`),
-        fetch(`/api/proxy?path=/api/v1/agents&tenantId=${tenantId}`)
+        fetch(`${API_URL}/api/v1/products`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/v1/agents`, { headers: getAuthHeaders() })
       ]);
 
       const productsData = await productsRes.json();
@@ -134,10 +139,11 @@ export default function AgentAssignmentPage() {
 
     try {
       const updates = Array.from(selectedProducts).map(async (productId) => {
-        const response = await fetch(`/api/proxy?path=/api/v1/products/${productId}&tenantId=${tenantId}`, {
+        const response = await fetch(`${API_URL}/api/v1/products/${productId}`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
           },
           body: JSON.stringify({
             agent_id: bulkAgentId,
