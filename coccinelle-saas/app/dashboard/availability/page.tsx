@@ -128,7 +128,7 @@ export default function AvailabilityPage() {
         );
       }
     } catch {
-      showToast('error', 'Erreur lors du chargement des disponibilites');
+      showToast('error', 'Erreur lors du chargement des disponibilités');
     } finally {
       setLoading(false);
     }
@@ -166,7 +166,7 @@ export default function AvailabilityPage() {
         });
       }
       setSlots(prev => prev.map(s => ({ ...s, modified: false })));
-      showToast('success', 'Disponibilites enregistrees');
+      showToast('success', 'Disponibilités enregistrées');
     } catch {
       showToast('error', 'Erreur lors de la sauvegarde');
     } finally {
@@ -192,8 +192,8 @@ export default function AvailabilityPage() {
               <Clock className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Disponibilites</h1>
-              <p className="text-sm text-gray-500">Configurez vos creneaux de disponibilite</p>
+              <h1 className="text-2xl font-bold text-gray-900">Disponibilités</h1>
+              <p className="text-sm text-gray-500">Configurez vos créneaux de disponibilité</p>
             </div>
           </div>
         </div>
@@ -212,7 +212,7 @@ export default function AvailabilityPage() {
                 onChange={(e) => setSelectedAgent(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
               >
-                <option value="">Mes disponibilites</option>
+                <option value="">Mes disponibilités</option>
                 {agents.map(a => (
                   <option key={a.id} value={a.id}>
                     {a.first_name} {a.last_name}
@@ -267,7 +267,7 @@ export default function AvailabilityPage() {
                       {slot.is_available && (
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                           <div>
-                            <label className="block text-xs text-gray-500 mb-1">Debut</label>
+                            <label className="block text-xs text-gray-500 mb-1">Début</label>
                             <input
                               type="time"
                               value={slot.start_time}
@@ -285,7 +285,7 @@ export default function AvailabilityPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-gray-500 mb-1">Pause debut</label>
+                            <label className="block text-xs text-gray-500 mb-1">Pause début</label>
                             <input
                               type="time"
                               value={slot.break_start}
@@ -303,7 +303,7 @@ export default function AvailabilityPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-gray-500 mb-1">Creneau</label>
+                            <label className="block text-xs text-gray-500 mb-1">Créneau</label>
                             <select
                               value={slot.slot_duration}
                               onChange={(e) => updateSlot(index, 'slot_duration', Number(e.target.value))}

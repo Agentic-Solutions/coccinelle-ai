@@ -110,7 +110,7 @@ export default function AppointmentTypesPage() {
 
       if (!res.ok) throw new Error('Erreur serveur');
 
-      showToast('success', editingId ? 'Type de RDV mis a jour' : 'Type de RDV cree');
+      showToast('success', editingId ? 'Type de RDV mis à jour' : 'Type de RDV cree');
       setShowForm(false);
       setEditingId(null);
       setForm({ ...emptyForm });
@@ -141,7 +141,7 @@ export default function AppointmentTypesPage() {
         headers: { 'Authorization': `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error('Erreur serveur');
-      showToast('success', 'Type de RDV supprime');
+      showToast('success', 'Type de RDV supprimé');
       fetchTypes();
     } catch {
       showToast('error', 'Erreur lors de la suppression');
@@ -225,7 +225,7 @@ export default function AppointmentTypesPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Duree
+                    Durée
                   </label>
                   <select
                     value={form.duration_minutes}
@@ -303,7 +303,7 @@ export default function AppointmentTypesPage() {
                   ) : (
                     <Save className="w-4 h-4" />
                   )}
-                  {editingId ? 'Mettre a jour' : 'Creer'}
+                  {editingId ? 'Mettre à jour' : 'Creer'}
                 </button>
               </div>
             </form>
@@ -320,13 +320,13 @@ export default function AppointmentTypesPage() {
             <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun type de RDV</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Creez votre premier type de rendez-vous pour commencer
+              Créez votre premier type de rendez-vous pour commencer
             </p>
             <button
               onClick={() => { setForm({ ...emptyForm }); setEditingId(null); setShowForm(true); }}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
             >
-              Creer un type de RDV
+              Créer un type de RDV
             </button>
           </div>
         ) : (

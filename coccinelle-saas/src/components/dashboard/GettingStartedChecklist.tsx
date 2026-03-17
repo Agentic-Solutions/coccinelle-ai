@@ -105,7 +105,7 @@ export default function GettingStartedChecklist({
         icon: <Phone className="w-5 h-5" />,
         action: callsCount === 0 ? {
           label: 'Voir le numéro',
-          href: '/dashboard/configuration/assistant'
+          href: '/dashboard/sara'
         } : undefined
       },
       {

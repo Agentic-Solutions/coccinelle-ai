@@ -8,8 +8,6 @@ import ProfileForm from '@/components/settings/ProfileForm';
 import APIKeysForm from '@/components/settings/APIKeysForm';
 import NotificationsSettings from '@/components/settings/NotificationsSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
-import AvailabilitySettings from '@/components/settings/AvailabilitySettings';
-import TeamManagement from '@/components/settings/TeamManagement';
 import CalendarIntegration from '@/components/settings/CalendarIntegration';
 import EmailConfiguration from '@/components/settings/EmailConfiguration';
 import Logo from '@/components/Logo';
@@ -29,15 +27,15 @@ export default function SettingsPage() {
 
     // Configuration Business
     { id: 'section2', label: 'CONFIGURATION BUSINESS', isSection: true },
-    { id: 'availability', label: 'Disponibilités' },
+    { id: 'availability', label: 'Disponibilités', link: '/dashboard/availability' },
     { id: 'calendar', label: 'Calendriers' },
     { id: 'email', label: 'Email' },
-    { id: 'channels', label: 'Canaux de communication', link: '/dashboard/settings/channels' },
+    { id: 'channels', label: 'Canaux de communication', link: '/dashboard/channels' },
 
     // Équipe & Développement
     { id: 'section3', label: 'ÉQUIPE & DÉVELOPPEMENT', isSection: true },
-    { id: 'team', label: 'Equipe' },
-    { id: 'api', label: 'Cles API' },
+    { id: 'team', label: 'Équipe', link: '/dashboard/teams' },
+    { id: 'api', label: 'Clés API' },
 
     // Zone dangereuse
     { id: 'section4', label: 'ZONE DANGEREUSE', isSection: true },
@@ -59,8 +57,8 @@ export default function SettingsPage() {
               <Logo size={48} />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Parametres</h1>
-              <p className="text-xs sm:text-sm text-gray-600">Gerez votre compte et vos preferences</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Paramètres</h1>
+              <p className="text-xs sm:text-sm text-gray-600">Gérez votre compte et vos préférences</p>
             </div>
           </div>
         </div>
@@ -145,8 +143,6 @@ export default function SettingsPage() {
 
           {/* Contenu */}
           <div className="flex-1 min-w-0">
-            {activeTab === 'availability' && <AvailabilitySettings />}
-            {activeTab === 'team' && <TeamManagement />}
             {activeTab === 'calendar' && <CalendarIntegration />}
             {activeTab === 'email' && <EmailConfiguration />}
             {activeTab === 'profile' && <ProfileForm />}
@@ -206,7 +202,7 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
 
       onAccountDeleted();
     } catch {
-      setError('Erreur reseau. Verifiez votre connexion.');
+      setError('Erreur réseau. Vérifiez votre connexion.');
     } finally {
       setLoading(false);
     }
@@ -216,14 +212,14 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h2 className="text-xl font-bold text-red-600 mb-2">Zone dangereuse</h2>
       <p className="text-sm text-gray-600 mb-6">
-        Les actions ci-dessous sont irreversibles. Procedez avec prudence.
+        Les actions ci-dessous sont irréversibles. Procédez avec prudence.
       </p>
 
       <div className="border border-red-200 rounded-lg p-4 bg-red-50">
         <h3 className="font-semibold text-red-800 mb-2">Supprimer mon compte</h3>
         <p className="text-sm text-red-700 mb-4">
-          Cette action supprimera definitivement votre compte et toutes vos donnees
-          (prospects, clients, produits, rendez-vous). Cette operation est irreversible.
+          Cette action supprimera définitivement votre compte et toutes vos données
+          (prospects, clients, produits, rendez-vous). Cette opération est irréversible.
         </p>
         <button
           onClick={() => setShowModal(true)}
@@ -239,7 +235,7 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
           <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
             <h3 className="text-lg font-bold text-red-600 mb-2">Confirmer la suppression</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Cette action est irreversible. Toutes vos donnees seront supprimees definitivement.
+              Cette action est irréversible. Toutes vos données seront supprimées définitivement.
             </p>
 
             {error && (
@@ -295,7 +291,7 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
                 disabled={loading || confirmation !== 'SUPPRIMER' || !password}
                 className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Suppression...' : 'Supprimer definitivement'}
+                {loading ? 'Suppression...' : 'Supprimer définitivement'}
               </button>
             </div>
           </div>

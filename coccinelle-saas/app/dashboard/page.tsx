@@ -183,23 +183,23 @@ export default function DashboardPage() {
   // Quick wins - use explicit Tailwind classes to avoid purge issues
   const quickWins = [
     {
-      title: '3 RDV a confirmer',
+      title: '3 RDV à confirmer',
       action: 'Confirmer',
       icon: Calendar,
       bgClass: 'bg-green-50',
       iconClass: 'text-green-600',
-      href: '/dashboard/appointments'
+      href: '/dashboard/rdv'
     },
     {
-      title: '5 appels non traites',
-      action: 'Ecouter',
+      title: '5 appels non traités',
+      action: 'Écouter',
       icon: Phone,
       bgClass: 'bg-blue-50',
       iconClass: 'text-blue-600',
       href: '/dashboard/conversations/appels'
     },
     {
-      title: '2 docs a valider',
+      title: '2 docs à valider',
       action: 'Valider',
       icon: FileText,
       bgClass: 'bg-purple-50',
@@ -286,12 +286,12 @@ export default function DashboardPage() {
                 <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Documents KB</p>
                 <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
                   <CheckCircle2 className="w-3 h-3 text-green-600" />
-                  <span>Base a jour</span>
+                  <span>Base à jour</span>
                 </div>
               </div>
             </Link>
 
-            <Link href="/dashboard/appointments">
+            <Link href="/dashboard/rdv">
               <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-50 group-hover:bg-green-100 rounded-xl flex items-center justify-center transition-colors">
@@ -368,7 +368,7 @@ export default function DashboardPage() {
                 </div>
               </Link>
 
-              <Link href="/dashboard/appointments">
+              <Link href="/dashboard/rdv">
                 <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
                   <div className="flex items-center gap-4">
                     <div className="w-11 h-11 bg-green-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">

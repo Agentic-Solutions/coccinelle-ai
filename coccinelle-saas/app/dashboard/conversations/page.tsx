@@ -9,7 +9,7 @@ export default function ConversationsPage() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 pl-10 lg:pl-0">Conversations IA</h1>
         <p className="text-sm sm:text-base lg:text-xl text-gray-600 mb-6 lg:mb-8 pl-10 lg:pl-0">
-          L&apos;IA adapte son approche a chaque client sur tous les canaux
+          L&apos;IA adapte son approche à chaque client sur tous les canaux
         </p>
 
         {/* Stats */}
@@ -20,7 +20,7 @@ export default function ConversationsPage() {
           </div>
 
           <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">Temps de reponse moyen</h3>
+            <h3 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">Temps de réponse moyen</h3>
             <p className="text-2xl sm:text-4xl font-bold text-gray-900">&lt;2s</p>
           </div>
 
@@ -52,7 +52,7 @@ export default function ConversationsPage() {
                 </div>
                 <h3 className="text-base sm:text-xl font-bold text-gray-900">Journal des appels</h3>
               </div>
-              <p className="text-sm sm:text-base text-gray-600">Historique complet des appels telephoniques</p>
+              <p className="text-sm sm:text-base text-gray-600">Historique complet des appels téléphoniques</p>
             </div>
           </Link>
 
@@ -75,7 +75,7 @@ export default function ConversationsPage() {
               </div>
               <h3 className="text-base sm:text-xl font-bold text-gray-500">Historique complet</h3>
             </div>
-            <p className="text-sm sm:text-base text-gray-400">A venir prochainement</p>
+            <p className="text-sm sm:text-base text-gray-400">À venir prochainement</p>
           </div>
         </div>
       </div>

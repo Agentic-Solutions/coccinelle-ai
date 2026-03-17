@@ -177,7 +177,7 @@ export default function ProspectsPage() {
       setProspects(mockProspects);
       setFilteredProspects(mockProspects);
       computeStats(mockProspects);
-      setError('Mode hors-ligne : donnees locales affichees');
+      setError('Mode hors-ligne : données locales affichées');
     } finally {
       setIsLoading(false);
     }
@@ -240,8 +240,8 @@ export default function ProspectsPage() {
 
     const labels: Record<string, string> = {
       new: 'Nouveau',
-      contacted: 'Contacte',
-      qualified: 'Qualifie',
+      contacted: 'Contacté',
+      qualified: 'Qualifié',
       converted: 'Converti',
       lost: 'Perdu',
     };
@@ -295,7 +295,7 @@ export default function ProspectsPage() {
       if (res.ok) {
         setShowAddModal(false);
         setNewProspect({ firstName: '', lastName: '', email: '', phone: '', source: 'manual' });
-        toast.success('Prospect ajoute avec succes');
+        toast.success('Prospect ajouté avec succès');
         loadProspects();
       } else {
         // Fallback: add locally
@@ -358,10 +358,10 @@ export default function ProspectsPage() {
       a.download = `prospects_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success('Export telecharge');
+      toast.success('Export téléchargé');
     } catch (err) {
       // Fallback : export local
-      const headers = ['Prenom', 'Nom', 'Email', 'Telephone', 'Canal prefere', 'Segment', 'Statut', 'Source', 'Tags', 'Total commandes', 'Total depense'];
+      const headers = ['Prénom', 'Nom', 'Email', 'Téléphone', 'Canal préféré', 'Segment', 'Statut', 'Source', 'Tags', 'Total commandes', 'Total dépensé'];
       const csvData = filteredProspects.map(c => [
         c.firstName,
         c.lastName,
@@ -384,7 +384,7 @@ export default function ProspectsPage() {
       link.href = URL.createObjectURL(blob);
       link.download = `prospects_${new Date().toISOString().split('T')[0]}.csv`;
       link.click();
-      toast.success('Export telecharge (local)');
+      toast.success('Export téléchargé (local)');
     }
   };
 
@@ -427,7 +427,7 @@ export default function ProspectsPage() {
       computeStats(allProspects);
       setShowImportModal(false);
       setImportFile(null);
-      toast.success(`${importedProspects.length} prospect(s) importes avec succes`);
+      toast.success(`${importedProspects.length} prospect(s) importés avec succès`);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error('Erreur import:', err);
@@ -469,14 +469,14 @@ export default function ProspectsPage() {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Prospects</h1>
-              <p className="text-xs sm:text-sm text-gray-600">Gerez votre pipeline commercial</p>
+              <p className="text-xs sm:text-sm text-gray-600">Gérez votre pipeline commercial</p>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto">
             <button
               onClick={loadProspects}
               className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-              title="Rafraichir"
+              title="Rafraîchir"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -539,7 +539,7 @@ export default function ProspectsPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Qualifies</p>
+                <p className="text-sm text-gray-600">Qualifiés</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.qualified}</p>
               </div>
               <div className="p-3 bg-gray-100 rounded-lg">
@@ -567,7 +567,7 @@ export default function ProspectsPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Rechercher par nom, email ou telephone..."
+                placeholder="Rechercher par nom, email ou téléphone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
@@ -591,8 +591,8 @@ export default function ProspectsPage() {
             >
               <option value="all">Tous les statuts</option>
               <option value="new">Nouveau</option>
-              <option value="contacted">Contacte</option>
-              <option value="qualified">Qualifie</option>
+              <option value="contacted">Contacté</option>
+              <option value="qualified">Qualifié</option>
               <option value="converted">Converti</option>
               <option value="lost">Perdu</option>
             </select>
@@ -619,7 +619,7 @@ export default function ProspectsPage() {
                 <tr>
                   <td colSpan={8} className="px-6 py-16 text-center">
                     <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 font-medium">Aucun prospect trouve</p>
+                    <p className="text-gray-500 font-medium">Aucun prospect trouvé</p>
                     <p className="text-sm text-gray-400 mt-1">Ajoutez un nouveau prospect ou modifiez vos filtres</p>
                   </td>
                 </tr>
@@ -685,7 +685,7 @@ export default function ProspectsPage() {
                         href={`/dashboard/crm/prospects/${prospect.id}`}
                         className="text-gray-900 hover:text-gray-600 text-sm font-medium"
                       >
-                        Voir details
+                        Voir détails
                       </Link>
                     </td>
                   </tr>
@@ -698,7 +698,7 @@ export default function ProspectsPage() {
         {/* Footer */}
         <div className="mt-4 flex items-center justify-between">
           <div className="text-sm text-gray-600">
-            {filteredProspects.length} prospect(s) affiche(s)
+            {filteredProspects.length} prospect(s) affiché(s)
           </div>
         </div>
       </div>
@@ -719,7 +719,7 @@ export default function ProspectsPage() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prenom *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
                   <input
                     type="text"
                     value={newProspect.firstName}
@@ -749,7 +749,7 @@ export default function ProspectsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telephone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
                 <input
                   type="tel"
                   value={newProspect.phone}
@@ -768,7 +768,7 @@ export default function ProspectsPage() {
                   <option value="manual">Saisie manuelle</option>
                   <option value="sara">Assistant vocal</option>
                   <option value="website">Site web</option>
-                  <option value="appel">Appel telephonique</option>
+                  <option value="appel">Appel téléphonique</option>
                   <option value="recommandation">Recommandation</option>
                 </select>
               </div>
@@ -827,7 +827,7 @@ export default function ProspectsPage() {
                 Importez un fichier CSV avec les colonnes suivantes :
               </p>
               <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-xs font-mono mb-4">
-                Prenom, Nom, Email, Telephone, Canal, Segment, Statut, Source, Tags, Commandes, Total
+                Prénom, Nom, Email, Téléphone, Canal, Segment, Statut, Source, Tags, Commandes, Total
               </div>
               <div className="mb-4">
                 <input

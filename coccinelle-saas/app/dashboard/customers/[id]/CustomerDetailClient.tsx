@@ -238,7 +238,7 @@ export default function CustomerDetailClient() {
                 <Users className="w-5 h-5" />
                 Clients
               </Link>
-              <Link href="/dashboard/settings/integrations" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
+              <Link href="/dashboard/integrations" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
                 <Settings className="w-5 h-5" />
                 Intégrations
               </Link>

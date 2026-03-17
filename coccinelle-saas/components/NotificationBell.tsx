@@ -144,7 +144,7 @@ export default function NotificationBell() {
     if (notif.type === "prospect_converted" && parsedData?.customer_id) {
       window.location.href = `/dashboard/customers/${parsedData.customer_id}`;
     } else if (notif.type === "feedback_received" && parsedData?.appointment_id) {
-      window.location.href = `/dashboard/appointments`;
+      window.location.href = `/dashboard/rdv`;
     }
 
     setIsOpen(false);

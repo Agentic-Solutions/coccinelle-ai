@@ -72,7 +72,7 @@ export default function AppelsPage() {
   const fetchCalls = async (page: number) => {
     const token = getToken();
     if (!token) {
-      setError('Non authentifie');
+      setError('Non authentifié');
       setLoading(false);
       return;
     }
@@ -90,7 +90,7 @@ export default function AppelsPage() {
 
       if (!res.ok) {
         if (res.status === 401) {
-          setError('Session expiree, veuillez vous reconnecter');
+          setError('Session expirée, veuillez vous reconnecter');
           return;
         }
         throw new Error('Erreur serveur');
@@ -203,13 +203,13 @@ export default function AppelsPage() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      completed: 'Termine',
-      ended: 'Termine',
+      completed: 'Terminé',
+      ended: 'Terminé',
       in_progress: 'En cours',
-      failed: 'Echoue',
-      no_answer: 'Sans reponse',
-      busy: 'Occupe',
-      initiated: 'Lance'
+      failed: 'Échoué',
+      no_answer: 'Sans réponse',
+      busy: 'Occupé',
+      initiated: 'Lancé'
     };
     return labels[status] || status;
   };
@@ -259,7 +259,7 @@ export default function AppelsPage() {
             </Link>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Journal des appels</h1>
-              <p className="text-sm text-gray-600">Historique reel des appels telephoniques</p>
+              <p className="text-sm text-gray-600">Historique réel des appels téléphoniques</p>
             </div>
           </div>
           <button
@@ -285,7 +285,7 @@ export default function AppelsPage() {
           <div className="bg-white p-4 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 mb-1">
               <Calendar className="w-4 h-4 text-green-500" />
-              <span className="text-xs text-gray-500">RDV crees</span>
+              <span className="text-xs text-gray-500">RDV créés</span>
             </div>
             <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats?.appointments_created || 0}</p>
           </div>
@@ -299,7 +299,7 @@ export default function AppelsPage() {
           <div className="bg-white p-4 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 mb-1">
               <Clock className="w-4 h-4 text-gray-500" />
-              <span className="text-xs text-gray-500">Duree moy.</span>
+              <span className="text-xs text-gray-500">Durée moy.</span>
             </div>
             <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatDuration(stats?.avg_duration_seconds || 0)}</p>
           </div>
@@ -312,7 +312,7 @@ export default function AppelsPage() {
               <h3 className="text-sm font-medium text-gray-700">Filtres</h3>
               {hasActiveFilters && (
                 <button onClick={resetFilters} className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1">
-                  <X className="w-3 h-3" /> Reinitialiser
+                  <X className="w-3 h-3" /> Réinitialiser
                 </button>
               )}
             </div>
@@ -323,10 +323,10 @@ export default function AppelsPage() {
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               >
                 <option value="">Tout statut</option>
-                <option value="completed">Termine</option>
-                <option value="ended">Termine (ended)</option>
+                <option value="completed">Terminé</option>
+                <option value="ended">Terminé (ended)</option>
                 <option value="in_progress">En cours</option>
-                <option value="failed">Echoue</option>
+                <option value="failed">Échoué</option>
               </select>
               <select
                 value={directionFilter}
@@ -362,7 +362,7 @@ export default function AppelsPage() {
                 <div className="p-12 text-center text-gray-500">
                   <Phone className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p className="font-medium">Aucun appel</p>
-                  <p className="text-sm mt-1">Les appels apparaitront ici automatiquement</p>
+                  <p className="text-sm mt-1">Les appels apparaîtront ici automatiquement</p>
                 </div>
               ) : (
                 <>
@@ -371,9 +371,9 @@ export default function AppelsPage() {
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Numero</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Numéro</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Direction</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duree</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Durée</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Sentiment</th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Prospect</th>
@@ -460,7 +460,7 @@ export default function AppelsPage() {
               <div className="bg-white rounded-lg border border-gray-200 sticky top-6">
                 {/* Panel header */}
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Detail de l&apos;appel</h3>
+                  <h3 className="font-semibold text-gray-900">Détail de l&apos;appel</h3>
                   <button
                     onClick={() => setSelectedCallId(null)}
                     className="p-1 hover:bg-gray-100 rounded"
@@ -488,7 +488,7 @@ export default function AppelsPage() {
                         <span className="text-gray-900">{selectedCall.direction === 'inbound' ? 'Entrant' : 'Sortant'}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Duree</span>
+                        <span className="text-gray-500">Durée</span>
                         <span className="text-gray-900 font-medium">{formatDuration(selectedCall.duration)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
@@ -514,10 +514,10 @@ export default function AppelsPage() {
                       )}
                     </div>
 
-                    {/* Prospect lien */}
+                    {/* Prospect lién */}
                     {selectedCall.prospect && (
                       <div className="bg-blue-50 rounded-lg p-3">
-                        <p className="text-xs font-medium text-blue-700 mb-1">Prospect lie</p>
+                        <p className="text-xs font-medium text-blue-700 mb-1">Prospect lié</p>
                         <Link
                           href={`/dashboard/crm/prospects/${selectedCall.prospect.id}`}
                           className="text-sm font-medium text-blue-800 hover:underline"
@@ -530,10 +530,10 @@ export default function AppelsPage() {
                       </div>
                     )}
 
-                    {/* Resume */}
+                    {/* Résumé */}
                     {selectedCall.summary && (
                       <div>
-                        <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Resume</h4>
+                        <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Résumé</h4>
                         <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{selectedCall.summary}</p>
                       </div>
                     )}
@@ -556,13 +556,13 @@ export default function AppelsPage() {
                         <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Analyse</h4>
                         <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
                           {selectedCall.analysis.call_summary && (
-                            <p><span className="font-medium">Resume:</span> {selectedCall.analysis.call_summary}</p>
+                            <p><span className="font-medium">Résumé :</span> {selectedCall.analysis.call_summary}</p>
                           )}
                           {selectedCall.analysis.user_sentiment && (
                             <p><span className="font-medium">Sentiment:</span> {selectedCall.analysis.user_sentiment}</p>
                           )}
                           {selectedCall.analysis.call_successful !== undefined && (
-                            <p><span className="font-medium">Succes:</span> {selectedCall.analysis.call_successful ? 'Oui' : 'Non'}</p>
+                            <p><span className="font-medium">Succès :</span> {selectedCall.analysis.call_successful ? 'Oui' : 'Non'}</p>
                           )}
                         </div>
                       </div>

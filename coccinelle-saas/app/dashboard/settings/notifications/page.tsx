@@ -396,7 +396,7 @@ function NotificationsContent() {
                   automatiquement vos appels entrants et sortants. Assistant peut prendre des rendez-vous,
                   répondre aux questions, et qualifier vos prospects 24/7.
                 </p>
-                <Link href="/dashboard/configuration/assistant">
+                <Link href="/dashboard/sara">
                   <button className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 font-medium">
                     Configurer Assistant
                     <ArrowRight className="w-4 h-4" />

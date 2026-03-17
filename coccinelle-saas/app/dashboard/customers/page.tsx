@@ -188,14 +188,14 @@ export default function CustomersPage() {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!formData.first_name.trim() && !formData.last_name.trim()) {
-      errors.first_name = 'Le prenom ou le nom est requis';
-      errors.last_name = 'Le prenom ou le nom est requis';
+      errors.first_name = 'Le prénom ou le nom est requis';
+      errors.last_name = 'Le prénom ou le nom est requis';
     }
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.email = 'Adresse email invalide';
     }
     if (formData.phone && !/^\+?[\d\s-]{6,}$/.test(formData.phone)) {
-      errors.phone = 'Numero de telephone invalide';
+      errors.phone = 'Numéro de téléphone invalide';
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -207,7 +207,7 @@ export default function CustomersPage() {
     setSaving(true);
     try {
       const token = getToken();
-      if (!token) throw new Error('Non authentifie');
+      if (!token) throw new Error('Non authentifié');
 
       const response = await fetch(`${API_URL}/api/v1/customers`, {
         method: 'POST',
@@ -229,15 +229,15 @@ export default function CustomersPage() {
 
       const data: ApiResponse = await response.json();
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Erreur lors de la creation');
+        throw new Error(data.error || 'Erreur lors de la création');
       }
 
       setShowCreateModal(false);
       resetForm();
-      toast.success('Client cree avec succes');
+      toast.success('Client créé avec succès');
       await fetchCustomers();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors de la creation');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la création');
     } finally {
       setSaving(false);
     }
@@ -277,7 +277,7 @@ export default function CustomersPage() {
       setShowEditModal(false);
       setSelectedCustomer(null);
       resetForm();
-      toast.success('Client modifie avec succes');
+      toast.success('Client modifié avec succès');
       await fetchCustomers();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la modification');
@@ -292,7 +292,7 @@ export default function CustomersPage() {
     setSaving(true);
     try {
       const token = getToken();
-      if (!token) throw new Error('Non authentifie');
+      if (!token) throw new Error('Non authentifié');
 
       const response = await fetch(`${API_URL}/api/v1/customers/${selectedCustomer.id}`, {
         method: 'DELETE',
@@ -309,7 +309,7 @@ export default function CustomersPage() {
 
       setShowDeleteModal(false);
       setSelectedCustomer(null);
-      toast.success('Client supprime');
+      toast.success('Client supprimé');
       await fetchCustomers();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression');
@@ -381,10 +381,10 @@ export default function CustomersPage() {
       a.download = `clients_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success('Export telecharge');
+      toast.success('Export téléchargé');
     } catch (err) {
       // Fallback : export local
-      const headers = ['Prenom', 'Nom', 'Email', 'Telephone', 'Statut', 'Source', 'Cree le'];
+      const headers = ['Prénom', 'Nom', 'Email', 'Téléphone', 'Statut', 'Source', 'Créé le'];
       const csvData = customers.map(c => [
         c.first_name || '', c.last_name || '', c.email || '', c.phone || '',
         c.status || '', c.source || '', new Date(c.created_at).toLocaleDateString('fr-FR')
@@ -395,7 +395,7 @@ export default function CustomersPage() {
       link.href = URL.createObjectURL(blob);
       link.download = `clients_${new Date().toISOString().split('T')[0]}.csv`;
       link.click();
-      toast.success('Export telecharge (local)');
+      toast.success('Export téléchargé (local)');
     }
   };
 
@@ -434,7 +434,7 @@ export default function CustomersPage() {
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
               <Users className="w-7 h-7 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" /> Clients
             </h2>
-            <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez vos clients et suivez leur activite</p>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">Gérez vos clients et suivez leur activité</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
@@ -580,7 +580,7 @@ export default function CustomersPage() {
             <div className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prenom</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
                   <input type="text" value={formData.first_name} onChange={(e) => { setFormData(p => ({...p, first_name: e.target.value})); setFormErrors(prev => ({...prev, first_name: ''})); }}
                     className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.first_name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
                   {formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
@@ -599,7 +599,7 @@ export default function CustomersPage() {
                 {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telephone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
                 <input type="tel" value={formData.phone} onChange={(e) => { setFormData(p => ({...p, phone: e.target.value})); setFormErrors(prev => ({...prev, phone: ''})); }}
                   placeholder="+33..." className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
                 {formErrors.phone && <p className="text-xs text-red-600 mt-1">{formErrors.phone}</p>}
@@ -618,7 +618,7 @@ export default function CustomersPage() {
                   placeholder="ex: site web, telephone..." className="w-full px-3 py-2.5 border border-gray-300 rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tags (separes par virgule)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tags (séparés par virgule)</label>
                 <input type="text" value={formData.tags} onChange={(e) => setFormData(p => ({...p, tags: e.target.value}))}
                   placeholder="ex: premium, fidele" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg" />
               </div>

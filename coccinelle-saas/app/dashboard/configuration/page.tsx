@@ -8,7 +8,7 @@ export default function ConfigurationPage() {
     {
       title: 'Assistant IA',
       description: 'Configuration de votre assistant intelligent, types d\'agents et base de connaissances',
-      href: '/dashboard/configuration/assistant',
+      href: '/dashboard/sara',
       icon: Bot,
       bgClass: 'bg-blue-50',
       iconClass: 'text-blue-600'
@@ -16,7 +16,7 @@ export default function ConfigurationPage() {
     {
       title: 'Canaux de communication',
       description: 'Configuration de vos canaux (telephone, SMS, WhatsApp, email)',
-      href: '/dashboard/configuration/channels',
+      href: '/dashboard/channels',
       icon: Phone,
       bgClass: 'bg-green-50',
       iconClass: 'text-green-600'

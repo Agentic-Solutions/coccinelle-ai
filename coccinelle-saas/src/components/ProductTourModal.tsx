@@ -1194,7 +1194,7 @@ const tourScreens: TourScreen[] = [
   },
   {
     title: 'Historique des appels',
-    url: '/dashboard/appels',
+    url: '/dashboard/conversations/appels',
     sidebarIndex: 1,
     value:
       'Chaque appel est transcrit et analys\u00e9 automatiquement. Vous voyez qui a appel\u00e9, le r\u00e9sultat et le niveau de satisfaction.',
@@ -1202,7 +1202,7 @@ const tourScreens: TourScreen[] = [
   },
   {
     title: 'Bo\u00eete de r\u00e9ception',
-    url: '/dashboard/inbox',
+    url: '/dashboard/conversations',
     sidebarIndex: 2,
     value:
       'Tous vos \u00e9changes avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications.',
@@ -1210,7 +1210,7 @@ const tourScreens: TourScreen[] = [
   },
   {
     title: 'Agenda',
-    url: '/dashboard/appointments',
+    url: '/dashboard/rdv',
     sidebarIndex: 3,
     value:
       'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Vos clients re\u00e7oivent une confirmation imm\u00e9diate.',

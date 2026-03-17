@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Home, MessageSquare, Users, Calendar, Settings,
-  Package, ChevronLeft, ChevronRight, Sliders, Menu, X,
-  Clock, BarChart3, CreditCard, UserPlus, LifeBuoy
+  Package, ChevronLeft, ChevronRight, Menu, X,
+  BarChart3, CreditCard, LifeBuoy, Phone, UserCheck,
+  BookOpen, Radio, UsersRound
 } from 'lucide-react';
 import Logo from '../src/components/Logo';
 
@@ -32,21 +33,28 @@ export default function DashboardSidebar() {
 
   const menuItems = [
     { icon: Home, label: 'Accueil', href: '/dashboard' },
-    { icon: MessageSquare, label: 'Conversations', href: '/dashboard/conversations' },
-    { icon: Sliders, label: 'Configuration', href: '/dashboard/configuration' },
-    { icon: Users, label: 'CRM', href: '/dashboard/crm' },
-    { icon: Calendar, label: 'Rendez-vous', href: '/dashboard/appointments' },
-    { icon: Clock, label: 'Disponibilités', href: '/dashboard/availability' },
+    { icon: Phone, label: 'Appels', href: '/dashboard/conversations/appels' },
+    { icon: MessageSquare, label: 'Messages', href: '/dashboard/conversations' },
+    { icon: Calendar, label: 'Rendez-vous', href: '/dashboard/rdv' },
+    { icon: Users, label: 'Prospects', href: '/dashboard/crm' },
+    { icon: UserCheck, label: 'Clients', href: '/dashboard/customers' },
     { icon: Package, label: 'Produits', href: '/dashboard/products' },
+    { icon: BookOpen, label: 'Connaissances', href: '/dashboard/knowledge' },
+    { icon: Radio, label: 'Canaux', href: '/dashboard/channels' },
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/sara-analytics' },
+    { icon: UsersRound, label: 'Équipes', href: '/dashboard/teams' },
     { icon: CreditCard, label: 'Facturation', href: '/dashboard/billing' },
-    { icon: LifeBuoy, label: 'Aide & Support', href: '/dashboard/support' },
     { icon: Settings, label: 'Paramètres', href: '/dashboard/settings' },
+    { icon: LifeBuoy, label: 'Aide & Support', href: '/dashboard/support' },
   ];
 
   const isActive = (href: string) => {
     if (href === '/dashboard') {
       return pathname === href;
+    }
+    // Special case: /dashboard/conversations should not highlight for /dashboard/conversations/appels
+    if (href === '/dashboard/conversations' && pathname.startsWith('/dashboard/conversations/appels')) {
+      return false;
     }
     return pathname.startsWith(href);
   };
@@ -74,7 +82,7 @@ export default function DashboardSidebar() {
           {!collapsed && (
             <button
               onClick={() => setCollapsed(true)}
-              title="Reduire la barre laterale"
+              title="Réduire la barre latérale"
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden lg:block"
             >
               <ChevronLeft className="w-5 h-5 text-gray-600" />
@@ -84,7 +92,7 @@ export default function DashboardSidebar() {
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            title="Ouvrir la barre laterale"
+            title="Ouvrir la barre latérale"
             className="mt-4 p-2 hover:bg-gray-100 rounded-lg transition-colors hidden lg:block"
           >
             <ChevronRight className="w-5 h-5 text-gray-600" />

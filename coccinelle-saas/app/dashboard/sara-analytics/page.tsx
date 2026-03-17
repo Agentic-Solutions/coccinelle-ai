@@ -42,7 +42,7 @@ export default function SaraAnalyticsPage() {
       setData(json);
     } catch (err) {
       console.error('Erreur chargement Sara analytics:', err);
-      setError('Impossible de charger les donnees. Verifiez votre connexion.');
+      setError('Impossible de charger les données. Vérifiez votre connexion.');
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ export default function SaraAnalyticsPage() {
             <button
               onClick={loadData}
               className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Rafraichir"
+              title="Rafraîchir"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -145,7 +145,7 @@ export default function SaraAnalyticsPage() {
         {!hasData && !error ? (
           <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
             <Phone className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun appel enregistre</h3>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun appel enregistré</h3>
             <p className="text-gray-500">L&apos;assistant commencera à collecter des données dès le premier appel.</p>
           </div>
         ) : data && (
@@ -170,7 +170,7 @@ export default function SaraAnalyticsPage() {
                     <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                   </div>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">Duree moyenne</p>
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">Durée moyenne</p>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900">{formatDuration(data.avg_duration_seconds)}</p>
               </div>
 
@@ -221,7 +221,7 @@ export default function SaraAnalyticsPage() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-64 flex items-center justify-center text-gray-400">
-                  Aucune donnee pour cette periode
+                  Aucune donnée pour cette période
                 </div>
               )}
             </div>

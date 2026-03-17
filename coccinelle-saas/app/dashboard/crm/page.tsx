@@ -7,7 +7,7 @@ export default function CRMPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 pl-10 lg:pl-0">CRM integre</h1>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 pl-10 lg:pl-0">CRM intégré</h1>
         <p className="text-sm sm:text-base lg:text-xl text-gray-600 mb-6 lg:mb-8 pl-10 lg:pl-0">
           Chaque conversation enrichit automatiquement votre base prospects
         </p>
@@ -45,7 +45,7 @@ export default function CRMPage() {
                 </div>
                 <h3 className="text-base sm:text-xl font-bold text-gray-900">Vue Prospects</h3>
               </div>
-              <p className="text-sm sm:text-base text-gray-600">Liste complete de vos contacts qualifies</p>
+              <p className="text-sm sm:text-base text-gray-600">Liste complète de vos contacts qualifiés</p>
             </div>
           </Link>
 
@@ -56,7 +56,7 @@ export default function CRMPage() {
               </div>
               <h3 className="text-base sm:text-xl font-bold text-gray-500">Segmentation</h3>
             </div>
-            <p className="text-sm sm:text-base text-gray-400">Segments intelligents - A venir</p>
+            <p className="text-sm sm:text-base text-gray-400">Segments intelligents - À venir</p>
           </div>
 
           <div className="bg-gray-50 p-4 sm:p-6 rounded-lg border border-gray-200">
@@ -66,7 +66,7 @@ export default function CRMPage() {
               </div>
               <h3 className="text-base sm:text-xl font-bold text-gray-500">Scoring</h3>
             </div>
-            <p className="text-sm sm:text-base text-gray-400">Scoring automatique - A venir</p>
+            <p className="text-sm sm:text-base text-gray-400">Scoring automatique - À venir</p>
           </div>
 
           <div className="bg-gray-50 p-4 sm:p-6 rounded-lg border border-gray-200">
@@ -76,7 +76,7 @@ export default function CRMPage() {
               </div>
               <h3 className="text-base sm:text-xl font-bold text-gray-500">Tous les contacts</h3>
             </div>
-            <p className="text-sm sm:text-base text-gray-400">Base complete - A venir</p>
+            <p className="text-sm sm:text-base text-gray-400">Base complète - À venir</p>
           </div>
         </div>
       </div>
