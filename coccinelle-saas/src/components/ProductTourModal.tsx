@@ -23,7 +23,6 @@ import {
   Radio,
   UsersRound,
   CreditCard,
-  LifeBuoy,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -116,23 +115,26 @@ const sidebarItems: SidebarItem[] = [
   { label: 'Équipes', icon: UsersRound as IconComponent },
   { label: 'Facturation', icon: CreditCard as IconComponent },
   { label: 'Paramètres', icon: SettingsIcon },
-  { label: 'Aide & Support', icon: LifeBuoy as IconComponent },
 ];
 
-// Map sidebar label to tour screen index for click navigation
+// Map sidebar index to tour screen index for click navigation
 const sidebarToScreen: Record<number, number> = {
-  0: 0,   // Vue d'ensemble -> screen 0
+  0: 0,   // Vue d'ensemble -> screen 0'
   1: 1,   // Appels -> screen 1
   2: 2,   // Messages -> screen 2
   3: 3,   // Rendez-vous -> screen 3
   4: 4,   // Prospects -> screen 4
-  6: 5,   // Produits -> screen 5
-  7: 6,   // Connaissances -> screen 6
-  8: 7,   // Canaux -> screen 7
-  9: 8,   // Analytics -> screen 8
+  5: 5,   // Clients -> screen 5
+  6: 6,   // Produits -> screen 6
+  7: 7,   // Connaissances -> screen 7
+  8: 8,   // Canaux -> screen 8
+  9: 9,   // Analytics -> screen 9
+  10: 10,  // Équipes -> screen 10
+  11: 11,  // Facturation -> screen 11
+  12: 12,  // Paramètres -> screen 12
 };
 
-// ─── Screen 1: Vue d'ensemble ────────────────────────────────────────────────
+// ─── Screen 1: Vue d'ensemble ────────────────────────────────────────────────'
 
 function DashboardScreen() {
   const kpis = [
@@ -568,7 +570,7 @@ function AppointmentsScreen() {
         </div>
       </div>
 
-      {/* Today's RDVs */}
+      {/* Today's RDVs */}'
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
           <span className="text-[12px] font-medium text-gray-700">
@@ -738,7 +740,82 @@ function ProspectsScreen() {
   );
 }
 
-// ─── Screen 6: Produits ──────────────────────────────────────────────────────
+// ─── Screen 6: Clients ──────────────────────────────────────────────────────
+
+function ClientsScreen() {
+  const kpis = [
+    { label: 'Total clients', value: '84' },
+    { label: 'Nouveaux ce mois', value: '12', change: '+20%' },
+    { label: 'Taux fidélisation', value: '89%' },
+  ];
+
+  const clients = [
+    { name: 'Jean Dupont', phone: '+33 6 12 xx', email: 'jean.dupont@gmail.com', since: 'Jan 2026', rdvTotal: '8', lastRdv: '15 mars' },
+    { name: 'Marie Lambert', phone: '+33 6 45 xx', email: 'm.lambert@orange.fr', since: 'Fév 2026', rdvTotal: '5', lastRdv: '14 mars' },
+    { name: 'Pierre Roux', phone: '+33 7 89 xx', email: 'p.roux@free.fr', since: 'Nov 2025', rdvTotal: '12', lastRdv: '12 mars' },
+    { name: 'Sophie Bernard', phone: '+33 6 34 xx', email: 's.bernard@gmail.com', since: 'Déc 2025', rdvTotal: '9', lastRdv: '10 mars' },
+    { name: 'Lucas Martin', phone: '+33 7 56 xx', email: 'l.martin@yahoo.fr', since: 'Mar 2026', rdvTotal: '2', lastRdv: '8 mars' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        {kpis.map((k) => (
+          <div
+            key={k.label}
+            className="bg-white rounded-lg p-3 border border-gray-200 text-center"
+          >
+            <p className="text-[18px] font-bold text-gray-900">{k.value}</p>
+            <p className="text-[11px] text-gray-500">
+              {k.label}
+              {'change' in k && k.change && (
+                <span className="text-emerald-600 ml-1">{k.change}</span>
+              )}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
+        <button className="text-[12px] font-medium text-[#D85A30] hover:text-[#993C1D] border border-[#D85A30] hover:border-[#993C1D] px-3 py-1.5 rounded-lg transition-colors">
+          Exporter CSV
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">Nom</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden sm:table-cell">Téléphone</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden md:table-cell">Email</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden lg:table-cell">Depuis</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">RDV</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden sm:table-cell">Dernier RDV</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((c) => (
+              <tr
+                key={c.name}
+                className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
+              >
+                <td className="px-3 py-2 font-medium text-gray-900">{c.name}</td>
+                <td className="px-3 py-2 text-gray-600 hidden sm:table-cell">{c.phone}</td>
+                <td className="px-3 py-2 text-gray-500 hidden md:table-cell">{c.email}</td>
+                <td className="px-3 py-2 text-gray-500 hidden lg:table-cell">{c.since}</td>
+                <td className="px-3 py-2 font-medium text-gray-900">{c.rdvTotal}</td>
+                <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{c.lastRdv}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 7: Produits ──────────────────────────────────────────────────────
 
 function ProductsScreen() {
   const products = [
@@ -1079,7 +1156,255 @@ function AnalyticsScreen() {
   );
 }
 
-// ─── Screen 10: Booking (full-screen, no sidebar) ───────────────────────────
+// ─── Screen 11: Équipes ─────────────────────────────────────────────────────
+
+function TeamsScreen() {
+  const members = [
+    { name: 'Marie Legrand', email: 'manager@salon-marie.fr', role: 'Manager', roleVariant: 'violet' as const },
+    { name: 'Julie Petit', email: 'julie@salon-marie.fr', role: 'Employée', roleVariant: 'gray' as const },
+    { name: 'Assistant vocal', email: 'assistant@coccinelle.ai', role: 'Agent IA', roleVariant: 'blue' as const },
+  ];
+
+  const permissions = [
+    { label: 'Voir tous les RDV', manager: true, employee: false },
+    { label: 'Modifier les RDV', manager: true, employee: 'Les siens' as string | boolean },
+    { label: 'Voir les stats', manager: true, employee: false },
+    { label: 'Gérer les produits', manager: true, employee: false },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+          <span className="text-[12px] font-medium text-gray-700">Membres</span>
+        </div>
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">Nom</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden sm:table-cell">Email</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">Rôle</th>
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.name} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                <td className="px-3 py-2 font-medium text-gray-900">{m.name}</td>
+                <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{m.email}</td>
+                <td className="px-3 py-2">
+                  <StatusBadge label={m.role} variant={m.roleVariant} />
+                </td>
+                <td className="px-3 py-2">
+                  <StatusBadge label="Actif" variant="green" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="bg-white rounded-lg p-4 border border-gray-200">
+        <p className="text-[12px] font-medium text-gray-700 mb-3">Inviter un collaborateur</p>
+        <div className="flex gap-2">
+          <div className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-[13px] text-gray-400 bg-gray-50">
+            email@exemple.fr
+          </div>
+          <button className="text-[13px] font-semibold text-white bg-[#D85A30] hover:bg-[#993C1D] px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+            Envoyer l&apos;invitation
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+          <span className="text-[12px] font-medium text-gray-700">Permissions</span>
+        </div>
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">Permission</th>
+              <th className="text-center px-3 py-2 font-medium text-gray-600 text-[12px]">Manager</th>
+              <th className="text-center px-3 py-2 font-medium text-gray-600 text-[12px]">Employée</th>
+            </tr>
+          </thead>
+          <tbody>
+            {permissions.map((p) => (
+              <tr key={p.label} className="border-b border-gray-100 last:border-0">
+                <td className="px-3 py-2 text-gray-700">{p.label}</td>
+                <td className="px-3 py-2 text-center text-emerald-600 font-medium">✓</td>
+                <td className="px-3 py-2 text-center text-gray-400 font-medium">
+                  {typeof p.employee === 'string' ? p.employee : '✗'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 12: Facturation ─────────────────────────────────────────────────
+
+function BillingScreen() {
+  const usage = [
+    { label: 'Appels', used: 342, total: 'illimité', pct: 100 },
+    { label: 'SMS envoyés', used: 89, total: '500', pct: 18 },
+    { label: 'Utilisateurs', used: 3, total: '10', pct: 30 },
+  ];
+
+  const invoices = [
+    { month: 'Mars 2026', amount: '199,00 €', status: 'Payée', variant: 'green' as const },
+    { month: 'Février 2026', amount: '199,00 €', status: 'Payée', variant: 'green' as const },
+    { month: 'Janvier 2026', amount: '79,00 €', status: 'Payée', variant: 'green' as const },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg p-4 border-2 border-[#D85A30]/30">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-[16px] font-bold text-gray-900">Plan Pro</p>
+            <p className="text-[13px] text-gray-500">Renouvellement : 1er avril 2026</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[22px] font-bold text-gray-900">199 €<span className="text-[13px] font-normal text-gray-500">/mois</span></p>
+            <StatusBadge label="Actif" variant="green" />
+          </div>
+        </div>
+        <button className="text-[12px] font-medium text-[#D85A30] hover:text-[#993C1D] border border-[#D85A30] hover:border-[#993C1D] px-3 py-1.5 rounded-lg transition-colors">
+          Changer de plan
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg p-4 border border-gray-200">
+        <p className="text-[12px] font-medium text-gray-700 mb-3">Utilisation ce mois</p>
+        <div className="space-y-3">
+          {usage.map((u) => (
+            <div key={u.label}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[13px] text-gray-700">{u.label}</span>
+                <span className="text-[12px] text-gray-500">{u.used} / {u.total}</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${u.pct === 100 ? 'bg-emerald-500' : u.pct > 80 ? 'bg-orange-500' : 'bg-[#D85A30]'}`}
+                  style={{ width: `${Math.min(u.pct, 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+          <span className="text-[12px] font-medium text-gray-700">Dernières factures</span>
+        </div>
+        <table className="w-full text-[13px]">
+          <tbody>
+            {invoices.map((inv) => (
+              <tr key={inv.month} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                <td className="px-3 py-2 font-medium text-gray-900">{inv.month}</td>
+                <td className="px-3 py-2 font-medium text-gray-900">{inv.amount}</td>
+                <td className="px-3 py-2">
+                  <StatusBadge label={`${inv.status} ✓`} variant={inv.variant} />
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <span className="text-[12px] text-[#D85A30] hover:text-[#993C1D] cursor-pointer font-medium">Télécharger</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 13: Paramètres ──────────────────────────────────────────────────
+
+function SettingsScreen() {
+  const notifications = [
+    { label: 'Nouveau prospect', enabled: true },
+    { label: 'RDV confirmé', enabled: true },
+    { label: 'Appel manqué', enabled: true },
+    { label: 'Récap hebdomadaire', enabled: true },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[13px] text-gray-500">Gérez votre compte et vos préférences</p>
+
+      <div className="bg-white rounded-lg p-4 border border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[13px] font-semibold text-gray-900">Profil entreprise</p>
+          <button className="text-[12px] font-medium text-[#D85A30] hover:text-[#993C1D] border border-[#D85A30] hover:border-[#993C1D] px-3 py-1.5 rounded-lg transition-colors">
+            Modifier
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-[13px]">
+          <div>
+            <span className="text-gray-500">Nom</span>
+            <p className="font-medium text-gray-900">Salon Marie</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Téléphone</span>
+            <p className="font-medium text-gray-900">+33 4 72 xx xx xx</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Ville</span>
+            <p className="font-medium text-gray-900">Lyon 6e</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Secteur</span>
+            <p className="font-medium text-gray-900">Coiffure et beauté</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg p-4 border border-gray-200">
+        <p className="text-[13px] font-semibold text-gray-900 mb-3">Notifications</p>
+        <div className="space-y-2.5">
+          {notifications.map((n) => (
+            <div key={n.label} className="flex items-center justify-between">
+              <span className="text-[13px] text-gray-700">{n.label}</span>
+              <div className={`w-8 h-4 rounded-full relative ${n.enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${n.enabled ? 'left-4' : 'left-0.5'}`} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg p-4 border border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[13px] font-semibold text-gray-900">Sécurité</p>
+          <button className="text-[12px] font-medium text-[#D85A30] hover:text-[#993C1D] border border-[#D85A30] hover:border-[#993C1D] px-3 py-1.5 rounded-lg transition-colors">
+            Changer le mot de passe
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-[13px]">
+          <div>
+            <span className="text-gray-500">Email</span>
+            <p className="font-medium text-gray-900">manager@salon-marie.fr</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Mot de passe</span>
+            <p className="font-medium text-gray-900">••••••••</p>
+          </div>
+          <div>
+            <span className="text-gray-500">Dernière connexion</span>
+            <p className="font-medium text-gray-900">Aujourd&apos;hui à 09:14</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen 14: Booking (full-screen, no sidebar) ───────────────────────────
 
 function BookingScreen() {
   const services = [
@@ -1189,7 +1514,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard',
     sidebarIndex: 0,
     value:
-      'Dès votre connexion, vous voyez l’essentiel : appels du jour, rendez-vous prévus, nouveaux contacts. Tout en temps réel.',
+      'D\u00e8s votre connexion, vous voyez l\u2019essentiel : appels du jour, rendez-vous pr\u00e9vus, nouveaux contacts. Tout en temps r\u00e9el.',
     content: <DashboardScreen />,
   },
   {
@@ -1197,15 +1522,15 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/conversations/appels',
     sidebarIndex: 1,
     value:
-      'Chaque appel est transcrit et analysé automatiquement. Vous voyez qui a appelé, le résultat et le niveau de satisfaction.',
+      'Chaque appel est transcrit et analys\u00e9 automatiquement. Vous voyez qui a appel\u00e9, le r\u00e9sultat et le niveau de satisfaction.',
     content: <CallHistoryScreen />,
   },
   {
-    title: 'Boîte de réception',
+    title: 'Bo\u00eete de r\u00e9ception',
     url: '/dashboard/conversations',
     sidebarIndex: 2,
     value:
-      'Tous vos échanges avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications.',
+      'Tous vos \u00e9changes avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications.',
     content: <MessagesScreen />,
   },
   {
@@ -1213,23 +1538,31 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/rdv',
     sidebarIndex: 3,
     value:
-      'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Vos clients reçoivent une confirmation immédiate.',
+      'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Vos clients re\u00e7oivent une confirmation imm\u00e9diate.',
     content: <AppointmentsScreen />,
   },
   {
     title: 'Gestion des prospects',
-    url: '/dashboard/prospects',
+    url: '/dashboard/crm',
     sidebarIndex: 4,
     value:
-      'Chaque contact est automatiquement enregistré, dédupliqué et classé. Vous savez immédiatement qui relancer en priorité.',
+      'Chaque contact est automatiquement enregistr\u00e9, d\u00e9dupliqu\u00e9 et class\u00e9. Vous savez imm\u00e9diatement qui relancer en priorit\u00e9.',
     content: <ProspectsScreen />,
+  },
+  {
+    title: 'Gestion des clients',
+    url: '/dashboard/customers',
+    sidebarIndex: 5,
+    value:
+      'Vos prospects convertis deviennent clients. Historique complet des RDV, pr\u00e9f\u00e9rences et interactions. Export en un clic.',
+    content: <ClientsScreen />,
   },
   {
     title: 'Catalogue de services',
     url: '/dashboard/products',
     sidebarIndex: 6,
     value:
-      'Votre assistant connaît vos services, durées et prix. Il répond immédiatement aux clients et propose des créneaux adaptés à la durée.',
+      'Votre assistant conna\u00eet vos services, dur\u00e9es et prix. Il r\u00e9pond imm\u00e9diatement aux clients et propose des cr\u00e9neaux adapt\u00e9s \u00e0 la dur\u00e9e.',
     content: <ProductsScreen />,
   },
   {
@@ -1237,7 +1570,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/knowledge',
     sidebarIndex: 7,
     value:
-      'Indiquez l’adresse de votre site et l’assistant apprend tout seul. Ajoutez des PDF ou des questions-réponses pour affiner.',
+      'Indiquez l\u2019adresse de votre site et l\u2019assistant apprend tout seul. Ajoutez des PDF ou des questions-r\u00e9ponses pour affiner.',
     content: <KnowledgeScreen />,
   },
   {
@@ -1245,23 +1578,47 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/channels',
     sidebarIndex: 8,
     value:
-      'Vos clients vous contactent par le canal de leur choix. L’assistant gère tout et peut basculer d’un canal à l’autre pendant un appel.',
+      'Vos clients vous contactent par le canal de leur choix. L\u2019assistant g\u00e8re tout et peut basculer d\u2019un canal \u00e0 l\u2019autre pendant un appel.',
     content: <ChannelsScreen />,
   },
   {
     title: 'Tableau de bord analytique',
-    url: '/dashboard/analytics',
+    url: '/dashboard/sara-analytics',
     sidebarIndex: 9,
     value:
-      'Un récapitulatif est envoyé par email chaque lundi. Tableaux de bord, tendances et export CSV en un clic.',
+      'Un r\u00e9capitulatif est envoy\u00e9 par email chaque lundi. Tableaux de bord, tendances et export CSV en un clic.',
     content: <AnalyticsScreen />,
   },
   {
-    title: 'Réservation en ligne',
+    title: 'Gestion de l\u2019\u00e9quipe',
+    url: '/dashboard/teams',
+    sidebarIndex: 10,
+    value:
+      'Invitez vos collaborateurs et d\u00e9finissez ce que chacun peut voir et faire. R\u00f4les admin, manager et employ\u00e9 avec 10 permissions configurables.',
+    content: <TeamsScreen />,
+  },
+  {
+    title: 'Facturation et abonnement',
+    url: '/dashboard/billing',
+    sidebarIndex: 11,
+    value:
+      'Facturation transparente, sans engagement. Changez de plan ou annulez \u00e0 tout moment. Toutes vos factures t\u00e9l\u00e9chargeables.',
+    content: <BillingScreen />,
+  },
+  {
+    title: 'Param\u00e8tres',
+    url: '/dashboard/settings',
+    sidebarIndex: 12,
+    value:
+      'Personnalisez votre profil, vos notifications et vos acc\u00e8s. Tout se configure en quelques clics.',
+    content: <SettingsScreen />,
+  },
+  {
+    title: 'R\u00e9servation en ligne',
     url: '/booking/salon-marie-lyon',
     sidebarIndex: -1,
     value:
-      'Vos clients réservent en ligne 24h/24 sans vous appeler. Le prospect est créé, la confirmation envoyée, le rappel programmé.',
+      'Vos clients r\u00e9servent en ligne 24h/24 sans vous appeler. Le prospect est cr\u00e9\u00e9, la confirmation envoy\u00e9e, le rappel programm\u00e9.',
     content: <BookingScreen />,
   },
 ];
