@@ -1,0 +1,113 @@
+# =============================================================================
+# VoixIA — Configuration LiveKit Server
+# =============================================================================
+# Fichier de configuration pour le serveur LiveKit (WebRTC SFU)
+# Documentation: https://docs.livekit.io/transport/self-hosting/deployment/
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Port principal du serveur (HTTP API + WebSocket signaling)
+# ---------------------------------------------------------------------------
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+# ---------------------------------------------------------------------------
+# Cles API pour l'authentification JWT
+# En production, utiliser des cles generees par deploy.sh
+# ---------------------------------------------------------------------------
+keys:
+  devkey: devsecret1234567890abcdef
+
+# ---------------------------------------------------------------------------
+# Region — Paris, Europe
+# ---------------------------------------------------------------------------
+region: eu-west-paris
+
+# ---------------------------------------------------------------------------
+# Logging
+# Niveaux: debug, info, warn, error
+# ---------------------------------------------------------------------------
+logging:
+  level: info
+  pion_level: warn
+  sample: true
+
+# ---------------------------------------------------------------------------
+# Redis — Necessaire pour le clustering et la communication inter-services
+# ---------------------------------------------------------------------------
+redis:
+  address: voixia-redis:6379
+  db: 0
+
+# ---------------------------------------------------------------------------
+# Configuration WebRTC (RTC)
+# ---------------------------------------------------------------------------
+rtc:
+  # Port TCP pour ICE (fallback quand UDP est bloque)
+  tcp_port: 7881
+  # Port UDP pour ICE
+  udp_port: 7882
+  # Plage de ports pour les flux media RTP
+  port_range_start: 50000
+  port_range_end: 50060
+  # Detection automatique de l'IP externe via STUN
+  use_external_ip: true
+  # Activer ICE Lite pour optimiser les performances serveur
+  enable_loopback_candidate: false
+
+# ---------------------------------------------------------------------------
+# Configuration TURN integre
+# Permet aux clients derriere des NAT/firewalls stricts de se connecter
+# ---------------------------------------------------------------------------
+turn:
+  enabled: true
+  # Reutilise le port TLS du serveur
+  udp_port: 3478
+  tls_port: 5349
+  # Domaine pour les certificats TURN (a configurer en prod)
+  # domain: voixia.coccinelle.ai
+
+# ---------------------------------------------------------------------------
+# Configuration des rooms (salles)
+# ---------------------------------------------------------------------------
+room:
+  # Creer automatiquement les rooms quand un participant rejoint
+  auto_create: true
+  # Fermer la room quand il n'y a plus de participants (secondes)
+  empty_timeout: 300
+  # Duree max d'une room (secondes) — 1h pour les appels
+  max_room_duration: 3600
+  # Nombre max de participants par room
+  max_participants: 10
+
+# ---------------------------------------------------------------------------
+# Limites de ressources
+# ---------------------------------------------------------------------------
+limit:
+  # Nombre max de pistes audio/video par participant
+  num_tracks: 10
+  # Bande passante max par participant (bytes/sec) — 2 Mbps
+  bytes_per_sec: 250000
+  # Taille max des metadonnees (bytes)
+  max_metadata_size: 65536
+  # Taille max des donnees (bytes)
+  max_data_packet_size: 16384
+
+# ---------------------------------------------------------------------------
+# Webhooks — Notifier l'API Coccinelle des evenements LiveKit
+# Decommenter et configurer en production
+# ---------------------------------------------------------------------------
+# webhook:
+#   urls:
+#     - https://coccinelle-api.youssef-amrouche.workers.dev/api/voixia/webhook
+#   api_key: devkey
+
+# ---------------------------------------------------------------------------
+# Audio — Configuration specifique pour les appels vocaux
+# ---------------------------------------------------------------------------
+audio:
+  # Frequence d'echantillonnage active speaker detection
+  active_update_interval: 300
+  # Seuil de bruit pour detecter la parole (dB)
+  min_volume: -40

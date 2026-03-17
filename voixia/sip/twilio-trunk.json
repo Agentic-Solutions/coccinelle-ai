@@ -1,0 +1,31 @@
+{
+  "trunk": {
+    "name": "voixia-twilio-inbound",
+    "numbers": ["+33939035760"],
+    "metadata": "{\"provider\":\"twilio\",\"tenant\":\"coccinelle-ai\",\"region\":\"eu-paris\",\"purpose\":\"inbound-voice-agent\"}",
+    "krisp_enabled": true,
+    "allowed_addresses": [
+      "54.172.60.0/30",
+      "54.244.51.0/30",
+      "54.171.127.192/30",
+      "35.156.191.128/30",
+      "54.65.63.192/30",
+      "54.252.254.64/30",
+      "54.169.127.128/30",
+      "177.71.206.192/30"
+    ]
+  },
+  "_comment": {
+    "description": "Configuration du SIP trunk inbound Twilio vers LiveKit pour VoixIA",
+    "numero": "+33939035760 — Numero Twilio France pour les appels entrants",
+    "krisp_enabled": "Active la suppression de bruit Krisp sur les appels entrants",
+    "allowed_addresses": "Plages IP Twilio Signaling (https://www.twilio.com/docs/sip-trunking/ip-addresses). A mettre a jour selon votre region Twilio.",
+    "utilisation_cli": "lk sip inbound create sip/twilio-trunk.json",
+    "configuration_twilio": {
+      "etape_1": "Dans la console Twilio > Elastic SIP Trunking > Trunks > Creer un trunk",
+      "etape_2": "Ajouter une Origination URI: sip:<IP_SERVEUR>:5060;transport=udp",
+      "etape_3": "Associer le numero +33939035760 au trunk",
+      "etape_4": "En prod, remplacer <IP_SERVEUR> par l'IP publique du serveur Scaleway"
+    }
+  }
+}

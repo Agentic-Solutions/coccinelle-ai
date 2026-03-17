@@ -1,0 +1,25 @@
+# ==============================================================================
+# VoixIA — Dependances Python de l'agent vocal
+# ==============================================================================
+# Installation : pip install -r requirements.txt
+# Python requis : 3.11+
+# ==============================================================================
+
+# --- LiveKit Agents SDK (v1.4.x) avec plugins ---
+livekit-agents[deepgram,openai,silero,cartesia,elevenlabs,turn-detector,noise-cancellation]~=1.4.6
+
+# --- Plugins LiveKit (installes automatiquement via les extras ci-dessus) ---
+# livekit-plugins-deepgram     — STT (Speech-to-Text)
+# livekit-plugins-openai       — LLM (compatible Mistral via base_url)
+# livekit-plugins-silero       — VAD (Voice Activity Detection)
+# livekit-plugins-cartesia     — TTS (Text-to-Speech) alternatif
+# livekit-plugins-elevenlabs   — TTS (Text-to-Speech) principal
+
+# --- Plugin Anthropic pour Claude ---
+livekit-plugins-anthropic~=1.4.0
+
+# --- HTTP client asynchrone (appels API Coccinelle) ---
+httpx~=0.28.1
+
+# --- Chargement des variables d'environnement ---
+python-dotenv~=1.1.0

@@ -1,0 +1,131 @@
+# =============================================================================
+# VoixIA — Infrastructure LiveKit pour Coccinelle.ai
+# =============================================================================
+# Docker Compose v2 (pas de champ "version:")
+# Usage: docker compose up -d
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Redis — Stockage en memoire pour LiveKit (signaling, etat des rooms)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: voixia-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - voixia-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # LiveKit Server — Serveur WebRTC (signaling + media)
+  # ---------------------------------------------------------------------------
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: voixia-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml --dev
+    ports:
+      - "7880:7880"       # HTTP API + WebSocket signaling
+      - "7881:7881"       # ICE/TCP (WebRTC fallback TCP)
+      - "7882:7882/udp"   # ICE/UDP (WebRTC media)
+      - "50000-50060:50000-50060/udp"  # Plage RTP pour WebRTC
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    environment:
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret1234567890abcdef}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - voixia-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7880/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # LiveKit SIP — Bridge SIP <-> WebRTC (recoit les appels Twilio)
+  # ---------------------------------------------------------------------------
+  sip:
+    image: livekit/sip:latest
+    container_name: voixia-sip
+    restart: unless-stopped
+    ports:
+      - "5060:5060/udp"   # SIP signaling (UDP)
+      - "5060:5060/tcp"   # SIP signaling (TCP)
+      - "10000-10100:10000-10100/udp"  # Plage RTP media pour SIP
+    environment:
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret1234567890abcdef}
+      - LIVEKIT_URL=ws://livekit:7880
+      - SIP_PORT=5060
+      - SIP_RTP_PORT_LOW=10000
+      - SIP_RTP_PORT_HIGH=10100
+    depends_on:
+      livekit:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - voixia-network
+    healthcheck:
+      test: ["CMD-SHELL", "true"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # LiveKit Egress — Enregistrement des appels (optionnel)
+  # Activer avec: docker compose --profile recording up -d
+  # ---------------------------------------------------------------------------
+  egress:
+    image: livekit/egress:latest
+    container_name: voixia-egress
+    restart: unless-stopped
+    profiles:
+      - recording
+    environment:
+      - EGRESS_CONFIG_FILE=/etc/egress.yaml
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret1234567890abcdef}
+      - LIVEKIT_WS_URL=ws://livekit:7880
+    volumes:
+      - egress_data:/recordings
+    depends_on:
+      livekit:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - voixia-network
+    cap_add:
+      - SYS_ADMIN
+
+# =============================================================================
+# Volumes persistants
+# =============================================================================
+volumes:
+  redis_data:
+    driver: local
+  egress_data:
+    driver: local
+
+# =============================================================================
+# Reseau dedie
+# =============================================================================
+networks:
+  voixia-network:
+    driver: bridge
+    name: voixia-network

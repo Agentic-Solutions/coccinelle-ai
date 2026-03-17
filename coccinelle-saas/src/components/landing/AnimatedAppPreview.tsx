@@ -13,9 +13,9 @@ const modules = [
       subtitle: 'Comme votre tableau de bord de voiture : tout ce qui compte, visible immédiatement',
       visual: 'stats',
       liveData: {
-        calls: { current: 0, target: 47, label: 'Appels répondus aujourd\'hui', detail: 'Aucun appel perdu' },
-        conversion: { current: 0, target: 32, label: 'Clients qui disent oui', detail: '68% de taux de conversion' },
-        appointments: { current: 0, target: 23, label: 'Rendez-vous confirmés', detail: 'Tous rappelés automatiquement' }
+        calls: { current: 0, target: 23, label: 'Appels répondus aujourd\'hui', detail: 'Aucun appel perdu' },
+        conversion: { current: 0, target: 68, label: 'Clients qui disent oui', detail: 'Taux de conversion', unit: '%' },
+        appointments: { current: 0, target: 8, label: 'Rendez-vous confirmés', detail: 'Tous rappelés automatiquement' }
       }
     }
   },

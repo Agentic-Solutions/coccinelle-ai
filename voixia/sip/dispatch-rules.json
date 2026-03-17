@@ -1,0 +1,43 @@
+{
+  "dispatch_rule": {
+    "name": "voixia-inbound-dispatch",
+    "rule": {
+      "dispatchRuleIndividual": {
+        "roomPrefix": "voixia-call-"
+      }
+    },
+    "trunk_ids": [],
+    "hide_phone_number": false,
+    "metadata": "{\"source\":\"twilio-sip\",\"type\":\"inbound-call\",\"agent\":\"voixia\"}",
+    "attributes": {
+      "sip.provider": "twilio",
+      "sip.direction": "inbound",
+      "voixia.tenant": "coccinelle-ai"
+    },
+    "room_config": {
+      "agents": [
+        {
+          "agent_name": "voixia-agent",
+          "metadata": "{\"role\":\"voice-assistant\",\"language\":\"fr\",\"version\":\"1.0\"}"
+        }
+      ],
+      "max_participants": 5,
+      "empty_timeout": 60
+    }
+  },
+  "_comment": {
+    "description": "Regle de dispatch SIP pour VoixIA — Coccinelle.ai",
+    "comportement": "Chaque appel entrant cree une room individuelle avec le prefixe 'voixia-call-' et dispatche automatiquement l'agent VoixIA dans la room",
+    "trunk_ids": "Vide = accepte les appels de tous les trunks configures. En prod, restreindre au trunk_id Twilio",
+    "hide_phone_number": "false = le numero de l'appelant est visible dans les metadonnees du participant",
+    "agent_name": "voixia-agent = correspond au nom de l'agent declare dans le worker Python (agent/worker.py)",
+    "utilisation_cli": "lk sip dispatch create sip/dispatch-rules.json",
+    "flux_appel": [
+      "1. Appel entrant sur +33939035760 via Twilio",
+      "2. Twilio route vers le SIP bridge LiveKit (port 5060)",
+      "3. LiveKit cree une room 'voixia-call-<id>'",
+      "4. L'agent VoixIA est dispatche dans la room",
+      "5. L'agent repond avec STT (Deepgram) + LLM (Mistral) + TTS (ElevenLabs)"
+    ]
+  }
+}
