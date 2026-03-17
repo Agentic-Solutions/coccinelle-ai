@@ -113,9 +113,9 @@ const sidebarItems: SidebarItem[] = [
   { label: 'Connaissances', icon: BookOpenIcon },
   { label: 'Canaux', icon: Radio as IconComponent },
   { label: 'Analytics', icon: BarChartIcon },
-  { label: '\u00c9quipes', icon: UsersRound as IconComponent },
+  { label: 'Équipes', icon: UsersRound as IconComponent },
   { label: 'Facturation', icon: CreditCard as IconComponent },
-  { label: 'Param\u00e8tres', icon: SettingsIcon },
+  { label: 'Paramètres', icon: SettingsIcon },
   { label: 'Aide & Support', icon: LifeBuoy as IconComponent },
 ];
 
@@ -137,7 +137,7 @@ const sidebarToScreen: Record<number, number> = {
 function DashboardScreen() {
   const kpis = [
     { label: 'Appels aujourd\'hui', value: '23', change: '+15%' },
-    { label: 'RDV confirm\u00e9s', value: '8', change: '+3' },
+    { label: 'RDV confirmés', value: '8', change: '+3' },
     { label: 'Nouveaux prospects', value: '5', change: '+2' },
     { label: 'Taux conversion', value: '68%', change: '+5pts' },
   ];
@@ -185,7 +185,7 @@ function DashboardScreen() {
 
       <div className="bg-white rounded-lg p-4 border border-gray-200">
         <p className="text-[12px] font-medium text-gray-700 mb-3">
-          Activit\u00e9 de la semaine
+          Activité de la semaine
         </p>
         <div className="flex items-end gap-2 h-24">
           {weekData.map((d) => (
@@ -238,7 +238,7 @@ function DashboardScreen() {
 function CallHistoryScreen() {
   const kpis = [
     { label: 'Total aujourd\'hui', value: '23' },
-    { label: 'Dur\u00e9e moyenne', value: '2m 48s' },
+    { label: 'Durée moyenne', value: '2m 48s' },
     { label: 'Satisfaction', value: '4.6/5' },
   ];
 
@@ -282,7 +282,7 @@ function CallHistoryScreen() {
       time: '11:30',
       caller: 'Pierre Roux',
       duration: '2m 08s',
-      result: 'Rappel demand\u00e9',
+      result: 'Rappel demandé',
       resultVariant: 'orange',
       sentiment: 'Positif',
       sentimentVariant: 'green',
@@ -291,7 +291,7 @@ function CallHistoryScreen() {
       time: '14:15',
       caller: 'Sophie Bernard',
       duration: '1m 42s',
-      result: 'Transf\u00e9r\u00e9',
+      result: 'Transféré',
       resultVariant: 'violet',
       sentiment: 'Neutre',
       sentimentVariant: 'gray',
@@ -332,10 +332,10 @@ function CallHistoryScreen() {
                 Appelant
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden sm:table-cell">
-                Dur\u00e9e
+                Durée
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">
-                R\u00e9sultat
+                Résultat
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden md:table-cell">
                 Sentiment
@@ -401,7 +401,7 @@ function MessagesScreen() {
     },
     {
       name: 'Pierre Roux',
-      message: 'Je confirme ma venue \u00e0 14h',
+      message: 'Je confirme ma venue à 14h',
       channel: 'WhatsApp',
       time: 'il y a 1h',
       badge: { label: 'Lu', variant: 'green' },
@@ -415,7 +415,7 @@ function MessagesScreen() {
     },
     {
       name: 'Lucas Martin',
-      message: 'Ok parfait, \u00e0 demain !',
+      message: 'Ok parfait, à demain !',
       channel: 'SMS',
       time: 'hier',
       badge: { label: 'Lu', variant: 'green' },
@@ -502,7 +502,7 @@ function AppointmentsScreen() {
       name: 'Jean Dupont',
       service: 'Coupe homme',
       duration: '25 min',
-      status: 'Confirm\u00e9',
+      status: 'Confirmé',
       statusVariant: 'green',
     },
     {
@@ -518,7 +518,7 @@ function AppointmentsScreen() {
       name: 'Pierre Roux',
       service: 'Brushing',
       duration: '30 min',
-      status: 'Confirm\u00e9',
+      status: 'Confirmé',
       statusVariant: 'green',
     },
     {
@@ -526,7 +526,7 @@ function AppointmentsScreen() {
       name: 'Sophie Bernard',
       service: 'Coupe + Brushing',
       duration: '1h',
-      status: 'Confirm\u00e9',
+      status: 'Confirmé',
       statusVariant: 'green',
     },
   ];
@@ -630,7 +630,7 @@ function ProspectsScreen() {
       name: 'Marie Lambert',
       phone: '+33 6 45 xx',
       source: 'Booking',
-      status: 'Ti\u00e8de',
+      status: 'Tiède',
       statusVariant: 'orange',
       score: '62/100',
       lastInteraction: 'Hier',
@@ -641,7 +641,7 @@ function ProspectsScreen() {
       source: 'SMS',
       status: 'Client',
       statusVariant: 'green',
-      score: '\u2014',
+      score: '—',
       lastInteraction: '15 mars',
     },
     {
@@ -691,7 +691,7 @@ function ProspectsScreen() {
                 Nom
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden sm:table-cell">
-                T\u00e9l\u00e9phone
+                Téléphone
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">
                 Source
@@ -703,7 +703,7 @@ function ProspectsScreen() {
                 Score
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px] hidden lg:table-cell">
-                Derni\u00e8re interaction
+                Dernière interaction
               </th>
             </tr>
           </thead>
@@ -742,11 +742,11 @@ function ProspectsScreen() {
 
 function ProductsScreen() {
   const products = [
-    { name: 'Coupe homme', duration: '25 min', price: '18 \u20ac', category: 'Coupes' },
-    { name: 'Coupe femme', duration: '45 min', price: '35 \u20ac', category: 'Coupes' },
-    { name: 'Coloration', duration: '1h30', price: '65 \u20ac', category: 'Couleur' },
-    { name: 'Balayage', duration: '2h', price: '85 \u20ac', category: 'Couleur' },
-    { name: 'Brushing', duration: '30 min', price: '22 \u20ac', category: 'Coiffage' },
+    { name: 'Coupe homme', duration: '25 min', price: '18 €', category: 'Coupes' },
+    { name: 'Coupe femme', duration: '45 min', price: '35 €', category: 'Coupes' },
+    { name: 'Coloration', duration: '1h30', price: '65 €', category: 'Couleur' },
+    { name: 'Balayage', duration: '2h', price: '85 €', category: 'Couleur' },
+    { name: 'Brushing', duration: '30 min', price: '22 €', category: 'Coiffage' },
   ];
 
   const categoryColors: Record<string, 'blue' | 'orange' | 'violet'> = {
@@ -771,13 +771,13 @@ function ProductsScreen() {
                 Service
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">
-                Dur\u00e9e
+                Durée
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">
                 Prix
               </th>
               <th className="text-left px-3 py-2 font-medium text-gray-600 text-[12px]">
-                Cat\u00e9gorie
+                Catégorie
               </th>
             </tr>
           </thead>
@@ -816,19 +816,19 @@ function KnowledgeScreen() {
     {
       type: 'Site web',
       detail: 'salon-marie.fr',
-      meta: 'Index\u00e9 il y a 2h \u2014 45 pages',
+      meta: 'Indexé il y a 2h — 45 pages',
       active: true,
     },
     {
       type: 'Brochure tarifs 2026.pdf',
       detail: '',
-      meta: 'Index\u00e9 hier \u2014 12 pages',
+      meta: 'Indexé hier — 12 pages',
       active: true,
     },
     {
       type: 'FAQ manuelle',
-      detail: '15 questions-r\u00e9ponses',
-      meta: 'Modifi\u00e9 il y a 3 jours',
+      detail: '15 questions-réponses',
+      meta: 'Modifié il y a 3 jours',
       active: true,
     },
   ];
@@ -855,7 +855,7 @@ function KnowledgeScreen() {
                 </p>
                 {s.detail && (
                   <span className="text-[12px] text-gray-500">
-                    \u2014 {s.detail}
+                    — {s.detail}
                   </span>
                 )}
               </div>
@@ -868,7 +868,7 @@ function KnowledgeScreen() {
 
       <div className="bg-white rounded-lg p-4 border border-gray-200">
         <p className="text-[12px] font-medium text-gray-700 mb-3">
-          Questions fr\u00e9quentes d\u00e9tect\u00e9es
+          Questions fréquentes détectées
         </p>
         <div className="space-y-2">
           {questions.map((q) => (
@@ -876,7 +876,7 @@ function KnowledgeScreen() {
               <CheckIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" />
               <span className="text-[13px] text-gray-700">{q}</span>
               <span className="text-[11px] text-emerald-600 ml-auto">
-                R\u00e9ponse automatique
+                Réponse automatique
               </span>
             </div>
           ))}
@@ -897,7 +897,7 @@ function ChannelsScreen() {
     pulsing: boolean;
   }[] = [
     {
-      name: 'T\u00e9l\u00e9phone',
+      name: 'Téléphone',
       detail: '+33 9 39 03 57 60',
       status: 'Actif',
       statusVariant: 'green',
@@ -913,7 +913,7 @@ function ChannelsScreen() {
     {
       name: 'Email',
       detail: 'marie@salon-marie.fr (Gmail)',
-      status: 'Connect\u00e9',
+      status: 'Connecté',
       statusVariant: 'green',
       pulsing: false,
     },
@@ -963,7 +963,7 @@ function ChannelsScreen() {
               />
             </div>
             <span className="text-[11px] text-gray-400">
-              {c.statusVariant === 'green' ? 'Activ\u00e9' : 'Configuration'}
+              {c.statusVariant === 'green' ? 'Activé' : 'Configuration'}
             </span>
           </div>
         </div>
@@ -977,7 +977,7 @@ function ChannelsScreen() {
 function AnalyticsScreen() {
   const kpis = [
     { label: 'Appels ce mois', value: '342', change: '+22%' },
-    { label: 'Dur\u00e9e moyenne', value: '2m 48s', change: '-12%' },
+    { label: 'Durée moyenne', value: '2m 48s', change: '-12%' },
     { label: 'Satisfaction', value: '4.6/5', change: '+0.3' },
     { label: 'RDV pris', value: '89', change: '+31%' },
   ];
@@ -985,9 +985,9 @@ function AnalyticsScreen() {
   const months = [
     { m: 'Oct', value: 180 },
     { m: 'Nov', value: 210 },
-    { m: 'D\u00e9c', value: 195 },
+    { m: 'Déc', value: 195 },
     { m: 'Jan', value: 250 },
-    { m: 'F\u00e9v', value: 290 },
+    { m: 'Fév', value: 290 },
     { m: 'Mars', value: 342 },
   ];
 
@@ -995,8 +995,8 @@ function AnalyticsScreen() {
 
   const topQuestions = [
     { question: 'Quels sont vos horaires ?', count: 67 },
-    { question: 'Combien co\u00fbte une coloration ?', count: 42 },
-    { question: 'Avez-vous des disponibilit\u00e9s cette semaine ?', count: 38 },
+    { question: 'Combien coûte une coloration ?', count: 42 },
+    { question: 'Avez-vous des disponibilités cette semaine ?', count: 38 },
   ];
 
   return (
@@ -1054,7 +1054,7 @@ function AnalyticsScreen() {
 
       <div className="bg-white rounded-lg p-4 border border-gray-200">
         <p className="text-[12px] font-medium text-gray-700 mb-3">
-          Top 3 questions pos\u00e9es
+          Top 3 questions posées
         </p>
         <div className="space-y-2">
           {topQuestions.map((q, i) => (
@@ -1083,11 +1083,11 @@ function AnalyticsScreen() {
 
 function BookingScreen() {
   const services = [
-    { name: 'Coupe homme', duration: '25 min', price: '18\u20ac' },
-    { name: 'Coupe femme', duration: '45 min', price: '35\u20ac' },
-    { name: 'Coloration', duration: '1h30', price: '65\u20ac' },
-    { name: 'Balayage', duration: '2h', price: '85\u20ac' },
-    { name: 'Brushing', duration: '30 min', price: '22\u20ac' },
+    { name: 'Coupe homme', duration: '25 min', price: '18€' },
+    { name: 'Coupe femme', duration: '45 min', price: '35€' },
+    { name: 'Coloration', duration: '1h30', price: '65€' },
+    { name: 'Balayage', duration: '2h', price: '85€' },
+    { name: 'Brushing', duration: '30 min', price: '22€' },
   ];
 
   const slots = ['09:00', '09:30', '10:00', '10:30', '14:00', '14:30', '15:00'];
@@ -1101,10 +1101,10 @@ function BookingScreen() {
         </div>
         <div>
           <p className="text-[14px] font-bold text-gray-900">
-            Salon Marie \u2014 Lyon 6e
+            Salon Marie — Lyon 6e
           </p>
           <p className="text-[11px] text-gray-400">
-            R\u00e9servation en ligne
+            Réservation en ligne
           </p>
         </div>
       </div>
@@ -1151,7 +1151,7 @@ function BookingScreen() {
         {/* Time slots */}
         <div>
           <p className="text-[14px] font-semibold text-gray-900 mb-3">
-            Cr\u00e9neaux disponibles
+            Créneaux disponibles
           </p>
           <div className="grid grid-cols-4 gap-2">
             {slots.map((s, i) => (
@@ -1173,7 +1173,7 @@ function BookingScreen() {
       {/* Footer */}
       <div className="px-4 py-2 border-t border-gray-100 text-center">
         <p className="text-[11px] text-gray-400">
-          Propuls\u00e9 par{' '}
+          Propulsé par{' '}
           <span className="font-medium text-gray-500">coccinelle.ai</span>
         </p>
       </div>
@@ -1189,7 +1189,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard',
     sidebarIndex: 0,
     value:
-      'D\u00e8s votre connexion, vous voyez l\u2019essentiel : appels du jour, rendez-vous pr\u00e9vus, nouveaux contacts. Tout en temps r\u00e9el.',
+      'Dès votre connexion, vous voyez l’essentiel : appels du jour, rendez-vous prévus, nouveaux contacts. Tout en temps réel.',
     content: <DashboardScreen />,
   },
   {
@@ -1197,15 +1197,15 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/conversations/appels',
     sidebarIndex: 1,
     value:
-      'Chaque appel est transcrit et analys\u00e9 automatiquement. Vous voyez qui a appel\u00e9, le r\u00e9sultat et le niveau de satisfaction.',
+      'Chaque appel est transcrit et analysé automatiquement. Vous voyez qui a appelé, le résultat et le niveau de satisfaction.',
     content: <CallHistoryScreen />,
   },
   {
-    title: 'Bo\u00eete de r\u00e9ception',
+    title: 'Boîte de réception',
     url: '/dashboard/conversations',
     sidebarIndex: 2,
     value:
-      'Tous vos \u00e9changes avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications.',
+      'Tous vos échanges avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications.',
     content: <MessagesScreen />,
   },
   {
@@ -1213,7 +1213,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/rdv',
     sidebarIndex: 3,
     value:
-      'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Vos clients re\u00e7oivent une confirmation imm\u00e9diate.',
+      'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Vos clients reçoivent une confirmation immédiate.',
     content: <AppointmentsScreen />,
   },
   {
@@ -1221,7 +1221,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/prospects',
     sidebarIndex: 4,
     value:
-      'Chaque contact est automatiquement enregistr\u00e9, d\u00e9dupliqu\u00e9 et class\u00e9. Vous savez imm\u00e9diatement qui relancer en priorit\u00e9.',
+      'Chaque contact est automatiquement enregistré, dédupliqué et classé. Vous savez immédiatement qui relancer en priorité.',
     content: <ProspectsScreen />,
   },
   {
@@ -1229,7 +1229,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/products',
     sidebarIndex: 6,
     value:
-      'Votre assistant conna\u00eet vos services, dur\u00e9es et prix. Il r\u00e9pond imm\u00e9diatement aux clients et propose des cr\u00e9neaux adapt\u00e9s \u00e0 la dur\u00e9e.',
+      'Votre assistant connaît vos services, durées et prix. Il répond immédiatement aux clients et propose des créneaux adaptés à la durée.',
     content: <ProductsScreen />,
   },
   {
@@ -1237,7 +1237,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/knowledge',
     sidebarIndex: 7,
     value:
-      'Indiquez l\u2019adresse de votre site et l\u2019assistant apprend tout seul. Ajoutez des PDF ou des questions-r\u00e9ponses pour affiner.',
+      'Indiquez l’adresse de votre site et l’assistant apprend tout seul. Ajoutez des PDF ou des questions-réponses pour affiner.',
     content: <KnowledgeScreen />,
   },
   {
@@ -1245,7 +1245,7 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/channels',
     sidebarIndex: 8,
     value:
-      'Vos clients vous contactent par le canal de leur choix. L\u2019assistant g\u00e8re tout et peut basculer d\u2019un canal \u00e0 l\u2019autre pendant un appel.',
+      'Vos clients vous contactent par le canal de leur choix. L’assistant gère tout et peut basculer d’un canal à l’autre pendant un appel.',
     content: <ChannelsScreen />,
   },
   {
@@ -1253,15 +1253,15 @@ const tourScreens: TourScreen[] = [
     url: '/dashboard/analytics',
     sidebarIndex: 9,
     value:
-      'Un r\u00e9capitulatif est envoy\u00e9 par email chaque lundi. Tableaux de bord, tendances et export CSV en un clic.',
+      'Un récapitulatif est envoyé par email chaque lundi. Tableaux de bord, tendances et export CSV en un clic.',
     content: <AnalyticsScreen />,
   },
   {
-    title: 'R\u00e9servation en ligne',
+    title: 'Réservation en ligne',
     url: '/booking/salon-marie-lyon',
     sidebarIndex: -1,
     value:
-      'Vos clients r\u00e9servent en ligne 24h/24 sans vous appeler. Le prospect est cr\u00e9\u00e9, la confirmation envoy\u00e9e, le rappel programm\u00e9.',
+      'Vos clients réservent en ligne 24h/24 sans vous appeler. Le prospect est créé, la confirmation envoyée, le rappel programmé.',
     content: <BookingScreen />,
   },
 ];
@@ -1308,7 +1308,7 @@ function TourSidebar({
                   ? 'bg-white/10 text-white border-l-[3px] border-[#D85A30] -ml-px'
                   : isClickable
                     ? 'text-gray-400 hover:text-white hover:bg-white/5'
-                    : 'text-gray-600 cursor-default'
+                    : 'text-gray-400 cursor-default'
               }`}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -1465,7 +1465,7 @@ export default function ProductTourModal({
             className="inline-flex items-center gap-1 px-4 py-2 text-[14px] font-medium text-gray-600 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeftIcon className="w-4 h-4" />
-            Pr\u00e9c\u00e9dent
+            Précédent
           </button>
 
           {/* Dot indicators */}
@@ -1479,7 +1479,7 @@ export default function ProductTourModal({
                     ? 'bg-[#D85A30] w-4 h-2'
                     : 'bg-gray-300 hover:bg-gray-400 w-2 h-2'
                 }`}
-                aria-label={`\u00c9cran ${i + 1}`}
+                aria-label={`Écran ${i + 1}`}
               />
             ))}
           </div>
@@ -1489,7 +1489,7 @@ export default function ProductTourModal({
               href="/signup"
               className="inline-flex items-center gap-1.5 px-5 py-2 text-[14px] font-semibold text-white bg-[#D85A30] hover:bg-[#993C1D] rounded-lg transition-colors"
             >
-              D\u00e9marrer gratuitement
+              Démarrer gratuitement
               <ArrowRightIcon className="w-4 h-4" />
             </Link>
           ) : (
