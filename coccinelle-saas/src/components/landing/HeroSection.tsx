@@ -15,8 +15,8 @@ export default function HeroSection({ onOpenTour }: HeroSectionProps) {
       <div className="max-w-7xl mx-auto">
         <div className="text-center max-w-4xl mx-auto mb-16">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-            La plateforme tout-en-un qui{' '}
-            <span className="text-[#D85A30]">gère vos clients, vos rendez-vous et vos appels</span>
+            L&apos;efficacité d&apos;un centre de relation client, augmentée par l&apos;IA —{' '}
+            <span className="text-[#D85A30]">enfin accessible aux TPE et PME</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-gray-600 mb-10 leading-relaxed max-w-3xl mx-auto">

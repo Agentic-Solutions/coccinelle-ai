@@ -257,37 +257,51 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {/* Starter */}
             <div className="bg-white rounded-xl p-8 border border-gray-200 hover:shadow-xl transition-shadow">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Starter</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-1">Starter</h3>
+              <p className="text-sm text-gray-500 mb-4">Pour les indépendants et petites structures</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold text-gray-900">79 EUR</span>
+                <span className="text-4xl font-bold text-gray-900">79 €</span>
                 <span className="text-gray-600">/mois</span>
               </div>
-              <ul className="space-y-3 mb-8">
+              <ul className="space-y-3 mb-6">
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">100 appels/mois</span>
+                  <span className="text-gray-700">500 minutes de conversation IA / mois</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">1 assistant vocal</span>
+                  <span className="text-gray-700">1 numéro de téléphone inclus</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">50 SMS/mois inclus</span>
+                  <span className="text-gray-700">1 utilisateur</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">SMS & WhatsApp</span>
+                  <span className="text-gray-700">CRM prospects et clients</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Gestion des rendez-vous</span>
+                  <span className="text-gray-700">Agenda et prise de rendez-vous</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Fiches contacts</span>
+                  <span className="text-gray-700">Page de réservation en ligne</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">SMS et email (50 envois/mois)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">Base de connaissances (1 source)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">Tableau de bord et statistiques</span>
                 </li>
               </ul>
+              <p className="text-xs text-gray-400 mb-4">Minute supplémentaire : 0,15 €</p>
               <Link
                 href="/signup"
                 className="block w-full text-center px-6 py-3 border border-gray-300 text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition"
@@ -303,23 +317,24 @@ export default function LandingPage() {
                   Populaire
                 </span>
               </div>
-              <h3 className="text-xl font-bold mb-2">Pro</h3>
+              <h3 className="text-xl font-bold mb-1">Pro</h3>
+              <p className="text-sm text-gray-400 mb-4">Pour les équipes et les entreprises en croissance</p>
               <div className="mb-6">
-                <span className="text-4xl font-bold">199 EUR</span>
+                <span className="text-4xl font-bold">199 €</span>
                 <span className="text-gray-300">/mois</span>
               </div>
-              <ul className="space-y-3 mb-8">
+              <ul className="space-y-3 mb-6">
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>Appels illimités</span>
+                  <span>2 000 minutes de conversation IA / mois</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>3 assistants vocaux</span>
+                  <span>3 numéros de téléphone inclus</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>200 SMS/mois inclus</span>
+                  <span>5 utilisateurs</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -327,17 +342,38 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>Rapports détaillés</span>
+                  <span>Appels simultanés (jusqu&apos;à 3)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>Équipes et droits d&apos;accès</span>
+                  <span>SMS et email illimités</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>WhatsApp</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>Base de connaissances (sources illimitées)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>Analytics avancés et export CSV</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>Récapitulatif hebdomadaire par email</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <span>Rôles et permissions (admin, manager, employé)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   <span>Support prioritaire</span>
                 </li>
               </ul>
+              <p className="text-xs text-gray-400 mb-4">Minute supplémentaire : 0,12 €</p>
               <Link
                 href="/signup"
                 className="block w-full text-center px-6 py-3 text-base font-medium rounded-lg bg-white text-gray-900 hover:bg-gray-50 transition"
@@ -348,22 +384,23 @@ export default function LandingPage() {
 
             {/* Enterprise */}
             <div className="bg-white rounded-xl p-8 border border-gray-200 hover:shadow-xl transition-shadow">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Enterprise</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-1">Enterprise</h3>
+              <p className="text-sm text-gray-500 mb-4">Pour les structures à fort volume d&apos;appels</p>
               <div className="mb-6">
                 <span className="text-4xl font-bold text-gray-900">Sur mesure</span>
               </div>
-              <ul className="space-y-3 mb-8">
+              <ul className="space-y-3 mb-6">
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Volume personnalisé</span>
+                  <span className="text-gray-700">Minutes personnalisées (à partir de 0,08 €/min)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Assistants illimités</span>
+                  <span className="text-gray-700">Numéros de téléphone illimités</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">SMS illimités</span>
+                  <span className="text-gray-700">Utilisateurs illimités</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
@@ -371,15 +408,31 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">Appels simultanés illimités</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">Voix personnalisée</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">SSO (Google, Microsoft)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
                   <span className="text-gray-700">SLA garanti</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">API & intégrations</span>
+                  <span className="text-gray-700">Déploiement dédié</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700">Interlocuteur dédié</span>
+                  <span className="text-gray-700">Account manager</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-[#0F6E56] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700">API et intégrations sur mesure</span>
                 </li>
               </ul>
               <a
@@ -392,7 +445,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-center text-sm text-gray-500 mt-8">
-            Les SMS de confirmation et de rappel sont inclus dans chaque plan. Au-delà du quota, chaque SMS supplémentaire est facturé 0,07 €.
+            Tous les prix sont HT. Essai gratuit de 14 jours sans carte bancaire. Minutes supplémentaires facturées par tranche de 100 minutes.
           </p>
         </div>
       </section>

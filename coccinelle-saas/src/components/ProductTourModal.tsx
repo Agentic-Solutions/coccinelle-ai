@@ -1249,9 +1249,9 @@ function TeamsScreen() {
 
 function BillingScreen() {
   const usage = [
-    { label: 'Appels', used: 342, total: 'illimité', pct: 100 },
-    { label: 'SMS envoyés', used: 89, total: '500', pct: 18 },
-    { label: 'Utilisateurs', used: 3, total: '10', pct: 30 },
+    { label: 'Minutes IA', used: 842, total: '2 000', pct: 42 },
+    { label: 'SMS envoyés', used: 89, total: 'illimité', pct: 100 },
+    { label: 'Utilisateurs', used: 3, total: '5', pct: 60 },
   ];
 
   const invoices = [
