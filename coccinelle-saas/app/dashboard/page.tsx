@@ -114,20 +114,25 @@ export default function DashboardPage() {
       }
 
       // Mode production - fetch API
+      const authToken = localStorage.getItem('auth_token');
+      const authHeaders = authToken
+        ? { 'Authorization': `Bearer ${authToken}` }
+        : { 'x-api-key': 'demo-key-12345' };
+
       const vapiRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/vapi/calls`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: authHeaders
       });
       const vapiData = await vapiRes.json();
       setCalls(vapiData.calls || []);
 
       const kbRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: authHeaders
       });
       const kbData = await kbRes.json();
       setDocuments(kbData.documents || []);
 
       const rdvRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/appointments`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: authHeaders
       });
       const rdvData = await rdvRes.json();
       setAppointments(rdvData.appointments || []);

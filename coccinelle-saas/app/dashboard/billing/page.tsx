@@ -123,7 +123,7 @@ export default function BillingPage() {
 
   const getToken = () => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('token') || sessionStorage.getItem('token');
+      return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
     }
     return null;
   };

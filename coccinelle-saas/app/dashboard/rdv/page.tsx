@@ -135,8 +135,13 @@ export default function RdvPage() {
       }
 
       // Mode production - fetch API
+      const authToken = localStorage.getItem('auth_token');
+      const authHeaders = authToken
+        ? { 'Authorization': `Bearer ${authToken}` }
+        : { 'x-api-key': 'demo-key-12345' };
+
       const rdvResponse = await fetch(`${API_URL}/api/v1/appointments`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: authHeaders
       });
       const rdvData = await rdvResponse.json();
       setAppointments(rdvData.appointments || []);
@@ -161,13 +166,13 @@ export default function RdvPage() {
       });
 
       const prospectsResponse = await fetch(`${API_URL}/api/v1/prospects`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: authHeaders
       });
       const prospectsData = await prospectsResponse.json();
       setProspects(prospectsData.prospects || []);
 
       const agentsResponse = await fetch(`${API_URL}/api/v1/agents`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: authHeaders
       });
       const agentsData = await agentsResponse.json();
       setAgents(agentsData.agents || []);
@@ -255,11 +260,12 @@ export default function RdvPage() {
     e.preventDefault();
     
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_URL}/api/v1/appointments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'demo-key-12345'
+          ...(token ? { 'Authorization': `Bearer ${token}` } : { 'x-api-key': 'demo-key-12345' })
         },
         body: JSON.stringify(newAppointment)
       });
