@@ -15,7 +15,9 @@ import {
   ChevronRight,
   User,
   ArrowLeft,
-  Settings
+  Settings,
+  ClipboardList,
+  Link2
 } from 'lucide-react';
 import Logo from '../../../src/components/Logo';
 import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '../../../lib/mockData';
@@ -350,6 +352,31 @@ export default function RdvPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      {/* Raccourcis RDV */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+        <Link href="/dashboard/availability" className="block">
+          <div className="bg-white border border-[#e5e3de] rounded-xl p-4 hover:border-[#D85A30] hover:bg-[#FAECE7] transition-all">
+            <Clock size={20} className="text-[#D85A30] mb-2" />
+            <p className="text-sm font-medium text-gray-900">Disponibilités</p>
+            <p className="text-xs text-gray-500 mt-0.5">Gérer vos horaires de travail</p>
+          </div>
+        </Link>
+        <Link href="/dashboard/appointment-types" className="block">
+          <div className="bg-white border border-[#e5e3de] rounded-xl p-4 hover:border-[#D85A30] hover:bg-[#FAECE7] transition-all">
+            <ClipboardList size={20} className="text-[#D85A30] mb-2" />
+            <p className="text-sm font-medium text-gray-900">Types de RDV</p>
+            <p className="text-xs text-gray-500 mt-0.5">Configurer vos types de rendez-vous</p>
+          </div>
+        </Link>
+        <Link href="/dashboard/rdv/calendars" className="block">
+          <div className="bg-white border border-[#e5e3de] rounded-xl p-4 hover:border-[#D85A30] hover:bg-[#FAECE7] transition-all">
+            <Link2 size={20} className="text-[#D85A30] mb-2" />
+            <p className="text-sm font-medium text-gray-900">Calendriers</p>
+            <p className="text-xs text-gray-500 mt-0.5">Synchroniser Google ou Outlook Calendar</p>
+          </div>
+        </Link>
+      </div>
+
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div></div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">

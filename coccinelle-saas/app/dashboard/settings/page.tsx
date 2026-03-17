@@ -8,8 +8,6 @@ import ProfileForm from '@/components/settings/ProfileForm';
 import APIKeysForm from '@/components/settings/APIKeysForm';
 import NotificationsSettings from '@/components/settings/NotificationsSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
-import CalendarIntegration from '@/components/settings/CalendarIntegration';
-import EmailConfiguration from '@/components/settings/EmailConfiguration';
 import Logo from '@/components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
@@ -25,20 +23,12 @@ export default function SettingsPage() {
     { id: 'notifications', label: 'Notifications' },
     { id: 'security', label: 'Sécurité' },
 
-    // Configuration Business
-    { id: 'section2', label: 'CONFIGURATION BUSINESS', isSection: true },
-    { id: 'availability', label: 'Disponibilités', link: '/dashboard/availability' },
-    { id: 'calendar', label: 'Calendriers' },
-    { id: 'email', label: 'Email' },
-    { id: 'channels', label: 'Canaux de communication', link: '/dashboard/channels' },
-
-    // Équipe & Développement
-    { id: 'section3', label: 'ÉQUIPE & DÉVELOPPEMENT', isSection: true },
-    { id: 'team', label: 'Équipe', link: '/dashboard/teams' },
+    // Développement
+    { id: 'section2', label: 'DÉVELOPPEMENT', isSection: true },
     { id: 'api', label: 'Clés API' },
 
     // Zone dangereuse
-    { id: 'section4', label: 'ZONE DANGEREUSE', isSection: true },
+    { id: 'section3', label: 'ZONE DANGEREUSE', isSection: true },
     { id: 'danger', label: 'Supprimer le compte' },
   ];
 
@@ -143,8 +133,6 @@ export default function SettingsPage() {
 
           {/* Contenu */}
           <div className="flex-1 min-w-0">
-            {activeTab === 'calendar' && <CalendarIntegration />}
-            {activeTab === 'email' && <EmailConfiguration />}
             {activeTab === 'profile' && <ProfileForm />}
             {activeTab === 'api' && <APIKeysForm />}
             {activeTab === 'notifications' && <NotificationsSettings />}
