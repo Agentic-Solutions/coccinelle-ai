@@ -1276,9 +1276,9 @@ function TourSidebar({
   onNavigate: (screenIndex: number) => void;
 }) {
   return (
-    <div className="hidden md:flex w-[200px] bg-[#111827] flex-col flex-shrink-0">
+    <div className="hidden md:flex w-[200px] bg-[#111827] flex-col flex-shrink-0 min-h-0">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4">
+      <div className="flex items-center gap-2.5 px-4 py-3 flex-shrink-0">
         <div className="w-7 h-7 bg-[#D85A30] rounded-full flex items-center justify-center">
           <span className="text-white font-bold text-[12px]">C</span>
         </div>
@@ -1288,7 +1288,7 @@ function TourSidebar({
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-2 space-y-0.5 overflow-y-auto">
         {sidebarItems.map((item, i) => {
           const Icon = item.icon;
           const isActive = i === activeSidebarIndex;
@@ -1319,7 +1319,7 @@ function TourSidebar({
       </nav>
 
       {/* Avatar */}
-      <div className="px-3 py-3 border-t border-white/10">
+      <div className="px-3 py-2.5 border-t border-white/10 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-[#D85A30] rounded-full flex items-center justify-center text-[11px] font-bold text-white">
             SM
