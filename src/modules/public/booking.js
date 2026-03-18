@@ -130,7 +130,7 @@ export async function handleGetBookingSlots(request, env, slug) {
         workingHours = await env.DB.prepare(`
           SELECT start_time, end_time
           FROM availability_slots
-          WHERE agent_id = ? AND day_of_week = ? AND is_active = 1
+          WHERE agent_id = ? AND day_of_week = ? AND is_available = 1
         `).bind(agent.id, dayOfWeek).first();
       } catch (e) {
         // Table might not exist
@@ -142,7 +142,7 @@ export async function handleGetBookingSlots(request, env, slug) {
           workingHours = await env.DB.prepare(`
             SELECT start_time, end_time
             FROM business_hours
-            WHERE tenant_id = ? AND day_of_week = ? AND is_active = 1
+            WHERE tenant_id = ? AND day_of_week = ? AND is_open = 1
           `).bind(tenant.id, dayOfWeek).first();
         } catch (e) {
           // Table might not exist
@@ -299,24 +299,53 @@ export async function handleCreatePublicBooking(request, env, slug) {
 
     // Créer le RDV
     const appointmentId = `appt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const managementToken = `token_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
 
-    await env.DB.prepare(`
-      INSERT INTO appointments (
-        id, tenant_id, prospect_id, agent_id, appointment_type_id,
-        scheduled_at, duration_minutes, status, notes,
-        booking_source, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, 'booking_page', ?)
-    `).bind(
-      appointmentId,
-      tenant.id,
-      prospectId,
-      targetAgentId,
-      type_id || null,
-      datetime,
-      durationMinutes,
-      notes || null,
-      now
-    ).run();
+    try {
+      await env.DB.prepare(`
+        INSERT INTO appointments (
+          id, tenant_id, prospect_id, agent_id, appointment_type_id,
+          scheduled_at, duration_minutes, status, notes,
+          booking_source, management_token, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, 'booking_page', ?, ?)
+      `).bind(
+        appointmentId,
+        tenant.id,
+        prospectId,
+        targetAgentId,
+        type_id || null,
+        datetime,
+        durationMinutes,
+        notes || null,
+        managementToken,
+        now
+      ).run();
+    } catch (insertError) {
+      // Fallback: try with minimal columns (original schema compatibility)
+      logger.warn('Appointment insert with full schema failed, trying fallback', { error: insertError.message });
+      try {
+        await env.DB.prepare(`
+          INSERT INTO appointments (
+            id, tenant_id, prospect_id, agent_id,
+            scheduled_at, duration_minutes, status, notes,
+            management_token, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?)
+        `).bind(
+          appointmentId,
+          tenant.id,
+          prospectId,
+          targetAgentId,
+          datetime,
+          durationMinutes,
+          notes || null,
+          managementToken,
+          now
+        ).run();
+      } catch (fallbackError) {
+        logger.error('Appointment creation failed completely', { error: fallbackError.message });
+        return errorResponse('Erreur lors de la création du rendez-vous', 500, request);
+      }
+    }
 
     return successResponse({
       appointment_id: appointmentId,

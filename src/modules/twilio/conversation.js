@@ -663,24 +663,42 @@ LANGUE: Français exclusivement`;
 
       const appointmentId = `apt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const scheduledAt = `${date}T${time}:00`;
+      const managementToken = `token_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
 
       // Créer le rendez-vous en DB avec l'agent
-      await env.DB.prepare(`
-        INSERT INTO appointments (id, tenant_id, agent_id, property_id, customer_name, customer_phone, scheduled_at, service_type, notes, status, created_at, call_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
-      `).bind(
-        appointmentId,
-        this.tenantId,
-        finalAgentId,
-        property_id || null,
-        client_name,
-        client_phone || this.sessionInfo.fromNumber,
-        scheduledAt,
-        service_type || 'general',
-        notes || '',
-        'scheduled',
-        this.callId
-      ).run();
+      try {
+        await env.DB.prepare(`
+          INSERT INTO appointments (id, tenant_id, agent_id, property_id, customer_name, customer_phone, scheduled_at, service_type, notes, status, management_token, created_at, call_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+        `).bind(
+          appointmentId,
+          this.tenantId,
+          finalAgentId,
+          property_id || null,
+          client_name,
+          client_phone || this.sessionInfo.fromNumber,
+          scheduledAt,
+          service_type || 'general',
+          notes || '',
+          'scheduled',
+          managementToken,
+          this.callId
+        ).run();
+      } catch (insertError) {
+        // Fallback: try with schema-v1 compatible columns
+        logger.warn('Appointment insert with extended schema failed, trying fallback', { error: insertError.message });
+        await env.DB.prepare(`
+          INSERT INTO appointments (id, tenant_id, agent_id, scheduled_at, status, notes, management_token, created_at)
+          VALUES (?, ?, ?, ?, 'scheduled', ?, ?, datetime('now'))
+        `).bind(
+          appointmentId,
+          this.tenantId,
+          finalAgentId,
+          scheduledAt,
+          notes || `RDV ${client_name} - ${client_phone || this.sessionInfo.fromNumber} - ${service_type || 'general'}`,
+          managementToken
+        ).run();
+      }
 
       logger.info('Appointment booked', { appointmentId, date, time, client_name, agent_id: finalAgentId, property_id });
 

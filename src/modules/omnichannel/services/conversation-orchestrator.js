@@ -679,23 +679,42 @@ export class ConversationOrchestrator {
         notes += `\nID Produit: ${params.productId}`;
       }
 
-      await this.env.DB.prepare(`
-        INSERT INTO appointments (
-          id, tenant_id, prospect_id, agent_id, property_id,
-          type, scheduled_at, duration_minutes, status,
-          management_token, notes
-        )
-        VALUES (?, ?, ?, NULL, ?, 'property_visit', ?, ?, 'scheduled', ?, ?)
-      `).bind(
-        appointmentId,
-        tenantId,
-        prospectId,
-        params.productId || null,
-        scheduledAt,
-        durationMinutes,
-        managementToken,
-        notes
-      ).run();
+      try {
+        await this.env.DB.prepare(`
+          INSERT INTO appointments (
+            id, tenant_id, prospect_id, agent_id, property_id,
+            type, scheduled_at, duration_minutes, status,
+            management_token, notes, created_at
+          )
+          VALUES (?, ?, ?, NULL, ?, 'property_visit', ?, ?, 'scheduled', ?, ?, datetime('now'))
+        `).bind(
+          appointmentId,
+          tenantId,
+          prospectId,
+          params.productId || null,
+          scheduledAt,
+          durationMinutes,
+          managementToken,
+          notes
+        ).run();
+      } catch (insertError) {
+        // Fallback: try with minimal columns (no property_id, type, duration_minutes)
+        omniLogger.warn('Appointment insert with extended schema failed, trying fallback', { error: insertError.message });
+        await this.env.DB.prepare(`
+          INSERT INTO appointments (
+            id, tenant_id, prospect_id, scheduled_at, status,
+            management_token, notes, created_at
+          )
+          VALUES (?, ?, ?, ?, 'scheduled', ?, ?, datetime('now'))
+        `).bind(
+          appointmentId,
+          tenantId,
+          prospectId,
+          scheduledAt,
+          managementToken,
+          notes
+        ).run();
+      }
 
       omniLogger.info('Appointment booked', {
         conversationId: this.conversationId,

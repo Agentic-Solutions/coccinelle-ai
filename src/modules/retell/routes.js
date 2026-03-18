@@ -852,10 +852,22 @@ async function bookAppointment(env, tenantId, args) {
       }
     }
 
-    await env.DB.prepare(`
-      INSERT INTO appointments (id, tenant_id, prospect_id, customer_name, customer_phone, scheduled_at, service_type, appointment_type_id, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', datetime('now'))
-    `).bind(id, tenantId, prospectId, client_name, client_phone || '', `${date}T${time}:00`, typeName, appointment_type_id || null).run();
+    const managementToken = `token_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
+    const scheduledAt = `${date}T${time}:00`;
+
+    try {
+      await env.DB.prepare(`
+        INSERT INTO appointments (id, tenant_id, prospect_id, customer_name, customer_phone, scheduled_at, service_type, appointment_type_id, management_token, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', datetime('now'))
+      `).bind(id, tenantId, prospectId, client_name, client_phone || '', scheduledAt, typeName, appointment_type_id || null, managementToken).run();
+    } catch (insertError) {
+      // Fallback: try with schema-v1 compatible columns (no customer_name, service_type etc.)
+      logger.warn('Appointment insert with extended schema failed, trying fallback', { error: insertError.message });
+      await env.DB.prepare(`
+        INSERT INTO appointments (id, tenant_id, prospect_id, scheduled_at, status, management_token, notes, created_at)
+        VALUES (?, ?, ?, ?, 'confirmed', ?, ?, datetime('now'))
+      `).bind(id, tenantId, prospectId, scheduledAt, managementToken, `${client_name} - ${client_phone || ''} - ${typeName}`).run();
+    }
 
     // N3 — Envoyer confirmation unifiée (email + SMS si dispo)
     try {

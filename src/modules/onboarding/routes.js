@@ -266,9 +266,9 @@ export async function autoGenerateAgents(request, env, sessionId, tenantId) {
         statements.push(
           env.DB.prepare(`
             INSERT INTO availability_slots (
-              id, agent_id, day_of_week, start_time, end_time, is_available
-            ) VALUES (?, ?, ?, '09:00', '18:00', 1)
-          `).bind(slotId, agentId, day)
+              id, tenant_id, agent_id, day_of_week, start_time, end_time, is_available
+            ) VALUES (?, ?, ?, ?, '09:00', '18:00', 1)
+          `).bind(slotId, tenantId, agentId, day)
         );
       }
     }

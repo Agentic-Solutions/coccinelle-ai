@@ -91,29 +91,24 @@ async function handleSetAvailability(request, env) {
     return errorResponse('day_of_week doit etre entre 1 (lundi) et 7 (dimanche)', 400, request);
   }
 
-  // Upsert: delete existing then insert
-  await env.DB.prepare(
-    'DELETE FROM availability_slots WHERE tenant_id = ? AND agent_id = ? AND day_of_week = ?'
-  ).bind(tenant.id, targetAgentId, day_of_week).run();
+  // Validate that the agent exists (check agents, commercial_agents, and users tables)
+  try {
+    let agentExists = await env.DB.prepare('SELECT id FROM agents WHERE id = ?').bind(targetAgentId).first();
+    if (!agentExists) {
+      agentExists = await env.DB.prepare('SELECT id FROM commercial_agents WHERE id = ?').bind(targetAgentId).first();
+    }
+    if (!agentExists) {
+      agentExists = await env.DB.prepare('SELECT id FROM users WHERE id = ? AND tenant_id = ?').bind(targetAgentId, tenant.id).first();
+    }
+    if (!agentExists) {
+      return errorResponse('Agent introuvable. Verifiez le agent_id.', 400, request);
+    }
+  } catch (e) {
+    logger.warn('Agent validation skipped (table may not exist)', { error: e.message });
+  }
 
   const slotId = auth.generateId('avail');
-  await env.DB.prepare(`
-    INSERT INTO availability_slots (id, tenant_id, agent_id, day_of_week, start_time, end_time, break_start, break_end, slot_duration, is_available)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    slotId,
-    tenant.id,
-    targetAgentId,
-    day_of_week,
-    start_time || '09:00',
-    end_time || '18:00',
-    break_start || null,
-    break_end || null,
-    slot_duration || 30,
-    is_available !== undefined ? (is_available ? 1 : 0) : 1
-  ).run();
-
-  const slot = {
+  const slotData = {
     id: slotId,
     tenant_id: tenant.id,
     agent_id: targetAgentId,
@@ -126,7 +121,44 @@ async function handleSetAvailability(request, env) {
     is_available: is_available !== undefined ? (is_available ? 1 : 0) : 1
   };
 
-  return successResponse({ slot }, 201, request);
+  try {
+    // Upsert: delete existing then insert (with tenant_id)
+    await env.DB.prepare(
+      'DELETE FROM availability_slots WHERE tenant_id = ? AND agent_id = ? AND day_of_week = ?'
+    ).bind(tenant.id, targetAgentId, day_of_week).run();
+
+    await env.DB.prepare(`
+      INSERT INTO availability_slots (id, tenant_id, agent_id, day_of_week, start_time, end_time, break_start, break_end, slot_duration, is_available)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      slotId, tenant.id, targetAgentId, day_of_week,
+      slotData.start_time, slotData.end_time,
+      slotData.break_start, slotData.break_end,
+      slotData.slot_duration, slotData.is_available
+    ).run();
+  } catch (dbError) {
+    // Fallback: try without tenant_id and extended columns (original schema)
+    logger.warn('Availability insert with full schema failed, trying fallback', { error: dbError.message });
+    try {
+      await env.DB.prepare(
+        'DELETE FROM availability_slots WHERE agent_id = ? AND day_of_week = ?'
+      ).bind(targetAgentId, day_of_week).run();
+
+      await env.DB.prepare(`
+        INSERT INTO availability_slots (id, agent_id, day_of_week, start_time, end_time, is_available)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        slotId, targetAgentId, day_of_week,
+        slotData.start_time, slotData.end_time,
+        slotData.is_available
+      ).run();
+    } catch (fallbackError) {
+      logger.error('Availability slot creation failed', { error: fallbackError.message });
+      return errorResponse('Impossible de creer le creneau: ' + fallbackError.message, 500, request);
+    }
+  }
+
+  return successResponse({ slot: slotData }, 201, request);
 }
 
 // DELETE /api/v1/availability/:id

@@ -83,7 +83,7 @@ async function handleListAppointments(request, env) {
       a.id, a.prospect_id, a.agent_id, a.scheduled_at, a.status, 
       a.service_id, a.notes, a.created_at,
       ag.first_name as agent_first_name, ag.last_name as agent_last_name,
-      p.name as prospect_name, p.phone as prospect_phone, p.email as prospect_email,
+      (COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) as prospect_name, p.phone as prospect_phone, p.email as prospect_email,
       s.name as service_name, s.duration_minutes, s.price
     FROM appointments a
     LEFT JOIN agents ag ON a.agent_id = ag.id
@@ -91,7 +91,7 @@ async function handleListAppointments(request, env) {
     LEFT JOIN services s ON a.service_id = s.id
     WHERE a.tenant_id = ?
   `;
-  
+
   const params = [tenant.id];
 
   // Filtrer par agents visibles
@@ -143,7 +143,7 @@ async function handleGetAppointment(request, env, appointmentId) {
     SELECT 
       a.*, 
       ag.first_name as agent_first_name, ag.last_name as agent_last_name,
-      p.name as prospect_name, p.phone as prospect_phone, p.email as prospect_email,
+      (COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) as prospect_name, p.phone as prospect_phone, p.email as prospect_email,
       s.name as service_name, s.duration_minutes, s.price
     FROM appointments a
     LEFT JOIN agents ag ON a.agent_id = ag.id
@@ -191,20 +191,76 @@ async function handleCreateAppointment(request, env) {
     }
   }
 
+  // Valider que le prospect existe si fourni
+  const resolvedProspectId = prospect_id || null;
+  if (resolvedProspectId) {
+    try {
+      const prospectExists = await env.DB.prepare(
+        'SELECT id FROM prospects WHERE id = ? AND tenant_id = ?'
+      ).bind(resolvedProspectId, tenant.id).first();
+      if (!prospectExists) {
+        return errorResponse('Prospect introuvable. Vérifiez le prospect_id.', 400);
+      }
+    } catch (e) {
+      logger.warn('Prospect validation skipped', { error: e.message });
+    }
+  }
+
+  // Valider que l'agent existe si fourni
+  const resolvedAgentId = agent_id || null;
+  if (resolvedAgentId) {
+    try {
+      // Check both agents and commercial_agents tables
+      let agentExists = await env.DB.prepare(
+        'SELECT id FROM agents WHERE id = ?'
+      ).bind(resolvedAgentId).first();
+      if (!agentExists) {
+        agentExists = await env.DB.prepare(
+          'SELECT id FROM commercial_agents WHERE id = ?'
+        ).bind(resolvedAgentId).first();
+      }
+      if (!agentExists) {
+        // Also check users table as agents might be users
+        agentExists = await env.DB.prepare(
+          'SELECT id FROM users WHERE id = ? AND tenant_id = ?'
+        ).bind(resolvedAgentId, tenant.id).first();
+      }
+      if (!agentExists) {
+        return errorResponse('Agent introuvable. Vérifiez le agent_id.', 400);
+      }
+    } catch (e) {
+      logger.warn('Agent validation skipped', { error: e.message });
+    }
+  }
+
   const appointmentId = `apt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = new Date().toISOString();
 
-  const managementToken = Math.random().toString(36).substr(2, 16);
-  await env.DB.prepare(`
-    INSERT INTO appointments (id, tenant_id, prospect_id, agent_id, service_id, type, scheduled_at, management_token, status, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
-  `).bind(appointmentId, tenant.id, prospect_id || 'unknown', agent_id || null, service_id || null, type || 'visit', scheduled_at, managementToken, notes || null, now).run();
+  try {
+    const managementToken = Math.random().toString(36).substr(2, 16);
+    await env.DB.prepare(`
+      INSERT INTO appointments (id, tenant_id, prospect_id, agent_id, service_id, type, scheduled_at, management_token, status, notes, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
+    `).bind(appointmentId, tenant.id, resolvedProspectId, resolvedAgentId, service_id || null, type || 'visit', scheduled_at, managementToken, notes || null, now).run();
+  } catch (dbError) {
+    // Handle FK constraint or missing column errors gracefully
+    logger.warn('Appointment insert with full schema failed, trying fallback', { error: dbError.message });
+    try {
+      await env.DB.prepare(`
+        INSERT INTO appointments (id, tenant_id, prospect_id, agent_id, scheduled_at, status, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?)
+      `).bind(appointmentId, tenant.id, resolvedProspectId, resolvedAgentId, scheduled_at, notes || null, now).run();
+    } catch (fallbackError) {
+      logger.error('Appointment creation failed', { error: fallbackError.message });
+      return errorResponse('Impossible de créer le rendez-vous: ' + fallbackError.message, 500);
+    }
+  }
 
   const appointment = {
     id: appointmentId,
     tenant_id: tenant.id,
-    prospect_id,
-    agent_id,
+    prospect_id: resolvedProspectId,
+    agent_id: resolvedAgentId,
     service_id,
     scheduled_at,
     status: 'scheduled',
@@ -214,9 +270,13 @@ async function handleCreateAppointment(request, env) {
 
   // Notifications si customer fourni
   if (customer) {
-    const settings = await loadAppointmentSettings(env, tenant.id);
-    if (settings?.notifications?.emailConfirmation || settings?.notifications?.smsReminder) {
-      await sendAppointmentNotifications(env, appointment, customer, settings);
+    try {
+      const settings = await loadAppointmentSettings(env, tenant.id);
+      if (settings?.notifications?.emailConfirmation || settings?.notifications?.smsReminder) {
+        await sendAppointmentNotifications(env, appointment, customer, settings);
+      }
+    } catch (notifError) {
+      logger.warn('Notification send failed (non-blocking)', { error: notifError.message });
     }
   }
 
@@ -227,7 +287,7 @@ async function handleCreateAppointment(request, env) {
     action: 'appointment.create',
     resource_type: 'appointment',
     resource_id: appointmentId,
-    changes: { agent_id, scheduled_at, service_id }
+    changes: { agent_id: resolvedAgentId, scheduled_at, service_id }
   });
 
   return successResponse({ appointment }, 201);

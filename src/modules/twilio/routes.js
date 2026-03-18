@@ -90,57 +90,89 @@ export async function handleTwilioRoutes(request, env, path, method) {
 
   } catch (error) {
     logger.error('Twilio route error', { error: error.message, path });
+    // Webhook routes must return TwiML, not JSON
+    if (path && path.startsWith('/webhooks/twilio/')) {
+      return new Response(generateErrorTwiML('Erreur technique, veuillez rappeler'), {
+        headers: { 'Content-Type': 'application/xml' }
+      });
+    }
     return errorResponse(error.message);
   }
 }
 
 // Webhook pour appel entrant - retourne TwiML avec ConversationRelay
 async function handleIncomingCall(request, env) {
-  const formData = await request.formData();
-  const callSid = formData.get('CallSid');
-  const from = formData.get('From');
-  const to = formData.get('To');
-  const forwardedFrom = formData.get('ForwardedFrom'); // Numéro original si renvoi d'appel
+  try {
+    // Parse form data safely - Twilio sends application/x-www-form-urlencoded
+    let formData;
+    try {
+      formData = await request.formData();
+    } catch (parseError) {
+      logger.error('Failed to parse incoming call form data', { error: parseError.message });
+      return new Response(generateErrorTwiML('Erreur technique, veuillez rappeler'), {
+        headers: { 'Content-Type': 'application/xml' }
+      });
+    }
 
-  logger.info('Incoming call received', { callSid, from, to, forwardedFrom });
+    const callSid = formData.get('CallSid') || null;
+    const from = formData.get('From') || null;
+    const to = formData.get('To') || null;
+    const forwardedFrom = formData.get('ForwardedFrom') || null; // Numéro original si renvoi d'appel
 
-  // Récupérer la config du tenant basée sur le numéro appelé
-  // Si ForwardedFrom existe, c'est que l'appel a été renvoyé depuis le numéro pro du client
-  const phoneToIdentify = forwardedFrom || to;
-  const tenantConfig = await getTenantByPhoneNumber(env, phoneToIdentify);
+    logger.info('Incoming call received', { callSid, from, to, forwardedFrom });
 
-  if (!tenantConfig) {
-    logger.warn('No tenant found for number', { to, forwardedFrom, phoneToIdentify });
-    return new Response(generateErrorTwiML('Numéro non configuré'), {
+    // Récupérer la config du tenant basée sur le numéro appelé
+    // Si ForwardedFrom existe, c'est que l'appel a été renvoyé depuis le numéro pro du client
+    const phoneToIdentify = forwardedFrom || to;
+
+    if (!phoneToIdentify) {
+      logger.warn('No phone number to identify tenant', { to, forwardedFrom });
+      return new Response(generateErrorTwiML('Numéro non identifié'), {
+        headers: { 'Content-Type': 'application/xml' }
+      });
+    }
+
+    const tenantConfig = await getTenantByPhoneNumber(env, phoneToIdentify);
+
+    if (!tenantConfig) {
+      logger.warn('No tenant found for number', { to, forwardedFrom, phoneToIdentify });
+      return new Response(generateErrorTwiML('Numéro non configuré'), {
+        headers: { 'Content-Type': 'application/xml' }
+      });
+    }
+
+    // Enregistrer l'appel en DB
+    const callId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    try {
+      await env.DB.prepare(`
+        INSERT INTO calls (id, tenant_id, twilio_call_sid, from_number, to_number, direction, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(callId, tenantConfig.tenant_id, callSid || '', from || '', to || '', 'inbound', 'ringing', now).run();
+    } catch (dbError) {
+      logger.error('Failed to save call', { error: dbError.message });
+    }
+
+    // Construire l'URL WebSocket pour ConversationRelay
+    // IMPORTANT : Utiliser &amp; pour encoder le & dans le XML
+    const wsUrl = `wss://${new URL(request.url).host}/webhooks/twilio/conversation?callId=${callId}&amp;tenantId=${tenantConfig.tenant_id}`;
+
+    // Générer TwiML avec ConversationRelay
+    const twiml = generateConversationRelayTwiML(wsUrl, tenantConfig);
+
+    logger.info('Returning TwiML with ConversationRelay', { callId, wsUrl });
+
+    return new Response(twiml, {
+      headers: { 'Content-Type': 'application/xml' }
+    });
+
+  } catch (error) {
+    logger.error('handleIncomingCall unexpected error', { error: error.message, stack: error.stack });
+    return new Response(generateErrorTwiML('Erreur technique, veuillez rappeler'), {
       headers: { 'Content-Type': 'application/xml' }
     });
   }
-
-  // Enregistrer l'appel en DB
-  const callId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const now = new Date().toISOString();
-
-  try {
-    await env.DB.prepare(`
-      INSERT INTO calls (id, tenant_id, twilio_call_sid, from_number, to_number, direction, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(callId, tenantConfig.tenant_id, callSid, from, to, 'inbound', 'ringing', now).run();
-  } catch (dbError) {
-    logger.error('Failed to save call', { error: dbError.message });
-  }
-
-  // Construire l'URL WebSocket pour ConversationRelay
-  // IMPORTANT : Utiliser &amp; pour encoder le & dans le XML
-  const wsUrl = `wss://${new URL(request.url).host}/webhooks/twilio/conversation?callId=${callId}&amp;tenantId=${tenantConfig.tenant_id}`;
-
-  // Générer TwiML avec ConversationRelay
-  const twiml = generateConversationRelayTwiML(wsUrl, tenantConfig);
-
-  logger.info('Returning TwiML with ConversationRelay', { callId, wsUrl });
-
-  return new Response(twiml, {
-    headers: { 'Content-Type': 'application/xml' }
-  });
 }
 
 // Générer le TwiML avec ConversationRelay (IA conversationnelle en temps réel)
@@ -196,10 +228,19 @@ function generateErrorTwiML(message) {
 
 // Traiter la réponse vocale de l'utilisateur (Gather)
 async function handleGatherResponse(request, env) {
-  const formData = await request.formData();
-  const speechResult = formData.get('SpeechResult');
-  const callSid = formData.get('CallSid');
-  const confidence = formData.get('Confidence');
+  let formData;
+  try {
+    formData = await request.formData();
+  } catch (parseError) {
+    logger.error('Failed to parse gather form data', { error: parseError.message });
+    return new Response(generateErrorTwiML('Erreur technique, veuillez rappeler'), {
+      headers: { 'Content-Type': 'application/xml' }
+    });
+  }
+
+  const speechResult = formData.get('SpeechResult') || '';
+  const callSid = formData.get('CallSid') || null;
+  const confidence = formData.get('Confidence') || null;
 
   logger.info('Speech received', { callSid, speechResult, confidence });
 
@@ -282,10 +323,17 @@ Si tu ne connais pas la réponse, propose de transférer à un conseiller.`;
 
 // Callback de statut d'appel
 async function handleCallStatus(request, env) {
-  const formData = await request.formData();
-  const callSid = formData.get('CallSid');
-  const callStatus = formData.get('CallStatus');
-  const callDuration = formData.get('CallDuration');
+  let formData;
+  try {
+    formData = await request.formData();
+  } catch (parseError) {
+    logger.error('Failed to parse call status form data', { error: parseError.message });
+    return successResponse({ received: true });
+  }
+
+  const callSid = formData.get('CallSid') || null;
+  const callStatus = formData.get('CallStatus') || 'unknown';
+  const callDuration = formData.get('CallDuration') || '0';
 
   logger.info('Call status update', { callSid, callStatus, callDuration });
 
@@ -301,14 +349,18 @@ async function handleCallStatus(request, env) {
     'canceled': 'canceled'
   };
 
-  try {
-    await env.DB.prepare(`
-      UPDATE calls
-      SET status = ?, duration = ?, updated_at = datetime('now')
-      WHERE twilio_call_sid = ?
-    `).bind(statusMap[callStatus] || callStatus, parseInt(callDuration) || 0, callSid).run();
-  } catch (dbError) {
-    logger.error('Failed to update call status', { error: dbError.message });
+  if (callSid) {
+    try {
+      await env.DB.prepare(`
+        UPDATE calls
+        SET status = ?, duration = ?, updated_at = datetime('now')
+        WHERE twilio_call_sid = ?
+      `).bind(statusMap[callStatus] || callStatus, parseInt(callDuration) || 0, callSid).run();
+    } catch (dbError) {
+      logger.error('Failed to update call status', { error: dbError.message });
+    }
+  } else {
+    logger.warn('Call status update received without CallSid');
   }
 
   return successResponse({ received: true });
@@ -354,8 +406,13 @@ async function handleStats(env, tenantId) {
 
 // Récupérer la config tenant par numéro de téléphone
 async function getTenantByPhoneNumber(env, phoneNumber) {
+  if (!phoneNumber) {
+    logger.warn('getTenantByPhoneNumber called with null/undefined phoneNumber');
+    return null;
+  }
+
   // Normaliser le numéro (enlever le +)
-  const normalizedNumber = phoneNumber.replace(/^\+/, '');
+  const normalizedNumber = String(phoneNumber).replace(/^\+/, '');
 
   // Essayer d'abord avec la nouvelle table channel_configurations
   // Cherche dans le JSON config_public le champ phoneNumber qui correspond au numéro du client

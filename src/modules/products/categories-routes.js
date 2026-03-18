@@ -4,6 +4,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
+import * as auth from '../auth/helpers.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
 
 /**
@@ -11,9 +12,14 @@ import { successResponse, errorResponse } from '../../utils/response.js';
  */
 export async function handleProductCategoriesRoutes(request, env, path, method) {
   try {
-    const url = new URL(request.url);
-    const tenantId = url.searchParams.get('tenantId') || 'tenant_demo_001';
-    const userId = 'user_demo_001';
+    // Authentification requise (même pattern que products/routes.js)
+    const authResult = await auth.requireAuth(request, env);
+    if (authResult.error) {
+      return errorResponse(authResult.error, authResult.status);
+    }
+    const { user, tenant } = authResult;
+    const tenantId = tenant.id;
+    const userId = user.id;
 
     // GET /api/v1/product-categories - Liste des catégories
     if (path === '/api/v1/product-categories' && method === 'GET') {

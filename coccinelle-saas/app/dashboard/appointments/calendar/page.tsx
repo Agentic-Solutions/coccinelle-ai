@@ -91,6 +91,11 @@ export default function RdvPage() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
+  const getAuthHeaders = (): Record<string, string> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    return token ? { 'Authorization': `Bearer ${token}` } : { 'x-api-key': 'demo-key-12345' };
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -134,7 +139,7 @@ export default function RdvPage() {
 
       // Mode production - fetch API
       const rdvResponse = await fetch(`${API_URL}/api/v1/appointments`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: { ...getAuthHeaders() }
       });
       const rdvData = await rdvResponse.json();
       setAppointments(rdvData.appointments || []);
@@ -159,13 +164,13 @@ export default function RdvPage() {
       });
 
       const prospectsResponse = await fetch(`${API_URL}/api/v1/prospects`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: { ...getAuthHeaders() }
       });
       const prospectsData = await prospectsResponse.json();
       setProspects(prospectsData.prospects || []);
 
       const agentsResponse = await fetch(`${API_URL}/api/v1/agents`, {
-        headers: { 'x-api-key': 'demo-key-12345' }
+        headers: { ...getAuthHeaders() }
       });
       const agentsData = await agentsResponse.json();
       setAgents(agentsData.agents || []);
@@ -257,7 +262,7 @@ export default function RdvPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'demo-key-12345'
+          ...getAuthHeaders()
         },
         body: JSON.stringify(newAppointment)
       });

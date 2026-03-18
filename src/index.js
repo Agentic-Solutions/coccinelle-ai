@@ -8,6 +8,7 @@ import { handleProspectsRoutes } from './modules/prospects/routes.js';
 import { handleAgentsRoutes } from './modules/agents/routes.js';
 import { handleAppointmentsRoutes } from './modules/appointments/routes.js';
 import { handleProductsRoutes } from './modules/products/routes.js';
+import { handleProductCategoriesRoutes } from './modules/products/categories-routes.js';
 import { handleVapiRoutes } from './modules/vapi/routes.js';
 import { handleTwilioRoutes } from './modules/twilio/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
@@ -191,6 +192,12 @@ export default {
         if (response) return response;
       }
       
+      // Product categories (must be before /api/v1/products to avoid path conflicts)
+      if (path.startsWith('/api/v1/product-categories')) {
+        response = await handleProductCategoriesRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
       if (path.startsWith('/api/v1/products')) {
         response = await handleProductsRoutes(request, env, path, method);
         if (response) return response;

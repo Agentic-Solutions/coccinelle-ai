@@ -308,23 +308,46 @@ async function handleCreateBooking(request, env, path) {
 
     // Créer le RDV
     const appointmentId = `appt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const managementToken = `token_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
 
-    await env.DB.prepare(`
-      INSERT INTO appointments (
-        id, tenant_id, prospect_id, agent_id, service_id,
-        scheduled_at, duration_minutes, status, notes,
-        booking_source, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, 'widget', datetime('now'))
-    `).bind(
-      appointmentId,
-      tenantId,
-      prospectId,
-      agentId,
-      serviceId || null,
-      datetime,
-      30, // Durée par défaut 30 min
-      notes || null
-    ).run();
+    try {
+      await env.DB.prepare(`
+        INSERT INTO appointments (
+          id, tenant_id, prospect_id, agent_id, service_id,
+          scheduled_at, duration_minutes, status, notes,
+          booking_source, management_token, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, 'widget', ?, datetime('now'))
+      `).bind(
+        appointmentId,
+        tenantId,
+        prospectId,
+        agentId,
+        serviceId || null,
+        datetime,
+        30,
+        notes || null,
+        managementToken
+      ).run();
+    } catch (insertError) {
+      // Fallback: try with minimal columns (original schema compatibility)
+      logger.warn('Appointment insert with full schema failed, trying fallback', { error: insertError.message });
+      await env.DB.prepare(`
+        INSERT INTO appointments (
+          id, tenant_id, prospect_id, agent_id,
+          scheduled_at, duration_minutes, status, notes,
+          management_token, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, datetime('now'))
+      `).bind(
+        appointmentId,
+        tenantId,
+        prospectId,
+        agentId,
+        datetime,
+        30,
+        notes || null,
+        managementToken
+      ).run();
+    }
 
     // TODO: Envoyer SMS/Email de confirmation
 

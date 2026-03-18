@@ -52,7 +52,7 @@ export async function sendAppointmentConfirmation(env, appointmentId, channel = 
     // Récupérer le RDV avec les infos prospect/customer
     const appointment = await env.DB.prepare(`
       SELECT a.*,
-        p.name as prospect_name, p.phone as prospect_phone, p.email as prospect_email,
+        (COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) as prospect_name, p.phone as prospect_phone, p.email as prospect_email,
         at.name as type_name, at.duration_minutes as type_duration
       FROM appointments a
       LEFT JOIN prospects p ON a.prospect_id = p.id
