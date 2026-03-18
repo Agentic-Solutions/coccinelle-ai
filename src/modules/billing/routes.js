@@ -3,6 +3,8 @@ import * as auth from '../auth/helpers.js';
 import { getCorsHeaders } from '../../config/cors.js';
 import { logger } from '../../utils/logger.js';
 import { getPlans, getPlanDetails, comparePlans } from './controllers/plans.js';
+import { getCurrentUsage, getUsageHistory, getUsageSummary } from './controllers/usage.js';
+import { getInvoices, getInvoiceDetails, downloadInvoicePDF } from './controllers/invoices.js';
 
 // ========================================
 // PLANS PRICING (price IDs from env)
@@ -419,6 +421,258 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
       );
     } catch (error) {
       logger.error('Create portal session error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  // ========================================
+  // 5. GET /api/v1/billing — billing info (alias for subscription)
+  // ========================================
+  if (path === '/api/v1/billing' && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { tenant } = authResult;
+
+      const sub = await env.DB.prepare(
+        'SELECT * FROM subscriptions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1'
+      ).bind(tenant.id).first();
+
+      if (!sub) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            subscription: {
+              plan: 'trial',
+              status: 'trialing',
+              trial_days_remaining: 0,
+              current_period_end: null,
+              cancel_at_period_end: false,
+            },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      let trialDaysRemaining = null;
+      if (sub.status === 'trialing' && sub.trial_ends_at) {
+        const now = new Date();
+        const trialEnd = new Date(sub.trial_ends_at);
+        const diff = trialEnd.getTime() - now.getTime();
+        trialDaysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          subscription: {
+            plan: sub.plan,
+            status: sub.status,
+            trial_days_remaining: trialDaysRemaining,
+            trial_ends_at: sub.trial_ends_at,
+            current_period_start: sub.current_period_start,
+            current_period_end: sub.current_period_end,
+            cancel_at_period_end: sub.cancel_at_period_end === 1,
+            stripe_customer_id: sub.stripe_customer_id,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      logger.error('Get billing info error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  // ========================================
+  // 6. USAGE ROUTES - /api/v1/billing/usage
+  // ========================================
+  if (path === '/api/v1/billing/usage' && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { tenant } = authResult;
+      // Inject tenantId into the URL so the controller can read it
+      const usageUrl = new URL(request.url);
+      usageUrl.searchParams.set('tenantId', tenant.id);
+      const usageRequest = new Request(usageUrl.toString(), request);
+      const response = await getCurrentUsage(usageRequest, env);
+      const headers = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      logger.error('Get usage error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  if (path === '/api/v1/billing/usage/current' && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { tenant } = authResult;
+      const usageUrl = new URL(request.url);
+      usageUrl.searchParams.set('tenantId', tenant.id);
+      const usageRequest = new Request(usageUrl.toString(), request);
+      const response = await getCurrentUsage(usageRequest, env);
+      const headers = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      logger.error('Get current usage error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  if (path === '/api/v1/billing/usage/history' && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { tenant } = authResult;
+      const usageUrl = new URL(request.url);
+      usageUrl.searchParams.set('tenantId', tenant.id);
+      const usageRequest = new Request(usageUrl.toString(), request);
+      const response = await getUsageHistory(usageRequest, env);
+      const headers = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      logger.error('Get usage history error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  if (path === '/api/v1/billing/usage/summary' && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { tenant } = authResult;
+      const usageUrl = new URL(request.url);
+      usageUrl.searchParams.set('tenantId', tenant.id);
+      const usageRequest = new Request(usageUrl.toString(), request);
+      const response = await getUsageSummary(usageRequest, env);
+      const headers = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      logger.error('Get usage summary error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  // ========================================
+  // 7. INVOICES ROUTES - /api/v1/billing/invoices
+  // ========================================
+  if (path === '/api/v1/billing/invoices' && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { tenant } = authResult;
+      const invoiceUrl = new URL(request.url);
+      invoiceUrl.searchParams.set('tenantId', tenant.id);
+      const invoiceRequest = new Request(invoiceUrl.toString(), request);
+      const response = await getInvoices(invoiceRequest, env);
+      const headers = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      logger.error('Get invoices error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  if (path.match(/^\/api\/v1\/billing\/invoices\/[^/]+\/download$/) && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const pathParts = path.split('/');
+      const invoiceId = pathParts[pathParts.length - 2];
+      const response = await downloadInvoicePDF(request, env, invoiceId);
+      const headers = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      logger.error('Download invoice error', { error: error.message });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Erreur interne' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  if (path.match(/^\/api\/v1\/billing\/invoices\/[^/]+$/) && method === 'GET') {
+    try {
+      const authResult = await auth.requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(
+          JSON.stringify({ success: false, error: authResult.error }),
+          { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const invoiceId = path.split('/').pop();
+      const response = await getInvoiceDetails(request, env, invoiceId);
+      const headers = new Headers(response.headers);
+      Object.entries(corsHeaders).forEach(([k, v]) => headers.set(k, v));
+      return new Response(response.body, { status: response.status, headers });
+    } catch (error) {
+      logger.error('Get invoice details error', { error: error.message });
       return new Response(
         JSON.stringify({ success: false, error: 'Erreur interne' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

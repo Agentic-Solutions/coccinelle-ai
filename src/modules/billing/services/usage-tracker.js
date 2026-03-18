@@ -3,7 +3,7 @@
  * Enregistre automatiquement la consommation (appels, SMS, TTS, etc.)
  */
 
-import { v4 as uuidv4 } from 'uuid';
+const uuidv4 = () => crypto.randomUUID();
 
 export class UsageTracker {
   constructor(env, db) {

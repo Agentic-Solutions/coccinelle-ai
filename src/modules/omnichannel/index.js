@@ -9,6 +9,9 @@
 import { OmnichannelConfig } from './config.js';
 import { omniLogger } from './utils/logger.js';
 
+// Auth helper
+import { requireAuth } from '../auth/helpers.js';
+
 // Controllers
 import {
   getAgentConfig,
@@ -183,20 +186,62 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
     // ============================================
 
     // GET /api/v1/omnichannel/inbox/conversations
-    if (path === '/api/v1/omnichannel/inbox/conversations' && method === 'GET') {
+    // Also support shorthand: GET /api/v1/omnichannel/conversations
+    if ((path === '/api/v1/omnichannel/inbox/conversations' || path === '/api/v1/omnichannel/conversations') && method === 'GET') {
       return await listInboxConversations(request, env);
     }
 
     // GET /api/v1/omnichannel/inbox/conversations/:id
-    const inboxDetailMatch = path.match(/^\/api\/v1\/omnichannel\/inbox\/conversations\/([^\/]+)$/);
+    // Also support shorthand: GET /api/v1/omnichannel/conversations/:id
+    const inboxDetailMatch = path.match(/^\/api\/v1\/omnichannel\/(?:inbox\/)?conversations\/([^\/]+)$/);
     if (inboxDetailMatch && method === 'GET') {
       return await getInboxConversation(request, env, inboxDetailMatch[1]);
     }
 
     // POST /api/v1/omnichannel/inbox/conversations/:id/link
-    const inboxLinkMatch = path.match(/^\/api\/v1\/omnichannel\/inbox\/conversations\/([^\/]+)\/link$/);
+    // Also support shorthand: POST /api/v1/omnichannel/conversations/:id/link
+    const inboxLinkMatch = path.match(/^\/api\/v1\/omnichannel\/(?:inbox\/)?conversations\/([^\/]+)\/link$/);
     if (inboxLinkMatch && method === 'POST') {
       return await linkConversationToProspect(request, env, inboxLinkMatch[1]);
+    }
+
+    // ============================================
+    // SHORTHAND ROUTES — Convenience aliases
+    // ============================================
+
+    // GET /api/v1/omnichannel/agent-config -> alias for /agent/config
+    if (path === '/api/v1/omnichannel/agent-config' && method === 'GET') {
+      return await getAgentConfig(request, env);
+    }
+
+    // PUT /api/v1/omnichannel/agent-config -> alias for /agent/config
+    if (path === '/api/v1/omnichannel/agent-config' && method === 'PUT') {
+      return await updateAgentConfig(request, env);
+    }
+
+    // DELETE /api/v1/omnichannel/agent-config -> alias for /agent/config
+    if (path === '/api/v1/omnichannel/agent-config' && method === 'DELETE') {
+      return await deleteAgentConfig(request, env);
+    }
+
+    // ============================================
+    // PHONE MAPPINGS ROUTES
+    // ============================================
+
+    // GET /api/v1/omnichannel/phone-mappings — list phone mappings for tenant
+    if (path === '/api/v1/omnichannel/phone-mappings' && method === 'GET') {
+      return await listPhoneMappings(request, env);
+    }
+
+    // POST /api/v1/omnichannel/phone-mappings — create phone mapping
+    if (path === '/api/v1/omnichannel/phone-mappings' && method === 'POST') {
+      return await createPhoneMapping(request, env);
+    }
+
+    // DELETE /api/v1/omnichannel/phone-mappings/:id — delete phone mapping
+    const phoneMappingDeleteMatch = path.match(/^\/api\/v1\/omnichannel\/phone-mappings\/([^\/]+)$/);
+    if (phoneMappingDeleteMatch && method === 'DELETE') {
+      return await deletePhoneMapping(request, env, phoneMappingDeleteMatch[1]);
     }
 
     // ============================================
@@ -270,6 +315,160 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
       error: 'Internal error',
       message: error.message
     }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// ============================================
+// PHONE MAPPINGS HANDLERS
+// ============================================
+
+/**
+ * GET /api/v1/omnichannel/phone-mappings
+ * List phone mappings for the authenticated tenant
+ */
+async function listPhoneMappings(request, env) {
+  const authResult = await requireAuth(request, env);
+  if (authResult.error) {
+    return new Response(JSON.stringify({ error: authResult.error }), {
+      status: authResult.status,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const tenantId = authResult.tenant.id;
+
+  try {
+    const result = await env.DB.prepare(`
+      SELECT id, phone_number, tenant_id, is_active, created_at, updated_at
+      FROM omni_phone_mappings
+      WHERE tenant_id = ?
+      ORDER BY created_at DESC
+    `).bind(tenantId).all();
+
+    return new Response(JSON.stringify({
+      success: true,
+      phone_mappings: result.results || [],
+      count: result.results?.length || 0
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    omniLogger.error('listPhoneMappings error', { error: error.message, tenantId });
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * POST /api/v1/omnichannel/phone-mappings
+ * Create a phone mapping for the authenticated tenant
+ * Body: { phone_number: string }
+ */
+async function createPhoneMapping(request, env) {
+  const authResult = await requireAuth(request, env);
+  if (authResult.error) {
+    return new Response(JSON.stringify({ error: authResult.error }), {
+      status: authResult.status,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const tenantId = authResult.tenant.id;
+
+  try {
+    const body = await request.json();
+    const { phone_number } = body;
+
+    if (!phone_number) {
+      return new Response(JSON.stringify({ error: 'phone_number is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const id = `mapping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    await env.DB.prepare(`
+      INSERT INTO omni_phone_mappings (id, phone_number, tenant_id, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, 1, datetime('now'), datetime('now'))
+    `).bind(id, phone_number, tenantId).run();
+
+    omniLogger.info('Phone mapping created', { tenantId, phone_number, id });
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Phone mapping created',
+      phone_mapping: { id, phone_number, tenant_id: tenantId, is_active: 1 }
+    }), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    // Handle unique constraint violation
+    if (error.message?.includes('UNIQUE')) {
+      return new Response(JSON.stringify({ error: 'This phone number is already mapped' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    omniLogger.error('createPhoneMapping error', { error: error.message, tenantId });
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * DELETE /api/v1/omnichannel/phone-mappings/:id
+ * Delete a phone mapping (must belong to authenticated tenant)
+ */
+async function deletePhoneMapping(request, env, mappingId) {
+  const authResult = await requireAuth(request, env);
+  if (authResult.error) {
+    return new Response(JSON.stringify({ error: authResult.error }), {
+      status: authResult.status,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const tenantId = authResult.tenant.id;
+
+  try {
+    // Ensure the mapping belongs to this tenant
+    const existing = await env.DB.prepare(
+      'SELECT id FROM omni_phone_mappings WHERE id = ? AND tenant_id = ?'
+    ).bind(mappingId, tenantId).first();
+
+    if (!existing) {
+      return new Response(JSON.stringify({ error: 'Phone mapping not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    await env.DB.prepare(
+      'DELETE FROM omni_phone_mappings WHERE id = ? AND tenant_id = ?'
+    ).bind(mappingId, tenantId).run();
+
+    omniLogger.info('Phone mapping deleted', { tenantId, mappingId });
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Phone mapping deleted'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    omniLogger.error('deletePhoneMapping error', { error: error.message, tenantId });
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

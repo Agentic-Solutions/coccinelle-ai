@@ -28,6 +28,97 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
   const path = url.pathname;
   const method = request.method;
 
+  // --- GET /api/v1/analytics/dashboard ---
+  if (path === '/api/v1/analytics/dashboard' && method === 'GET') {
+    const auth = await requireAuth(request, env);
+    if (auth.error) {
+      return Response.json({ error: auth.error }, { status: auth.status, headers: corsHeaders });
+    }
+
+    const tenantId = auth.tenant.id;
+    const period = url.searchParams.get('period') || '30d';
+    const cutoff = getPeriodCutoff(period);
+
+    let totalProspects = 0;
+    let totalCustomers = 0;
+    let totalAppointments = 0;
+    let appointmentsByStatus = { scheduled: 0, completed: 0, canceled: 0, confirmed: 0, no_show: 0 };
+    let conversionRate = 0;
+    let newProspectsPeriod = 0;
+    let newAppointmentsPeriod = 0;
+
+    // Total prospects
+    try {
+      const r = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM prospects WHERE tenant_id = ?`
+      ).bind(tenantId).first();
+      totalProspects = r?.cnt || 0;
+    } catch (_) {}
+
+    // Total customers
+    try {
+      const r = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM customers WHERE tenant_id = ?`
+      ).bind(tenantId).first();
+      totalCustomers = r?.cnt || 0;
+    } catch (_) {}
+
+    // Total appointments
+    try {
+      const r = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM appointments WHERE tenant_id = ?`
+      ).bind(tenantId).first();
+      totalAppointments = r?.cnt || 0;
+    } catch (_) {}
+
+    // Appointments by status (within period)
+    try {
+      const r = await env.DB.prepare(
+        `SELECT status, COUNT(*) as cnt FROM appointments WHERE tenant_id = ? AND created_at >= ? GROUP BY status`
+      ).bind(tenantId, cutoff).all();
+      for (const row of (r?.results || [])) {
+        const s = row.status;
+        if (s === 'scheduled') appointmentsByStatus.scheduled = row.cnt;
+        else if (s === 'completed') appointmentsByStatus.completed = row.cnt;
+        else if (s === 'canceled' || s === 'cancelled') appointmentsByStatus.canceled = row.cnt;
+        else if (s === 'confirmed') appointmentsByStatus.confirmed = row.cnt;
+        else if (s === 'no_show') appointmentsByStatus.no_show = row.cnt;
+      }
+    } catch (_) {}
+
+    // New prospects in period
+    try {
+      const r = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM prospects WHERE tenant_id = ? AND created_at >= ?`
+      ).bind(tenantId, cutoff).first();
+      newProspectsPeriod = r?.cnt || 0;
+    } catch (_) {}
+
+    // New appointments in period
+    try {
+      const r = await env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM appointments WHERE tenant_id = ? AND created_at >= ?`
+      ).bind(tenantId, cutoff).first();
+      newAppointmentsPeriod = r?.cnt || 0;
+    } catch (_) {}
+
+    // Conversion rate: prospects -> appointments (in period)
+    conversionRate = newProspectsPeriod > 0
+      ? parseFloat(((newAppointmentsPeriod / newProspectsPeriod) * 100).toFixed(1))
+      : 0;
+
+    return Response.json({
+      total_prospects: totalProspects,
+      total_customers: totalCustomers,
+      total_appointments: totalAppointments,
+      conversion_rate: conversionRate,
+      new_prospects_period: newProspectsPeriod,
+      new_appointments_period: newAppointmentsPeriod,
+      appointments_by_status: appointmentsByStatus,
+      period,
+    }, { headers: corsHeaders });
+  }
+
   // --- GET /api/v1/analytics/sara ---
   if (path === '/api/v1/analytics/sara' && method === 'GET') {
     const auth = await requireAuth(request, env);

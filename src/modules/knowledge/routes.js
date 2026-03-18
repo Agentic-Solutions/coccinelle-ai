@@ -115,58 +115,122 @@ async function handleSearch(request, env) {
 
   let queryEmbedding;
   let targetVectorize;
+  let useTextFallback = false;
 
-  if (provider === 'workersai' && env.AI) {
-    const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', { text: [query] });
-    queryEmbedding = result.data[0];
-    targetVectorize = env.VECTORIZE_V2 || env.VECTORIZE;
-    logger.info('Search using Workers AI', { provider: 'workersai', dimensions: 768, tenantId });
-  } else {
-    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({ model: 'text-embedding-3-small', input: query })
-    });
+  try {
+    if (provider === 'workersai' && env.AI) {
+      const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', { text: [query] });
 
-    if (!embeddingResponse.ok) {
-      throw new Error('Failed to generate query embedding with OpenAI');
+      // Validate the embedding output
+      if (!result?.data?.[0] || !Array.isArray(result.data[0]) || result.data[0].length === 0) {
+        logger.error('Workers AI returned invalid embedding', { dimensions: result?.data?.[0]?.length || 0, tenantId });
+        useTextFallback = true;
+      } else {
+        queryEmbedding = result.data[0];
+        targetVectorize = env.VECTORIZE_V2 || env.VECTORIZE;
+        logger.info('Search using Workers AI', { provider: 'workersai', dimensions: queryEmbedding.length, tenantId });
+      }
+    } else if (env.OPENAI_API_KEY) {
+      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({ model: 'text-embedding-3-small', input: query })
+      });
+
+      if (!embeddingResponse.ok) {
+        logger.error('OpenAI embedding request failed', { status: embeddingResponse.status, tenantId });
+        useTextFallback = true;
+      } else {
+        const embeddingData = await embeddingResponse.json();
+        if (!embeddingData?.data?.[0]?.embedding || embeddingData.data[0].embedding.length === 0) {
+          logger.error('OpenAI returned invalid embedding', { tenantId });
+          useTextFallback = true;
+        } else {
+          queryEmbedding = embeddingData.data[0].embedding;
+          targetVectorize = env.VECTORIZE;
+          logger.info('Search using OpenAI fallback', { provider: 'openai', dimensions: queryEmbedding.length, tenantId });
+        }
+      }
+    } else {
+      logger.warn('No embedding provider available, using text search', { tenantId });
+      useTextFallback = true;
     }
-
-    const embeddingData = await embeddingResponse.json();
-    queryEmbedding = embeddingData.data[0].embedding;
-    targetVectorize = env.VECTORIZE;
-    logger.info('Search using OpenAI fallback', { provider: 'openai', dimensions: 1536, tenantId });
+  } catch (embeddingError) {
+    logger.error('Embedding generation failed', { error: embeddingError.message, tenantId });
+    useTextFallback = true;
   }
 
-  const searchResults = await targetVectorize.query(queryEmbedding, {
-    topK: topK,
-    returnMetadata: true,
-    filter: { tenantId: tenantId }
-  });
+  let enrichedResults = [];
+  let usedProvider = provider;
 
-  const chunkIds = searchResults.matches.map(m => m.id);
+  if (!useTextFallback && queryEmbedding && targetVectorize) {
+    try {
+      const searchResults = await targetVectorize.query(queryEmbedding, {
+        topK: topK,
+        returnMetadata: true,
+        filter: { tenantId: tenantId }
+      });
 
-  if (chunkIds.length === 0) {
-    return successResponse({ query, results: [], count: 0, provider });
+      const chunkIds = searchResults.matches.map(m => m.id);
+
+      if (chunkIds.length > 0) {
+        const placeholders = chunkIds.map(() => '?').join(',');
+        const chunksResult = await env.DB.prepare(`
+          SELECT c.id, c.content, c.chunk_index, d.source_url as url, d.title, d.source_type as doc_type
+          FROM knowledge_chunks c
+          JOIN knowledge_documents d ON c.document_id = d.id
+          WHERE c.id IN (${placeholders})
+        `).bind(...chunkIds).all();
+
+        enrichedResults = chunksResult.results.map(chunk => {
+          const match = searchResults.matches.find(m => m.id === chunk.id);
+          return { ...chunk, score: match?.score || 0 };
+        });
+      }
+    } catch (vectorError) {
+      logger.error('Vector search failed, falling back to text search', { error: vectorError.message, tenantId });
+      useTextFallback = true;
+    }
   }
 
-  const placeholders = chunkIds.map(() => '?').join(',');
-  const chunksResult = await env.DB.prepare(`
-    SELECT c.id, c.content, c.chunk_index, d.source_url as url, d.title, d.source_type as doc_type
-    FROM knowledge_chunks c
-    JOIN knowledge_documents d ON c.document_id = d.id
-    WHERE c.id IN (${placeholders})
-  `).bind(...chunkIds).all();
+  // Text-based fallback when vector search is unavailable or returned no results
+  if (useTextFallback || enrichedResults.length === 0) {
+    logger.info('Using text-based fallback search', { query: query.substring(0, 80), tenantId });
+    usedProvider = provider + '+text-fallback';
 
-  const enrichedResults = chunksResult.results.map(chunk => {
-    const match = searchResults.matches.find(m => m.id === chunk.id);
-    return { ...chunk, score: match?.score || 0 };
-  });
+    const keywords = query
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2);
 
-  return successResponse({ query, results: enrichedResults, count: enrichedResults.length, provider });
+    if (keywords.length > 0) {
+      try {
+        const whereClauses = keywords.map(() => 'LOWER(c.content) LIKE ?').join(' OR ');
+        const params = keywords.map(k => `%${k}%`);
+
+        const chunksResult = await env.DB.prepare(`
+          SELECT c.id, c.content, c.chunk_index, d.source_url as url, d.title, d.source_type as doc_type
+          FROM knowledge_chunks c
+          JOIN knowledge_documents d ON c.document_id = d.id
+          WHERE d.tenant_id = ? AND d.is_active = 1 AND (${whereClauses})
+          LIMIT ?
+        `).bind(tenantId, ...params, topK).all();
+
+        enrichedResults = (chunksResult.results || []).map(chunk => ({
+          ...chunk,
+          score: 0.5
+        }));
+      } catch (textError) {
+        logger.error('Text fallback search failed', { error: textError.message, tenantId });
+      }
+    }
+  }
+
+  return successResponse({ query, results: enrichedResults, count: enrichedResults.length, provider: usedProvider });
 }
 
 async function handleAsk(request, env) {

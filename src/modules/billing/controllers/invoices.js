@@ -2,7 +2,7 @@
  * Controller Invoices - Gestion des factures
  */
 
-import { v4 as uuidv4 } from 'uuid';
+const uuidv4 = () => crypto.randomUUID();
 import { UsageTracker } from '../services/usage-tracker.js';
 
 /**

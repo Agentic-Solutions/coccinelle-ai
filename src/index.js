@@ -38,6 +38,7 @@ import { handleChurnRoutes } from './modules/churn/routes.js';
 import { handleReportsRoutes } from './modules/reports/routes.js';
 import { handleCallsRoutes } from './modules/calls/routes.js';
 import { handlePushRoutes } from './modules/push/routes.js';
+import { handleExportRoutes } from './modules/export/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -114,6 +115,12 @@ export default {
       // Reminders & followups
       if (path.startsWith('/api/v1/appointments/send-reminders') || path.startsWith('/api/v1/appointments/send-followups') || path.startsWith('/api/v1/feedback')) {
         response = await handleRemindersRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // CSV Export module (/api/v1/export/*)
+      if (path.startsWith('/api/v1/export/')) {
+        response = await handleExportRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 

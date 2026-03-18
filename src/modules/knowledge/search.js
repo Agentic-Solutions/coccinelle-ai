@@ -10,10 +10,19 @@ const EMBEDDING_DIMENSIONS = {
 // FONCTION 1: Recherche sémantique vectorielle
 export async function semanticSearch(vectorize, queryEmbedding, topK = 5, filter = {}) {
   try {
+    // Validate embedding is present and non-empty
+    if (!queryEmbedding || !Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
+      throw new Error(`Invalid embedding: must be a non-empty array of numbers, got length ${queryEmbedding?.length || 0}`);
+    }
+
     // Support 768 (Workers AI) ou 1536 (OpenAI) dimensions
     const validDimensions = [768, 1536];
-    if (!queryEmbedding || !validDimensions.includes(queryEmbedding.length)) {
-      throw new Error(`Invalid embedding: must be array of ${validDimensions.join(' or ')} numbers, got ${queryEmbedding?.length}`);
+    if (!validDimensions.includes(queryEmbedding.length)) {
+      throw new Error(`Invalid embedding dimension: got ${queryEmbedding.length}, expected ${validDimensions.join(' or ')}`);
+    }
+
+    if (!vectorize || typeof vectorize.query !== 'function') {
+      throw new Error('Vectorize index is not available or not properly bound');
     }
 
     const query = {
@@ -27,6 +36,10 @@ export async function semanticSearch(vectorize, queryEmbedding, topK = 5, filter
     }
 
     const results = await vectorize.query(query);
+
+    if (!results || !results.matches) {
+      return [];
+    }
 
     return results.matches.map(match => ({
       chunkId: match.id,
@@ -199,47 +212,166 @@ export async function upsertToVectorize(vectorize, chunks) {
   }
 }
 
-// FONCTION 6: Pipeline RAG complet (Workers AI par défaut)
+// FONCTION 6: Fallback text-based search (when vector search fails)
+async function textBasedSearch(db, question, tenantId, topK = 5) {
+  try {
+    // Use SQL LIKE-based search as fallback
+    const keywords = question
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2);
+
+    if (keywords.length === 0) {
+      return [];
+    }
+
+    // Build a query that matches any keyword in chunk content
+    const whereClauses = keywords.map(() => 'LOWER(kc.content) LIKE ?').join(' OR ');
+    const params = keywords.map(k => `%${k}%`);
+
+    const result = await db.prepare(`
+      SELECT
+        kc.id, kc.document_id, kc.chunk_index, kc.content, kc.token_count,
+        kc.embedding_status, kd.title, kd.source_url as url, kd.source_type, kd.metadata,
+        kd.tenant_id
+      FROM knowledge_chunks kc
+      LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
+      WHERE kd.tenant_id = ? AND kd.is_active = 1 AND (${whereClauses})
+      ORDER BY kc.chunk_index ASC
+      LIMIT ?
+    `).bind(tenantId, ...params, topK).all();
+
+    return (result.results || []).map(row => ({
+      id: row.id,
+      documentId: row.document_id,
+      chunkIndex: row.chunk_index,
+      content: row.content,
+      tokenCount: row.token_count,
+      embeddingStatus: row.embedding_status,
+      score: 0.5, // Arbitrary score for text-based matches
+      document: {
+        title: row.title,
+        url: row.url,
+        sourceType: row.source_type,
+        metadata: row.metadata ? JSON.parse(row.metadata) : {}
+      }
+    }));
+  } catch (error) {
+    console.error('Error in textBasedSearch:', error);
+    return [];
+  }
+}
+
+// FONCTION 7: Pipeline RAG complet (Workers AI par défaut)
 export async function ragPipeline({ question, db, vectorize, env, openaiApiKey, llmApiKey, tenantId, agentId = null, topK = 5, provider = 'workersai' }) {
   try {
     const startTime = Date.now();
 
     let queryEmbedding;
     let targetVectorize = vectorize;
+    let useTextFallback = false;
 
     // Générer l'embedding avec Workers AI ou OpenAI
-    if (provider === 'workersai' && env?.AI) {
-      // Workers AI - gratuit, edge
-      const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-        text: [question]
-      });
-      queryEmbedding = result.data[0];
-      // Utiliser le nouvel index Vectorize (768 dims)
-      targetVectorize = env.VECTORIZE_V2 || vectorize;
-    } else {
-      // OpenAI - fallback
-      const apiKey = openaiApiKey || env?.OPENAI_API_KEY;
-      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({ model: 'text-embedding-3-small', input: question })
-      });
+    try {
+      if (provider === 'workersai' && env?.AI) {
+        // Workers AI - gratuit, edge
+        const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+          text: [question]
+        });
 
-      if (!embeddingResponse.ok) throw new Error('Failed to generate query embedding');
-      const embeddingData = await embeddingResponse.json();
-      queryEmbedding = embeddingData.data[0].embedding;
-      // Utiliser l'ancien index Vectorize (1536 dims)
-      targetVectorize = env?.VECTORIZE || vectorize;
+        // Validate embedding output
+        if (!result?.data?.[0] || !Array.isArray(result.data[0]) || result.data[0].length === 0) {
+          console.error('Workers AI returned invalid embedding', {
+            hasData: !!result?.data,
+            length: result?.data?.[0]?.length || 0
+          });
+          useTextFallback = true;
+        } else {
+          queryEmbedding = result.data[0];
+          // Utiliser le nouvel index Vectorize (768 dims)
+          targetVectorize = env.VECTORIZE_V2 || vectorize;
+        }
+      } else if (env?.OPENAI_API_KEY || openaiApiKey) {
+        // OpenAI - fallback
+        const apiKey = openaiApiKey || env?.OPENAI_API_KEY;
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({ model: 'text-embedding-3-small', input: question })
+        });
+
+        if (!embeddingResponse.ok) {
+          console.error('OpenAI embedding failed', { status: embeddingResponse.status });
+          useTextFallback = true;
+        } else {
+          const embeddingData = await embeddingResponse.json();
+          if (!embeddingData?.data?.[0]?.embedding || embeddingData.data[0].embedding.length === 0) {
+            console.error('OpenAI returned invalid embedding');
+            useTextFallback = true;
+          } else {
+            queryEmbedding = embeddingData.data[0].embedding;
+            // Utiliser l'ancien index Vectorize (1536 dims)
+            targetVectorize = env?.VECTORIZE || vectorize;
+          }
+        }
+      } else {
+        // No embedding provider available
+        console.warn('No embedding provider available (env.AI or OPENAI_API_KEY), falling back to text search');
+        useTextFallback = true;
+      }
+    } catch (embeddingError) {
+      console.error('Embedding generation failed, falling back to text search:', embeddingError.message);
+      useTextFallback = true;
     }
 
-    const searchResults = await semanticSearch(targetVectorize, queryEmbedding, topK, { tenantId, agentId });
+    let searchResults = [];
+    let chunksWithScores = [];
 
-    if (searchResults.length === 0) {
+    if (!useTextFallback && queryEmbedding) {
+      // Validate embedding dimensions before querying
+      const validDimensions = [768, 1536];
+      if (!validDimensions.includes(queryEmbedding.length)) {
+        console.error(`Invalid embedding dimension: ${queryEmbedding.length}, expected 768 or 1536. Falling back to text search.`);
+        useTextFallback = true;
+      }
+    }
+
+    if (!useTextFallback && queryEmbedding && targetVectorize) {
+      // Try vector search
+      try {
+        searchResults = await semanticSearch(targetVectorize, queryEmbedding, topK, { tenantId, agentId });
+
+        if (searchResults.length > 0) {
+          const chunkIds = searchResults.map(r => r.chunkId);
+          const chunks = await retrieveChunks(db, chunkIds);
+          chunksWithScores = chunks.map(chunk => {
+            const match = searchResults.find(r => r.chunkId === chunk.id);
+            return { ...chunk, score: match?.score || 0 };
+          });
+        }
+      } catch (vectorError) {
+        console.error('Vector search failed, falling back to text search:', vectorError.message);
+        useTextFallback = true;
+      }
+    }
+
+    // Text-based fallback when vector search is unavailable or failed
+    if (useTextFallback || (searchResults.length === 0 && queryEmbedding)) {
+      console.info('Using text-based fallback search for question:', question.substring(0, 80));
+      const textResults = await textBasedSearch(db, question, tenantId, topK);
+      if (textResults.length > 0) {
+        chunksWithScores = textResults;
+        provider = provider + '+text-fallback';
+      }
+    }
+
+    if (chunksWithScores.length === 0) {
       return {
-        answer: "Je n'ai pas trouvé d'information pertinente dans la base de connaissances pour répondre à cette question.",
+        answer: "Je n'ai pas trouve d'information pertinente dans la base de connaissances pour repondre a cette question.",
         sources: [],
         chunksUsed: 0,
         confidence: 0,
@@ -248,26 +380,24 @@ export async function ragPipeline({ question, db, vectorize, env, openaiApiKey, 
       };
     }
 
-    const chunkIds = searchResults.map(r => r.chunkId);
-    const chunks = await retrieveChunks(db, chunkIds);
-    const chunksWithScores = chunks.map(chunk => {
-      const match = searchResults.find(r => r.chunkId === chunk.id);
-      return { ...chunk, score: match?.score || 0 };
-    });
-
     const contextData = buildContext(chunksWithScores);
     const answerData = await generateAnswer(question, contextData.context, llmApiKey || env?.ANTHROPIC_API_KEY);
 
-    await db.prepare(`
-      INSERT INTO knowledge_search_logs (id, tenant_id, agent_id, query, results_count, top_score, processing_time_ms, embedding_provider, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `).bind(crypto.randomUUID(), tenantId, agentId, question, chunks.length, searchResults[0]?.score || 0, Date.now() - startTime, provider).run();
+    // Log search (graceful - don't fail if logging fails)
+    try {
+      await db.prepare(`
+        INSERT INTO knowledge_search_logs (id, tenant_id, agent_id, query, results_count, top_score, processing_time_ms, embedding_provider, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(crypto.randomUUID(), tenantId, agentId, question, chunksWithScores.length, searchResults[0]?.score || chunksWithScores[0]?.score || 0, Date.now() - startTime, provider).run();
+    } catch (logError) {
+      console.error('Failed to log search:', logError.message);
+    }
 
     return {
       answer: answerData.answer,
       sources: contextData.sources,
       chunksUsed: contextData.chunksUsed,
-      confidence: searchResults[0]?.score || 0,
+      confidence: searchResults[0]?.score || chunksWithScores[0]?.score || 0,
       model: answerData.model,
       provider: provider,
       llmProvider: answerData.provider,
