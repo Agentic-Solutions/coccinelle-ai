@@ -1,10 +1,1 @@
-# Redirections anciennes URLs
-/dashboard/prospects /dashboard/crm/prospects 301
-/dashboard/settings/billing /dashboard/billing 301
-/dashboard/channels/voice /dashboard/channels/phone 301
-
-# SPA routing pour pages dynamiques [id]
-/dashboard/crm/prospects/* /dashboard/crm/prospects/_.html 200
-/dashboard/customers/* /dashboard/customers/_.html 200
-/dashboard/products/new /dashboard/products/new 200
-/dashboard/products/* /dashboard/products/_.html 200
+/ /beta 302
