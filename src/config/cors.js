@@ -28,7 +28,7 @@ export function getCorsHeaders(request) {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-tenant-id, x-user-id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-tenant-id, x-user-id, X-VoixIA-Key, X-VoixIA-Tenant',
   };
 }
 
@@ -37,7 +37,7 @@ export const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://coccinelle-saas.pages.dev',
   'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-tenant-id, x-user-id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-tenant-id, x-user-id, X-VoixIA-Key, X-VoixIA-Tenant',
 };
 
 export function handleCORS(request) {

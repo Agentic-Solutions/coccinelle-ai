@@ -43,9 +43,13 @@ export default function InvoicesPage() {
   const loadInvoices = async () => {
     setLoading(true);
     try {
-      // TODO: Remplacer par le vrai tenantId de l'utilisateur connecté
-      const tenantId = 'tenant_123';
-      const res = await fetch(`${API_URL}/api/v1/billing/invoices?tenantId=${tenantId}`);
+      const storedTenant = localStorage.getItem('tenant');
+      const tenantId = storedTenant ? JSON.parse(storedTenant).id : null;
+      if (!tenantId) { setLoading(false); return; }
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/api/v1/billing/invoices?tenantId=${tenantId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       const data = await res.json();
 
       if (data.success) {

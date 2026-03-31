@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { buildApiUrl, getAuthHeaders } from '@/lib/config';
+import { SECTORS } from '@/lib/sectors';
 
 interface SummaryStepProps {
   sessionId: string;
@@ -16,18 +17,9 @@ interface SummaryStepProps {
   onComplete: () => void;
 }
 
-const SECTOR_LABELS: Record<string, string> = {
-  coiffure_beaute: 'Coiffure / Beauté',
-  sante: 'Santé / Médical',
-  immobilier: 'Immobilier',
-  restauration: 'Restauration',
-  fitness: 'Fitness / Sport',
-  services_domicile: 'Services à domicile',
-  garage_auto: 'Garage automobile',
-  commerce: 'Commerce / Retail',
-  services_b2b: 'Services B2B / Conseil',
-  autre: 'Autre',
-};
+const SECTOR_LABELS: Record<string, string> = Object.fromEntries(
+  SECTORS.map(s => [s.value, s.label])
+);
 
 const CHANNEL_LABELS: Record<string, string> = {
   phone: 'Téléphone',
@@ -66,17 +58,18 @@ export default function SummaryStep({
         );
 
         if (!response.ok) {
-          // Log but don't block
-          console.warn('Onboarding complete API returned error, proceeding locally');
+          const data = await response.json().catch(() => ({}));
+          setError(data.error || 'Erreur lors de la finalisation. Veuillez réessayer.');
+          setCompleting(false);
+          return;
         }
       }
 
       localStorage.setItem('onboarding_completed', 'true');
       onComplete();
     } catch {
-      // Proceed even if API fails
-      localStorage.setItem('onboarding_completed', 'true');
-      onComplete();
+      setError('Erreur réseau. Vérifiez votre connexion et réessayez.');
+      setCompleting(false);
     }
   };
 

@@ -7,7 +7,7 @@ import {
   Home, MessageSquare, Users, Calendar, Settings,
   Package, ChevronLeft, ChevronRight, Menu, X,
   BarChart3, CreditCard, LifeBuoy, Phone, UserCheck,
-  BookOpen, Radio, UsersRound
+  BookOpen, Radio, UsersRound, Mic
 } from 'lucide-react';
 import Logo from '../src/components/Logo';
 
@@ -42,6 +42,7 @@ export default function DashboardSidebar() {
     { icon: BookOpen, label: 'Connaissances', href: '/dashboard/knowledge' },
     { icon: Radio, label: 'Canaux', href: '/dashboard/channels' },
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/sara-analytics' },
+    { icon: Mic, label: 'VoixIA & Prompts', href: '/dashboard/voixia' },
     { icon: UsersRound, label: 'Équipes', href: '/dashboard/teams' },
     { icon: CreditCard, label: 'Facturation', href: '/dashboard/billing' },
     { icon: Settings, label: 'Paramètres', href: '/dashboard/settings' },

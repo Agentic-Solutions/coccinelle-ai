@@ -59,18 +59,28 @@ export default function UsagePage() {
     setLoading(true);
     setError(null);
     try {
-      // TODO: Remplacer par le vrai tenantId de l'utilisateur connecté
-      const tenantId = 'tenant_123';
+      const storedTenant = localStorage.getItem('tenant');
+      const tenantId = storedTenant ? JSON.parse(storedTenant).id : null;
+      if (!tenantId) {
+        setError('Session invalide. Veuillez vous reconnecter.');
+        setLoading(false);
+        return;
+      }
+
+      const token = localStorage.getItem('auth_token');
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
       // Charger l'historique d'usage
       const historyRes = await fetch(
-        `${API_URL}/api/v1/billing/usage/history?tenantId=${tenantId}&period=${period}`
+        `${API_URL}/api/v1/billing/usage/history?tenantId=${tenantId}&period=${period}`,
+        { headers: authHeaders }
       );
       const historyData = await historyRes.json();
 
       // Charger le résumé
       const summaryRes = await fetch(
-        `${API_URL}/api/v1/billing/usage/summary?tenantId=${tenantId}&period=${period}`
+        `${API_URL}/api/v1/billing/usage/summary?tenantId=${tenantId}&period=${period}`,
+        { headers: authHeaders }
       );
       const summaryData = await summaryRes.json();
 

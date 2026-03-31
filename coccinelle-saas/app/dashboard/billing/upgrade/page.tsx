@@ -64,9 +64,13 @@ export default function UpgradePage() {
 
   const loadCurrentSubscription = async () => {
     try {
-      // TODO: Remplacer par le vrai tenantId de l'utilisateur connecté
-      const tenantId = 'tenant_123';
-      const res = await fetch(`${API_URL}/api/v1/billing/subscriptions?tenantId=${tenantId}`);
+      const storedTenant = localStorage.getItem('tenant');
+      const tenantId = storedTenant ? JSON.parse(storedTenant).id : null;
+      if (!tenantId) return;
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/api/v1/billing/subscriptions?tenantId=${tenantId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       const data = await res.json();
       if (data.success && data.subscription) {
         setCurrentSubscription({
@@ -84,15 +88,25 @@ export default function UpgradePage() {
   const handleUpgrade = async (planId: string) => {
     setProcessingPlanId(planId);
     try {
-      // TODO: Remplacer par les vraies données de l'utilisateur connecté
-      const tenantId = 'tenant_123';
-      const email = 'user@example.com';
-      const name = 'John Doe';
+      const storedTenant = localStorage.getItem('tenant');
+      const tenantId = storedTenant ? JSON.parse(storedTenant).id : null;
+      const storedUser = localStorage.getItem('user');
+      const userData = storedUser ? JSON.parse(storedUser) : {};
+      const email = userData.email || '';
+      const name = userData.name || '';
 
+      if (!tenantId) {
+        toast.error('Session invalide. Veuillez vous reconnecter.');
+        setProcessingPlanId(null);
+        return;
+      }
+
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_URL}/api/v1/billing/stripe/checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           tenantId,

@@ -48,14 +48,24 @@ export default function BusinessStep({ sessionId, sector, businessData, onBusine
         );
 
         if (!response.ok) {
-          console.warn('Business save API returned error, proceeding locally');
+          const data = await response.json().catch(() => ({}));
+          setError(data.error || 'Erreur lors de la sauvegarde. Veuillez réessayer.');
+          setSaving(false);
+          return;
         }
       }
 
+      // Aussi sauvegarder le tenant localement pour company_name
+      try {
+        const tenant = JSON.parse(localStorage.getItem('tenant') || '{}');
+        tenant.name = businessData.company_name.trim();
+        tenant.sector = sector;
+        localStorage.setItem('tenant', JSON.stringify(tenant));
+      } catch { /* ignore */ }
+
       onNext();
     } catch {
-      // Proceed even if API fails
-      onNext();
+      setError('Erreur réseau. Vérifiez votre connexion et réessayez.');
     } finally {
       setSaving(false);
     }

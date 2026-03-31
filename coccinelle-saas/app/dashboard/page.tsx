@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Phone, FileText, Calendar, Activity,
   Users, Package, MessageSquare, TrendingUp, Zap, ArrowUpRight, Clock,
-  CheckCircle2, Inbox, Settings
+  Inbox, Settings
 } from 'lucide-react';
 import Link from 'next/link';
 import SmartAlerts from '../../src/components/dashboard/SmartAlerts';
@@ -107,7 +107,7 @@ export default function DashboardPage() {
           appels: mockCalls.length,
           documents: docsToUse.length,
           rdv: mockAppointments.length,
-          clients: 156 // Mock data
+          clients: 0
         });
         setLoading(false);
         return;
@@ -137,11 +137,23 @@ export default function DashboardPage() {
       const rdvData = await rdvRes.json();
       setAppointments(rdvData.appointments || []);
 
+      // Charger le nombre de clients
+      let clientsCount = 0;
+      try {
+        const clientsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/customers`, {
+          headers: authHeaders
+        });
+        const clientsData = await clientsRes.json();
+        clientsCount = clientsData.customers?.length || 0;
+      } catch {
+        // Pas de données clients disponibles
+      }
+
       setStats({
         appels: vapiData.calls?.length || 0,
         documents: kbData.documents?.length || 0,
         rdv: rdvData.appointments?.length || 0,
-        clients: 156 // À remplacer par vraie donnée
+        clients: clientsCount
       });
     } catch (error) {
       console.error('Erreur chargement stats:', error);
@@ -185,32 +197,32 @@ export default function DashboardPage() {
     }))
   ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
 
-  // Quick wins - use explicit Tailwind classes to avoid purge issues
+  // Quick wins dynamiques basés sur les données réelles
   const quickWins = [
-    {
-      title: '3 RDV à confirmer',
-      action: 'Confirmer',
+    ...(stats.rdv > 0 ? [{
+      title: `${stats.rdv} rendez-vous`,
+      action: 'Voir',
       icon: Calendar,
       bgClass: 'bg-green-50',
       iconClass: 'text-green-600',
       href: '/dashboard/rdv'
-    },
-    {
-      title: '5 appels non traités',
+    }] : []),
+    ...(stats.appels > 0 ? [{
+      title: `${stats.appels} appel${stats.appels > 1 ? 's' : ''}`,
       action: 'Écouter',
       icon: Phone,
       bgClass: 'bg-blue-50',
       iconClass: 'text-blue-600',
       href: '/dashboard/conversations/appels'
-    },
-    {
-      title: '2 docs à valider',
-      action: 'Valider',
+    }] : []),
+    ...(stats.documents > 0 ? [{
+      title: `${stats.documents} document${stats.documents > 1 ? 's' : ''}`,
+      action: 'Gérer',
       icon: FileText,
       bgClass: 'bg-purple-50',
       iconClass: 'text-purple-600',
       href: '/dashboard/knowledge'
-    }
+    }] : []),
   ];
 
   return (
@@ -264,16 +276,9 @@ export default function DashboardPage() {
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 group-hover:bg-blue-100 rounded-xl flex items-center justify-center transition-colors">
                     <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                   </div>
-                  <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
-                    +12%
-                  </span>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.appels}</p>
-                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Appels Assistant</p>
-                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
-                  <TrendingUp className="w-3 h-3 text-green-600" />
-                  <span>3 aujourd&apos;hui</span>
-                </div>
+                <p className="text-xs sm:text-sm text-gray-600">Appels Assistant</p>
               </div>
             </Link>
 
@@ -283,16 +288,9 @@ export default function DashboardPage() {
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors">
                     <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                   </div>
-                  <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
-                    +5%
-                  </span>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.documents}</p>
-                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Documents KB</p>
-                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
-                  <CheckCircle2 className="w-3 h-3 text-green-600" />
-                  <span>Base à jour</span>
-                </div>
+                <p className="text-xs sm:text-sm text-gray-600">Documents KB</p>
               </div>
             </Link>
 
@@ -302,16 +300,9 @@ export default function DashboardPage() {
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-50 group-hover:bg-green-100 rounded-xl flex items-center justify-center transition-colors">
                     <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                   </div>
-                  <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
-                    +8%
-                  </span>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.rdv}</p>
-                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Rendez-vous</p>
-                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
-                  <Clock className="w-3 h-3 text-orange-600" />
-                  <span>2 cette semaine</span>
-                </div>
+                <p className="text-xs sm:text-sm text-gray-600">Rendez-vous</p>
               </div>
             </Link>
 
@@ -321,16 +312,9 @@ export default function DashboardPage() {
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center transition-colors">
                     <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
                   </div>
-                  <span className="px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full">
-                    +15%
-                  </span>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.clients}</p>
-                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">Clients actifs</p>
-                <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
-                  <TrendingUp className="w-3 h-3 text-green-600" />
-                  <span>5 nouveaux</span>
-                </div>
+                <p className="text-xs sm:text-sm text-gray-600">Clients actifs</p>
               </div>
             </Link>
           </div>
@@ -554,26 +538,33 @@ export default function DashboardPage() {
               <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-200">
                 <div className="flex items-center gap-2 mb-4">
                   <Zap className="w-5 h-5 text-amber-600" />
-                  <h3 className="font-bold text-gray-900">Quick Wins</h3>
+                  <h3 className="font-bold text-gray-900">Résumé</h3>
                 </div>
-                <div className="space-y-2">
-                  {quickWins.map((win, index) => (
-                    <Link key={index} href={win.href}>
-                      <div className="bg-white rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer group border border-amber-100">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 ${win.bgClass} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                            <win.icon className={`w-4 h-4 ${win.iconClass}`} />
+                {quickWins.length > 0 ? (
+                  <div className="space-y-2">
+                    {quickWins.map((win, index) => (
+                      <Link key={index} href={win.href}>
+                        <div className="bg-white rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer group border border-amber-100">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 ${win.bgClass} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                              <win.icon className={`w-4 h-4 ${win.iconClass}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate">{win.title}</p>
+                              <p className="text-xs text-gray-600">{win.action}</p>
+                            </div>
+                            <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-gray-900 transition-colors flex-shrink-0" />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">{win.title}</p>
-                            <p className="text-xs text-gray-600">{win.action}</p>
-                          </div>
-                          <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-gray-900 transition-colors flex-shrink-0" />
                         </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    <p className="text-sm font-medium">Aucune donnée pour le moment</p>
+                    <p className="text-xs mt-1">Les insights apparaîtront après vos premiers appels</p>
+                  </div>
+                )}
               </div>
 
               {/* Getting Started Checklist */}

@@ -17,13 +17,20 @@ export default function PaymentPage() {
   const openStripePortal = async () => {
     setLoading(true);
     try {
-      // TODO: Remplacer par le vrai tenantId de l'utilisateur connecté
-      const tenantId = 'tenant_123';
+      const storedTenant = localStorage.getItem('tenant');
+      const tenantId = storedTenant ? JSON.parse(storedTenant).id : null;
+      if (!tenantId) {
+        toast.error('Session invalide. Veuillez vous reconnecter.');
+        setLoading(false);
+        return;
+      }
+      const token = localStorage.getItem('auth_token');
 
       const res = await fetch(`${API_URL}/api/v1/billing/stripe/portal`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ tenantId })
       });

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Cookies from 'js-cookie';
 import { isDemoMode, mockTenant } from '@/lib/mockData';
+import { buildApiUrl } from '@/lib/config';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('expired') === '1') {
+      setError('Session expirée, veuillez vous reconnecter.');
+    }
+  }, []);
 
   // Validation en temps réel
   const isFormValid = email.length > 0 && password.length > 0;
@@ -55,7 +63,7 @@ export default function LoginPage() {
           expires: 7, // 7 jours
           path: '/',
           sameSite: 'strict',
-          secure: false // true en production HTTPS
+          secure: true
         });
 
         console.log('✅ Token stocké dans localStorage ET cookie (mode démo)');
@@ -66,7 +74,7 @@ export default function LoginPage() {
       }
 
       // Mode production - appel API réel
-      const response = await fetch('https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/auth/login', {
+      const response = await fetch(buildApiUrl('/api/v1/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -92,7 +100,7 @@ export default function LoginPage() {
         expires: 7, // 7 jours
         path: '/',
         sameSite: 'strict',
-        secure: false // true en production HTTPS
+        secure: true
       });
 
       console.log('✅ Token stocké dans localStorage ET cookie');

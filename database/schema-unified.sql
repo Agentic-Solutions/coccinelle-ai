@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS omni_phone_mappings (
   phone_number TEXT UNIQUE NOT NULL,
   tenant_id TEXT NOT NULL,
   is_active INTEGER DEFAULT 1,
+  prompt_type TEXT DEFAULT 'generaliste',
 
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

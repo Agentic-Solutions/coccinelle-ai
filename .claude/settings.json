@@ -1,0 +1,8 @@
+{
+  "autoApprove": true,
+  "denyList": [
+    "git push --force",
+    "wrangler delete",
+    "rm -rf /"
+  ]
+}

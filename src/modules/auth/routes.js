@@ -169,8 +169,9 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       await env.DB.batch(catStatements);
 
       // Mettre à jour le secteur d'activité si fourni
+      // SOURCE UNIQUE : secteur stocké dans tenants.sector (pas tenants.industry)
       if (body.industry) {
-        await env.DB.prepare('UPDATE tenants SET industry = ? WHERE id = ?').bind(body.industry, tenantId).run();
+        await env.DB.prepare('UPDATE tenants SET sector = ? WHERE id = ?').bind(body.industry, tenantId).run();
       }
 
       // Créer les permissions par défaut pour ce tenant
@@ -387,6 +388,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
           api_key: tenant.api_key,
           timezone: tenant.timezone,
           slug: tenant.slug,
+          sector: tenant.sector || tenant.industry || null,
           coccinelle_email: tenant.slug ? `${tenant.slug}@coccinelle.ai` : null,
           trial_ends_at: tenant.trial_ends_at,
           trial_active: trialActive,

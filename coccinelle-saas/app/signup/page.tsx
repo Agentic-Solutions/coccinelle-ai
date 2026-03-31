@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Cookies from 'js-cookie';
 import { isDemoMode, mockTenant } from '@/lib/mockData';
+import { buildApiUrl } from '@/lib/config';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -71,6 +73,14 @@ export default function SignupPage() {
         localStorage.setItem('user', JSON.stringify(demoData.user));
         localStorage.setItem('tenant', JSON.stringify(demoData.tenant));
 
+        // CRITIQUE : Stocker aussi le token dans un cookie (pour le middleware)
+        Cookies.set('auth_token', demoData.token, {
+          expires: 7,
+          path: '/',
+          sameSite: 'strict',
+          secure: true
+        });
+
         // Redirection vers l'onboarding
         router.push('/onboarding');
         return;
@@ -78,7 +88,7 @@ export default function SignupPage() {
 
       // Mode production - appel API réel
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/signup`,
+        buildApiUrl('/api/v1/auth/signup'),
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -104,6 +114,14 @@ export default function SignupPage() {
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('tenant', JSON.stringify(data.tenant));
+
+      // CRITIQUE : Stocker aussi le token dans un cookie (pour le middleware)
+      Cookies.set('auth_token', data.token, {
+        expires: 7,
+        path: '/',
+        sameSite: 'strict',
+        secure: true
+      });
 
       // Redirection vers l'onboarding
       router.push('/onboarding');

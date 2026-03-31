@@ -342,7 +342,7 @@ async function listPhoneMappings(request, env) {
 
   try {
     const result = await env.DB.prepare(`
-      SELECT id, phone_number, tenant_id, is_active, created_at, updated_at
+      SELECT id, phone_number, tenant_id, prompt_type, is_active, created_at, updated_at
       FROM omni_phone_mappings
       WHERE tenant_id = ?
       ORDER BY created_at DESC
@@ -367,8 +367,8 @@ async function listPhoneMappings(request, env) {
 
 /**
  * POST /api/v1/omnichannel/phone-mappings
- * Create a phone mapping for the authenticated tenant
- * Body: { phone_number: string }
+ * Créer un mapping téléphone → tenant avec prompt_type optionnel
+ * Body: { phone_number: string, prompt_type?: string }
  */
 async function createPhoneMapping(request, env) {
   const authResult = await requireAuth(request, env);
@@ -383,7 +383,7 @@ async function createPhoneMapping(request, env) {
 
   try {
     const body = await request.json();
-    const { phone_number } = body;
+    const { phone_number, prompt_type } = body;
 
     if (!phone_number) {
       return new Response(JSON.stringify({ error: 'phone_number is required' }), {
@@ -392,27 +392,29 @@ async function createPhoneMapping(request, env) {
       });
     }
 
+    // prompt_type par défaut : generaliste
+    const resolvedPromptType = prompt_type || 'generaliste';
     const id = `mapping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     await env.DB.prepare(`
-      INSERT INTO omni_phone_mappings (id, phone_number, tenant_id, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, 1, datetime('now'), datetime('now'))
-    `).bind(id, phone_number, tenantId).run();
+      INSERT INTO omni_phone_mappings (id, phone_number, tenant_id, prompt_type, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))
+    `).bind(id, phone_number, tenantId, resolvedPromptType).run();
 
-    omniLogger.info('Phone mapping created', { tenantId, phone_number, id });
+    omniLogger.info('Phone mapping created', { tenantId, phone_number, prompt_type: resolvedPromptType, id });
 
     return new Response(JSON.stringify({
       success: true,
       message: 'Phone mapping created',
-      phone_mapping: { id, phone_number, tenant_id: tenantId, is_active: 1 }
+      phone_mapping: { id, phone_number, tenant_id: tenantId, prompt_type: resolvedPromptType, is_active: 1 }
     }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    // Handle unique constraint violation
+    // Gestion de la contrainte UNIQUE sur phone_number
     if (error.message?.includes('UNIQUE')) {
-      return new Response(JSON.stringify({ error: 'This phone number is already mapped' }), {
+      return new Response(JSON.stringify({ error: 'Ce numéro de téléphone est déjà associé à un tenant' }), {
         status: 409,
         headers: { 'Content-Type': 'application/json' }
       });

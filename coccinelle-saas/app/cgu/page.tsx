@@ -1,188 +1,186 @@
-import Link from 'next/link';
-
-export const metadata = {
-  title: 'Conditions Generales d\'Utilisation - Coccinelle.ai',
-  description: 'Conditions Generales d\'Utilisation de la plateforme Coccinelle.ai'
-};
-
-export default function CGUPage() {
+export default function CguPage() {
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
-            </div>
-            <span className="font-bold text-gray-900">coccinelle.ai</span>
-          </Link>
-          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">Retour a l&apos;accueil</Link>
+      <div className="max-w-3xl mx-auto px-4 py-20">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">Conditions Générales d&apos;Utilisation</h1>
+        <p className="text-sm text-gray-500 mb-12">Dernière mise à jour : mars 2026</p>
+
+        <div className="space-y-10">
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">1. Objet</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Les présentes Conditions Générales d&apos;Utilisation (CGU) régissent l&apos;accès et l&apos;utilisation
+              de la plateforme coccinelle.ai, éditée par <strong>Agentic Solutions SASU</strong>, société par actions
+              simplifiée unipersonnelle, dont le siège social est établi à Toulouse, France
+              (ci-après &laquo; Coccinelle &raquo; ou &laquo; nous &raquo;).
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              En accédant à la plateforme ou en utilisant nos services, vous acceptez sans réserve les présentes CGU.
+              Si vous n&apos;acceptez pas ces conditions, vous devez cesser immédiatement d&apos;utiliser la plateforme.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">2. Description du service</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Coccinelle.ai est une plateforme SaaS (Software as a Service) qui fournit un assistant omnicanal IA
+              permettant aux professionnels de gérer automatiquement leurs appels entrants, leurs messages (SMS,
+              WhatsApp, email), leurs rendez-vous et leur relation client, via un CRM intégré.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              Le service est accessible par abonnement mensuel selon les formules tarifaires en vigueur, disponibles
+              sur la page tarifs de la plateforme.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">3. Inscription et compte utilisateur</h2>
+            <p className="text-gray-600 leading-relaxed">
+              L&apos;accès au service nécessite la création d&apos;un compte. Vous vous engagez à fournir des informations
+              exactes, complètes et à jour lors de votre inscription et à maintenir ces informations à jour.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              Vous êtes seul responsable de la confidentialité de vos identifiants de connexion et de toutes les
+              activités effectuées depuis votre compte. En cas de compromission, vous devez nous en informer
+              immédiatement à <a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a>.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              L&apos;accès à la plateforme est réservé aux professionnels et aux entreprises. L&apos;utilisation à des fins
+              personnelles non professionnelles n&apos;est pas autorisée.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">4. Utilisation de l&apos;IA et responsabilité</h2>
+            <p className="text-gray-600 leading-relaxed">
+              L&apos;assistant IA de Coccinelle est un outil automatisé. Vous restez seul responsable de la configuration
+              de l&apos;assistant, des informations fournies à vos clients via celui-ci, et de la conformité de son
+              utilisation avec la réglementation applicable à votre secteur d&apos;activité.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              Il vous appartient notamment de :
+            </p>
+            <ul className="list-disc pl-6 space-y-2 text-gray-600 mt-2">
+              <li>Informer vos clients qu&apos;ils interagissent avec un assistant IA, conformément aux obligations légales</li>
+              <li>Vous assurer que l&apos;utilisation de l&apos;assistant est conforme au RGPD, notamment en ce qui concerne
+                le traitement des données de vos clients</li>
+              <li>Ne pas utiliser le service pour effectuer de la prospection commerciale non sollicitée (cold calling)</li>
+              <li>Ne pas utiliser le service à des fins illicites, frauduleuses ou contraires à l&apos;ordre public</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">5. Abonnement, tarification et paiement</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Les tarifs sont indiqués hors taxes sur la plateforme. Le paiement est effectué mensuellement ou
+              annuellement selon la formule choisie, par carte bancaire via notre prestataire de paiement sécurisé.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              En cas de dépassement du volume de minutes inclus dans votre forfait, les minutes supplémentaires
+              sont facturées au tarif en vigueur indiqué dans votre espace abonné.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              En cas de défaut de paiement, Coccinelle se réserve le droit de suspendre l&apos;accès au service après
+              mise en demeure restée sans effet dans un délai de 7 jours.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">6. Période d&apos;essai gratuit</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Un essai gratuit de 14 jours est proposé sans engagement et sans carte bancaire requise. À l&apos;issue
+              de cette période, le service est suspendu sauf souscription à un abonnement payant. Aucune donnée
+              n&apos;est supprimée immédiatement à l&apos;expiration de la période d&apos;essai — vous disposez d&apos;un délai de
+              30 jours pour récupérer vos données avant suppression définitive.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">7. Résiliation</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Vous pouvez résilier votre abonnement à tout moment depuis votre espace abonné, sans frais.
+              La résiliation prend effet à la fin de la période d&apos;abonnement en cours. Aucun remboursement
+              au prorata n&apos;est effectué pour les périodes entamées.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              Coccinelle se réserve le droit de résilier votre accès en cas de violation des présentes CGU,
+              avec ou sans préavis selon la gravité du manquement.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">8. Propriété intellectuelle</h2>
+            <p className="text-gray-600 leading-relaxed">
+              La plateforme coccinelle.ai, son interface, ses algorithmes, sa marque et l&apos;ensemble de ses
+              composants sont la propriété exclusive d&apos;Agentic Solutions SASU. Toute reproduction, modification
+              ou exploitation non autorisée est strictement interdite.
+            </p>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              Vous conservez la propriété des données que vous saisissez sur la plateforme (données clients, base
+              de connaissances, configurations). Vous nous accordez une licence limitée pour traiter ces données
+              dans le seul but de vous fournir le service.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">9. Limitation de responsabilité</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Coccinelle s&apos;engage à mettre en œuvre tous les moyens raisonnables pour assurer la disponibilité et
+              la qualité du service. Notre responsabilité ne saurait être engagée en cas de :
+            </p>
+            <ul className="list-disc pl-6 space-y-2 text-gray-600 mt-2">
+              <li>Interruptions liées à des opérations de maintenance ou à des événements de force majeure</li>
+              <li>Erreurs ou inexactitudes générées par l&apos;assistant IA</li>
+              <li>Pertes commerciales résultant de l&apos;indisponibilité du service</li>
+              <li>Utilisation non conforme aux présentes CGU</li>
+            </ul>
+            <p className="text-gray-600 leading-relaxed mt-4">
+              En tout état de cause, notre responsabilité est limitée au montant des sommes effectivement payées
+              au cours des 12 derniers mois précédant le fait générateur.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">10. Disponibilité du service</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Coccinelle s&apos;efforce de maintenir le service disponible 24h/24 et 7j/7. Des interruptions ponctuelles
+              peuvent survenir pour maintenance, mises à jour ou incidents techniques. Nous nous efforçons de
+              planifier les maintenances en dehors des heures de forte utilisation et d&apos;en informer les utilisateurs
+              au préalable.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">11. Modifications des CGU</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Coccinelle se réserve le droit de modifier les présentes CGU à tout moment. Les modifications entrent
+              en vigueur 30 jours après leur notification par email. La poursuite de l&apos;utilisation du service après
+              ce délai vaut acceptation des nouvelles conditions.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">12. Droit applicable et juridiction</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Les présentes CGU sont régies par le droit français. En cas de litige, les parties s&apos;engagent à
+              rechercher une solution amiable avant tout recours judiciaire. À défaut d&apos;accord amiable, les
+              tribunaux compétents de <strong>Toulouse</strong> seront seuls compétents.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">13. Contact</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Pour toute question relative aux présentes CGU :<br /><br />
+              <strong>Agentic Solutions SASU</strong><br />
+              Toulouse, France<br />
+              Email : <a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a>
+            </p>
+          </section>
+
         </div>
-      </header>
-
-      {/* Content */}
-      <main className="max-w-4xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Conditions Generales d&apos;Utilisation</h1>
-        <p className="text-sm text-gray-500 mb-8">Derniere mise a jour : 10 mars 2026</p>
-
-        <div className="prose prose-gray max-w-none">
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 1 - Objet</h2>
-          <p className="text-gray-700 mb-4">
-            Les presentes Conditions Generales d&apos;Utilisation (ci-apres &quot;CGU&quot;) ont pour objet de definir les conditions
-            d&apos;acces et d&apos;utilisation de la plateforme Coccinelle.ai (ci-apres &quot;la Plateforme&quot;), editee par
-            Agentic Solutions SASU (ci-apres &quot;l&apos;Editeur&quot;).
-          </p>
-          <p className="text-gray-700 mb-4">
-            La Plateforme propose un service de centre d&apos;appels et de relation client base sur l&apos;intelligence artificielle,
-            incluant un assistant vocal IA, la gestion de rendez-vous, la communication omnicanale (SMS, WhatsApp, email),
-            un CRM intelligent et des outils d&apos;analyse.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 2 - Acceptation des CGU</h2>
-          <p className="text-gray-700 mb-4">
-            L&apos;inscription et l&apos;utilisation de la Plateforme impliquent l&apos;acceptation pleine et entiere des presentes CGU.
-            L&apos;utilisateur reconnait en avoir pris connaissance et s&apos;engage a les respecter.
-            En cas de desaccord avec l&apos;une quelconque de ces conditions, l&apos;utilisateur est invite a ne pas utiliser la Plateforme.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 3 - Inscription et compte utilisateur</h2>
-          <p className="text-gray-700 mb-4">
-            Pour acceder aux services, l&apos;utilisateur doit creer un compte en fournissant des informations exactes,
-            completes et a jour. L&apos;utilisateur est responsable de la confidentialite de ses identifiants
-            de connexion et de toute activite realisee depuis son compte.
-          </p>
-          <p className="text-gray-700 mb-4">
-            L&apos;utilisateur s&apos;engage a :
-          </p>
-          <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
-            <li>Fournir des informations veridiques lors de l&apos;inscription</li>
-            <li>Ne pas creer de compte pour un tiers sans son autorisation</li>
-            <li>Ne pas usurper l&apos;identite d&apos;autrui</li>
-            <li>Informer immediatement l&apos;Editeur en cas d&apos;utilisation non autorisee de son compte</li>
-          </ul>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 4 - Description des services</h2>
-          <p className="text-gray-700 mb-4">
-            La Plateforme met a disposition les services suivants :
-          </p>
-          <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
-            <li><strong>Assistant vocal IA</strong> : agent virtuel repondant aux appels telephoniques 24/7</li>
-            <li><strong>Communication omnicanale</strong> : gestion centralisee des SMS, WhatsApp, emails et appels</li>
-            <li><strong>Gestion de rendez-vous</strong> : prise de RDV automatique avec synchronisation calendrier</li>
-            <li><strong>CRM intelligent</strong> : gestion des prospects et clients avec scoring automatique</li>
-            <li><strong>Base de connaissances</strong> : import automatique de contenu (site web, documents)</li>
-            <li><strong>Analytics</strong> : tableaux de bord et rapports de performance</li>
-          </ul>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 5 - Periode d&apos;essai et abonnement</h2>
-          <p className="text-gray-700 mb-4">
-            L&apos;inscription donne droit a une periode d&apos;essai gratuite de 14 jours, sans engagement et sans carte bancaire.
-            A l&apos;issue de cette periode, l&apos;utilisateur peut souscrire a l&apos;un des plans d&apos;abonnement proposes.
-          </p>
-          <p className="text-gray-700 mb-4">
-            Les tarifs applicables sont ceux affiches sur la Plateforme au moment de la souscription.
-            L&apos;Editeur se reserve le droit de modifier ses tarifs, sous reserve d&apos;en informer les utilisateurs
-            avec un preavis de 30 jours.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 6 - Obligations de l&apos;utilisateur</h2>
-          <p className="text-gray-700 mb-4">
-            L&apos;utilisateur s&apos;engage a :
-          </p>
-          <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
-            <li>Utiliser la Plateforme conformement a sa destination et aux lois en vigueur</li>
-            <li>Ne pas utiliser la Plateforme a des fins illicites, frauduleuses ou malveillantes</li>
-            <li>Ne pas porter atteinte au fonctionnement de la Plateforme</li>
-            <li>Ne pas tenter d&apos;acceder aux systemes informatiques de l&apos;Editeur de maniere non autorisee</li>
-            <li>Respecter les droits de propriete intellectuelle de l&apos;Editeur et des tiers</li>
-            <li>Ne pas utiliser l&apos;assistant vocal pour du demarchage telephonique abusif ou du spam</li>
-          </ul>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 7 - Propriete intellectuelle</h2>
-          <p className="text-gray-700 mb-4">
-            La Plateforme, son contenu, ses fonctionnalites, son design et sa technologie sont la propriete
-            exclusive de l&apos;Editeur et sont proteges par le droit de la propriete intellectuelle.
-            Toute reproduction, representation ou exploitation non autorisee est interdite.
-          </p>
-          <p className="text-gray-700 mb-4">
-            L&apos;utilisateur conserve la propriete de l&apos;ensemble des donnees qu&apos;il importe sur la Plateforme
-            (base de connaissances, contacts, documents). L&apos;Editeur ne revendique aucun droit sur ces donnees.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 8 - Responsabilite</h2>
-          <p className="text-gray-700 mb-4">
-            L&apos;Editeur s&apos;engage a fournir un service de qualite et a assurer la disponibilite de la Plateforme.
-            Toutefois, l&apos;Editeur ne saurait etre tenu responsable :
-          </p>
-          <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
-            <li>Des interruptions temporaires pour maintenance ou mise a jour</li>
-            <li>Des reponses fournies par l&apos;assistant IA, qui sont generees automatiquement</li>
-            <li>Des dommages indirects resultant de l&apos;utilisation de la Plateforme</li>
-            <li>De l&apos;utilisation faite par l&apos;utilisateur des informations fournies par la Plateforme</li>
-          </ul>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 9 - Resiliation</h2>
-          <p className="text-gray-700 mb-4">
-            L&apos;utilisateur peut resilier son abonnement a tout moment depuis les parametres de son compte.
-            La resiliation prend effet a la fin de la periode de facturation en cours.
-          </p>
-          <p className="text-gray-700 mb-4">
-            L&apos;Editeur se reserve le droit de suspendre ou de resilier un compte en cas de violation
-            des presentes CGU, apres notification a l&apos;utilisateur.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 10 - Droit de retractation</h2>
-          <p className="text-gray-700 mb-4">
-            Conformement a l&apos;article L221-28 du Code de la consommation, le droit de retractation ne peut
-            etre exerce pour les contrats de fourniture de contenu numerique non fourni sur un support materiel
-            dont l&apos;execution a commence apres accord prealable du consommateur.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 11 - Protection des donnees personnelles</h2>
-          <p className="text-gray-700 mb-4">
-            Le traitement des donnees personnelles est regi par notre
-            {' '}<Link href="/confidentialite" className="text-gray-900 underline hover:text-gray-700">Politique de Confidentialite</Link>.
-            L&apos;utilisateur est invite a en prendre connaissance.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 12 - Modification des CGU</h2>
-          <p className="text-gray-700 mb-4">
-            L&apos;Editeur se reserve le droit de modifier les presentes CGU a tout moment.
-            Les utilisateurs seront informes de toute modification par notification sur la Plateforme
-            ou par email. La poursuite de l&apos;utilisation de la Plateforme apres notification
-            vaut acceptation des CGU modifiees.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 13 - Droit applicable et juridiction</h2>
-          <p className="text-gray-700 mb-4">
-            Les presentes CGU sont soumises au droit francais.
-            Tout litige relatif a leur interpretation ou a leur execution sera soumis aux tribunaux
-            competents du ressort du siege social de l&apos;Editeur, sauf disposition legale contraire.
-          </p>
-
-          <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Article 14 - Contact</h2>
-          <p className="text-gray-700 mb-4">
-            Pour toute question relative aux presentes CGU, vous pouvez contacter l&apos;Editeur :
-          </p>
-          <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
-            <li>Par email : contact@coccinelle.ai</li>
-            <li>Par courrier : Agentic Solutions SASU, [A COMPLETER - Adresse]</li>
-          </ul>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-200 py-6">
-        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
-          <p>&copy; 2026 coccinelle.ai - Agentic Solutions SASU</p>
-          <div className="flex gap-6">
-            <Link href="/cgu" className="hover:text-gray-900 font-medium">CGU</Link>
-            <Link href="/confidentialite" className="hover:text-gray-900">Confidentialite</Link>
-            <Link href="/mentions-legales" className="hover:text-gray-900">Mentions legales</Link>
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }

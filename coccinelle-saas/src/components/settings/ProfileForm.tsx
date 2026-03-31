@@ -1,11 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { INDUSTRIES } from '@/constants/industries';
+import { useRouter } from 'next/navigation';
+import Cookies from 'js-cookie';
+import { SECTORS } from '@/lib/sectors';
+import { buildApiUrl } from '@/lib/config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+function handleExpiredSession(router: ReturnType<typeof useRouter>) {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('tenant');
+  Cookies.remove('auth_token', { path: '/' });
+  router.push('/login?expired=1');
+}
 
 export default function ProfileForm() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [profile, setProfile] = useState({
@@ -24,14 +34,18 @@ export default function ProfileForm() {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_URL}/api/v1/auth/me`, {
+      const res = await fetch(buildApiUrl('/api/v1/auth/me'), {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (res.status === 401) {
+        handleExpiredSession(router);
+        return;
+      }
 
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
-          // Extraire le nom depuis user.name (format: "Prénom Nom")
           const fullName = data.user?.name || '';
           const nameParts = fullName.split(' ');
           const firstName = nameParts[0] || '';
@@ -59,7 +73,7 @@ export default function ProfileForm() {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_URL}/api/v1/auth/profile`, {
+      const res = await fetch(buildApiUrl('/api/v1/auth/profile'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -73,6 +87,11 @@ export default function ProfileForm() {
           industry: profile.industry,
         }),
       });
+
+      if (res.status === 401) {
+        handleExpiredSession(router);
+        return;
+      }
 
       if (res.ok) {
         setMessage('Profil mis à jour avec succès');
@@ -189,8 +208,8 @@ export default function ProfileForm() {
           required
         >
           <option value="">Sélectionnez votre secteur</option>
-          {INDUSTRIES.map((ind) => (
-            <option key={ind.value} value={ind.value}>{ind.label}</option>
+          {SECTORS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
       </div>

@@ -39,6 +39,11 @@ import { handleReportsRoutes } from './modules/reports/routes.js';
 import { handleCallsRoutes } from './modules/calls/routes.js';
 import { handlePushRoutes } from './modules/push/routes.js';
 import { handleExportRoutes } from './modules/export/routes.js';
+// Module VoixIA — endpoints dédiés pour l'agent vocal IA (auth par clé API)
+import { handleVoixIARoutes } from './modules/voixia/routes.js';
+import { handleAIRoutes } from './modules/voixia/ai-prompts.js';
+// VoixIA Orchestrateur Omnicanal (voice, sms, email, whatsapp)
+import { handleOrchestrateRoutes } from './modules/voixia/orchestrator.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -58,6 +63,21 @@ export default {
       // Routes publiques (sans auth) - à traiter en premier
       if (path.startsWith('/api/v1/public/')) {
         response = await handlePublicRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Routes VoixIA (auth par clé API X-VoixIA-Key, pas de JWT)
+      if (path.startsWith('/api/v1/voixia')) {
+        // Orchestrateur omnicanal (POST /api/v1/voixia/orchestrate)
+        response = await handleOrchestrateRoutes(request, env, path, method);
+        if (response) return response;
+        // Routes VoixIA classiques
+        response = await handleVoixIARoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      if (path.startsWith('/api/v1/ai')) {
+        response = await handleAIRoutes(request, env, path, method);
         if (response) return response;
       }
 
