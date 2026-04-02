@@ -116,9 +116,20 @@ async function handleGetPrompts(request, env) {
 
   try {
     const result = await env.DB.prepare(query).bind(...params).all();
+
+    // Charger la config VoixIA du tenant (voix, LLM, transfer)
+    let voixiaConfig = null;
+    try {
+      voixiaConfig = await env.DB.prepare(`
+        SELECT voice_id, llm_provider, llm_model, transfer_enabled, transfer_number
+        FROM voixia_configs WHERE tenant_id = ?
+      `).bind(tenant_id).first();
+    } catch { /* voixia_configs peut ne pas exister */ }
+
     return successResponse({
       prompts: result.results || [],
-      count: result.results?.length || 0
+      count: result.results?.length || 0,
+      voixia_config: voixiaConfig || {}
     });
   } catch (error) {
     logger.error('AI get prompts error', { error: error.message });
@@ -233,6 +244,21 @@ async function handleActivatePrompt(request, env, promptId) {
         body.voice_id || null,
         body.llm_provider || null,
         body.llm_model || null,
+        tenant_id
+      ).run();
+    }
+
+    // Si transfer_enabled ou transfer_number fournis, mettre à jour
+    if (body.transfer_enabled !== undefined || body.transfer_number !== undefined) {
+      await env.DB.prepare(`
+        UPDATE voixia_configs SET
+          transfer_enabled = COALESCE(?, transfer_enabled),
+          transfer_number = COALESCE(?, transfer_number),
+          updated_at = datetime('now')
+        WHERE tenant_id = ?
+      `).bind(
+        body.transfer_enabled !== undefined ? (body.transfer_enabled ? 1 : 0) : null,
+        body.transfer_number !== undefined ? body.transfer_number : null,
         tenant_id
       ).run();
     }

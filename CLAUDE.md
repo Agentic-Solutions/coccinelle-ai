@@ -387,7 +387,7 @@ coccinelle-ai/
 | SMS end-to-end | Twilio configuré mais non testé avec l'agent vocal | 🟠 Moyenne |
 | ~~Email~~ | ~~Resend non configuré~~ **CORRIGÉ 02/04** — 6 routes /api/v1/email/*, page 4 sections | ✅ Corrigé |
 | ~~KB search~~ | ~~cherchait dans knowledge_chunks (0 chunks)~~ **CORRIGÉ 02/04** — fallback knowledge_documents + fix kd.url→kd.source_url + priorité source_type='text' avant 'crawl' + answer tronquée 500 chars | ✅ Corrigé |
-| ~~Transfer humain~~ | ~~pas de logique callback~~ **CORRIGÉ 02/04** — transfer_enabled=0 → propose rappel + create_prospect + SMS | ✅ Corrigé |
+| ~~Transfer humain~~ | ~~pas de logique callback~~ **CORRIGÉ 02/04** — transfer_enabled=0 → propose rappel + create_prospect + SMS. Config Agent onglet Comportement : toggle ON → champ numéro visible, toggle OFF → agent propose rappel | ✅ Corrigé |
 | ~~Port 8081 zombie~~ | ~~process Python bloque le port au restart~~ **CORRIGÉ 02/04** — ExecStartPre fuser -k dans systemd | ✅ Corrigé |
 | ~~Données démo KB~~ | ~~Pas de KB pour demo~~ **CORRIGÉ 02/04** — 4 docs insérés (présentation, tarifs, horaires, FAQ) | ✅ Corrigé |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |

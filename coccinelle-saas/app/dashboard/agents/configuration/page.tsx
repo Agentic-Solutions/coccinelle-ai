@@ -85,7 +85,8 @@ export default function AgentConfigurationPage() {
   const [promptText, setPromptText] = useState('');
   const [promptNotes, setPromptNotes] = useState('');
   const [tonality, setTonality] = useState<'professionnel' | 'amical' | 'formel'>('professionnel');
-  const [humanTransfer, setHumanTransfer] = useState(true);
+  const [humanTransfer, setHumanTransfer] = useState(false);
+  const [transferNumber, setTransferNumber] = useState('');
   const templateBaseRef = useRef('');
 
   // Avancé
@@ -197,6 +198,12 @@ export default function AgentConfigurationPage() {
       const anlData = await anlRes.json();
       setPrompts(prmData.prompts || []);
       setAnalytics(anlData);
+      // Charger la config transfer depuis voixia_config
+      const vc = prmData.voixia_config;
+      if (vc) {
+        setHumanTransfer(vc.transfer_enabled === 1);
+        setTransferNumber(vc.transfer_number || '');
+      }
     } catch {
       showMsg('error', 'Erreur lors du chargement des données');
     }
@@ -261,6 +268,8 @@ export default function AgentConfigurationPage() {
             voice_id: selectedVoice,
             llm_provider: provider,
             llm_model: model,
+            transfer_enabled: humanTransfer,
+            transfer_number: transferNumber || null,
           }),
         });
         const activateData = await activateRes.json();
@@ -619,6 +628,25 @@ export default function AgentConfigurationPage() {
                     }`} />
                   </button>
                 </div>
+
+                {humanTransfer && (
+                  <div className="mt-3 ml-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Numéro de transfert
+                    </label>
+                    <input
+                      type="tel"
+                      value={transferNumber}
+                      onChange={(e) => setTransferNumber(e.target.value)}
+                      placeholder="+33 6 XX XX XX XX"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Numéro vers lequel l&apos;agent transfère l&apos;appel si nécessaire.
+                      Si vide, l&apos;agent proposera un rappel ultérieur.
+                    </p>
+                  </div>
+                )}
 
                 {/* System Prompt */}
                 <div>
