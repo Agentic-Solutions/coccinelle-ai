@@ -39,8 +39,8 @@ export default function EmailPage() {
     try {
       const headers = getAuthHeaders();
       const [configRes, logsRes] = await Promise.all([
-        fetch(buildApiUrl('/api/v1/channels/email/config'), { headers }),
-        fetch(buildApiUrl('/api/v1/channels/email/logs'), { headers }),
+        fetch(buildApiUrl('/api/v1/email/config'), { headers }),
+        fetch(buildApiUrl('/api/v1/email/logs'), { headers }),
       ]);
 
       if (configRes.ok) {
@@ -72,7 +72,7 @@ export default function EmailPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(buildApiUrl('/api/v1/channels/email/config'), {
+      const res = await fetch(buildApiUrl('/api/v1/email/config'), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(config),
@@ -111,7 +111,7 @@ export default function EmailPage() {
     setTesting(true);
     setError('');
     try {
-      const res = await fetch(buildApiUrl('/api/v1/channels/email/test-send'), {
+      const res = await fetch(buildApiUrl('/api/v1/email/test'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ to: testEmail.trim() }),

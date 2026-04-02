@@ -385,7 +385,7 @@ coccinelle-ai/
 |-----|--------|----------|
 | ~~Tools VoixIA~~ | ~~check_availability retourne créneaux fictifs~~ **CORRIGÉ 01/04** — retourne créneaux réels | ✅ Corrigé |
 | SMS end-to-end | Twilio configuré mais non testé avec l'agent vocal | 🟠 Moyenne |
-| Email | Resend non configuré | 🟠 Moyenne |
+| ~~Email~~ | ~~Resend non configuré~~ **CORRIGÉ 02/04** — 6 routes /api/v1/email/*, page 4 sections | ✅ Corrigé |
 | Données démo | Aucune donnée réaliste pour Nubbo 3 avril | 🟠 Moyenne |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
@@ -440,6 +440,38 @@ coccinelle-ai/
 | 📧 Gmail | ✅ Gmail API | ✅ Cloudflare | 🟡 95% |
 | 📧 Outlook | ✅ Backend | ❌ | 🔴 60% |
 | 📧 Yahoo | ✅ Backend | ❌ | 🔴 60% |
+
+## SYSTÈME EMAIL DÉFINITIF (corrigé 02/04/2026)
+
+| Élément | Détail |
+|---------|--------|
+| Provider envoi | Resend |
+| Clé API | `RESEND_API_KEY` (secret Workers ✅) |
+| From | `env.RESEND_FROM_EMAIL` = `"Sara <sara@coccinelle.ai>"` |
+| Routes backend | `/api/v1/email/*` (PAS `/api/v1/channels/email/*`) |
+| Module backend | `src/modules/email/routes.js` |
+| sendResendEmail | `src/modules/channels/routes.js:883` (channels) + `src/modules/voixia/orchestrator.js:508` (post-appel) |
+| Tables | `channel_configurations` (config), `channel_messages_log` (logs), `email_processed` (OAuth) |
+
+**Routes email :**
+```
+GET  /api/v1/email/status    → statut connexion OAuth
+GET  /api/v1/email/config    → config expéditeur Resend (from_name, from_email, reply_to, signature)
+PUT  /api/v1/email/config    → sauvegarder config
+POST /api/v1/email/test      → envoyer email de test via Resend
+POST /api/v1/email/send      → envoyer email (OAuth provider)
+GET  /api/v1/email/logs      → 20 derniers emails envoyés
+GET  /api/v1/email/inbox     → inbox OAuth
+GET  /api/v1/email/stats     → stats emails traités
+POST /api/v1/email/auto-reply → réponse auto Sara
+POST /api/v1/email/mark-read  → marquer lu
+```
+
+**Page frontend :** `app/dashboard/channels/email/page.tsx` — 4 sections :
+1. Statut canal (badge actif/inactif, toggle, statut Resend)
+2. Configuration expéditeur (nom, email, reply-to, signature → PUT /email/config)
+3. Test d'envoi (input + bouton → POST /email/test)
+4. Historique (tableau 20 derniers → GET /email/logs)
 
 ## FICHIERS INTERDITS À MODIFIER SANS OK DE YOUSSEF
 

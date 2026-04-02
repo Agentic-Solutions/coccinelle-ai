@@ -279,6 +279,180 @@ export async function handleGetConversation(request, env, ctx, tenantId) {
 }
 
 /**
+ * GET /api/v1/email/config - Configuration email Resend du tenant
+ */
+export async function handleGetEmailConfig(request, env, ctx, tenantId) {
+  try {
+    const config = await env.DB.prepare(`
+      SELECT config_public FROM channel_configurations
+      WHERE tenant_id = ? AND channel_type = 'email'
+    `).bind(tenantId).first();
+
+    const parsed = config ? JSON.parse(config.config_public || '{}') : {};
+    const resendConfigured = !!env.RESEND_API_KEY;
+
+    // Vérifier si canal actif
+    const channelRow = await env.DB.prepare(`
+      SELECT enabled FROM channel_configurations
+      WHERE tenant_id = ? AND channel_type = 'email'
+    `).bind(tenantId).first();
+
+    return Response.json({
+      success: true,
+      config: {
+        from_name: parsed.from_name || '',
+        from_email: parsed.from_email || env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai',
+        reply_to: parsed.reply_to || '',
+        signature: parsed.signature || '',
+      },
+      resend_configured: resendConfigured,
+      channel_active: !!(channelRow && channelRow.enabled),
+    });
+  } catch (error) {
+    console.error('Get email config failed:', error);
+    return Response.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/v1/email/config - Sauvegarder la config expéditeur
+ */
+export async function handleUpdateEmailConfig(request, env, ctx, tenantId) {
+  try {
+    const body = await request.json();
+    const { from_name, from_email, reply_to, signature } = body;
+    const configData = { from_name, from_email, reply_to, signature };
+    const now = new Date().toISOString();
+
+    const existing = await env.DB.prepare(`
+      SELECT id, config_public FROM channel_configurations
+      WHERE tenant_id = ? AND channel_type = 'email'
+    `).bind(tenantId).first();
+
+    if (existing) {
+      const existingConfig = JSON.parse(existing.config_public || '{}');
+      const merged = { ...existingConfig, ...configData };
+      await env.DB.prepare(`
+        UPDATE channel_configurations
+        SET config_public = ?, configured = 1, updated_at = ?
+        WHERE id = ?
+      `).bind(JSON.stringify(merged), now, existing.id).run();
+    } else {
+      const configId = `cfg_email_${tenantId}_${Date.now()}`;
+      await env.DB.prepare(`
+        INSERT INTO channel_configurations (id, tenant_id, channel_type, enabled, configured, config_public, config_encrypted, templates, created_at, updated_at)
+        VALUES (?, ?, 'email', 0, 1, ?, '{}', '{}', ?, ?)
+      `).bind(configId, tenantId, JSON.stringify(configData), now, now).run();
+    }
+
+    return Response.json({ success: true, message: 'Configuration email sauvegardée' });
+  } catch (error) {
+    console.error('Update email config failed:', error);
+    return Response.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/v1/email/test - Envoyer un email de test via Resend
+ */
+export async function handleTestEmailSend(request, env, ctx, tenantId) {
+  try {
+    if (!env.RESEND_API_KEY) {
+      return Response.json({ success: false, error: 'RESEND_API_KEY non configuré' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { to } = body;
+    if (!to) {
+      return Response.json({ success: false, error: 'Email de destination (to) requis' }, { status: 400 });
+    }
+
+    // Config expéditeur
+    const config = await env.DB.prepare(`
+      SELECT config_public FROM channel_configurations
+      WHERE tenant_id = ? AND channel_type = 'email'
+    `).bind(tenantId).first();
+
+    const emailConfig = config ? JSON.parse(config.config_public || '{}') : {};
+    const fromEmail = emailConfig.from_email || env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai';
+    const fromName = emailConfig.from_name || 'Coccinelle.ai';
+
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${fromName} <${fromEmail}>`,
+        to: [to],
+        subject: 'Test Coccinelle.ai — Email fonctionnel',
+        html: `<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px">
+  <h2 style="color:#111">Félicitations !</h2>
+  <p>Votre canal email <strong>Coccinelle.ai</strong> fonctionne correctement.</p>
+  <p>Vous pouvez maintenant envoyer des emails automatiques à vos clients après chaque appel.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+  <p style="color:#666;font-size:12px">Coccinelle.ai — Agent IA omnicanal</p>
+</body>
+</html>`,
+      }),
+    });
+
+    const resendData = await resendRes.json();
+
+    if (resendData.error) {
+      return Response.json({ success: false, error: resendData.error.message || resendData.error }, { status: 400 });
+    }
+
+    // Logger dans channel_messages_log
+    try {
+      await env.DB.prepare(`
+        INSERT INTO channel_messages_log (id, tenant_id, channel_type, to_address, template_name, content, status, external_message_id, sent_at, created_at)
+        VALUES (?, ?, 'email', ?, 'test', 'Email de test', 'sent', ?, datetime('now'), datetime('now'))
+      `).bind(`msg_test_${Date.now()}`, tenantId, to, resendData.id || '').run();
+    } catch {
+      // Best effort logging
+    }
+
+    return Response.json({ success: true, message: 'Email de test envoyé', id: resendData.id });
+  } catch (error) {
+    console.error('Test email failed:', error);
+    return Response.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+/**
+ * GET /api/v1/email/logs - Historique des 20 derniers emails envoyés
+ */
+export async function handleGetEmailLogs(request, env, ctx, tenantId) {
+  try {
+    const logs = await env.DB.prepare(`
+      SELECT id, to_address, content AS subject, status, external_message_id, sent_at
+      FROM channel_messages_log
+      WHERE tenant_id = ? AND channel_type = 'email'
+      ORDER BY sent_at DESC
+      LIMIT 20
+    `).bind(tenantId).all();
+
+    return Response.json({
+      success: true,
+      logs: (logs.results || []).map(l => ({
+        id: l.id,
+        recipient: l.to_address,
+        subject: l.subject,
+        status: l.status,
+        sent_at: l.sent_at,
+      })),
+    });
+  } catch (error) {
+    console.error('Get email logs failed:', error);
+    return Response.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+/**
  * GET /api/v1/email/stats - Stats des emails traités par Sara
  */
 export async function handleGetStats(request, env, ctx, tenantId, corsHeaders = {}) {

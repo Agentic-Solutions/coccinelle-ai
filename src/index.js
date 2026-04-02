@@ -23,7 +23,7 @@ import { handlePermissionsRoutes } from './modules/permissions/routes.js';
 import { handleTeamsRoutes } from './modules/teams/routes.js';
 import { handleCustomersRoutes } from './modules/customers/routes.js';
 import { handleOAuthRoutes } from './modules/oauth/routes.js';
-import { handleCheckEmails, handleGetInbox, handleGetHistory, handleGetStatus, handleProcessAll, handleAutoReply, handleGetConversation, handleGetStats, handleSendEmail, handleMarkAsRead } from './modules/email/routes.js';
+import { handleCheckEmails, handleGetInbox, handleGetHistory, handleGetStatus, handleProcessAll, handleAutoReply, handleGetConversation, handleGetStats, handleSendEmail, handleMarkAsRead, handleGetEmailConfig, handleUpdateEmailConfig, handleTestEmailSend, handleGetEmailLogs } from './modules/email/routes.js';
 import { verifyToken } from './modules/auth/helpers.js';
 import { handleBillingSubscriptionRoutes } from './modules/billing/routes.js';
 import { handleAvailabilityRoutes } from './modules/availability/routes.js';
@@ -189,6 +189,14 @@ export default {
           response = await handleSendEmail(request, env, ctx, tenantId);
         } else if (path === "/api/v1/email/mark-read" && method === "POST") {
           response = await handleMarkAsRead(request, env, ctx, tenantId);
+        } else if (path === "/api/v1/email/config" && method === "GET") {
+          response = await handleGetEmailConfig(request, env, ctx, tenantId);
+        } else if (path === "/api/v1/email/config" && method === "PUT") {
+          response = await handleUpdateEmailConfig(request, env, ctx, tenantId);
+        } else if (path === "/api/v1/email/test" && method === "POST") {
+          response = await handleTestEmailSend(request, env, ctx, tenantId);
+        } else if (path === "/api/v1/email/logs" && method === "GET") {
+          response = await handleGetEmailLogs(request, env, ctx, tenantId);
         }
         
         if (response) {
