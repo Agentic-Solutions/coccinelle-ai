@@ -9,7 +9,7 @@ import {
   Calendar, BookOpen, HelpCircle, Package,
   FileText, GitBranch, ListTree, Users2,
   BarChart3, ScrollText, Download,
-  Settings, LogOut, Menu, X, PhoneCall,
+  Settings, LogOut, Menu, X, PhoneCall, Clock,
   ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import CoccinelleIcon from '@/components/CoccinelleIcon';
@@ -39,23 +39,29 @@ const navigation: NavGroup[] = [
     ],
   },
   {
-    label: 'Téléphonie',
+    label: 'Communication',
     items: [
-      { name: 'Numéros', href: '/dashboard/channels/phone', icon: Hash },
+      { name: 'Numéros', href: '/dashboard/channels/numbers', icon: Hash },
       { name: 'Agents IA', href: '/dashboard/agents/configuration', icon: Bot },
       { name: 'SMS', href: '/dashboard/channels/sms', icon: MessageSquare },
       { name: 'WhatsApp', href: '/dashboard/channels/whatsapp', icon: MessageCircle },
       { name: 'Email', href: '/dashboard/channels/email', icon: Mail },
       { name: 'Messagerie vocale', href: '/dashboard/channels/voicemail', icon: Voicemail },
-      { name: 'Rendez-vous', href: '/dashboard/appointments', icon: Calendar },
     ],
   },
   {
-    label: 'Connaissances',
+    label: 'Intelligence',
     items: [
       { name: 'Base de connaissances', href: '/dashboard/knowledge', icon: BookOpen },
       { name: 'FAQ', href: '/dashboard/knowledge/faq', icon: HelpCircle },
       { name: 'Produits & Services', href: '/dashboard/knowledge/products', icon: Package },
+    ],
+  },
+  {
+    label: 'Agenda',
+    items: [
+      { name: 'Rendez-vous', href: '/dashboard/appointments', icon: Calendar },
+      { name: 'Disponibilités', href: '/dashboard/availability', icon: Clock },
     ],
   },
   {

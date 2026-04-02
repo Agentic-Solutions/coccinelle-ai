@@ -1,30 +1,19 @@
 'use client';
 
-// This page is the new home for VoixIA & Prompts configuration
-// It re-exports the existing VoixIA page content under the new /agents/configuration route
-
 import { useState, useEffect, useRef } from 'react';
-import { Mic, Phone, Zap, Brain, Volume2, History, BarChart3, CheckCircle, Plus, ChevronDown, GitBranch, Play, Square, Loader2, MessageCircle, Send, X, Bot } from 'lucide-react';
+import {
+  Bot, Phone, Mic, Brain, Volume2, History, CheckCircle,
+  ChevronDown, Play, Square, Loader2, MessageCircle, Send, X,
+  User, Globe, Settings, Zap, GitBranch
+} from 'lucide-react';
 import Link from 'next/link';
-import Logo from '@/components/Logo';
 import { buildApiUrl, getAuthHeaders } from '@/lib/config';
 import { SECTORS } from '@/lib/sectors';
 import { VOICE_OPTIONS } from '@/lib/voices';
 import type { VoiceOption } from '@/lib/voices';
 import { SECTOR_PROMPTS, getSectorPrompt } from '@/lib/prompts';
-import type { QuickScenario } from '@/lib/prompts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Template {
-  id: number;
-  secteur: string;
-  label: string;
-  system_prompt: string;
-  llm_provider: string;
-  llm_model: string;
-  voice_id: string;
-}
 
 interface Prompt {
   id: number;
@@ -67,33 +56,41 @@ const LLM_OPTIONS = [
   { provider: 'claude',  model: 'claude-haiku-4-5-20251001', label: 'Claude Haiku' },
 ];
 
+type TabId = 'identite' | 'voix' | 'comportement' | 'avance';
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function AgentConfigurationPage() {
-  const [activeTab, setActiveTab] = useState<'prompts' | 'historique' | 'analytics'>('prompts');
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [activeTab, setActiveTab] = useState<TabId>('identite');
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Formulaire nouveau prompt
-  const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [selectedLLM, setSelectedLLM] = useState('mistral|mistral-large-latest');
-  const [selectedVoice, setSelectedVoice] = useState(VOICE_OPTIONS[0]?.id || '');
-  const [promptText, setPromptText] = useState('');
-  const [promptNotes, setPromptNotes] = useState('');
-  const [promptSecteur, setPromptSecteur] = useState('generaliste');
+  // Identité
   const [assistantName, setAssistantName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const templateBaseRef = useRef('');
+  const [promptSecteur, setPromptSecteur] = useState('generaliste');
+  const [agentDescription, setAgentDescription] = useState('');
 
-  // Preview audio des voix
+  // Voix
+  const [selectedVoice, setSelectedVoice] = useState(VOICE_OPTIONS[0]?.id || '');
   const [voiceFilter, setVoiceFilter] = useState<'all' | 'Féminin' | 'Masculin'>('all');
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const currentAudio = useRef<HTMLAudioElement | null>(null);
+
+  // Comportement
+  const [promptText, setPromptText] = useState('');
+  const [promptNotes, setPromptNotes] = useState('');
+  const [tonality, setTonality] = useState<'professionnel' | 'amical' | 'formel'>('professionnel');
+  const [humanTransfer, setHumanTransfer] = useState(true);
+  const templateBaseRef = useRef('');
+
+  // Avancé
+  const [selectedLLM, setSelectedLLM] = useState('mistral|mistral-large-latest');
+  const [agentPhone, setAgentPhone] = useState('+33 9 39 03 57 60');
 
   // Simulation
   const [showSimulation, setShowSimulation] = useState(false);
@@ -103,6 +100,8 @@ export default function AgentConfigurationPage() {
   const simEndRef = useRef<HTMLDivElement | null>(null);
 
   const currentScenarios = SECTOR_PROMPTS[promptSecteur]?.quick_scenarios || [];
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
 
   async function handleSimSend(text?: string) {
     const msg = text || simInput.trim();
@@ -123,22 +122,18 @@ export default function AgentConfigurationPage() {
         }),
       });
       const data = await res.json();
-      if (data.reply) {
-        setSimMessages([...newMessages, { role: 'assistant', content: data.reply }]);
-      } else {
-        setSimMessages([...newMessages, { role: 'assistant', content: 'Erreur : pas de réponse du LLM.' }]);
-      }
+      setSimMessages([...newMessages, {
+        role: 'assistant',
+        content: data.reply || 'Erreur : pas de réponse du LLM.',
+      }]);
     } catch {
-      setSimMessages([...newMessages, { role: 'assistant', content: 'Erreur réseau. Vérifiez la connexion.' }]);
+      setSimMessages([...newMessages, {
+        role: 'assistant',
+        content: 'Erreur réseau. Vérifiez la connexion.',
+      }]);
     }
     setSimLoading(false);
     setTimeout(() => simEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-  }
-
-  function openSimulation() {
-    setSimMessages([]);
-    setSimInput('');
-    setShowSimulation(true);
   }
 
   const playVoicePreview = async (voice: VoiceOption) => {
@@ -194,15 +189,12 @@ export default function AgentConfigurationPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [tplRes, prmRes, anlRes] = await Promise.all([
-        fetch(buildApiUrl('/api/v1/ai/templates'), { headers: getVoixIAHeaders() }),
+      const [prmRes, anlRes] = await Promise.all([
         fetch(buildApiUrl('/api/v1/ai/prompts'), { headers: getVoixIAHeaders() }),
         fetch(buildApiUrl('/api/v1/ai/analytics'), { headers: getVoixIAHeaders() }),
       ]);
-      const tplData = await tplRes.json();
       const prmData = await prmRes.json();
       const anlData = await anlRes.json();
-      setTemplates(tplData.templates || []);
       setPrompts(prmData.prompts || []);
       setAnalytics(anlData);
     } catch {
@@ -219,15 +211,14 @@ export default function AgentConfigurationPage() {
       const name = data.tenant?.name || data.tenant?.company_name;
       if (name) setCompanyName(name);
       const sector = data.tenant?.sector || data.tenant?.industry || '';
-      if (sector && !selectedTemplate) {
+      if (sector) {
         const sectorKey = getSectorPrompt(sector) ? sector : 'generaliste';
-        handleTemplateChange(sectorKey);
+        handleSectorChange(sectorKey);
       }
     } catch { /* ignore */ }
   }
 
-  function handleTemplateChange(secteur: string) {
-    setSelectedTemplate(secteur);
+  function handleSectorChange(secteur: string) {
     setPromptSecteur(secteur);
     if (!secteur) return;
     const sectorData = getSectorPrompt(secteur);
@@ -237,7 +228,7 @@ export default function AgentConfigurationPage() {
     setPromptText(applyVariables(raw, assistantName, companyName));
   }
 
-  async function handleSavePrompt() {
+  async function handleSaveAll() {
     if (!promptText.trim()) {
       showMsg('error', 'Le prompt ne peut pas être vide');
       return;
@@ -274,15 +265,13 @@ export default function AgentConfigurationPage() {
         });
         const activateData = await activateRes.json();
         if (activateData.prompt_id) {
-          showMsg('success', 'Prompt activé ! Votre agent vocal utilise maintenant ce prompt.');
+          showMsg('success', 'Configuration sauvegardée et activée.');
         } else {
           showMsg('success', `Prompt v${data.version} créé mais l'activation a échoué.`);
         }
-        setPromptText('');
-        setPromptNotes('');
         loadAll();
       } else {
-        showMsg('error', 'Erreur lors de la création du prompt');
+        showMsg('error', 'Erreur lors de la sauvegarde');
       }
     } catch {
       showMsg('error', 'Erreur réseau');
@@ -316,6 +305,13 @@ export default function AgentConfigurationPage() {
     setTimeout(() => setMessage(null), 6000);
   }
 
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'identite', label: 'Identité', icon: <User className="w-4 h-4" /> },
+    { id: 'voix', label: 'Voix', icon: <Volume2 className="w-4 h-4" /> },
+    { id: 'comportement', label: 'Comportement', icon: <Brain className="w-4 h-4" /> },
+    { id: 'avance', label: 'Avancé', icon: <Settings className="w-4 h-4" /> },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Message flash */}
@@ -330,20 +326,41 @@ export default function AgentConfigurationPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center justify-between">
             <div className="pl-10 lg:pl-0 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                 <Bot className="w-6 h-6 text-gray-700" />
                 Configuration Agent
               </h1>
-              <p className="text-xs sm:text-sm text-gray-600">Gérez votre agent vocal IA et ses prompts dynamiques</p>
+              <p className="text-xs sm:text-sm text-gray-600">Configurez votre agent vocal IA</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setSimMessages([]);
+                  setSimInput('');
+                  setShowSimulation(true);
+                }}
+                disabled={!promptText.trim()}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Simuler</span>
+              </button>
+              <button
+                onClick={handleSaveAll}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                <Zap className="w-4 h-4" />
+                {saving ? 'Sauvegarde...' : 'Enregistrer'}
+              </button>
             </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -354,7 +371,6 @@ export default function AgentConfigurationPage() {
             <p className="text-2xl font-bold text-gray-900">VoixIA</p>
             <p className="text-sm text-gray-600 mt-1">Agent vocal actif</p>
           </div>
-
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center gap-2 mb-2">
               <Mic className="w-5 h-5 text-gray-700" />
@@ -362,7 +378,6 @@ export default function AgentConfigurationPage() {
             </div>
             <p className="text-2xl font-bold text-gray-900">{analytics?.calls.total ?? '—'}</p>
           </div>
-
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle className="w-5 h-5 text-gray-700" />
@@ -370,7 +385,6 @@ export default function AgentConfigurationPage() {
             </div>
             <p className="text-2xl font-bold text-gray-900">{analytics?.calls.success_rate ?? '—'}%</p>
           </div>
-
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center gap-2 mb-2">
               <Brain className="w-5 h-5 text-gray-700" />
@@ -381,17 +395,13 @@ export default function AgentConfigurationPage() {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="border-b border-gray-200">
             <nav className="flex overflow-x-auto">
-              {[
-                { id: 'prompts',     label: 'Nouveau Prompt',  icon: <Plus className="w-4 h-4" /> },
-                { id: 'historique',  label: 'Historique',      icon: <History className="w-4 h-4" /> },
-                { id: 'analytics',   label: 'Analytics',       icon: <BarChart3 className="w-4 h-4" /> },
-              ].map(tab => (
+              {tabs.map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
                     activeTab === tab.id
                       ? 'border-b-2 border-gray-900 text-gray-900'
@@ -404,7 +414,7 @@ export default function AgentConfigurationPage() {
               ))}
               <Link
                 href="/dashboard/agents/nodes"
-                className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base text-gray-600 hover:text-gray-900"
+                className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base text-gray-600 hover:text-gray-900 ml-auto"
               >
                 <GitBranch className="w-4 h-4" />
                 Séquences
@@ -414,32 +424,14 @@ export default function AgentConfigurationPage() {
 
           <div className="p-6">
 
-            {/* ── Onglet Nouveau Prompt ── */}
-            {activeTab === 'prompts' && (
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900">Créer un nouveau prompt</h3>
-
-                {/* Sélecteur secteur */}
+            {/* ── Onglet Identité ── */}
+            {activeTab === 'identite' && (
+              <div className="space-y-6 max-w-2xl">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Secteur d&apos;activité
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedTemplate}
-                      onChange={(e) => handleTemplateChange(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none"
-                    >
-                      <option value="">— Choisir un secteur (charge le template) —</option>
-                      {SECTORS.map(s => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Identité de l&apos;agent</h3>
+                  <p className="text-sm text-gray-600">Définissez qui est votre agent vocal</p>
                 </div>
 
-                {/* Prénom de l'agent */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Prénom de l&apos;agent
@@ -451,94 +443,187 @@ export default function AgentConfigurationPage() {
                     placeholder="Ex: Julien, Léa, Fati..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Le prénom sera utilisé dans le prompt et le greeting</p>
                 </div>
 
-                {/* Sélecteur LLM */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Modèle LLM
+                    Nom de l&apos;entreprise
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Votre entreprise"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Secteur d&apos;activité
                   </label>
                   <div className="relative">
                     <select
-                      value={selectedLLM}
-                      onChange={(e) => setSelectedLLM(e.target.value)}
+                      value={promptSecteur}
+                      onChange={(e) => handleSectorChange(e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none"
                     >
-                      {LLM_OPTIONS.map(o => (
-                        <option key={`${o.provider}|${o.model}`} value={`${o.provider}|${o.model}`}>
-                          {o.label}
-                        </option>
+                      <option value="">— Choisir un secteur —</option>
+                      {SECTORS.map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">Le secteur charge un template de prompt adapté</p>
                 </div>
 
-                {/* Sélecteur Voix avec preview */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Voix ElevenLabs
+                    Description (optionnel)
                   </label>
-                  <div className="flex gap-1 mb-3">
-                    {([['all', 'Toutes'], ['Féminin', 'Féminines'], ['Masculin', 'Masculines']] as const).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setVoiceFilter(key)}
-                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                          voiceFilter === key
-                            ? 'bg-gray-900 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[400px] overflow-y-auto pr-1">
-                    {VOICE_OPTIONS
-                      .filter(v => voiceFilter === 'all' || v.gender === voiceFilter)
-                      .map(v => (
-                      <div
-                        key={v.id}
-                        onClick={() => setSelectedVoice(v.id)}
-                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
-                          selectedVoice === v.id
-                            ? 'border-gray-900 ring-1 ring-gray-900 bg-gray-50'
-                            : 'border-gray-200 hover:border-gray-400'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-medium text-sm text-gray-900 truncate">{v.label}</span>
-                            <span className="text-[10px] text-gray-400 shrink-0">{v.gender === 'Féminin' ? 'F' : 'M'}</span>
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">{v.style}</div>
+                  <textarea
+                    value={agentDescription}
+                    onChange={(e) => setAgentDescription(e.target.value)}
+                    rows={3}
+                    placeholder="Décrivez brièvement le rôle de votre agent..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── Onglet Voix ── */}
+            {activeTab === 'voix' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Voix de l&apos;agent</h3>
+                  <p className="text-sm text-gray-600">Choisissez la voix ElevenLabs de votre agent</p>
+                </div>
+
+                <div className="flex gap-1 mb-3">
+                  {([['all', 'Toutes'], ['Féminin', 'Féminines'], ['Masculin', 'Masculines']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setVoiceFilter(key)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                        voiceFilter === key
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[500px] overflow-y-auto pr-1">
+                  {VOICE_OPTIONS
+                    .filter(v => voiceFilter === 'all' || v.gender === voiceFilter)
+                    .map(v => (
+                    <div
+                      key={v.id}
+                      onClick={() => setSelectedVoice(v.id)}
+                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+                        selectedVoice === v.id
+                          ? 'border-gray-900 ring-1 ring-gray-900 bg-gray-50'
+                          : 'border-gray-200 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-sm text-gray-900 truncate">{v.label}</span>
+                          <span className="text-[10px] text-gray-400 shrink-0">{v.gender === 'Féminin' ? 'F' : 'M'}</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); playVoicePreview(v); }}
-                          disabled={loadingVoiceId === v.id}
-                          className="ml-2 flex-shrink-0 p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 disabled:opacity-50 transition-colors"
-                          title="Écouter"
-                        >
-                          {loadingVoiceId === v.id ? (
-                            <Loader2 className="w-3.5 h-3.5 text-gray-600 animate-spin" />
-                          ) : playingVoiceId === v.id ? (
-                            <Square className="w-3.5 h-3.5 text-gray-900" />
-                          ) : (
-                            <Play className="w-3.5 h-3.5 text-gray-600" />
-                          )}
-                        </button>
+                        <div className="text-xs text-gray-500 truncate">{v.style}</div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); playVoicePreview(v); }}
+                        disabled={loadingVoiceId === v.id}
+                        className="ml-2 flex-shrink-0 p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                        title="Écouter"
+                      >
+                        {loadingVoiceId === v.id ? (
+                          <Loader2 className="w-3.5 h-3.5 text-gray-600 animate-spin" />
+                        ) : playingVoiceId === v.id ? (
+                          <Square className="w-3.5 h-3.5 text-gray-900" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 text-gray-600" />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Onglet Comportement ── */}
+            {activeTab === 'comportement' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Comportement de l&apos;agent</h3>
+                  <p className="text-sm text-gray-600">Définissez comment votre agent interagit</p>
+                </div>
+
+                {/* Tonalité */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Tonalité</label>
+                  <div className="flex gap-3">
+                    {([
+                      { value: 'professionnel', label: 'Professionnel' },
+                      { value: 'amical', label: 'Amical' },
+                      { value: 'formel', label: 'Formel' },
+                    ] as const).map(opt => (
+                      <label
+                        key={opt.value}
+                        className={`flex items-center gap-2 px-4 py-2.5 border rounded-lg cursor-pointer transition-colors ${
+                          tonality === opt.value
+                            ? 'border-gray-900 bg-gray-50 text-gray-900'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-400'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="tonality"
+                          value={opt.value}
+                          checked={tonality === opt.value}
+                          onChange={() => setTonality(opt.value)}
+                          className="sr-only"
+                        />
+                        <span className="text-sm font-medium">{opt.label}</span>
+                      </label>
                     ))}
                   </div>
                 </div>
 
-                {/* Éditeur prompt */}
+                {/* Transfert humain */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Transfert vers un humain</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Permet à l&apos;agent de transférer l&apos;appel si nécessaire
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHumanTransfer(!humanTransfer)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                      humanTransfer ? 'bg-gray-900' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      humanTransfer ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+
+                {/* System Prompt */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    System Prompt
+                    Prompt système
                   </label>
                   <textarea
                     value={promptText}
@@ -550,7 +635,7 @@ export default function AgentConfigurationPage() {
                       if (companyName) raw = raw.replaceAll(companyName, '{COMPANY_NAME}');
                       templateBaseRef.current = raw;
                     }}
-                    rows={10}
+                    rows={12}
                     placeholder="Décrivez le comportement de votre agent vocal..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent font-mono text-sm"
                   />
@@ -571,154 +656,136 @@ export default function AgentConfigurationPage() {
                   />
                 </div>
 
-                <div className="flex gap-3 flex-wrap">
-                  <button
-                    onClick={handleSavePrompt}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium disabled:opacity-50"
-                  >
-                    <Zap className="w-5 h-5" />
-                    {saving ? 'Activation en cours...' : 'Enregistrer et activer'}
-                  </button>
-                  <button
-                    onClick={openSimulation}
-                    disabled={!promptText.trim()}
-                    className="flex items-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                    Simuler une conversation
-                  </button>
+                {/* Historique des prompts */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    Historique des prompts
+                  </h4>
+                  {loading ? (
+                    <p className="text-gray-500 text-sm">Chargement...</p>
+                  ) : prompts.length === 0 ? (
+                    <p className="text-sm text-gray-500">Aucun prompt créé.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {[...prompts].sort((a, b) => b.is_active - a.is_active).map(p => (
+                        <div
+                          key={p.id}
+                          className={`p-3 rounded-lg border ${
+                            p.is_active
+                              ? 'border-gray-400 bg-gray-100'
+                              : 'border-gray-200 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm text-gray-900">
+                                  {p.secteur} — v{p.version}
+                                </span>
+                                {p.is_active === 1 && (
+                                  <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-900 rounded font-medium">
+                                    Actif
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 truncate mt-0.5">{p.system_prompt}</p>
+                            </div>
+                            {p.is_active !== 1 && (
+                              <button
+                                onClick={() => handleActivate(p.id)}
+                                disabled={activating === p.id}
+                                className="flex-shrink-0 px-3 py-1 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+                              >
+                                {activating === p.id ? '...' : 'Activer'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* ── Onglet Historique ── */}
-            {activeTab === 'historique' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">Historique des prompts</h3>
+            {/* ── Onglet Avancé ── */}
+            {activeTab === 'avance' && (
+              <div className="space-y-6 max-w-2xl">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Paramètres avancés</h3>
+                  <p className="text-sm text-gray-600">Configuration technique de l&apos;agent</p>
+                </div>
 
-                {loading ? (
-                  <p className="text-gray-500">Chargement...</p>
-                ) : prompts.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <Brain className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p>Aucun prompt créé pour l&apos;instant.</p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Modèle LLM
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedLLM}
+                      onChange={(e) => setSelectedLLM(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none"
+                    >
+                      {LLM_OPTIONS.map(o => (
+                        <option key={`${o.provider}|${o.model}`} value={`${o.provider}|${o.model}`}>
+                          {o.label} ({o.provider})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {[...prompts].sort((a, b) => b.is_active - a.is_active).map(p => (
-                      <div
-                        key={p.id}
-                        className={`p-4 rounded-lg border ${
-                          p.is_active
-                            ? 'border-gray-400 bg-gray-100'
-                            : 'border-gray-200 bg-white'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <span className="font-semibold text-gray-900">
-                                {p.secteur} — v{p.version}
-                              </span>
-                              <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                {p.canal}
-                              </span>
-                              {p.is_active === 1 && (
-                                <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-900 rounded font-medium">
-                                  Actif
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-600 truncate">{p.system_prompt}</p>
-                            {p.notes && (
-                              <p className="text-xs text-gray-500 mt-1">{p.notes}</p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">
-                              Créé le {new Date(p.created_at).toLocaleDateString('fr-FR')}
-                            </p>
-                          </div>
-                          {p.is_active !== 1 && (
-                            <button
-                              onClick={() => handleActivate(p.id)}
-                              disabled={activating === p.id}
-                              className="flex-shrink-0 px-3 py-1.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-                            >
-                              {activating === p.id ? '...' : 'Activer'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                  <p className="text-xs text-gray-500 mt-1">Le modèle utilisé pour générer les réponses vocales</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Numéro de téléphone
+                  </label>
+                  <input
+                    type="text"
+                    value={agentPhone}
+                    onChange={(e) => setAgentPhone(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent font-mono"
+                    readOnly
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Le numéro associé à cet agent (non modifiable)</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Type d&apos;agent
+                  </label>
+                  <div className="relative">
+                    <select
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none"
+                      defaultValue="inbound"
+                    >
+                      <option value="inbound">Entrant (réception d&apos;appels)</option>
+                      <option value="outbound">Sortant (émission d&apos;appels)</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
                   </div>
-                )}
-              </div>
-            )}
+                </div>
 
-            {/* ── Onglet Analytics ── */}
-            {activeTab === 'analytics' && (
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900">Analytics Agent</h3>
-
-                {loading || !analytics ? (
-                  <p className="text-gray-500">Chargement...</p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {/* Analytics résumé */}
+                {analytics && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Statistiques</h4>
+                    <div className="grid grid-cols-2 gap-3">
                       {[
-                        { label: 'Total appels',    value: analytics.calls.total },
-                        { label: 'Réussis',         value: analytics.calls.successful },
-                        { label: 'Taux succès',     value: `${analytics.calls.success_rate}%` },
-                        { label: 'Durée moyenne',   value: `${analytics.calls.avg_duration_seconds}s` },
+                        { label: 'Total appels', value: analytics.calls.total },
+                        { label: 'Réussis', value: analytics.calls.successful },
+                        { label: 'Taux succès', value: `${analytics.calls.success_rate}%` },
+                        { label: 'Durée moy.', value: `${analytics.calls.avg_duration_seconds}s` },
                       ].map(s => (
-                        <div key={s.label} className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-center">
-                          <p className="text-2xl font-bold text-gray-900">{s.value}</p>
-                          <p className="text-sm text-gray-600 mt-1">{s.label}</p>
+                        <div key={s.label} className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center">
+                          <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                          <p className="text-xs text-gray-600 mt-0.5">{s.label}</p>
                         </div>
                       ))}
                     </div>
-
-                    {analytics.by_canal.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-3">Par canal</h4>
-                        <div className="space-y-2">
-                          {analytics.by_canal.map(c => (
-                            <div key={c.canal} className="flex items-center gap-3">
-                              <span className="text-sm font-medium text-gray-700 w-20">{c.canal}</span>
-                              <div className="flex-1 bg-gray-100 rounded-full h-2">
-                                <div
-                                  className="bg-gray-900 h-2 rounded-full"
-                                  style={{ width: `${Math.min((c.count / (analytics.calls.total || 1)) * 100, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-sm text-gray-600 w-8">{c.count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {analytics.active_prompts.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-3">Prompts actifs</h4>
-                        <div className="space-y-2">
-                          {analytics.active_prompts.map((p, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-gray-100 border border-gray-200 rounded-lg">
-                              <div>
-                                <span className="font-medium text-gray-900">{p.secteur}</span>
-                                <span className="text-sm text-gray-500 ml-2">({p.canal}) v{p.version}</span>
-                              </div>
-                              {p.performance_score !== null && (
-                                <span className="text-sm font-medium text-gray-700">
-                                  {p.performance_score}%
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
               </div>
             )}

@@ -14,7 +14,7 @@ export default function ConversationsPage() {
 
         {/* Modules conversations */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-          <Link href="/dashboard/conversations/sara">
+          <Link href="/dashboard/conversations/appels">
             <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200 hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group active:bg-gray-50">
               <div className="flex items-center gap-3 mb-2 sm:mb-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors flex-shrink-0">

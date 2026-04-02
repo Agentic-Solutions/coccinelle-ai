@@ -8,7 +8,7 @@ export default function ConfigurationPage() {
     {
       title: 'Assistant IA',
       description: 'Configuration de votre assistant intelligent, types d\'agents et base de connaissances',
-      href: '/dashboard/sara',
+      href: '/dashboard/agents/configuration',
       icon: Bot,
       bgClass: 'bg-gray-100',
       iconClass: 'text-gray-700'

@@ -128,10 +128,10 @@ Chaque node action affiche l'outil connecté (ex: `check_availability + book_app
 Source : `src/components/SequenceEditor.tsx` → `NODE_PALETTE` + `NODE_TYPES`.
 Accessible via : `/dashboard/agents/nodes` (importe `SequenceEditor` depuis `@/components/SequenceEditor`).
 
-## SITEMAP DÉFINITIF (refonte Fonio 02/04/2026)
+## SITEMAP DÉFINITIF (refonte Fonio 02/04/2026, MàJ sitemap 02/04/2026)
 
 Composant sidebar : `components/DashboardSidebar.tsx`
-**Style Fonio — sidebar classique, 5 groupes avec accordéons :**
+**Style Fonio — sidebar classique, 6 groupes avec accordéons :**
 - w-[260px] collapsible → w-[68px], transition 300ms
 - bg-white, border-r border-gray-200
 - Palette : blanc/noir/gris uniquement (brand-600 → gray-900)
@@ -174,18 +174,20 @@ Principal
   ├─ Dashboard /dashboard
   ├─ Appels /analytics/calls
   └─ Contacts /crm/prospects
-Téléphonie
-  ├─ Numéros /channels/phone
+Communication
+  ├─ Numéros /channels/numbers
   ├─ Agents IA /agents/configuration
   ├─ SMS /channels/sms
   ├─ WhatsApp /channels/whatsapp
   ├─ Email /channels/email
-  ├─ Messagerie vocale /channels/voicemail
-  └─ Rendez-vous /appointments
-Connaissances
+  └─ Messagerie vocale /channels/voicemail
+Intelligence
   ├─ Base de connaissances /knowledge
   ├─ FAQ /knowledge/faq
   └─ Produits & Services /knowledge/products
+Agenda
+  ├─ Rendez-vous /appointments
+  └─ Disponibilités /availability
 Configuration
   ├─ Scripts /agents/scripts
   ├─ Séquences /agents/nodes
@@ -201,9 +203,21 @@ Déconnexion
 ```
 
 **Pages placeholder (02/04/2026) :**
+- `/dashboard/channels/numbers` — Gestion des numéros de téléphone
 - `/dashboard/channels/voicemail` — Messagerie vocale (prochainement)
 - `/dashboard/channels/ivr` — IVR / SVI (prochainement)
 - `/dashboard/channels/queues` — Files d'attente (prochainement)
+
+**Config Agent** `app/dashboard/agents/configuration/page.tsx` :
+- 4 onglets : Identité / Voix / Comportement / Avancé
+- Identité : prénom agent, entreprise, secteur, description
+- Voix : sélecteur ElevenLabs avec preview audio, filtre genre
+- Comportement : tonalité (pro/amical/formel), transfert humain, prompt système, historique
+- Avancé : modèle LLM, numéro de téléphone, type agent, statistiques
+
+**Contacts** `app/dashboard/crm/prospects/page.tsx` :
+- Renommé "Prospects" → "Contacts" dans toute l'interface
+- source: 'sara' → 'assistant' dans les données mock et dropdown
 
 **Redirections actives :**
 - `/dashboard/voixia` → `/dashboard/agents/configuration`

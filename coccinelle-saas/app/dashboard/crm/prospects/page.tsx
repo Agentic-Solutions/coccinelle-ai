@@ -155,7 +155,7 @@ export default function ProspectsPage() {
           totalOrders: 0,
           totalSpent: { amount: 0, currency: 'EUR' },
           createdAt: new Date('2025-11-15'),
-          source: 'sara',
+          source: 'assistant',
           status: 'new',
         },
         {
@@ -170,7 +170,7 @@ export default function ProspectsPage() {
           totalOrders: 0,
           totalSpent: { amount: 0, currency: 'EUR' },
           createdAt: new Date('2025-12-01'),
-          source: 'sara',
+          source: 'assistant',
           status: 'contacted',
         },
       ];
@@ -295,7 +295,7 @@ export default function ProspectsPage() {
       if (res.ok) {
         setShowAddModal(false);
         setNewProspect({ firstName: '', lastName: '', email: '', phone: '', source: 'manual' });
-        toast.success('Prospect ajouté avec succès');
+        toast.success('Contact ajouté avec succès');
         loadProspects();
       } else {
         // Fallback: add locally
@@ -427,7 +427,7 @@ export default function ProspectsPage() {
       computeStats(allProspects);
       setShowImportModal(false);
       setImportFile(null);
-      toast.success(`${importedProspects.length} prospect(s) importés avec succès`);
+      toast.success(`${importedProspects.length} contact(s) importé(s) avec succès`);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error('Erreur import:', err);
@@ -443,7 +443,7 @@ export default function ProspectsPage() {
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-              <p className="text-gray-600">Chargement des prospects...</p>
+              <p className="text-gray-600">Chargement des contacts...</p>
             </div>
           </div>
         </div>
@@ -468,8 +468,8 @@ export default function ProspectsPage() {
               <Logo size={48} />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Prospects</h1>
-              <p className="text-xs sm:text-sm text-gray-600">Gérez votre pipeline commercial</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Contacts</h1>
+              <p className="text-xs sm:text-sm text-gray-600">Gérez vos contacts</p>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto">
@@ -517,7 +517,7 @@ export default function ProspectsPage() {
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total prospects</p>
+                <p className="text-sm text-gray-600">Total contacts</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
               </div>
               <div className="p-3 bg-gray-100 rounded-lg">
@@ -604,7 +604,7 @@ export default function ProspectsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prospect</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Segment</th>
@@ -619,8 +619,8 @@ export default function ProspectsPage() {
                 <tr>
                   <td colSpan={8} className="px-6 py-16 text-center">
                     <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 font-medium">Aucun prospect trouvé</p>
-                    <p className="text-sm text-gray-400 mt-1">Ajoutez un nouveau prospect ou modifiez vos filtres</p>
+                    <p className="text-gray-500 font-medium">Aucun contact trouvé</p>
+                    <p className="text-sm text-gray-400 mt-1">Ajoutez un nouveau contact ou modifiez vos filtres</p>
                   </td>
                 </tr>
               ) : (
@@ -698,7 +698,7 @@ export default function ProspectsPage() {
         {/* Footer */}
         <div className="mt-4 flex items-center justify-between">
           <div className="text-sm text-gray-600">
-            {filteredProspects.length} prospect(s) affiché(s)
+            {filteredProspects.length} contact(s) affiché(s)
           </div>
         </div>
       </div>
@@ -708,7 +708,7 @@ export default function ProspectsPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-900">Nouveau prospect</h3>
+              <h3 className="text-xl font-bold text-gray-900">Nouveau contact</h3>
               <button
                 onClick={() => setShowAddModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -766,7 +766,7 @@ export default function ProspectsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 >
                   <option value="manual">Saisie manuelle</option>
-                  <option value="sara">Assistant vocal</option>
+                  <option value="assistant">Assistant vocal</option>
                   <option value="website">Site web</option>
                   <option value="appel">Appel téléphonique</option>
                   <option value="recommandation">Recommandation</option>
@@ -809,7 +809,7 @@ export default function ProspectsPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <Upload className="w-6 h-6 text-gray-700" />
-                Importer des prospects
+                Importer des contacts
               </h3>
               <button
                 onClick={() => {

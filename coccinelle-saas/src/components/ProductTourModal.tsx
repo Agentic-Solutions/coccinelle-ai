@@ -1583,7 +1583,7 @@ const tourScreens: TourScreen[] = [
   },
   {
     title: 'Tableau de bord analytique',
-    url: '/dashboard/sara-analytics',
+    url: '/dashboard/analytics',
     sidebarIndex: 9,
     value:
       'Un r\u00e9capitulatif est envoy\u00e9 par email chaque lundi. Tableaux de bord, tendances et export CSV en un clic.',
