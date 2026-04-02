@@ -44,6 +44,8 @@ import { handleVoixIARoutes } from './modules/voixia/routes.js';
 import { handleAIRoutes } from './modules/voixia/ai-prompts.js';
 // VoixIA Orchestrateur Omnicanal (voice, sms, email, whatsapp)
 import { handleOrchestrateRoutes } from './modules/voixia/orchestrator.js';
+// Module Omnicanal — regles automatiques et sequences
+import { handleOmnicanalRoutes } from './modules/omnicanal/routes.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -315,6 +317,17 @@ export default {
             statusText: response.statusText,
             headers
           });
+        }
+      }
+
+      // Module Omnicanal (regles automatiques)
+      if (path.startsWith('/api/v1/omnicanal/')) {
+        response = await handleOmnicanalRoutes(request, env, path, method);
+        if (response) {
+          const corsHeaders = getCorsHeaders(request);
+          const headers = new Headers(response.headers);
+          Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
+          return new Response(response.body, { status: response.status, headers });
         }
       }
 

@@ -473,6 +473,43 @@ POST /api/v1/email/mark-read  → marquer lu
 3. Test d'envoi (input + bouton → POST /email/test)
 4. Historique (tableau 20 derniers → GET /email/logs)
 
+## ORCHESTRATEUR OMNICANAL (cree 02/04/2026)
+
+| Element | Detail |
+|---------|--------|
+| Fichier backend | `src/modules/omnicanal/orchestrator.js` |
+| Routes API | `src/modules/omnicanal/routes.js` |
+| Fonctions export | `handleOmniEvent`, `onCallEnded`, `onSmsReceived`, `onWhatsAppReceived` |
+| Tables DB | `omni_rules`, `omni_rule_executions` |
+| Routes | `/api/v1/omnicanal/*` |
+
+**5 scenarios pre-configures :**
+1. Appel → SMS confirmation (delay 30s)
+2. Appel → Email recapitulatif (delay 60s)
+3. SMS recu → Reponse IA (Claude Haiku)
+4. WhatsApp recu → Creer prospect CRM
+5. Appel → Creer prospect CRM
+
+**Routes :**
+```
+GET    /api/v1/omnicanal/rules        → lister les regles du tenant
+POST   /api/v1/omnicanal/rules        → creer une regle
+PUT    /api/v1/omnicanal/rules/:id    → modifier (activer/desactiver/editer)
+DELETE /api/v1/omnicanal/rules/:id    → supprimer
+GET    /api/v1/omnicanal/executions   → 50 derniers logs
+POST   /api/v1/omnicanal/test         → simuler un evenement
+```
+
+**Page frontend :** `app/dashboard/agents/nodes/page.tsx` — 3 onglets :
+1. Regles automatiques (5 scenarios + liste regles + creation)
+2. Editeur de sequences (SequenceEditor existant)
+3. Historique des executions
+
+**Connexion evenements :**
+- VoixIA fin d'appel → `onCallEnded()` (a connecter dans agent Python)
+- Webhook Twilio SMS → `onSmsReceived()` (a connecter)
+- Webhook Meta WhatsApp → `onWhatsAppReceived()` (a connecter)
+
 ## FICHIERS INTERDITS À MODIFIER SANS OK DE YOUSSEF
 
 - `wrangler.toml`
