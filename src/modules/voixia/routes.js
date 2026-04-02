@@ -644,11 +644,14 @@ async function handleSearchKnowledge(request, env) {
       const textResults = await env.DB.prepare(`
         SELECT
           kc.content, kc.chunk_index,
-          kd.title, kd.source_type, kd.source_url
+          kd.title, kd.source_type, kd.source_url,
+          CASE WHEN kd.source_type = 'text' THEN 0 ELSE 1 END as priority
         FROM knowledge_chunks kc
         LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
         WHERE kd.tenant_id = ?
           AND kc.content LIKE ?
+          AND kd.is_active = 1
+        ORDER BY priority ASC, kd.created_at DESC
         LIMIT ?
       `).bind(tenant_id, `%${question}%`, topK).all();
 
@@ -669,11 +672,13 @@ async function handleSearchKnowledge(request, env) {
     if (results.length === 0) {
       try {
         const docResults = await env.DB.prepare(`
-          SELECT title, content, source_url, source_type
+          SELECT title, content, source_url, source_type,
+            CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
           FROM knowledge_documents
           WHERE tenant_id = ?
             AND is_active = 1
             AND (title LIKE ? OR content LIKE ?)
+          ORDER BY priority ASC, created_at DESC
           LIMIT ?
         `).bind(tenant_id, `%${question}%`, `%${question}%`, topK).all();
 
@@ -933,23 +938,27 @@ async function handleSearchKnowledgeGET(request, env) {
 
   if (!query) return errorResponse('Paramètre query requis', 400);
 
-  // Réutiliser la logique de recherche textuelle (sans embedding pour GET)
+  // Recherche avec priorite source_type='text' avant 'crawl'
   let results = [];
 
+  // 1. Chercher dans knowledge_chunks avec priorite text
   try {
-    const textResults = await env.DB.prepare(`
+    const chunkResults = await env.DB.prepare(`
       SELECT
         kc.content, kc.chunk_index,
-        kd.title, kd.source_type, kd.source_url
+        kd.title, kd.source_type, kd.source_url,
+        CASE WHEN kd.source_type = 'text' THEN 0 ELSE 1 END as priority
       FROM knowledge_chunks kc
       LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
       WHERE kd.tenant_id = ?
         AND kc.content LIKE ?
+        AND kd.is_active = 1
+      ORDER BY priority ASC, kd.created_at DESC
       LIMIT 5
     `).bind(tenant_id, `%${query}%`).all();
 
-    if (textResults.results?.length > 0) {
-      results = textResults.results.map(chunk => ({
+    if (chunkResults.results?.length > 0) {
+      results = chunkResults.results.map(chunk => ({
         content: chunk.content,
         source_title: chunk.title,
         source_type: chunk.source_type,
@@ -957,18 +966,20 @@ async function handleSearchKnowledgeGET(request, env) {
       }));
     }
   } catch (error) {
-    logger.error('VoixIA — erreur recherche knowledge GET', { error: error.message });
+    logger.error('VoixIA — erreur recherche knowledge GET chunks', { error: error.message });
   }
 
-  // Fallback knowledge_documents directement (pas de chunks)
+  // 2. Fallback knowledge_documents directement (priorite text)
   if (results.length === 0) {
     try {
       const docResults = await env.DB.prepare(`
-        SELECT title, content, source_url, source_type
+        SELECT title, content, source_url, source_type,
+          CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
         FROM knowledge_documents
         WHERE tenant_id = ?
           AND is_active = 1
           AND (title LIKE ? OR content LIKE ?)
+        ORDER BY priority ASC, created_at DESC
         LIMIT 5
       `).bind(tenant_id, `%${query}%`, `%${query}%`).all();
 
@@ -985,7 +996,7 @@ async function handleSearchKnowledgeGET(request, env) {
     }
   }
 
-  // Fallback FAQ
+  // 3. Fallback FAQ
   if (results.length === 0) {
     try {
       const faqResults = await env.DB.prepare(`
@@ -1008,10 +1019,15 @@ async function handleSearchKnowledgeGET(request, env) {
     }
   }
 
+  // Selectionner la meilleure answer : source_type='text' en priorite, tronquee a 500 chars
+  const textResults = results.filter(r => r.source_type === 'text');
+  const bestResult = textResults.length > 0 ? textResults[0] : results[0];
+  const answer = bestResult?.content?.substring(0, 500) || null;
+
   return successResponse({
     results,
     count: results.length,
-    answer: results.length > 0 ? results[0].content : null,
+    answer,
     message: results.length > 0
       ? `${results.length} résultat(s) trouvé(s)`
       : 'Aucun résultat trouvé dans la base de connaissances'
