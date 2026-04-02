@@ -128,58 +128,65 @@ Chaque node action affiche l'outil connecté (ex: `check_availability + book_app
 Source : `src/components/SequenceEditor.tsx` → `NODE_PALETTE` + `NODE_TYPES`.
 Accessible via : `/dashboard/agents/nodes` (importe `SequenceEditor` depuis `@/components/SequenceEditor`).
 
-## SITEMAP DÉFINITIF (refonte 01/04/2026)
-
-Principe sémantique :
-- **Connaissances** = Ce que l'agent SAIT
-- **Canaux** = Toutes les INTERACTIONS (y compris RDV)
-- **Agents** = Ce que l'agent DIT et FAIT (y compris test vocal)
-- **Analytics** = Ce que l'agent a ACCOMPLI (transcripts, export)
+## SITEMAP DÉFINITIF (refonte Fonio 02/04/2026)
 
 Composant sidebar : `components/DashboardSidebar.tsx`
-**Pattern 2 niveaux (style Linear/Notion) :**
-- Niveau 1 : barre icônes fixe (48px, `bg-gray-50`) — toujours visible
-- Niveau 2 : panneau contextuel (180px, `bg-white`) — s'ouvre pour les 4 modules
-- Total ouvert : 228px, fermé : 48px
-- Layout `lg:ml-12` (48px) dans `app/dashboard/layout.tsx`
-- Mobile : sidebar classique pleine largeur (72px) avec sous-menus always-visible
-- Icône active/ouverte : `bg-gray-900 text-white` (rond)
-- Item niveau 2 actif : `font-semibold border-l-2 border-gray-900 bg-gray-50`
-- Animation slide-in 150ms ease-out
+**Style Fonio — sidebar classique, 5 groupes :**
+- w-[260px] collapsible → w-[68px], transition 300ms
+- bg-white, border-r border-gray-200
+- Palette : blanc/noir/gris uniquement (brand-600 → gray-900)
+- Item actif : bg-gray-100 text-gray-900 font-medium
+- Icône active : text-gray-900, inactive : text-gray-400
+- Labels groupes : text-xs font-semibold text-gray-400 uppercase
+- Bouton "Nouvel appel" : bg-gray-900 text-white
+- Logo : CoccinelleIcon 18px blanc sur fond gray-900 rounded-lg
+- Bas : Paramètres + Déconnexion
+- Mobile : overlay + sidebar 260px
+
+**Topbar** dans `app/dashboard/layout.tsx` :
+- h-14, border-b, bg-white
+- Recherche (input gray-50) + NotificationBell + avatar
+
+**Dashboard** `app/dashboard/page.tsx` :
+- Métriques mock Nubbo : 47 appels, 28 entrants, 3m42s durée, 94% taux
+- Appels récents mock : 5 appels avec avatars initiales
+- Palette : blanc/noir/gris + exceptions vert/rouge pour variations
 
 ```
-Dashboard /dashboard
-───────────────────────────────────
-Connaissances /knowledge — Ce que l'agent sait
-  ├─ Base de connaissances /knowledge
-  ├─ FAQ /knowledge/faq
-  ├─ Produits & Services /knowledge/products
-  └─ Documents /knowledge/docs
-Canaux /channels — Toutes les interactions
-  ├─ Téléphone /channels/phone
+Principal
+  ├─ Dashboard /dashboard
+  ├─ Appels /analytics/calls
+  └─ Contacts /crm/prospects
+Téléphonie
+  ├─ Numéros /channels/phone
+  ├─ Agents IA /agents/configuration
   ├─ SMS /channels/sms
   ├─ WhatsApp /channels/whatsapp
   ├─ Email /channels/email
+  ├─ Messagerie vocale /channels/voicemail
   └─ Rendez-vous /appointments
-Agents /agents — Ce que l'agent dit et fait
-  ├─ Configuration /agents/configuration
+Connaissances
+  ├─ Base de connaissances /knowledge
+  ├─ FAQ /knowledge/faq
+  └─ Produits & Services /knowledge/products
+Configuration
   ├─ Scripts /agents/scripts
   ├─ Séquences /agents/nodes
-  └─ Test vocal /agents/test
-Analytics /analytics — Ce que l'agent a accompli
-  ├─ KPIs /analytics
+  ├─ IVR / SVI /channels/ivr
+  └─ Files d'attente /channels/queues
+Rapports
+  ├─ Analytics /analytics
   ├─ Transcripts /analytics/transcripts
-  ├─ Performances /analytics/performance
   └─ Export /analytics/export
 ───────────────────────────────────
-Prospects /crm/prospects
-Clients /customers
-Conversations /conversations
-───────────────────────────────────
-Équipes /teams
-Facturation /billing
 Paramètres /settings
+Déconnexion
 ```
+
+**Pages placeholder (02/04/2026) :**
+- `/dashboard/channels/voicemail` — Messagerie vocale (prochainement)
+- `/dashboard/channels/ivr` — IVR / SVI (prochainement)
+- `/dashboard/channels/queues` — Files d'attente (prochainement)
 
 **Redirections actives :**
 - `/dashboard/voixia` → `/dashboard/agents/configuration`
@@ -188,6 +195,8 @@ Paramètres /settings
 - `/dashboard/sara-analytics` → `/dashboard/analytics`
 - `/dashboard/products` → `/dashboard/knowledge/products`
 - `/dashboard/prospects` → `/dashboard/crm/prospects`
+
+**R01 respecté :** build webpack (pas turbopack) depuis 02/04/2026
 
 **Sauvegarde pré-refonte :** `dashboard_backup_20260331_180501` (racine projet, hors build)
 

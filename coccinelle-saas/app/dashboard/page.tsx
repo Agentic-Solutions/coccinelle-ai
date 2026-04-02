@@ -1,431 +1,150 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
-  Phone, FileText, Calendar, Activity,
-  Users, Zap, ArrowUpRight, Clock
+  Phone, PhoneIncoming, Clock, TrendingUp,
+  PhoneOutgoing, PhoneMissed, ArrowUp, ArrowDown
 } from 'lucide-react';
-import Link from 'next/link';
-import SmartAlerts from '../../src/components/dashboard/SmartAlerts';
-import NotificationCenter from '../../src/components/dashboard/NotificationCenter';
-import { ToastContainer } from '../../src/components/dashboard/ToastNotification';
-import GettingStartedChecklist from '../../src/components/dashboard/GettingStartedChecklist';
-import TrialBanner from '../../src/components/dashboard/TrialBanner';
-import SetupChecklist from '../../src/components/dashboard/SetupChecklist';
-import { useLiveUpdates } from '../../hooks/useLiveUpdates';
-import { LiveNotification } from '../../lib/live-updates';
-import { isDemoMode, mockCalls, mockAppointments, mockDocuments } from '../../lib/mockData';
-import { getTenantStorageKey } from '../../lib/config';
+
+// ── Données mock pour démo Nubbo ─────────────────────
+
+const metrics = [
+  { label: "Appels aujourd'hui", value: '47', change: +12, icon: Phone },
+  { label: 'Appels entrants', value: '28', change: +8, icon: PhoneIncoming },
+  { label: 'Durée moyenne', value: '3m 42s', change: +5, icon: Clock },
+  { label: 'Taux de réponse', value: '94%', change: -2, icon: TrendingUp },
+];
+
+const recentCalls = [
+  { name: 'Marie Martin', phone: '+33 6 12 34 56 78', duration: '4m 23s', ago: 'il y a 5 min', type: 'inbound' as const },
+  { name: 'Pierre Durand', phone: '+33 1 23 45 67 89', duration: '12m 05s', ago: 'il y a 15 min', type: 'outbound' as const },
+  { name: 'Inconnu', phone: '+33 7 89 01 23 45', duration: '-', ago: 'il y a 23 min', type: 'missed' as const },
+  { name: 'Lucas Bernard', phone: '+33 6 45 67 89 01', duration: '2m 45s', ago: 'il y a 30 min', type: 'inbound' as const },
+  { name: 'Sophie Petit', phone: '+33 6 78 90 12 34', duration: '0m 52s', ago: 'il y a 45 min', type: 'outbound' as const },
+];
+
+// ── Helpers ───────────────────────────────────────────
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function getCallIcon(type: 'inbound' | 'outbound' | 'missed') {
+  switch (type) {
+    case 'inbound':
+      return <PhoneIncoming className="w-4 h-4 text-gray-500" />;
+    case 'outbound':
+      return <PhoneOutgoing className="w-4 h-4 text-gray-500" />;
+    case 'missed':
+      return <PhoneMissed className="w-4 h-4 text-red-500" />;
+  }
+}
+
+function getCallLabel(type: 'inbound' | 'outbound' | 'missed'): string {
+  switch (type) {
+    case 'inbound': return 'Entrant';
+    case 'outbound': return 'Sortant';
+    case 'missed': return 'Manqué';
+  }
+}
+
+// ── Composant ────────────────────────────────────────
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [stats, setStats] = useState({
-    appels: 0,
-    documents: 0,
-    rdv: 0,
-    clients: 0
-  });
-  const [calls, setCalls] = useState<any[]>([]);
-  const [appointments, setAppointments] = useState<any[]>([]);
-  const [documents, setDocuments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [toastNotifications, setToastNotifications] = useState<LiveNotification[]>([]);
-  const [showGettingStarted, setShowGettingStarted] = useState(false);
-  const [trialInfo, setTrialInfo] = useState({
-    trialEndsAt: null as string | null,
-    trialActive: false,
-    trialDaysRemaining: 0
-  });
-
-  // Live updates
-  const liveUpdates = useLiveUpdates(
-    {
-      totalAppointments: stats.rdv,
-      totalCalls: stats.appels,
-      totalDocuments: stats.documents,
-      recentBookings: 0,
-      pendingAppointments: 0,
-      lastUpdate: new Date()
-    },
-    {
-      enabled: !loading,
-      interval: 5000,
-      onNewNotification: (notification) => {
-        setToastNotifications(prev => [...prev, notification]);
-        setTimeout(() => {
-          setToastNotifications(prev => prev.filter(n => n.id !== notification.id));
-        }, 5000);
-      }
-    }
-  );
-
-  useEffect(() => {
-    loadStats();
-
-    // Vérifier si la checklist doit être affichée
-    const checklistDismissed = localStorage.getItem('getting_started_dismissed') === 'true';
-    setShowGettingStarted(!checklistDismissed);
-
-    // Charger les infos trial depuis /auth/me
-    const loadTrialInfo = async () => {
-      try {
-        const token = localStorage.getItem('auth_token');
-        if (!token || isDemoMode()) return;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.tenant) {
-            setTrialInfo({
-              trialEndsAt: data.tenant.trial_ends_at,
-              trialActive: data.tenant.trial_active,
-              trialDaysRemaining: data.tenant.trial_days_remaining
-            });
-          }
-        }
-      } catch (e) {
-        console.error('Error loading trial info:', e);
-      }
-    };
-    loadTrialInfo();
-  }, []);
-
-  const loadStats = async () => {
-    try {
-      if (isDemoMode()) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const kbDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
-        const docsToUse = kbDocs.length > 0 ? kbDocs : mockDocuments;
-
-        setCalls(mockCalls);
-        setAppointments(mockAppointments);
-        setDocuments(docsToUse);
-        setStats({
-          appels: mockCalls.length,
-          documents: docsToUse.length,
-          rdv: mockAppointments.length,
-          clients: 0
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Mode production - fetch API
-      const authToken = localStorage.getItem('auth_token');
-      const authHeaders = authToken
-        ? { 'Authorization': `Bearer ${authToken}` }
-        : { 'x-api-key': 'demo-key-12345' };
-
-      const vapiRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/vapi/calls`, {
-        headers: authHeaders
-      });
-      const vapiData = await vapiRes.json();
-      setCalls(vapiData.calls || []);
-
-      const kbRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/knowledge/documents`, {
-        headers: authHeaders
-      });
-      const kbData = await kbRes.json();
-      setDocuments(kbData.documents || []);
-
-      const rdvRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/appointments`, {
-        headers: authHeaders
-      });
-      const rdvData = await rdvRes.json();
-      setAppointments(rdvData.appointments || []);
-
-      // Charger le nombre de clients
-      let clientsCount = 0;
-      try {
-        const clientsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/customers`, {
-          headers: authHeaders
-        });
-        const clientsData = await clientsRes.json();
-        clientsCount = clientsData.customers?.length || 0;
-      } catch {
-        // Pas de données clients disponibles
-      }
-
-      setStats({
-        appels: vapiData.calls?.length || 0,
-        documents: kbData.documents?.length || 0,
-        rdv: rdvData.appointments?.length || 0,
-        clients: clientsCount
-      });
-    } catch (error) {
-      console.error('Erreur chargement stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  // Mettre à jour les stats depuis live updates
-  useEffect(() => {
-    if (liveUpdates.stats) {
-      setStats(prev => ({
-        ...prev,
-        appels: liveUpdates.stats.totalCalls,
-        documents: liveUpdates.stats.totalDocuments,
-        rdv: liveUpdates.stats.totalAppointments
-      }));
-    }
-  }, [liveUpdates.stats]);
-
-  // Activités récentes (derniers appels + rendez-vous)
-  const recentActivities = [
-    ...calls.slice(0, 3).map(call => ({
-      type: 'call',
-      title: `Appel ${call.status === 'completed' ? 'terminé' : 'en cours'}`,
-      description: call.customer_name || 'Client inconnu',
-      time: new Date(call.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date(call.created_at),
-      icon: Phone,
-      status: call.status
-    })),
-    ...appointments.slice(0, 2).map(apt => ({
-      type: 'appointment',
-      title: 'Rendez-vous confirmé',
-      description: apt.customer_name || 'Client',
-      time: new Date(apt.appointment_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date(apt.appointment_date),
-      icon: Calendar,
-      status: 'confirmed'
-    }))
-  ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
-
-  // Quick wins dynamiques basés sur les données réelles
-  const quickWins = [
-    ...(stats.rdv > 0 ? [{
-      title: `${stats.rdv} rendez-vous`,
-      action: 'Voir',
-      icon: Calendar,
-      href: '/dashboard/rdv'
-    }] : []),
-    ...(stats.appels > 0 ? [{
-      title: `${stats.appels} appel${stats.appels > 1 ? 's' : ''}`,
-      action: 'Écouter',
-      icon: Phone,
-      href: '/dashboard/conversations/appels'
-    }] : []),
-    ...(stats.documents > 0 ? [{
-      title: `${stats.documents} document${stats.documents > 1 ? 's' : ''}`,
-      action: 'Gérer',
-      icon: FileText,
-      href: '/dashboard/knowledge'
-    }] : []),
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Toast Notifications */}
-      <ToastContainer
-        notifications={toastNotifications}
-        onClose={(id) => setToastNotifications(prev => prev.filter(n => n.id !== id))}
-      />
+    <div className="p-6 space-y-6">
+      {/* Titre */}
+      <div className="pl-10 lg:pl-0">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activité</p>
+      </div>
 
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-            <div className="pl-12 lg:pl-0">
-              <h2 className="text-xl sm:text-2xl font-bold">Tableau de bord</h2>
-              <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                Bienvenue sur votre assistant omnicanal
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <NotificationCenter
-                notifications={liveUpdates.notifications}
-                unreadCount={liveUpdates.unreadCount}
-                onMarkAsRead={liveUpdates.markAsRead}
-                onMarkAllAsRead={liveUpdates.markAllAsRead}
-                onDelete={liveUpdates.deleteNotification}
-                onClearRead={liveUpdates.clearRead}
-              />
-            </div>
-          </div>
-        </header>
-
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8">
-          {/* Trial Banner */}
-          <TrialBanner
-            trialEndsAt={trialInfo.trialEndsAt}
-            trialActive={trialInfo.trialActive}
-            trialDaysRemaining={trialInfo.trialDaysRemaining}
-          />
-
-          {/* Setup Checklist (fetches from API) */}
-          <SetupChecklist />
-
-          {/* Métriques clés - 4 cards avec micro-trends */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-            <Link href="/dashboard/conversations/appels">
-              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
-                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.appels}</p>
-                <p className="text-xs sm:text-sm text-gray-600">Appels Assistant</p>
+      {/* Métriques */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
+          const isPositive = metric.change >= 0;
+          return (
+            <div
+              key={metric.label}
+              className="bg-white border border-gray-200 rounded-xl p-5"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm text-gray-500">{metric.label}</p>
+                <Icon className="w-5 h-5 text-gray-400" />
               </div>
-            </Link>
-
-            <Link href="/dashboard/knowledge">
-              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
-                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.documents}</p>
-                <p className="text-xs sm:text-sm text-gray-600">Documents KB</p>
-              </div>
-            </Link>
-
-            <Link href="/dashboard/rdv">
-              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
-                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.rdv}</p>
-                <p className="text-xs sm:text-sm text-gray-600">Rendez-vous</p>
-              </div>
-            </Link>
-
-            <Link href="/dashboard/crm">
-              <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
-                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.clients}</p>
-                <p className="text-xs sm:text-sm text-gray-600">Clients actifs</p>
-              </div>
-            </Link>
-          </div>
-
-          {/* Section 2 colonnes: Activité + Quick Wins */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-            {/* Activité récente - 2/3 avec timeline verticale */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-gray-600" />
-                    Activité récente
-                  </h3>
-                  <Link href="/dashboard/analytics" className="text-sm text-gray-600 hover:text-gray-900 font-medium flex items-center gap-1">
-                    Tout voir
-                    <ArrowUpRight className="w-4 h-4" />
-                  </Link>
-                </div>
-
-                {/* Timeline verticale */}
-                <div className="space-y-0">
-                  {recentActivities.length > 0 ? (
-                    recentActivities.map((activity, index) => {
-                      const Icon = activity.icon;
-                      const isLast = index === recentActivities.length - 1;
-
-                      return (
-                        <div key={index} className="flex items-start gap-4 pb-4 relative">
-                          {/* Timeline line */}
-                          {!isLast && (
-                            <div className="absolute left-5 top-12 bottom-0 w-px bg-gray-200" />
-                          )}
-
-                          {/* Icon */}
-                          <div className="w-10 h-10 rounded-lg flex items-center justify-center relative z-10 bg-gray-100 border-2 border-gray-200">
-                            <Icon className="w-5 h-5 text-gray-600" />
-                          </div>
-
-                          {/* Content */}
-                          <div className="flex-1 pt-1">
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <p className="font-semibold text-gray-900">{activity.title}</p>
-                                <p className="text-sm text-gray-600 mt-0.5">{activity.description}</p>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap">
-                                <Clock className="w-3.5 h-3.5" />
-                                {activity.time}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-12 text-gray-500">
-                      <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                      <p className="font-medium">Aucune activité récente</p>
-                      <p className="text-sm mt-1">Les événements apparaîtront ici</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Wins & Alerts - 1/3 */}
-            <div className="space-y-4">
-              {/* Quick Wins - Actions prioritaires */}
-              <div className="bg-white rounded-xl p-5 border border-gray-200">
-                <div className="flex items-center gap-2 mb-4">
-                  <Zap className="w-5 h-5 text-gray-600" />
-                  <h3 className="font-bold text-gray-900">Résumé</h3>
-                </div>
-                {quickWins.length > 0 ? (
-                  <div className="space-y-2">
-                    {quickWins.map((win, index) => (
-                      <Link key={index} href={win.href}>
-                        <div className="bg-gray-50 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer group border border-gray-200">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <win.icon className="w-4 h-4 text-gray-700" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-gray-900 truncate">{win.title}</p>
-                              <p className="text-xs text-gray-600">{win.action}</p>
-                            </div>
-                            <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-gray-900 transition-colors flex-shrink-0" />
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+              <p className="text-3xl font-bold text-gray-900">{metric.value}</p>
+              <div className="flex items-center gap-1 mt-2">
+                {isPositive ? (
+                  <ArrowUp className="w-3.5 h-3.5 text-green-600" />
                 ) : (
-                  <div className="text-center py-4 text-gray-500">
-                    <p className="text-sm font-medium">Aucune donnée pour le moment</p>
-                    <p className="text-xs mt-1">Les insights apparaîtront après vos premiers appels</p>
-                  </div>
+                  <ArrowDown className="w-3.5 h-3.5 text-red-500" />
                 )}
+                <span className={`text-sm font-medium ${
+                  isPositive ? 'text-green-600' : 'text-red-500'
+                }`}>
+                  {isPositive ? '+' : ''}{metric.change}%
+                </span>
+                <span className="text-sm text-gray-400 ml-1">vs hier</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Appels récents */}
+      <div className="bg-white border border-gray-200 rounded-xl">
+        <div className="px-5 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Appels récents</h2>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {recentCalls.map((call, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+            >
+              {/* Avatar initiales */}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 ${
+                call.type === 'missed'
+                  ? 'bg-red-50 text-red-600'
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                {getInitials(call.name)}
               </div>
 
-              {/* Getting Started Checklist */}
-              {showGettingStarted && (
-                <GettingStartedChecklist
-                  documentsCount={stats.documents}
-                  callsCount={stats.appels}
-                  appointmentsCount={stats.rdv}
-                  onDismiss={() => {
-                    setShowGettingStarted(false);
-                    localStorage.setItem('getting_started_dismissed', 'true');
-                  }}
-                />
-              )}
+              {/* Nom et numéro */}
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium truncate ${
+                  call.type === 'missed' ? 'text-red-600' : 'text-gray-900'
+                }`}>
+                  {call.name}
+                </p>
+                <p className="text-xs text-gray-500 truncate">{call.phone}</p>
+              </div>
 
-              {/* Smart Alerts */}
-              <SmartAlerts calls={calls} appointments={appointments} documents={documents} />
+              {/* Type d'appel */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {getCallIcon(call.type)}
+                <span className="text-xs text-gray-500 hidden sm:inline">
+                  {getCallLabel(call.type)}
+                </span>
+              </div>
+
+              {/* Durée */}
+              <div className="text-sm text-gray-600 w-16 text-right flex-shrink-0">
+                {call.duration}
+              </div>
+
+              {/* Temps relatif */}
+              <div className="text-xs text-gray-400 w-24 text-right flex-shrink-0 hidden sm:block">
+                {call.ago}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>

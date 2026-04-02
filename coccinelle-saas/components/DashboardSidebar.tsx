@@ -2,350 +2,241 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, Users, Settings2, Menu, X,
-  BarChart2, BookOpen, Radio, Bot
+  LayoutDashboard, Phone, Users, Hash, Bot,
+  MessageSquare, MessageCircle, Mail, Voicemail,
+  Calendar, BookOpen, HelpCircle, Package,
+  FileText, GitBranch, ListTree, Users2,
+  BarChart3, ScrollText, Download,
+  Settings, LogOut, Menu, X, PhoneCall,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import CoccinelleIcon from '@/components/CoccinelleIcon';
 
-// ── Data ──────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────
 
-interface NavChild {
-  label: string;
+interface NavItem {
+  name: string;
   href: string;
-}
-
-interface NavModule {
-  type: 'module';
-  id: string;
   icon: typeof LayoutDashboard;
+}
+
+interface NavGroup {
   label: string;
-  description: string;
-  children: NavChild[];
+  items: NavItem[];
 }
 
-interface NavDirectLink {
-  type: 'direct';
-  icon: typeof LayoutDashboard;
-  label: string;
-  href: string;
-}
+// ── Navigation ───────────────────────────────────────
 
-interface NavSeparator {
-  type: 'separator';
-}
-
-type NavEntry = NavModule | NavDirectLink | NavSeparator;
-
-const MODULES: NavModule[] = [
+const navigation: NavGroup[] = [
   {
-    type: 'module', id: 'knowledge', icon: BookOpen,
-    label: 'Connaissances', description: "Ce que l'agent sait",
-    children: [
-      { label: 'Base de connaissances', href: '/dashboard/knowledge' },
-      { label: 'FAQ', href: '/dashboard/knowledge/faq' },
-      { label: 'Produits & Services', href: '/dashboard/knowledge/products' },
-      { label: 'Documents', href: '/dashboard/knowledge/docs' },
+    label: 'Principal',
+    items: [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Appels', href: '/dashboard/analytics/calls', icon: Phone },
+      { name: 'Contacts', href: '/dashboard/crm/prospects', icon: Users },
     ],
   },
   {
-    type: 'module', id: 'channels', icon: Radio,
-    label: 'Canaux', description: 'Toutes les interactions',
-    children: [
-      { label: 'Téléphone', href: '/dashboard/channels/phone' },
-      { label: 'SMS', href: '/dashboard/channels/sms' },
-      { label: 'WhatsApp', href: '/dashboard/channels/whatsapp' },
-      { label: 'Email', href: '/dashboard/channels/email' },
-      { label: 'Rendez-vous', href: '/dashboard/appointments' },
+    label: 'Téléphonie',
+    items: [
+      { name: 'Numéros', href: '/dashboard/channels/phone', icon: Hash },
+      { name: 'Agents IA', href: '/dashboard/agents/configuration', icon: Bot },
+      { name: 'SMS', href: '/dashboard/channels/sms', icon: MessageSquare },
+      { name: 'WhatsApp', href: '/dashboard/channels/whatsapp', icon: MessageCircle },
+      { name: 'Email', href: '/dashboard/channels/email', icon: Mail },
+      { name: 'Messagerie vocale', href: '/dashboard/channels/voicemail', icon: Voicemail },
+      { name: 'Rendez-vous', href: '/dashboard/appointments', icon: Calendar },
     ],
   },
   {
-    type: 'module', id: 'agents', icon: Bot,
-    label: 'Agents', description: "Ce que l'agent dit et fait",
-    children: [
-      { label: 'Configuration', href: '/dashboard/agents/configuration' },
-      { label: 'Scripts', href: '/dashboard/agents/scripts' },
-      { label: 'Séquences', href: '/dashboard/agents/nodes' },
-      { label: 'Test vocal', href: '/dashboard/agents/test' },
+    label: 'Connaissances',
+    items: [
+      { name: 'Base de connaissances', href: '/dashboard/knowledge', icon: BookOpen },
+      { name: 'FAQ', href: '/dashboard/knowledge/faq', icon: HelpCircle },
+      { name: 'Produits & Services', href: '/dashboard/knowledge/products', icon: Package },
     ],
   },
   {
-    type: 'module', id: 'analytics', icon: BarChart2,
-    label: 'Analytics', description: "Ce que l'agent a accompli",
-    children: [
-      { label: 'KPIs', href: '/dashboard/analytics' },
-      { label: 'Transcripts', href: '/dashboard/analytics/transcripts' },
-      { label: 'Performances', href: '/dashboard/analytics/performance' },
-      { label: 'Export', href: '/dashboard/analytics/export' },
+    label: 'Configuration',
+    items: [
+      { name: 'Scripts', href: '/dashboard/agents/scripts', icon: FileText },
+      { name: 'Séquences', href: '/dashboard/agents/nodes', icon: GitBranch },
+      { name: 'IVR / SVI', href: '/dashboard/channels/ivr', icon: ListTree },
+      { name: "Files d'attente", href: '/dashboard/channels/queues', icon: Users2 },
     ],
   },
   {
-    type: 'module', id: 'crm', icon: Users,
-    label: 'CRM', description: 'Contacts & relations',
-    children: [
-      { label: 'Prospects', href: '/dashboard/crm/prospects' },
-      { label: 'Clients', href: '/dashboard/customers' },
-      { label: 'Conversations', href: '/dashboard/conversations' },
+    label: 'Rapports',
+    items: [
+      { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+      { name: 'Transcripts', href: '/dashboard/analytics/transcripts', icon: ScrollText },
+      { name: 'Export', href: '/dashboard/analytics/export', icon: Download },
     ],
   },
-  {
-    type: 'module', id: 'admin', icon: Settings2,
-    label: 'Administration', description: 'Gestion & configuration',
-    children: [
-      { label: 'Équipes', href: '/dashboard/teams' },
-      { label: 'Facturation', href: '/dashboard/billing' },
-      { label: 'Paramètres', href: '/dashboard/settings' },
-    ],
-  },
-];
-
-const RAIL_ITEMS: NavEntry[] = [
-  { type: 'direct', icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { type: 'separator' },
-  ...MODULES,
 ];
 
 // ── Helpers ───────────────────────────────────────────
 
-function isHrefActive(pathname: string, href: string): boolean {
+function isActive(pathname: string, href: string): boolean {
   if (href === '/dashboard') return pathname === href;
   return pathname === href || pathname.startsWith(href + '/');
 }
 
-function getActiveModuleId(pathname: string): string | null {
-  for (const mod of MODULES) {
-    if (mod.children.some(c => isHrefActive(pathname, c.href))) return mod.id;
-  }
-  return null;
-}
-
-// ── Component ─────────────────────────────────────────
+// ── Composant ────────────────────────────────────────
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
-  const [openModuleId, setOpenModuleId] = useState<string | null>(null);
+  const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const activeModuleId = getActiveModuleId(pathname);
-
-  // Sync panel: open the active module's panel on route change
-  useEffect(() => {
-    setOpenModuleId(activeModuleId);
-  }, [activeModuleId]);
-
-  // Close mobile on route change
+  // Fermer le mobile à chaque changement de route
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  // Body scroll lock for mobile
+  // Bloquer le scroll sur mobile quand ouvert
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
 
-  const handleModuleClick = useCallback((mod: NavModule) => {
-    if (openModuleId === mod.id) {
-      setOpenModuleId(null);
-    } else {
-      setOpenModuleId(mod.id);
+  const handleLogout = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // Déconnexion même si l'API échoue
     }
-  }, [openModuleId]);
+    localStorage.removeItem('auth_token');
+    router.push('/login');
+  }, [router]);
 
-  const handleDirectClick = useCallback(() => {
-    setOpenModuleId(null);
-  }, []);
+  // ── Contenu sidebar ──
 
-  const openModule = MODULES.find(m => m.id === openModuleId) || null;
-
-  // ── Render: Icon rail (level 1) ──
-
-  function renderRail() {
+  function renderContent() {
     return (
-      <div className="w-14 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
-        {/* Logo */}
-        <Link href="/dashboard" className="flex items-center justify-center py-3 border-b border-gray-200 hover:bg-gray-100 transition-colors">
-          <CoccinelleIcon size={28} color="currentColor" strokeWidth={1.5} className="text-gray-700" />
-        </Link>
-
-        {/* Rail items */}
-        <nav className="flex-1 flex flex-col items-center py-2 gap-0.5 overflow-y-auto">
-          {RAIL_ITEMS.map((entry, idx) => {
-            if (entry.type === 'separator') {
-              return <div key={`sep-${idx}`} className="w-6 border-t border-gray-200 my-1.5" />;
-            }
-
-            if (entry.type === 'module') {
-              const Icon = entry.icon;
-              const isActive = activeModuleId === entry.id;
-              const isOpen = openModuleId === entry.id;
-              return (
-                <button
-                  key={entry.id}
-                  onClick={() => handleModuleClick(entry)}
-                  title={entry.label}
-                  className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-150 ${
-                    isActive || isOpen
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                  }`}
-                >
-                  <Icon className="w-[22px] h-[22px]" />
-                </button>
-              );
-            }
-
-            // direct link
-            const Icon = entry.icon;
-            const isActive = isHrefActive(pathname, entry.href);
-            return (
-              <Link
-                key={entry.href}
-                href={entry.href}
-                onClick={handleDirectClick}
-                title={entry.label}
-                className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-150 ${
-                  isActive
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <Icon className="w-[22px] h-[22px]" />
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    );
-  }
-
-  // ── Render: Context panel (level 2) ──
-
-  function renderPanel() {
-    if (!openModule) return null;
-    return (
-      <div className="w-[200px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full animate-slide-in">
-        {/* Module header */}
-        <div className="px-4 pt-4 pb-2">
-          <h2 className="text-base font-semibold text-gray-900">{openModule.label}</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{openModule.description}</p>
+      <div className="flex flex-col h-full">
+        {/* En-tête logo */}
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-200">
+          <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center flex-shrink-0">
+            <CoccinelleIcon size={18} color="white" />
+          </div>
+          {!collapsed && (
+            <span className="text-lg font-bold text-gray-900 whitespace-nowrap">
+              Coccinelle.ai
+            </span>
+          )}
         </div>
-        <div className="mx-4 border-t border-gray-100" />
 
-        {/* Sub-items */}
-        <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
-          {openModule.children.map((child) => {
-            const active = isHrefActive(pathname, child.href);
-            return (
-              <Link
-                key={child.href}
-                href={child.href}
-                className={`block px-2.5 py-1.5 rounded-md text-sm transition-colors ${
-                  active
-                    ? 'text-gray-900 font-semibold border-l-2 border-gray-900 pl-2 -ml-[2px] bg-gray-50'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                {child.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    );
-  }
-
-  // ── Render: Mobile full sidebar (classic) ──
-
-  function renderMobileSidebar() {
-    return (
-      <div className="flex flex-col h-full bg-white">
-        {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-gray-200">
-          <CoccinelleIcon size={32} color="currentColor" strokeWidth={1.5} className="text-gray-700" />
-          <h1 className="text-lg font-bold flex-1">Coccinelle.AI</h1>
-          <button
-            onClick={() => setMobileOpen(false)}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-            aria-label="Fermer"
-          >
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
+        {/* Bouton nouvel appel */}
+        <div className="px-3 py-3">
+          {collapsed ? (
+            <button className="w-full flex items-center justify-center py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
+              <PhoneCall className="w-5 h-5" />
+            </button>
+          ) : (
+            <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
+              <PhoneCall className="w-4 h-4" />
+              Nouvel appel
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          {/* Dashboard */}
-          <Link
-            href="/dashboard"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] ${
-              pathname === '/dashboard'
-                ? 'bg-gray-100 text-gray-900 font-bold'
-                : 'text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            Dashboard
-          </Link>
-
-          {/* Modules with always-visible children */}
-          {MODULES.map((mod) => {
-            const Icon = mod.icon;
-            const modActive = mod.children.some(c => isHrefActive(pathname, c.href));
-            return (
-              <div key={mod.id} className="mt-2">
-                <div className={`flex items-center gap-3 px-3 py-2 rounded-lg ${modActive ? 'bg-gray-100' : ''}`}>
-                  <Icon className={`w-5 h-5 ${modActive ? 'text-gray-900' : 'text-gray-400'}`} />
-                  <div>
-                    <span className={`text-sm font-medium block ${modActive ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
-                      {mod.label}
-                    </span>
-                    <span className="text-[10px] text-gray-400 block">{mod.description}</span>
-                  </div>
-                </div>
-                <div className="ml-8 mt-0.5 space-y-0.5">
-                  {mod.children.map((child) => {
-                    const active = isHrefActive(pathname, child.href);
-                    return (
-                      <Link
-                        key={child.href}
-                        href={child.href}
-                        className={`block px-3 py-1 text-[13px] ${
-                          active
-                            ? 'text-gray-900 font-semibold border-l-2 border-gray-900 -ml-[2px] pl-[14px]'
-                            : 'text-gray-500 hover:text-gray-900'
-                        }`}
-                      >
-                        {child.label}
-                      </Link>
-                    );
-                  })}
-                </div>
+        <nav className="flex-1 overflow-y-auto px-3 pb-3">
+          {navigation.map((group) => (
+            <div key={group.label} className="mb-4">
+              {!collapsed && (
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">
+                  {group.label}
+                </p>
+              )}
+              {collapsed && <div className="w-6 mx-auto border-t border-gray-200 mb-2" />}
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      title={collapsed ? item.name : undefined}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        active
+                          ? 'bg-gray-100 text-gray-900 font-medium'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      } ${collapsed ? 'justify-center px-0' : ''}`}
+                    >
+                      <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${
+                        active ? 'text-gray-900' : 'text-gray-400'
+                      }`} />
+                      {!collapsed && <span>{item.name}</span>}
+                    </Link>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </nav>
+
+        {/* Bas de sidebar */}
+        <div className="border-t border-gray-200 px-3 py-3 space-y-0.5">
+          <Link
+            href="/dashboard/settings"
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              isActive(pathname, '/dashboard/settings')
+                ? 'bg-gray-100 text-gray-900 font-medium'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            } ${collapsed ? 'justify-center px-0' : ''}`}
+            title={collapsed ? 'Paramètres' : undefined}
+          >
+            <Settings className={`w-[18px] h-[18px] flex-shrink-0 ${
+              isActive(pathname, '/dashboard/settings') ? 'text-gray-900' : 'text-gray-400'
+            }`} />
+            {!collapsed && <span>Paramètres</span>}
+          </Link>
+          <button
+            onClick={handleLogout}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors w-full text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${
+              collapsed ? 'justify-center px-0' : ''
+            }`}
+            title={collapsed ? 'Déconnexion' : undefined}
+          >
+            <LogOut className="w-[18px] h-[18px] flex-shrink-0 text-gray-400" />
+            {!collapsed && <span>Déconnexion</span>}
+          </button>
+        </div>
+
+        {/* Bouton collapse (desktop uniquement) */}
+        <div className="hidden lg:flex border-t border-gray-200 px-3 py-2">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="flex items-center justify-center w-full py-1.5 rounded-lg text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+          >
+            {collapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
+        </div>
       </div>
     );
   }
 
-  // ── Main return ──
+  // ── Rendu principal ──
 
   return (
     <>
-      {/* CSS animation */}
-      <style jsx global>{`
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateX(-8px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        .animate-slide-in {
-          animation: slideIn 150ms ease-out;
-        }
-      `}</style>
-
-      {/* Mobile hamburger */}
+      {/* Bouton hamburger mobile */}
       <button
         onClick={() => setMobileOpen(true)}
         className="fixed top-3 left-3 z-50 p-2 bg-white border border-gray-200 rounded-lg shadow-sm lg:hidden"
@@ -354,7 +245,7 @@ export default function DashboardSidebar() {
         <Menu className="w-6 h-6 text-gray-700" />
       </button>
 
-      {/* Mobile overlay */}
+      {/* Overlay mobile */}
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -362,20 +253,31 @@ export default function DashboardSidebar() {
         />
       )}
 
-      {/* Mobile sidebar — classic full-width */}
+      {/* Sidebar mobile */}
       <aside
-        className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-gray-200 flex flex-col z-50 transform transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 w-[260px] bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out lg:hidden ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {renderMobileSidebar()}
+        {/* Bouton fermer mobile */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-3 right-3 p-1.5 hover:bg-gray-100 rounded-lg"
+          aria-label="Fermer"
+        >
+          <X className="w-5 h-5 text-gray-500" />
+        </button>
+        {renderContent()}
       </aside>
 
-      {/* Desktop: 2-level sidebar — in flex flow, not fixed */}
-      <div className="hidden lg:flex flex-shrink-0 h-full">
-        {renderRail()}
-        {renderPanel()}
-      </div>
+      {/* Sidebar desktop */}
+      <aside
+        className={`hidden lg:flex flex-col flex-shrink-0 bg-white border-r border-gray-200 h-full transition-all duration-300 ${
+          collapsed ? 'w-[68px]' : 'w-[260px]'
+        }`}
+      >
+        {renderContent()}
+      </aside>
     </>
   );
 }
