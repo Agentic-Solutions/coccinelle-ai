@@ -6,13 +6,14 @@ import { buildApiUrl, getAuthHeaders } from '@/lib/config';
 import StepperProgress from '@/components/onboarding/StepperProgress';
 import SectorStep from '@/components/onboarding/steps/SectorStep';
 import BusinessStep from '@/components/onboarding/steps/BusinessStep';
+import PhoneVerificationStep from '@/components/onboarding/steps/PhoneVerificationStep';
 import KnowledgeStep from '@/components/onboarding/steps/KnowledgeStep';
 import ProductsStep from '@/components/onboarding/steps/ProductsStep';
 import ChannelsStep from '@/components/onboarding/steps/ChannelsStep';
 import AssistantStep from '@/components/onboarding/steps/AssistantStep';
 import SummaryStep from '@/components/onboarding/steps/SummaryStep';
 
-const TOTAL_STEPS = 7; // 0-6
+const TOTAL_STEPS = 8; // 0-7
 
 interface OnboardingState {
   sessionId: string | null;
@@ -42,115 +43,105 @@ export default function OnboardingPage() {
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [error, setError] = useState('');
 
-  // Initialize onboarding session
+  // Initialiser depuis l'API — JAMAIS localStorage pour les données utilisateur
   useEffect(() => {
     async function init() {
-      // 1. Check auth
       const token = localStorage.getItem('auth_token');
       if (!token) {
         router.replace('/login');
         return;
       }
 
-      // 2. Check if onboarding already completed
       try {
-        const meResponse = await fetch(buildApiUrl('/api/v1/auth/me'), {
+        // Vérifier état onboarding via API
+        const stateRes = await fetch(buildApiUrl('/api/v1/onboarding/state'), {
           headers: getAuthHeaders(),
         });
-        if (meResponse.ok) {
-          const meData = await meResponse.json();
-          if (meData.tenant?.onboarding_completed || localStorage.getItem('onboarding_completed') === 'true') {
+
+        if (stateRes.ok) {
+          const stateData = await stateRes.json();
+
+          // Déjà terminé → dashboard
+          if (stateData.tenant?.onboarding_completed === 1) {
             router.replace('/dashboard');
             return;
           }
-        }
-      } catch {
-        // Continue with onboarding setup
-      }
 
-      // Pre-fill sector from signup
-      let preSector = '';
-      try {
-        const tenant = JSON.parse(localStorage.getItem('tenant') || '{}');
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        preSector = tenant.industry || user.industry || '';
-      } catch {
-        // ignore
-      }
-
-      // 3. Check for existing session
-      const existingSessionId = localStorage.getItem('onboarding_session_id');
-      if (existingSessionId) {
-        try {
-          const statusResponse = await fetch(
-            buildApiUrl(`/api/v1/onboarding/session/${existingSessionId}/status`),
-            { headers: getAuthHeaders() }
-          );
-          if (statusResponse.ok) {
-            const statusData = await statusResponse.json();
-            if (statusData.status === 'completed') {
-              localStorage.setItem('onboarding_completed', 'true');
+          // Pré-remplir depuis la DB
+          const resumeStep = stateData.session?.current_step || 0;
+          setState(prev => ({
+            ...prev,
+            currentStep: Math.min(resumeStep, TOTAL_STEPS - 1),
+            sector: stateData.tenant?.sector || '',
+            businessData: {
+              company_name: stateData.tenant?.name || '',
+              phone: stateData.tenant?.phone || '',
+            },
+            loading: false,
+          }));
+        } else {
+          // Fallback: vérifier via /me
+          const meRes = await fetch(buildApiUrl('/api/v1/auth/me'), {
+            headers: getAuthHeaders(),
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            if (meData.tenant?.onboarding_completed === 1) {
               router.replace('/dashboard');
               return;
             }
-            // Resume at saved step
-            const savedStep = parseInt(localStorage.getItem('onboarding_current_step') || '0', 10);
             setState(prev => ({
               ...prev,
-              sessionId: existingSessionId,
-              currentStep: Math.min(savedStep, TOTAL_STEPS - 1),
+              sector: meData.tenant?.sector || '',
+              businessData: {
+                company_name: meData.tenant?.name || '',
+                phone: meData.tenant?.phone || '',
+              },
               loading: false,
-              sector: preSector || prev.sector,
-            }));
-            return;
-          }
-        } catch {
-          // Session invalid, create new one
-          localStorage.removeItem('onboarding_session_id');
-        }
-      }
-
-      // 4. Create new session
-      try {
-        const startResponse = await fetch(buildApiUrl('/api/v1/onboarding/start'), {
-          method: 'POST',
-          headers: getAuthHeaders(),
-        });
-
-        if (startResponse.ok) {
-          const startData = await startResponse.json();
-          const newSessionId = startData.session_id || startData.sessionId || startData.id;
-          if (newSessionId) {
-            localStorage.setItem('onboarding_session_id', newSessionId);
-            if (startData.tenant_id) {
-              sessionStorage.setItem('onboarding_session', JSON.stringify({ tenant_id: startData.tenant_id }));
-            }
-            setState(prev => ({
-              ...prev,
-              sessionId: newSessionId,
-              loading: false,
-              sector: preSector || prev.sector,
             }));
           } else {
-            setState(prev => ({ ...prev, loading: false, sector: preSector || prev.sector }));
+            setState(prev => ({ ...prev, loading: false }));
           }
+        }
+
+        // Créer ou récupérer session
+        const existingSessionId = localStorage.getItem('onboarding_session_id');
+        if (existingSessionId) {
+          setState(prev => ({ ...prev, sessionId: existingSessionId }));
         } else {
-          setState(prev => ({ ...prev, loading: false, sector: preSector || prev.sector }));
+          const startRes = await fetch(buildApiUrl('/api/v1/onboarding/start'), {
+            method: 'POST',
+            headers: getAuthHeaders(),
+          });
+          if (startRes.ok) {
+            const startData = await startRes.json();
+            const newId = startData.session_id || startData.sessionId || startData.id;
+            if (newId) {
+              localStorage.setItem('onboarding_session_id', newId);
+              setState(prev => ({ ...prev, sessionId: newId }));
+            }
+          }
         }
       } catch {
-        setState(prev => ({ ...prev, loading: false, sector: preSector || prev.sector }));
+        setState(prev => ({ ...prev, loading: false }));
       }
     }
 
     init();
   }, [router]);
 
-  // Persist current step
-  useEffect(() => {
-    if (!state.loading) {
-      localStorage.setItem('onboarding_current_step', String(state.currentStep));
+  // Sauvegarder la progression via API (pas localStorage)
+  const saveStepProgress = useCallback(async (stepName: string, data?: Record<string, unknown>) => {
+    try {
+      await fetch(buildApiUrl('/api/v1/onboarding/step'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ step: stepName, data }),
+      });
+    } catch {
+      // Continuer même si la sauvegarde échoue
     }
-  }, [state.currentStep, state.loading]);
+  }, []);
 
   const goToStep = useCallback((step: number) => {
     setState(prev => ({ ...prev, currentStep: step }));
@@ -173,18 +164,23 @@ export default function OnboardingPage() {
     setState(prev => ({ ...prev, currentStep: Math.min(prev.currentStep + 1, TOTAL_STEPS - 1) }));
   }, []);
 
-  const handleComplete = useCallback(() => {
+  const handleSectorNext = useCallback(() => {
+    saveStepProgress('sector', { sector: state.sector });
+    nextStep();
+  }, [state.sector, saveStepProgress, nextStep]);
+
+  const handleComplete = useCallback(async () => {
     markCompleted(TOTAL_STEPS - 1);
+    await saveStepProgress('complete');
     localStorage.removeItem('onboarding_session_id');
-    localStorage.removeItem('onboarding_current_step');
     router.push('/dashboard');
-  }, [router, markCompleted]);
+  }, [router, markCompleted, saveStepProgress]);
 
   if (state.loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <div className="w-10 h-10 border-4 border-[#D85A30] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="w-10 h-10 border-4 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="mt-4 text-gray-500">Chargement...</p>
         </div>
       </div>
@@ -198,7 +194,7 @@ export default function OnboardingPage() {
           <SectorStep
             sector={state.sector}
             onSectorChange={s => setState(prev => ({ ...prev, sector: s }))}
-            onNext={nextStep}
+            onNext={handleSectorNext}
           />
         );
       case 1:
@@ -214,6 +210,14 @@ export default function OnboardingPage() {
         );
       case 2:
         return (
+          <PhoneVerificationStep
+            onNext={nextStep}
+            onBack={prevStep}
+            onSkip={skipStep}
+          />
+        );
+      case 3:
+        return (
           <KnowledgeStep
             sessionId={state.sessionId || ''}
             kbData={state.kbData}
@@ -223,7 +227,7 @@ export default function OnboardingPage() {
             onSkip={skipStep}
           />
         );
-      case 3:
+      case 4:
         return (
           <ProductsStep
             productsData={state.productsData}
@@ -233,7 +237,7 @@ export default function OnboardingPage() {
             onSkip={skipStep}
           />
         );
-      case 4:
+      case 5:
         return (
           <ChannelsStep
             channelsData={state.channelsData}
@@ -243,7 +247,7 @@ export default function OnboardingPage() {
             onSkip={skipStep}
           />
         );
-      case 5:
+      case 6:
         return (
           <AssistantStep
             sessionId={state.sessionId || ''}
@@ -254,7 +258,7 @@ export default function OnboardingPage() {
             onSkip={skipStep}
           />
         );
-      case 6:
+      case 7:
         return (
           <SummaryStep
             sessionId={state.sessionId || ''}

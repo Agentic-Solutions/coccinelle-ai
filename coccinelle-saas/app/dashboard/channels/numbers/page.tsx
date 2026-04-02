@@ -18,6 +18,7 @@ export default function NumbersPage() {
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [tenantName, setTenantName] = useState('');
 
   useEffect(() => {
     loadNumbers();
@@ -27,46 +28,28 @@ export default function NumbersPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_URL}/api/v1/channels/numbers`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // Charger le nom du tenant depuis /me (source unique de vérité)
+      const meRes = await fetch(`${API_URL}/api/v1/auth/me`, { headers });
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        setTenantName(meData.tenant?.name || '');
+      }
+
+      const res = await fetch(`${API_URL}/api/v1/channels/numbers`, { headers });
       if (res.ok) {
         const data = await res.json();
-        if (data.numbers && data.numbers.length > 0) {
-          setNumbers(data.numbers);
-        } else {
-          setNumbers(getDefaultNumbers());
-        }
+        setNumbers(data.numbers || []);
       } else {
-        setNumbers(getDefaultNumbers());
+        setNumbers([]);
       }
     } catch {
-      setNumbers(getDefaultNumbers());
+      setNumbers([]);
     } finally {
       setLoading(false);
     }
   };
-
-  function getDefaultNumbers(): PhoneNumber[] {
-    return [
-      {
-        id: 'twilio_fr_1',
-        number: '+33 9 39 03 57 60',
-        label: 'Ligne principale',
-        status: 'active',
-        channels: ['Voix', 'SMS'],
-        tenant: 'Mon entreprise',
-      },
-      {
-        id: 'twilio_fr_2',
-        number: '+33 9 39 03 57 61',
-        label: 'Ligne secondaire',
-        status: 'inactive',
-        channels: ['Voix'],
-        tenant: 'Mon entreprise',
-      },
-    ];
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -130,6 +113,12 @@ export default function NumbersPage() {
                 <p className="text-sm text-gray-600">Chargement...</p>
               </div>
             </div>
+          ) : numbers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Phone className="w-10 h-10 text-gray-300 mb-3" />
+              <p className="text-sm text-gray-500">Aucun numéro configuré</p>
+              <p className="text-xs text-gray-400 mt-1">Contactez le support pour ajouter un numéro</p>
+            </div>
           ) : (
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -181,7 +170,7 @@ export default function NumbersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{num.tenant}</span>
+                      <span className="text-sm text-gray-600">{num.tenant || tenantName}</span>
                     </td>
                   </tr>
                 ))}

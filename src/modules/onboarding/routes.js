@@ -912,6 +912,344 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
       }
     }
 
+    // ========================================
+    // POST /api/v1/onboarding/send-verification
+    // Envoie un code SMS de vérification
+    // ========================================
+    if (path === '/api/v1/onboarding/send-verification' && method === 'POST') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const body = await request.json();
+        const phone = body.phone;
+
+        // Valider format E.164
+        if (!phone || !/^\+[1-9]\d{6,14}$/.test(phone)) {
+          return new Response(JSON.stringify({ success: false, error: 'Format de numéro invalide (ex: +33612345678)' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Générer code 6 chiffres
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+
+        // Stocker dans users
+        await env.DB.prepare(`
+          UPDATE users SET
+            phone = ?,
+            phone_verification_code = ?,
+            phone_verification_expires = datetime('now', '+10 minutes')
+          WHERE id = ?
+        `).bind(phone, code, authResult.user.id).run();
+
+        // Envoyer SMS via Twilio
+        const accountSid = env.TWILIO_ACCOUNT_SID;
+        const authToken = env.TWILIO_AUTH_TOKEN;
+        const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
+
+        if (accountSid && authToken) {
+          const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+          const formData = new URLSearchParams();
+          formData.append('From', from);
+          formData.append('To', phone);
+          formData.append('Body', `Votre code Coccinelle.ai : ${code}`);
+
+          const smsRes = await fetch(twilioUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData
+          });
+
+          if (!smsRes.ok) {
+            logger.error('Twilio SMS error during verification', { status: smsRes.status });
+          }
+        } else {
+          logger.warn('Twilio not configured, code stored but not sent', { code });
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        logger.error('Send verification error', { error: error.message });
+        return new Response(JSON.stringify({ success: false, error: 'Erreur envoi code' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // ========================================
+    // POST /api/v1/onboarding/verify-phone
+    // Vérifie le code SMS
+    // ========================================
+    if (path === '/api/v1/onboarding/verify-phone' && method === 'POST') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const body = await request.json();
+        const code = body.code;
+
+        if (!code || code.length !== 6) {
+          return new Response(JSON.stringify({ success: false, error: 'Code invalide (6 chiffres)' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const user = await env.DB.prepare(`
+          SELECT phone, phone_verification_code, phone_verification_expires
+          FROM users WHERE id = ?
+        `).bind(authResult.user.id).first();
+
+        if (!user || !user.phone_verification_code) {
+          return new Response(JSON.stringify({ success: false, error: 'Aucun code en attente' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Vérifier expiration
+        if (user.phone_verification_expires && new Date(user.phone_verification_expires) < new Date()) {
+          return new Response(JSON.stringify({ success: false, error: 'Code expiré, renvoyez un nouveau code' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Vérifier code
+        if (user.phone_verification_code !== code) {
+          return new Response(JSON.stringify({ success: false, error: 'Code incorrect' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // OK — marquer vérifié
+        await env.DB.prepare(`
+          UPDATE users SET
+            phone_verified = 1,
+            phone_verification_code = NULL,
+            phone_verification_expires = NULL
+          WHERE id = ?
+        `).bind(authResult.user.id).run();
+
+        return new Response(JSON.stringify({ success: true, phone: user.phone }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        logger.error('Verify phone error', { error: error.message });
+        return new Response(JSON.stringify({ success: false, error: 'Erreur vérification' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // ========================================
+    // POST /api/v1/onboarding/step
+    // Sauvegarde une étape d'onboarding
+    // ========================================
+    if (path === '/api/v1/onboarding/step' && method === 'POST') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const body = await request.json();
+        const { step, data } = body;
+        const tenantId = authResult.tenant.id;
+        const userId = authResult.user.id;
+
+        if (!step) {
+          return new Response(JSON.stringify({ success: false, error: 'step requis' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        switch (step) {
+          case 'sector':
+            if (data?.sector) {
+              await env.DB.prepare(
+                `UPDATE tenants SET sector = ?, updated_at = datetime('now') WHERE id = ?`
+              ).bind(data.sector, tenantId).run();
+            }
+            break;
+
+          case 'business':
+            if (data) {
+              await env.DB.prepare(
+                `UPDATE tenants SET name = COALESCE(?, name), sector = COALESCE(?, sector), updated_at = datetime('now') WHERE id = ?`
+              ).bind(data.name || null, data.sector || null, tenantId).run();
+              // Sauvegarder téléphone pro du tenant
+              if (data.phone) {
+                await env.DB.prepare(
+                  `UPDATE tenants SET phone = ? WHERE id = ?`
+                ).bind(data.phone, tenantId).run();
+              }
+            }
+            break;
+
+          case 'assistant':
+            if (data) {
+              // Mettre à jour voixia_configs
+              try {
+                await env.DB.prepare(
+                  `UPDATE voixia_configs SET voice_id = COALESCE(?, voice_id), llm_model = COALESCE(?, llm_model) WHERE tenant_id = ?`
+                ).bind(data.voice_id || null, data.llm_model || null, tenantId).run();
+              } catch { /* table may not exist */ }
+              // Mettre à jour le prompt actif
+              if (data.secteur) {
+                try {
+                  await env.DB.prepare(
+                    `UPDATE ai_prompt_versions SET secteur = ? WHERE tenant_id = ? AND is_active = 1`
+                  ).bind(data.secteur, tenantId).run();
+                } catch { /* table may not exist */ }
+              }
+            }
+            break;
+
+          case 'channels':
+            if (data?.channels && Array.isArray(data.channels)) {
+              for (const channel of data.channels) {
+                try {
+                  await env.DB.prepare(
+                    `INSERT OR REPLACE INTO tenant_channels (tenant_id, channel, is_active, created_at)
+                     VALUES (?, ?, 1, datetime('now'))`
+                  ).bind(tenantId, channel).run();
+                } catch { /* table may not exist */ }
+              }
+            }
+            break;
+
+          case 'knowledge':
+          case 'products':
+            // Ces étapes utilisent leurs propres endpoints API
+            // On enregistre juste la progression
+            break;
+
+          case 'complete':
+            await env.DB.prepare(
+              `UPDATE tenants SET onboarding_completed = 1, setup_completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+            ).bind(tenantId).run();
+            break;
+
+          default:
+            return new Response(JSON.stringify({ success: false, error: `Étape inconnue: ${step}` }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Mettre à jour la progression dans onboarding_sessions
+        const stepMap = { sector: 1, business: 2, verification: 3, knowledge: 4, products: 5, channels: 6, assistant: 7, complete: 8 };
+        const stepNum = stepMap[step] || 0;
+        try {
+          await env.DB.prepare(
+            `UPDATE onboarding_sessions SET current_step = ?, last_updated_at = datetime('now') WHERE tenant_id = ? AND status = 'in_progress'`
+          ).bind(stepNum, tenantId).run();
+        } catch { /* session may not exist */ }
+
+        return new Response(JSON.stringify({ success: true, step }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        logger.error('Onboarding step error', { error: error.message });
+        return new Response(JSON.stringify({ success: false, error: 'Erreur sauvegarde étape' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // ========================================
+    // GET /api/v1/onboarding/state
+    // Retourne l'état complet de l'onboarding
+    // ========================================
+    if (path === '/api/v1/onboarding/state' && method === 'GET') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const tenantId = authResult.tenant.id;
+        const userId = authResult.user.id;
+
+        // Requête unifiée tenant + user + session
+        const tenant = await env.DB.prepare(
+          `SELECT t.name, t.sector, t.phone AS tenant_phone, t.onboarding_completed,
+                  t.setup_completed_at, t.company_name
+           FROM tenants t WHERE t.id = ?`
+        ).bind(tenantId).first();
+
+        const user = await env.DB.prepare(
+          `SELECT phone, phone_verified FROM users WHERE id = ?`
+        ).bind(userId).first();
+
+        const session = await env.DB.prepare(
+          `SELECT current_step, status, completed_at
+           FROM onboarding_sessions
+           WHERE tenant_id = ? AND status = 'in_progress'
+           ORDER BY started_at DESC LIMIT 1`
+        ).bind(tenantId).first();
+
+        return new Response(JSON.stringify({
+          success: true,
+          tenant: {
+            name: tenant?.name || '',
+            sector: tenant?.sector || '',
+            phone: tenant?.tenant_phone || '',
+            onboarding_completed: tenant?.onboarding_completed || 0
+          },
+          user: {
+            phone: user?.phone || '',
+            phone_verified: user?.phone_verified || 0
+          },
+          session: {
+            current_step: session?.current_step || 0,
+            status: session?.status || 'not_started'
+          }
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        logger.error('Onboarding state error', { error: error.message });
+        return new Response(JSON.stringify({ success: false, error: 'Erreur récupération état' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // Route non trouvée
     return null;
 

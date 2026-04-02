@@ -55,14 +55,6 @@ export default function BusinessStep({ sessionId, sector, businessData, onBusine
         }
       }
 
-      // Aussi sauvegarder le tenant localement pour company_name
-      try {
-        const tenant = JSON.parse(localStorage.getItem('tenant') || '{}');
-        tenant.name = businessData.company_name.trim();
-        tenant.sector = sector;
-        localStorage.setItem('tenant', JSON.stringify(tenant));
-      } catch { /* ignore */ }
-
       onNext();
     } catch {
       setError('Erreur réseau. Vérifiez votre connexion et réessayez.');

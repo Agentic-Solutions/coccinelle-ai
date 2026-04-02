@@ -87,57 +87,39 @@ function PhoneConfigContent() {
               configured: data.channel.configured,
               ...loadedConfig,
               sara: {
-                ...prev.sara, // Garde les valeurs par défaut
-                ...loadedConfig.sara, // Applique les valeurs chargées
-                scripts: {
-                  ...prev.sara.scripts, // Garde les scripts par défaut
-                  ...loadedConfig.sara?.scripts // Applique les scripts chargés (si présents)
-                }
-              }
-            }));
-          }
-        } else {
-          // Fallback sur localStorage si API non disponible
-          const savedConfig = localStorage.getItem('phone_client_config');
-          if (savedConfig) {
-            const parsed = JSON.parse(savedConfig);
-            setConfig(prev => ({
-              ...prev,
-              ...parsed,
-              sara: {
                 ...prev.sara,
-                ...parsed.sara,
+                ...loadedConfig.sara,
                 scripts: {
                   ...prev.sara.scripts,
-                  ...parsed.sara?.scripts
+                  ...loadedConfig.sara?.scripts
                 }
               }
             }));
-          } else {
-            setConfig(prev => ({ ...prev, configured: true }));
           }
-        }
-      } catch (e) {
-        console.error('Error loading Phone config:', e);
-        // Fallback sur localStorage
-        const savedConfig = localStorage.getItem('phone_client_config');
-        if (savedConfig) {
-          const parsed = JSON.parse(savedConfig);
-          setConfig(prev => ({
-            ...prev,
-            ...parsed,
-            sara: {
-              ...prev.sara,
-              ...parsed.sara,
-              scripts: {
-                ...prev.sara.scripts,
-                ...parsed.sara?.scripts
-              }
-            }
-          }));
         } else {
           setConfig(prev => ({ ...prev, configured: true }));
         }
+
+        // Pré-remplir le nom de l'assistant depuis /me (source unique de vérité)
+        const meRes = await fetch(`${API_URL}/api/v1/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          const tenantName = meData.tenant?.name || '';
+          setConfig(prev => ({
+            ...prev,
+            clientPhoneNumber: prev.clientPhoneNumber || meData.tenant?.phone || '',
+            sara: {
+              ...prev.sara,
+              assistantName: prev.sara.assistantName && prev.sara.assistantName !== 'Assistant'
+                ? prev.sara.assistantName
+                : tenantName || prev.sara.assistantName,
+            }
+          }));
+        }
+      } catch {
+        setConfig(prev => ({ ...prev, configured: true }));
       } finally {
         setLoading(false);
       }
@@ -156,8 +138,8 @@ function PhoneConfigContent() {
           const data = await response.json();
           setVoices(data.voices || []);
         }
-      } catch (e) {
-        console.error('Error loading voices:', e);
+      } catch {
+        // Voices API non disponible
       } finally {
         setLoadingVoices(false);
       }
@@ -238,12 +220,8 @@ function PhoneConfigContent() {
         throw new Error(errorData.error || 'Erreur lors de la sauvegarde');
       }
 
-      // Backup localStorage pour mode hors-ligne
-      localStorage.setItem('phone_client_config', JSON.stringify(config));
-
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      console.log('Phone config saved to API');
 
       // Redirect to onboarding if coming from there
       if (fromOnboarding) {
@@ -251,9 +229,8 @@ function PhoneConfigContent() {
           router.push('/onboarding');
         }, 1500); // Small delay to show success message
       }
-    } catch (e: any) {
-      console.error('Error saving Phone config:', e);
-      setError(e.message || 'Erreur lors de la sauvegarde de la configuration');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erreur lors de la sauvegarde de la configuration');
     } finally {
       setSaving(false);
     }

@@ -15,7 +15,7 @@
 - Base de connaissances RAG (crawl site → FAQ auto)
 - Multi-tenant avec RBAC (10 permissions configurables)
 
-## SOURCE UNIQUE DE VÉRITÉ (règle absolue depuis 30/03/2026)
+## SOURCE UNIQUE DE VÉRITÉ (règle absolue depuis 30/03/2026, renforcé 02/04/2026)
 
 | Donnée | Source unique | Colonne |
 |--------|-------------|---------|
@@ -27,6 +27,10 @@
 | Liste des voix | `lib/voices.ts` | VOICE_OPTIONS (source unique, 20 voix FR France) |
 | Prompts sectoriels | `lib/prompts.ts` | SECTOR_PROMPTS (13 secteurs, nodes, quick_scenarios) |
 | Templates DB | `ai_sector_templates` | Migration 0055, peuplé depuis lib/prompts.ts |
+| Tél personnel | `users.phone` | Vérifié via `users.phone_verified` |
+| Tél pro (Twilio) | `tenants.phone` | Numéro Twilio/renvoi d'appel |
+| Onboarding état | `tenants.onboarding_completed` | 0/1, DB uniquement |
+| Onboarding session | `onboarding_sessions` | current_step, status — JAMAIS localStorage |
 
 **Flux voice_id (corrigé 30/03/2026) :**
 ```
@@ -37,9 +41,26 @@ Dashboard sélection voix → handleSavePrompt() envoie voice_id
   → Agent Python utilise voice_id pour ElevenLabs TTS
 ```
 
+**Flux onboarding (refonte 02/04/2026) :**
+```
+8 étapes : Secteur → Entreprise → Vérification tél → Connaissances → Produits → Canaux → Assistant → Résumé
+  → POST /api/v1/onboarding/step (step=sector|business|knowledge|products|channels|assistant|complete)
+  → GET /api/v1/onboarding/state (retourne tenant + user + session depuis DB)
+  → POST /api/v1/onboarding/send-verification (SMS code 6 chiffres via Twilio)
+  → POST /api/v1/onboarding/verify-phone (vérifie code, users.phone_verified=1)
+  → JAMAIS de localStorage pour données utilisateur (uniquement auth_token + session_id)
+  → Dashboard pages pré-remplies depuis /api/v1/auth/me (pas localStorage)
+```
+
+**Colonnes users ajoutées (migration 02/04/2026) :**
+- `users.phone` TEXT — numéro personnel E.164
+- `users.phone_verified` INTEGER DEFAULT 0
+- `users.phone_verification_code` TEXT — code 6 chiffres temporaire
+- `users.phone_verification_expires` TEXT — expiration ISO 8601
+
 **Règles :**
 - `resolve-phone` lit `t.name AS company_name, t.sector` depuis tenants (JOIN)
-- `/me` retourne `tenant.sector` (pas industry)
+- `/me` retourne `tenant.sector` (pas industry), `user.phone`, `user.phone_verified`, `tenant.onboarding_completed`
 - Signup écrit `body.industry` → `tenants.sector`
 - Profile écrit `industry` → `tenants.sector` via COALESCE
 - Frontend remplace `{ASSISTANT_NAME}` et `{COMPANY_NAME}` AVANT envoi à l'API
@@ -315,7 +336,7 @@ coccinelle-ai/
     │   ├── page.tsx                # Landing page
     │   ├── login/                  # Connexion
     │   ├── signup/                 # Inscription
-    │   ├── onboarding/             # Onboarding 7 étapes
+    │   ├── onboarding/             # Onboarding 8 étapes (API-first, 0 localStorage)
     │   └── dashboard/
     │       ├── page.tsx            # Home + KPIs
     │       ├── agents/             # ✅ Module Agents (remplace VoixIA)
