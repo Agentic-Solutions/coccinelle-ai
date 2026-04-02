@@ -23,7 +23,7 @@
 | Secteur métier | `tenants.sector` | `voixia_configs.secteur` ignoré, `tenants.industry` ignoré |
 | Prénom agent | Extrait du `system_prompt` | "Tu es **Fati**, assistant vocal de..." |
 | Prompt actif | `ai_prompt_versions.is_active=1` | 1 seul par tenant |
-| Config LLM/voix | `voixia_configs` | llm_provider, llm_model, voice_id |
+| Config LLM/voix | `voixia_configs` | llm_provider, llm_model, voice_id, transfer_number, transfer_enabled |
 | Liste des voix | `lib/voices.ts` | VOICE_OPTIONS (source unique, 20 voix FR France) |
 | Prompts sectoriels | `lib/prompts.ts` | SECTOR_PROMPTS (13 secteurs, nodes, quick_scenarios) |
 | Templates DB | `ai_sector_templates` | Migration 0055, peuplé depuis lib/prompts.ts |
@@ -386,7 +386,10 @@ coccinelle-ai/
 | ~~Tools VoixIA~~ | ~~check_availability retourne créneaux fictifs~~ **CORRIGÉ 01/04** — retourne créneaux réels | ✅ Corrigé |
 | SMS end-to-end | Twilio configuré mais non testé avec l'agent vocal | 🟠 Moyenne |
 | ~~Email~~ | ~~Resend non configuré~~ **CORRIGÉ 02/04** — 6 routes /api/v1/email/*, page 4 sections | ✅ Corrigé |
-| Données démo | Aucune donnée réaliste pour Nubbo 3 avril | 🟠 Moyenne |
+| ~~KB search~~ | ~~cherchait dans knowledge_chunks (0 chunks)~~ **CORRIGÉ 02/04** — fallback knowledge_documents + fix kd.url→kd.source_url | ✅ Corrigé |
+| ~~Transfer humain~~ | ~~pas de logique callback~~ **CORRIGÉ 02/04** — transfer_enabled=0 → propose rappel + create_prospect + SMS | ✅ Corrigé |
+| ~~Port 8081 zombie~~ | ~~process Python bloque le port au restart~~ **CORRIGÉ 02/04** — ExecStartPre fuser -k dans systemd | ✅ Corrigé |
+| ~~Données démo KB~~ | ~~Pas de KB pour demo~~ **CORRIGÉ 02/04** — 4 docs insérés (présentation, tarifs, horaires, FAQ) | ✅ Corrigé |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
 | Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |

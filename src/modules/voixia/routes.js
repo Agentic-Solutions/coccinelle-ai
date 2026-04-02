@@ -611,7 +611,7 @@ async function handleSearchKnowledge(request, env) {
           const chunksResult = await env.DB.prepare(`
             SELECT
               kc.id, kc.content, kc.chunk_index,
-              kd.title, kd.source_type, kd.url
+              kd.title, kd.source_type, kd.source_url
             FROM knowledge_chunks kc
             LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
             WHERE kc.id IN (${placeholders})
@@ -627,7 +627,7 @@ async function handleSearchKnowledge(request, env) {
             content: chunk.content,
             source_title: chunk.title,
             source_type: chunk.source_type,
-            source_url: chunk.url,
+            source_url: chunk.source_url,
             relevance_score: scoreMap[chunk.id] || 0
           }));
         }
@@ -644,7 +644,7 @@ async function handleSearchKnowledge(request, env) {
       const textResults = await env.DB.prepare(`
         SELECT
           kc.content, kc.chunk_index,
-          kd.title, kd.source_type, kd.url
+          kd.title, kd.source_type, kd.source_url
         FROM knowledge_chunks kc
         LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
         WHERE kd.tenant_id = ?
@@ -657,12 +657,38 @@ async function handleSearchKnowledge(request, env) {
           content: chunk.content,
           source_title: chunk.title,
           source_type: chunk.source_type,
-          source_url: chunk.url,
+          source_url: chunk.source_url,
           relevance_score: null
         }));
       }
     } catch (error) {
       logger.error('VoixIA — recherche textuelle échouée', { error: error.message });
+    }
+
+    // Fallback : chercher directement dans knowledge_documents.content (pas de chunks)
+    if (results.length === 0) {
+      try {
+        const docResults = await env.DB.prepare(`
+          SELECT title, content, source_url, source_type
+          FROM knowledge_documents
+          WHERE tenant_id = ?
+            AND is_active = 1
+            AND (title LIKE ? OR content LIKE ?)
+          LIMIT ?
+        `).bind(tenant_id, `%${question}%`, `%${question}%`, topK).all();
+
+        if (docResults.results?.length > 0) {
+          results = docResults.results.map(doc => ({
+            content: doc.content,
+            source_title: doc.title,
+            source_type: doc.source_type,
+            source_url: doc.source_url,
+            relevance_score: null
+          }));
+        }
+      } catch (error) {
+        logger.warn('VoixIA — recherche knowledge_documents echouee', { error: error.message });
+      }
     }
 
     // Fallback supplémentaire : chercher dans les FAQ
@@ -849,15 +875,16 @@ async function handleTransferToHuman(request, env) {
   }
   const { reason, caller_phone } = body;
 
-  // Récupérer le numéro de transfert du tenant (premier numéro actif)
+  // Verifier la config transfert dans voixia_configs
+  let transferEnabled = false;
   let transferNumber = null;
   try {
-    const mapping = await env.DB.prepare(`
-      SELECT phone_number FROM omni_phone_mappings
-      WHERE tenant_id = ? AND is_active = 1
-      LIMIT 1
+    const config = await env.DB.prepare(`
+      SELECT transfer_enabled, transfer_number FROM voixia_configs
+      WHERE tenant_id = ?
     `).bind(tenant_id).first();
-    transferNumber = mapping?.phone_number || null;
+    transferEnabled = config?.transfer_enabled === 1;
+    transferNumber = config?.transfer_number || null;
   } catch {
     // Non bloquant
   }
@@ -868,14 +895,26 @@ async function handleTransferToHuman(request, env) {
     user_id: 'voixia-agent',
     action: 'voixia.transfer_to_human',
     resource_type: 'call',
-    changes: { reason: reason || 'Demande client', caller_phone: caller_phone || null }
+    changes: { reason: reason || 'Demande client', caller_phone: caller_phone || null, transfer_enabled: transferEnabled }
   });
 
-  logger.info('VoixIA — transfert vers humain', { tenant_id, reason, caller_phone });
+  // Si transfert actif et numero disponible → transferer
+  if (transferEnabled && transferNumber) {
+    logger.info('VoixIA — transfert actif vers humain', { tenant_id, reason, transferNumber });
+    return successResponse({
+      transfer_possible: true,
+      transfer_number: transferNumber,
+      message: 'Transfert vers un conseiller en cours',
+      reason: reason || 'Demande client'
+    });
+  }
 
+  // Sinon → proposer un rappel (callback)
+  logger.info('VoixIA — transfert impossible, proposer rappel', { tenant_id, reason, transferEnabled });
   return successResponse({
-    message: 'Transfert vers un conseiller en cours',
-    transfer_number: transferNumber,
+    transfer_possible: false,
+    action: 'propose_callback',
+    message: 'Le transfert direct n est pas disponible. Proposez un rappel au client : demandez son nom, numero et creneau prefere. Utilisez ensuite create_prospect avec status callback_requested et send_sms pour confirmer.',
     reason: reason || 'Demande client'
   });
 }
@@ -901,7 +940,7 @@ async function handleSearchKnowledgeGET(request, env) {
     const textResults = await env.DB.prepare(`
       SELECT
         kc.content, kc.chunk_index,
-        kd.title, kd.source_type, kd.url
+        kd.title, kd.source_type, kd.source_url
       FROM knowledge_chunks kc
       LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
       WHERE kd.tenant_id = ?
@@ -914,11 +953,36 @@ async function handleSearchKnowledgeGET(request, env) {
         content: chunk.content,
         source_title: chunk.title,
         source_type: chunk.source_type,
-        source_url: chunk.url
+        source_url: chunk.source_url
       }));
     }
   } catch (error) {
     logger.error('VoixIA — erreur recherche knowledge GET', { error: error.message });
+  }
+
+  // Fallback knowledge_documents directement (pas de chunks)
+  if (results.length === 0) {
+    try {
+      const docResults = await env.DB.prepare(`
+        SELECT title, content, source_url, source_type
+        FROM knowledge_documents
+        WHERE tenant_id = ?
+          AND is_active = 1
+          AND (title LIKE ? OR content LIKE ?)
+        LIMIT 5
+      `).bind(tenant_id, `%${query}%`, `%${query}%`).all();
+
+      if (docResults.results?.length > 0) {
+        results = docResults.results.map(doc => ({
+          content: doc.content,
+          source_title: doc.title,
+          source_type: doc.source_type,
+          source_url: doc.source_url
+        }));
+      }
+    } catch (error) {
+      logger.warn('VoixIA — fallback knowledge_documents GET echoue', { error: error.message });
+    }
   }
 
   // Fallback FAQ
