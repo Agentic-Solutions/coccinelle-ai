@@ -204,22 +204,22 @@ export default function TestChannelsPage() {
   const getStatusIcon = (status: TestResult['status']) => {
     switch (status) {
       case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
+        return <CheckCircle className="w-5 h-5 text-gray-700" />;
       case 'error':
-        return <XCircle className="w-5 h-5 text-red-600" />;
+        return <XCircle className="w-5 h-5 text-gray-700" />;
       case 'pending':
-        return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
+        return <Loader2 className="w-5 h-5 text-gray-700 animate-spin" />;
     }
   };
 
   const getStatusColor = (status: TestResult['status']) => {
     switch (status) {
       case 'success':
-        return 'bg-green-50 border-green-200';
+        return 'bg-gray-100 border-gray-200';
       case 'error':
-        return 'bg-red-50 border-red-200';
+        return 'bg-gray-100 border-gray-200';
       case 'pending':
-        return 'bg-blue-50 border-blue-200';
+        return 'bg-gray-100 border-gray-200';
     }
   };
 
@@ -275,7 +275,7 @@ export default function TestChannelsPage() {
                     onClick={() => setSelectedChannel('sms')}
                     className={`p-4 rounded-lg border-2 transition-colors ${
                       selectedChannel === 'sms'
-                        ? 'border-blue-600 bg-blue-50'
+                        ? 'border-gray-900 bg-gray-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -290,7 +290,7 @@ export default function TestChannelsPage() {
                     onClick={() => setSelectedChannel('email')}
                     className={`p-4 rounded-lg border-2 transition-colors ${
                       selectedChannel === 'email'
-                        ? 'border-green-600 bg-green-50'
+                        ? 'border-gray-900 bg-gray-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -305,7 +305,7 @@ export default function TestChannelsPage() {
                     onClick={() => setSelectedChannel('whatsapp')}
                     className={`p-4 rounded-lg border-2 transition-colors ${
                       selectedChannel === 'whatsapp'
-                        ? 'border-emerald-600 bg-emerald-50'
+                        ? 'border-gray-500 bg-gray-100'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -376,7 +376,7 @@ export default function TestChannelsPage() {
               )}
 
               {selectedChannel === 'sms' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 mb-4">
                   <h3 className="font-medium text-gray-900 mb-2">📱 SMS (Twilio)</h3>
                   <ul className="text-sm text-gray-600 space-y-1">
                     <li>• Taux d'ouverture: 98%</li>
@@ -388,7 +388,7 @@ export default function TestChannelsPage() {
               )}
 
               {selectedChannel === 'email' && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 mb-4">
                   <h3 className="font-medium text-gray-900 mb-2">✉️ Email (Resend)</h3>
                   <ul className="text-sm text-gray-600 space-y-1">
                     <li>• Taux d'ouverture: 20-30%</li>
@@ -400,7 +400,7 @@ export default function TestChannelsPage() {
               )}
 
               {selectedChannel === 'whatsapp' && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 mb-4">
                   <h3 className="font-medium text-gray-900 mb-2">💬 WhatsApp (Twilio)</h3>
                   <ul className="text-sm text-gray-600 space-y-1">
                     <li>• Taux d'ouverture: 90%</li>
@@ -466,7 +466,7 @@ export default function TestChannelsPage() {
         </div>
 
         {/* Instructions de configuration */}
-        <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-6">
+        <div className="mt-6 bg-gray-100 border border-gray-200 rounded-lg p-6">
           <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
             ✅ Routes API Opérationnelles
           </h3>
@@ -481,7 +481,7 @@ export default function TestChannelsPage() {
               <li>✅ <code className="bg-white px-2 py-1 rounded">/api/channels/auto</code> (Orchestrator)</li>
             </ul>
 
-            <div className="mt-4 pt-4 border-t border-green-300">
+            <div className="mt-4 pt-4 border-t border-gray-300">
               <p className="font-semibold text-gray-900 mb-2">⚙️ Pour envoyer de vrais messages :</p>
               <p className="mb-2">Ajoutez vos clés API dans <code className="bg-white px-2 py-1 rounded">.env.local</code> :</p>
               <ul className="list-disc list-inside space-y-1 ml-2">

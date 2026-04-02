@@ -162,12 +162,12 @@ export default function ImportProductsPage() {
       {/* Success Message */}
       {success && results && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600" />
+              <CheckCircle className="w-5 h-5 text-gray-700" />
               <div>
-                <p className="font-medium text-green-900">Import réussi</p>
-                <p className="text-sm text-green-700 mt-1">
+                <p className="font-medium text-gray-900">Import réussi</p>
+                <p className="text-sm text-gray-700 mt-1">
                   {results.imported} produit(s) importé(s) avec succès
                   {results.errors && results.errors.length > 0 && ` - ${results.errors.length} erreur(s)`}
                 </p>
@@ -180,11 +180,11 @@ export default function ImportProductsPage() {
       {/* Error Message */}
       {error && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
             <div>
-              <p className="font-medium text-red-900">Erreur</p>
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="font-medium text-gray-900">Erreur</p>
+              <p className="text-sm text-gray-700">{error}</p>
             </div>
           </div>
         </div>
@@ -199,10 +199,10 @@ export default function ImportProductsPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Sélectionner un fichier CSV</h3>
 
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-500 transition-colors">
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <label htmlFor="file-upload" className="cursor-pointer">
-                  <span className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                  <span className="text-sm text-gray-600 hover:text-gray-900 font-medium">
                     Cliquez pour sélectionner un fichier
                   </span>
                 </label>
@@ -228,7 +228,7 @@ export default function ImportProductsPage() {
               <button
                 onClick={handlePreview}
                 disabled={!file || importing}
-                className="w-full mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                className="w-full mt-4 px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
               >
                 {importing ? (
                   <>
@@ -261,7 +261,7 @@ export default function ImportProductsPage() {
                   <div key={field.key} className="grid grid-cols-3 gap-4 items-center">
                     <div className="text-sm font-medium text-gray-700">
                       {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                      {field.required && <span className="text-gray-700 ml-1">*</span>}
                     </div>
                     <div className="col-span-2">
                       <select
@@ -278,7 +278,7 @@ export default function ImportProductsPage() {
                           }
                           setColumnMapping(newMapping);
                         }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
                       >
                         <option value="">-- Ne pas importer --</option>
                         {previewData.headers.map(header => (
@@ -302,7 +302,7 @@ export default function ImportProductsPage() {
                         <th key={header} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                           {header}
                           {columnMapping[header] && (
-                            <span className="block text-xs text-blue-600 normal-case mt-1">
+                            <span className="block text-xs text-gray-700 normal-case mt-1">
                               → {systemFields.find(f => f.key === columnMapping[header])?.label}
                             </span>
                           )}
@@ -340,7 +340,7 @@ export default function ImportProductsPage() {
               <button
                 onClick={handleImport}
                 disabled={importing || previewData.missingRequired.filter(f => !Object.values(columnMapping).includes(f)).length > 0}
-                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                className="flex-1 px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
               >
                 <Upload className="w-5 h-5" />
                 Importer {previewData.totalRows} produit(s)
@@ -352,7 +352,7 @@ export default function ImportProductsPage() {
         {/* Étape 3: Importing */}
         {step === 'importing' && !success && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="w-16 h-16 border-4 border-gray-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="text-lg font-medium text-gray-900">Import en cours...</p>
             <p className="text-sm text-gray-500 mt-2">Veuillez patienter</p>
           </div>
@@ -361,7 +361,7 @@ export default function ImportProductsPage() {
         {/* Success state pendant importing */}
         {step === 'importing' && success && results && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
+            <CheckCircle className="w-16 h-16 text-gray-700 mx-auto mb-4" />
             <p className="text-lg font-medium text-gray-900">Import terminé avec succès !</p>
             <p className="text-sm text-gray-500 mt-2">
               {results.imported} produit(s) importé(s)

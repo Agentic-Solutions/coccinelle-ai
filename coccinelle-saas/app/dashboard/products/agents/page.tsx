@@ -181,7 +181,7 @@ export default function AgentAssignmentPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Chargement...</p>
         </div>
       </div>
@@ -218,16 +218,16 @@ export default function AgentAssignmentPage() {
       {/* Success/Error Messages */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3 mb-4">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-900">{success}</p>
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3 mb-4">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-900">{success}</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 mb-4">
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3 mb-4">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-900">{error}</p>
+            <p className="text-gray-900">{error}</p>
           </div>
         )}
       </div>
@@ -247,7 +247,7 @@ export default function AgentAssignmentPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Titre du produit..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
 
@@ -259,7 +259,7 @@ export default function AgentAssignmentPage() {
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               >
                 <option value="all">Toutes</option>
                 {categories.map(cat => (
@@ -276,7 +276,7 @@ export default function AgentAssignmentPage() {
               <select
                 value={filterAgent}
                 onChange={(e) => setFilterAgent(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               >
                 <option value="all">Tous</option>
                 <option value="assigned">Assignés</option>
@@ -298,7 +298,7 @@ export default function AgentAssignmentPage() {
                 <select
                   value={bulkAgentId}
                   onChange={(e) => setBulkAgentId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   disabled={selectedProducts.size === 0}
                 >
                   <option value="">Sélectionner un agent...</option>
@@ -311,7 +311,7 @@ export default function AgentAssignmentPage() {
                 <button
                   onClick={handleBulkAssign}
                   disabled={saving || selectedProducts.size === 0 || !bulkAgentId}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {saving ? (
                     <>
@@ -342,7 +342,7 @@ export default function AgentAssignmentPage() {
                       type="checkbox"
                       checked={selectedProducts.size === filteredProducts.length && filteredProducts.length > 0}
                       onChange={toggleAll}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      className="w-4 h-4 text-gray-700 rounded focus:ring-2 focus:ring-gray-900"
                     />
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -374,7 +374,7 @@ export default function AgentAssignmentPage() {
                           type="checkbox"
                           checked={selectedProducts.has(product.id)}
                           onChange={() => toggleProduct(product.id)}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          className="w-4 h-4 text-gray-700 rounded focus:ring-2 focus:ring-gray-900"
                         />
                       </td>
                       <td className="px-6 py-4">
@@ -393,7 +393,7 @@ export default function AgentAssignmentPage() {
                       <td className="px-6 py-4">
                         {product.agent_id ? (
                           <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-blue-600" />
+                            <User className="w-4 h-4 text-gray-700" />
                             <span className="text-sm text-gray-900">
                               {agents.find(a => a.id === product.agent_id)?.name || product.agent_id}
                             </span>

@@ -378,7 +378,7 @@ export default function KnowledgePage() {
           <button
             onClick={() => setActiveTab('builder')}
             className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'builder' ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+              activeTab === 'builder' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
             }`}
           >
             <Brain className="w-4 h-4" />
@@ -433,7 +433,7 @@ export default function KnowledgePage() {
               <button
                 onClick={() => setUploadMode('google')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  uploadMode === 'google' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  uploadMode === 'google' ? 'bg-gradient-to-r from-gray-900 to-gray-800 text-white shadow-lg shadow-gray-500/30' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -473,9 +473,9 @@ export default function KnowledgePage() {
             {uploadMode === 'google' ? (
               <div className="space-y-6">
                 {/* Import Google Business */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-gray-100 to-gray-100 border-2 border-gray-200 rounded-xl p-6">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl flex items-center justify-center flex-shrink-0">
                       <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
                       </svg>
@@ -486,7 +486,7 @@ export default function KnowledgePage() {
                         Importez automatiquement les informations de votre fiche Google (adresse, horaires, services, etc.)
                       </p>
 
-                      <div className="bg-white/60 rounded-lg p-4 mb-4 border border-blue-200">
+                      <div className="bg-white/60 rounded-lg p-4 mb-4 border border-gray-200">
                         <p className="text-xs font-semibold text-gray-700 mb-2">📍 URLs acceptées :</p>
                         <ul className="text-xs text-gray-600 space-y-1">
                           <li>• Google Maps : <code className="bg-white px-1 py-0.5 rounded">maps.google.com/...</code></li>
@@ -501,13 +501,13 @@ export default function KnowledgePage() {
                           value={url}
                           onChange={(e) => setUrl(e.target.value)}
                           placeholder="https://www.google.com/maps/place/..."
-                          className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white"
+                          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-transparent bg-white"
                         />
 
                         <button
                           onClick={handleGoogleImport}
                           disabled={uploadLoading || !url.trim() || !url.includes('google.com')}
-                          className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-lg shadow-blue-500/30 transition-all"
+                          className="w-full px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-lg hover:from-gray-800 hover:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-lg shadow-gray-500/30 transition-all"
                         >
                           {uploadLoading ? (
                             <>
@@ -579,7 +579,7 @@ export default function KnowledgePage() {
                     <button
                       onClick={handleCrawl}
                       disabled={uploadLoading || !url.trim()}
-                      className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-lg shadow-blue-500/30 transition-all"
+                      className="w-full px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-lg hover:from-gray-800 hover:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-lg shadow-gray-500/30 transition-all"
                     >
                       {uploadLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
                       {uploadLoading ? 'Exploration en cours...' : 'Lancer l\'exploration'}
@@ -590,9 +590,9 @@ export default function KnowledgePage() {
                 {/* Preview des pages trouvées */}
                 {crawlProgress.status === 'preview' && (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-gray-100 border border-gray-200 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <CheckCircle className="w-6 h-6 text-green-600" />
+                        <CheckCircle className="w-6 h-6 text-gray-700" />
                         <div>
                           <p className="font-semibold text-gray-900">{crawlProgress.totalPages} pages trouvées</p>
                           <p className="text-sm text-gray-600">{selectedPages.size} sélectionnées</p>
@@ -623,7 +623,7 @@ export default function KnowledgePage() {
                           tabIndex={0}
                           className={`border rounded-lg p-4 transition-all cursor-pointer hover:shadow-md ${
                             selectedPages.has(index.toString())
-                              ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-400'
+                              ? 'bg-gray-100 border-gray-300 ring-2 ring-gray-400'
                               : 'bg-white border-gray-200'
                           }`}
                           onClick={() => togglePageSelection(index.toString())}
@@ -634,7 +634,7 @@ export default function KnowledgePage() {
                               type="checkbox"
                               checked={selectedPages.has(index.toString())}
                               onChange={() => togglePageSelection(index.toString())}
-                              className="mt-1 w-4 h-4 text-blue-600 rounded"
+                              className="mt-1 w-4 h-4 text-gray-700 rounded"
                             />
                             <div className="flex-1 min-w-0">
                               <h4 className="font-medium text-gray-900 truncate">{page.title}</h4>
@@ -642,7 +642,7 @@ export default function KnowledgePage() {
                                 href={page.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                                className="text-xs text-gray-700 hover:underline flex items-center gap-1 mt-1"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {page.url}
@@ -670,7 +670,7 @@ export default function KnowledgePage() {
                       <button
                         onClick={handleConfirmCrawl}
                         disabled={selectedPages.size === 0}
-                        className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg shadow-green-500/30 flex items-center justify-center gap-2"
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-lg hover:from-gray-800 hover:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg shadow-gray-500/30 flex items-center justify-center gap-2"
                       >
                         <CheckCircle className="w-5 h-5" />
                         Importer {selectedPages.size} page{selectedPages.size > 1 ? 's' : ''}
@@ -682,8 +682,8 @@ export default function KnowledgePage() {
                 {/* Success state */}
                 {crawlProgress.status === 'done' && uploadStatus?.type === 'success' && (
                   <div className="p-8 text-center">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CheckCircle className="w-8 h-8 text-green-600" />
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="w-8 h-8 text-gray-700" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Import réussi !</h3>
                     <p className="text-gray-600">{uploadStatus.message}</p>
@@ -706,18 +706,18 @@ export default function KnowledgePage() {
                   }}
                   className={`border-2 border-dashed rounded-lg p-12 text-center transition-all duration-300 ${
                     isDragging
-                      ? 'border-blue-500 bg-blue-50 scale-105 shadow-xl'
+                      ? 'border-gray-500 bg-gray-100 scale-105 shadow-xl'
                       : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'
                   }`}
                 >
                   <div className={`transition-all duration-300 ${isDragging ? 'scale-110' : 'scale-100'}`}>
-                    <Upload className={`w-16 h-16 mx-auto mb-4 transition-colors ${isDragging ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <Upload className={`w-16 h-16 mx-auto mb-4 transition-colors ${isDragging ? 'text-gray-700' : 'text-gray-400'}`} />
                     {isDragging ? (
-                      <p className="text-lg font-semibold text-blue-900 mb-2">Déposez le fichier ici !</p>
+                      <p className="text-lg font-semibold text-gray-900 mb-2">Déposez le fichier ici !</p>
                     ) : (
                       <>
                         <label className="cursor-pointer">
-                          <span className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+                          <span className="text-lg font-semibold text-gray-900 hover:text-gray-700 transition-colors">
                             Glissez-déposez ou cliquez pour sélectionner
                           </span>
                           <input
@@ -735,11 +735,11 @@ export default function KnowledgePage() {
                 </div>
 
                 {selectedFile && (
-                  <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg animate-in slide-in-from-top-2 duration-300">
+                  <div className="p-4 bg-gradient-to-r from-gray-100 to-gray-100 border border-gray-200 rounded-lg animate-in slide-in-from-top-2 duration-300">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <CheckCircle className="w-6 h-6 text-blue-600" />
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <CheckCircle className="w-6 h-6 text-gray-700" />
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900">{selectedFile.name}</p>
@@ -748,7 +748,7 @@ export default function KnowledgePage() {
                       </div>
                       <button
                         onClick={() => setSelectedFile(null)}
-                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -761,7 +761,7 @@ export default function KnowledgePage() {
                 <button
                   onClick={handleFileUpload}
                   disabled={uploadLoading || !selectedFile}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-lg shadow-purple-500/30 transition-all"
+                  className="w-full px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-lg hover:from-gray-800 hover:to-gray-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-lg shadow-gray-500/30 transition-all"
                 >
                   {uploadLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
                   {uploadLoading ? 'Import en cours...' : 'Importer le fichier'}
@@ -802,10 +802,10 @@ export default function KnowledgePage() {
             )}
 
             {uploadStatus && (
-              <div className={`mt-4 p-4 rounded-lg border ${uploadStatus.type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <div className={`mt-4 p-4 rounded-lg border ${uploadStatus.type === 'success' ? 'bg-gray-100 border-gray-200' : 'bg-gray-100 border-gray-200'}`}>
                 <div className="flex items-center gap-2">
-                  <CheckCircle className={`w-5 h-5 ${uploadStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`} />
-                  <p className={`text-sm ${uploadStatus.type === 'success' ? 'text-green-900' : 'text-red-900'}`}>{uploadStatus.message}</p>
+                  <CheckCircle className={`w-5 h-5 ${uploadStatus.type === 'success' ? 'text-gray-700' : 'text-red-600'}`} />
+                  <p className={`text-sm ${uploadStatus.type === 'success' ? 'text-gray-900' : 'text-gray-900'}`}>{uploadStatus.message}</p>
                 </div>
               </div>
             )}
@@ -821,14 +821,14 @@ export default function KnowledgePage() {
               <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl flex items-center justify-center">
                       <Brain className="w-6 h-6 text-white" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-gray-900">Assistant Knowledge Base</h3>
                         {answer?.mode === 'ai' && (
-                          <span className="px-2 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-full animate-pulse">
+                          <span className="px-2 py-0.5 bg-gradient-to-r from-gray-900 to-gray-700 text-white text-xs font-bold rounded-full animate-pulse">
                             AI
                           </span>
                         )}
@@ -853,7 +853,7 @@ export default function KnowledgePage() {
                           onChange={(e) => setUseAI(e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-indigo-600 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-gray-900 peer-checked:from-gray-900 peer-checked:to-gray-800 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                       </div>
                     </label>
                   </div>
@@ -866,13 +866,13 @@ export default function KnowledgePage() {
                     onChange={(e) => setQuestion(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !testLoading && handleAsk()}
                     placeholder="Posez votre question..."
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
                     disabled={testLoading}
                   />
                   <button
                     onClick={handleAsk}
                     disabled={testLoading || !question.trim()}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg shadow-blue-500/30 transition-all"
+                    className="px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-xl hover:from-gray-800 hover:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium shadow-lg shadow-gray-500/30 transition-all"
                   >
                     {testLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                   </button>
@@ -883,7 +883,7 @@ export default function KnowledgePage() {
               {answer && (
                 <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm animate-in slide-in-from-bottom-4 duration-500">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Brain className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -891,9 +891,9 @@ export default function KnowledgePage() {
                         <h3 className="font-semibold text-gray-900">Réponse</h3>
                         {answer.confidence > 0 && (
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            answer.confidence > 0.7 ? 'bg-green-100 text-green-700' :
-                            answer.confidence > 0.4 ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-orange-100 text-orange-700'
+                            answer.confidence > 0.7 ? 'bg-gray-100 text-gray-700' :
+                            answer.confidence > 0.4 ? 'bg-gray-100 text-gray-700' :
+                            'bg-gray-100 text-gray-700'
                           }`}>
                             Confiance: {(answer.confidence * 100).toFixed(0)}%
                           </span>
@@ -905,15 +905,15 @@ export default function KnowledgePage() {
                       {answer.sources && answer.sources.length > 0 && (
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <div className="flex items-center gap-2 mb-4">
-                            <BookOpen className="w-5 h-5 text-blue-600" />
+                            <BookOpen className="w-5 h-5 text-gray-700" />
                             <p className="font-medium text-gray-900">Sources ({answer.sources.length})</p>
                           </div>
                           <div className="space-y-3">
                             {answer.sources.map((source: any, idx: number) => (
-                              <div key={idx} className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl hover:shadow-md transition-all">
+                              <div key={idx} className="p-4 bg-gradient-to-br from-gray-100 to-gray-100 border border-gray-200 rounded-xl hover:shadow-md transition-all">
                                 <div className="flex items-start justify-between gap-3 mb-2">
                                   <h4 className="font-semibold text-gray-900 text-sm">{source.title}</h4>
-                                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full whitespace-nowrap">
+                                  <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full whitespace-nowrap">
                                     {source.confidence}% match
                                   </span>
                                 </div>
@@ -923,7 +923,7 @@ export default function KnowledgePage() {
                                     href={source.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                    className="text-xs text-gray-700 hover:text-gray-900 hover:underline flex items-center gap-1"
                                   >
                                     <ExternalLink className="w-3 h-3" />
                                     Voir la source
@@ -944,7 +944,7 @@ export default function KnowledgePage() {
             <div className="lg:col-span-1">
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm sticky top-8">
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
                   Historique récent
                 </h3>
                 {history.length === 0 ? (
@@ -959,7 +959,7 @@ export default function KnowledgePage() {
                         key={idx}
                         role="button"
                         tabIndex={0}
-                        className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:border-blue-300 cursor-pointer transition-all group"
+                        className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:border-gray-300 cursor-pointer transition-all group"
                         onClick={() => {
                           setQuestion(item.question);
                           setAnswer(item.answer);
@@ -967,8 +967,8 @@ export default function KnowledgePage() {
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setQuestion(item.question); setAnswer(item.answer); } }}
                       >
                         <div className="flex items-start gap-2 mb-2">
-                          <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                          <p className="text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                          <MessageSquare className="w-4 h-4 text-gray-700 mt-0.5 flex-shrink-0" />
+                          <p className="text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-gray-700 transition-colors">
                             {item.question}
                           </p>
                         </div>

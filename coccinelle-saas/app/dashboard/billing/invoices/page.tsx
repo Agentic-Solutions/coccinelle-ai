@@ -108,7 +108,7 @@ export default function InvoicesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid':
-        return <Badge variant="default" className="bg-green-500">Payée</Badge>;
+        return <Badge variant="default" className="bg-gray-900">Payée</Badge>;
       case 'pending':
         return <Badge variant="secondary">En attente</Badge>;
       case 'overdue':
@@ -163,7 +163,7 @@ export default function InvoicesPage() {
                       <div
                         key={invoice.invoice_id}
                         className={`p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
-                          selectedInvoice?.invoice_id === invoice.invoice_id ? 'border-primary bg-blue-50' : ''
+                          selectedInvoice?.invoice_id === invoice.invoice_id ? 'border-primary bg-gray-100' : ''
                         }`}
                         onClick={() => loadInvoiceDetails(invoice.invoice_id)}
                       >
@@ -180,12 +180,12 @@ export default function InvoicesPage() {
                                 Émise le {formatDate(invoice.created_at)}
                               </div>
                               {invoice.paid_at && (
-                                <div className="text-green-600 text-xs mt-1">
+                                <div className="text-gray-700 text-xs mt-1">
                                   Payée le {formatDate(invoice.paid_at)}
                                 </div>
                               )}
                               {!invoice.paid_at && invoice.due_date && (
-                                <div className="text-orange-600 text-xs mt-1">
+                                <div className="text-gray-700 text-xs mt-1">
                                   Échéance : {formatDate(invoice.due_date)}
                                 </div>
                               )}
@@ -268,7 +268,7 @@ export default function InvoicesPage() {
                     {selectedInvoice.paid_at && (
                       <div>
                         <div className="text-sm text-gray-500 mb-1">Date de paiement</div>
-                        <div className="text-green-600">{formatDate(selectedInvoice.paid_at)}</div>
+                        <div className="text-gray-700">{formatDate(selectedInvoice.paid_at)}</div>
                       </div>
                     )}
 

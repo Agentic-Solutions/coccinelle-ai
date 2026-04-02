@@ -34,7 +34,7 @@ export default function ChannelsPage() {
 
           <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200 shadow-sm">
             <div className="flex items-center gap-2 sm:gap-3 mb-2">
-              <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+              <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
               <h3 className="font-semibold text-gray-900 text-sm sm:text-base">WhatsApp</h3>
             </div>
             <p className="text-2xl sm:text-3xl font-bold text-gray-900">28</p>

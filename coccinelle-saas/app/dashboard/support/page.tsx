@@ -48,15 +48,15 @@ const CATEGORIES = [
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: 'bg-gray-100 text-gray-700',
-  normal: 'bg-blue-100 text-blue-700',
-  high: 'bg-orange-100 text-orange-700',
-  urgent: 'bg-red-100 text-red-700',
+  normal: 'bg-gray-100 text-gray-700',
+  high: 'bg-gray-100 text-gray-700',
+  urgent: 'bg-gray-100 text-gray-700',
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  open: { label: 'Ouvert', color: 'bg-green-100 text-green-700' },
-  in_progress: { label: 'En cours', color: 'bg-blue-100 text-blue-700' },
-  waiting: { label: 'En attente', color: 'bg-yellow-100 text-yellow-700' },
+  open: { label: 'Ouvert', color: 'bg-gray-100 text-gray-700' },
+  in_progress: { label: 'En cours', color: 'bg-gray-100 text-gray-700' },
+  waiting: { label: 'En attente', color: 'bg-gray-100 text-gray-700' },
   closed: { label: 'Ferme', color: 'bg-gray-100 text-gray-700' },
 };
 
@@ -231,7 +231,7 @@ export default function SupportPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700'
+                    ? 'bg-gray-100 text-gray-700'
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -253,7 +253,7 @@ export default function SupportPage() {
                 placeholder="Rechercher dans la FAQ..."
                 value={faqSearch}
                 onChange={(e) => setFaqSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-500"
               />
             </div>
 
@@ -318,25 +318,25 @@ export default function SupportPage() {
             </p>
 
             {formSuccess && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
-                <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-3">
+                <Check className="w-5 h-5 text-gray-700 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-green-800">Ticket cree avec succes</p>
-                  <p className="text-xs text-green-600 mt-0.5">
+                  <p className="text-sm font-medium text-gray-800">Ticket cree avec succes</p>
+                  <p className="text-xs text-gray-700 mt-0.5">
                     Un email de confirmation vous a ete envoye. Suivez votre ticket dans l&apos;onglet &quot;Mes tickets&quot;.
                   </p>
                 </div>
-                <button onClick={() => setFormSuccess(false)} className="ml-auto text-green-500 hover:text-green-700 text-sm">
+                <button onClick={() => setFormSuccess(false)} className="ml-auto text-gray-700 hover:text-gray-700 text-sm">
                   Fermer
                 </button>
               </div>
             )}
 
             {formError && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+              <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                <p className="text-sm text-red-700">{formError}</p>
-                <button onClick={() => setFormError(null)} className="ml-auto text-red-500 hover:text-red-700 text-sm">
+                <p className="text-sm text-gray-700">{formError}</p>
+                <button onClick={() => setFormError(null)} className="ml-auto text-gray-700 hover:text-gray-700 text-sm">
                   Fermer
                 </button>
               </div>
@@ -351,7 +351,7 @@ export default function SupportPage() {
                   onChange={(e) => setFormSubject(e.target.value)}
                   required
                   placeholder="Decrivez brievement votre demande"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-500"
                 />
               </div>
 
@@ -361,7 +361,7 @@ export default function SupportPage() {
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-500 bg-white"
                   >
                     {CATEGORIES.map((cat) => (
                       <option key={cat.value} value={cat.value}>
@@ -375,7 +375,7 @@ export default function SupportPage() {
                   <select
                     value={formPriority}
                     onChange={(e) => setFormPriority(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-500 bg-white"
                   >
                     <option value="low">Basse</option>
                     <option value="normal">Normale</option>
@@ -393,14 +393,14 @@ export default function SupportPage() {
                   required
                   rows={5}
                   placeholder="Decrivez votre probleme en detail..."
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-500 resize-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={formLoading || !formSubject.trim() || !formMessage.trim()}
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {formLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -465,9 +465,9 @@ export default function SupportPage() {
                         <span>{ticket.category}</span>
                       </div>
                       {ticket.admin_response && (
-                        <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                          <p className="text-xs font-medium text-blue-700 mb-1">Reponse du support :</p>
-                          <p className="text-sm text-blue-800">{ticket.admin_response}</p>
+                        <div className="mt-3 p-3 bg-gray-100 border border-gray-200 rounded-lg">
+                          <p className="text-xs font-medium text-gray-700 mb-1">Reponse du support :</p>
+                          <p className="text-sm text-gray-800">{ticket.admin_response}</p>
                         </div>
                       )}
                     </div>

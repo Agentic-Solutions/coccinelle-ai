@@ -236,7 +236,7 @@ export default function UpgradePage() {
                           <span className="text-base font-normal text-gray-500">/mois</span>
                         </div>
                         {billingPeriod === 'yearly' && (
-                          <div className="text-sm text-green-600 mt-1">
+                          <div className="text-sm text-gray-700 mt-1">
                             Économisez {savings.percentage}% ({formatPrice(savings.savings)}€/an)
                           </div>
                         )}
@@ -253,24 +253,24 @@ export default function UpgradePage() {
                 <CardContent>
                   <ul className="space-y-2 mb-6">
                     <li className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                       <span>{plan.includedCalls} appels inclus</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                       <span>{plan.includedSms} SMS inclus</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                       <span>{plan.includedTtsMinutes} minutes TTS</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                       <span>{plan.includedWhatsapp} messages WhatsApp</span>
                     </li>
                     {plan.features && plan.features.map((feature, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-sm">
-                        <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                        <Check className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                         <span>{feature}</span>
                       </li>
                     ))}

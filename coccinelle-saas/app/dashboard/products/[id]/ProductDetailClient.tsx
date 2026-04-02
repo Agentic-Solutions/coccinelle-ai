@@ -64,7 +64,7 @@ export default function ProductDetailClient() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
       </div>
     );
   }
@@ -74,7 +74,7 @@ export default function ProductDetailClient() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Produit non trouvé'}</p>
-          <Link href="/dashboard/products" className="text-blue-600 hover:text-blue-700">
+          <Link href="/dashboard/products" className="text-gray-600 hover:text-gray-900">
             Retour aux produits
           </Link>
         </div>
@@ -92,7 +92,7 @@ export default function ProductDetailClient() {
           <Link href="/dashboard/products" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
             <ArrowLeft className="w-4 h-4" /> Retour aux produits
           </Link>
-          <Link href={`/dashboard/products/${product.id}/edit`} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <Link href={`/dashboard/products/${product.id}/edit`} className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">
             <Edit className="w-4 h-4" /> Modifier
           </Link>
         </div>
@@ -104,15 +104,15 @@ export default function ProductDetailClient() {
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.title}</h1>
                 <div className="flex items-center gap-3 text-sm text-gray-600">
                   <span className="flex items-center gap-1"><Package className="w-4 h-4" />{product.category}</span>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${product.type === 'service' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700`}>
                     {product.type === 'service' ? 'Service' : 'Produit'}
                   </span>
                   <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{new Date(product.created_at).toLocaleDateString('fr-FR')}</span>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">{product.price?.toFixed(2)} {product.price_currency}</div>
-                <div className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-medium ${product.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                <div className="text-3xl font-bold text-gray-700">{product.price?.toFixed(2)} {product.price_currency}</div>
+                <div className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-medium ${product.available ? 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700'}`}>
                   {product.available ? 'Disponible' : 'Indisponible'}
                 </div>
               </div>
@@ -147,7 +147,7 @@ export default function ProductDetailClient() {
               </h2>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag, idx) => (
-                  <span key={idx} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">{tag}</span>
+                  <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">{tag}</span>
                 ))}
               </div>
             </div>

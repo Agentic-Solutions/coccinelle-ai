@@ -169,24 +169,24 @@ export default function ChannelsPage() {
   const getColorClasses = (color: string, variant: 'bg' | 'text' | 'border') => {
     const colors = {
       blue: {
-        bg: 'bg-blue-100',
-        text: 'text-blue-600',
-        border: 'border-blue-200'
+        bg: 'bg-gray-100',
+        text: 'text-gray-700',
+        border: 'border-gray-200'
       },
       green: {
-        bg: 'bg-green-100',
-        text: 'text-green-600',
-        border: 'border-green-200'
+        bg: 'bg-gray-100',
+        text: 'text-gray-700',
+        border: 'border-gray-200'
       },
       purple: {
-        bg: 'bg-purple-100',
-        text: 'text-purple-600',
-        border: 'border-purple-200'
+        bg: 'bg-gray-100',
+        text: 'text-gray-700',
+        border: 'border-gray-200'
       },
       emerald: {
-        bg: 'bg-emerald-100',
-        text: 'text-emerald-600',
-        border: 'border-emerald-200'
+        bg: 'bg-gray-100',
+        text: 'text-gray-700',
+        border: 'border-gray-200'
       },
       gray: {
         bg: 'bg-gray-100',
@@ -241,8 +241,8 @@ export default function ChannelsPage() {
                 <p className="text-sm text-gray-600 mb-1">Canaux configurés</p>
                 <p className="text-3xl font-bold text-gray-900">{configuredChannelsCount}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-gray-700" />
               </div>
             </div>
           </div>
@@ -253,19 +253,19 @@ export default function ChannelsPage() {
                 <p className="text-sm text-gray-600 mb-1">Canaux actifs</p>
                 <p className="text-3xl font-bold text-gray-900">{activeChannelsCount}</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-gray-700" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Info message */}
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+        <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-gray-700 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-blue-900 font-medium mb-1">Comment ça fonctionne ?</p>
-            <ul className="text-sm text-blue-800 space-y-1">
+            <p className="text-gray-900 font-medium mb-1">Comment ça fonctionne ?</p>
+            <ul className="text-sm text-gray-800 space-y-1">
               <li>• <strong>Téléphone & SMS :</strong> Configurés par Coccinelle.AI, vous activez simplement leur utilisation</li>
               <li>• <strong>Email & WhatsApp :</strong> Vous devez connecter vos propres comptes pour les utiliser</li>
             </ul>
@@ -303,11 +303,11 @@ export default function ChannelsPage() {
 
                           {/* Status badges */}
                           {isComingSoon ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-800 text-xs font-bold rounded-full">
                               Bientôt disponible
                             </span>
                           ) : isEnabled ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-800 text-xs font-bold rounded-full">
                               <CheckCircle className="w-3 h-3" />
                               Activé
                             </span>
@@ -316,7 +316,7 @@ export default function ChannelsPage() {
                               Désactivé
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs font-bold rounded-full">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-800 text-xs font-bold rounded-full">
                               <AlertCircle className="w-3 h-3" />
                               À configurer
                             </span>
@@ -324,11 +324,11 @@ export default function ChannelsPage() {
 
                           {/* Managed by badge - hide for coming soon */}
                           {!isComingSoon && (channel.managedBy === 'admin' ? (
-                            <span className="px-2 py-1 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
                               Géré par Coccinelle.AI
                             </span>
                           ) : (
-                            <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
                               Vous gérez
                             </span>
                           ))}
@@ -343,13 +343,13 @@ export default function ChannelsPage() {
                           </div>
                         ) : isConfigured ? (
                           <div className="flex items-center gap-2 text-xs">
-                            <CheckCircle className="w-4 h-4 text-green-600" />
-                            <span className="text-green-700 font-medium">Configuration terminée</span>
+                            <CheckCircle className="w-4 h-4 text-gray-700" />
+                            <span className="text-gray-700 font-medium">Configuration terminée</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-xs">
-                            <AlertCircle className="w-4 h-4 text-orange-600" />
-                            <span className="text-orange-700 font-medium">
+                            <AlertCircle className="w-4 h-4 text-gray-700" />
+                            <span className="text-gray-700 font-medium">
                               {channel.managedBy === 'admin'
                                 ? 'Contactez le support pour activer'
                                 : 'Configuration requise'}

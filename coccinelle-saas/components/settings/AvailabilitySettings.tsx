@@ -260,7 +260,7 @@ export default function AvailabilitySettings() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-6">
-            <Clock className="w-5 h-5 text-blue-600" />
+            <Clock className="w-5 h-5 text-gray-700" />
             <h2 className="text-lg font-semibold text-gray-900">Disponibilites</h2>
           </div>
 
@@ -272,7 +272,7 @@ export default function AvailabilitySettings() {
                 <select
                   value={selectedAgent}
                   onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                  className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none bg-white"
                 >
                   <option value="">Mes disponibilites</option>
                   {agents.map(a => (
@@ -288,7 +288,7 @@ export default function AvailabilitySettings() {
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-4 border-gray-600 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
             <div className="space-y-3">
@@ -298,15 +298,15 @@ export default function AvailabilitySettings() {
                   <div
                     key={slot.day_of_week}
                     className={`p-3 rounded-lg border ${
-                      slot.is_available ? 'border-blue-200 bg-blue-50/50' : 'border-gray-200 bg-gray-50'
-                    } ${slot.modified ? 'ring-2 ring-blue-300' : ''}`}
+                      slot.is_available ? 'border-gray-200 bg-gray-100/50' : 'border-gray-200 bg-gray-50'
+                    } ${slot.modified ? 'ring-2 ring-gray-300' : ''}`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-gray-900 text-sm">{dayLabel}</span>
                       <button
                         onClick={() => updateSlot(index, 'is_available', !slot.is_available)}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                          slot.is_available ? 'bg-blue-600' : 'bg-gray-300'
+                          slot.is_available ? 'bg-gray-900' : 'bg-gray-300'
                         }`}
                       >
                         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
@@ -323,7 +323,7 @@ export default function AvailabilitySettings() {
                             type="time"
                             value={slot.start_time}
                             onChange={(e) => updateSlot(index, 'start_time', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900"
                           />
                         </div>
                         <div>
@@ -332,7 +332,7 @@ export default function AvailabilitySettings() {
                             type="time"
                             value={slot.end_time}
                             onChange={(e) => updateSlot(index, 'end_time', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900"
                           />
                         </div>
                         <div>
@@ -341,7 +341,7 @@ export default function AvailabilitySettings() {
                             type="time"
                             value={slot.break_start}
                             onChange={(e) => updateSlot(index, 'break_start', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900"
                           />
                         </div>
                         <div>
@@ -350,7 +350,7 @@ export default function AvailabilitySettings() {
                             type="time"
                             value={slot.break_end}
                             onChange={(e) => updateSlot(index, 'break_end', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900"
                           />
                         </div>
                         <div>
@@ -358,7 +358,7 @@ export default function AvailabilitySettings() {
                           <select
                             value={slot.slot_duration}
                             onChange={(e) => updateSlot(index, 'slot_duration', Number(e.target.value))}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900"
                           >
                             {SLOT_DURATIONS.map(d => (
                               <option key={d.value} value={d.value}>{d.label}</option>
@@ -378,7 +378,7 @@ export default function AvailabilitySettings() {
           <button
             onClick={handleSaveSlots}
             disabled={saving || !hasSlotChanges}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
           >
             {saving ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -394,13 +394,13 @@ export default function AvailabilitySettings() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-6">
-            <Clock className="w-5 h-5 text-green-600" />
+            <Clock className="w-5 h-5 text-gray-700" />
             <h2 className="text-lg font-semibold text-gray-900">Horaires d'ouverture</h2>
           </div>
 
           {loadingHours ? (
             <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-4 border-green-600 border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-4 border-gray-600 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
             <div className="space-y-3">
@@ -410,15 +410,15 @@ export default function AvailabilitySettings() {
                   <div
                     key={hour.day_of_week}
                     className={`p-3 rounded-lg border ${
-                      hour.is_open ? 'border-green-200 bg-green-50/50' : 'border-gray-200 bg-gray-50'
-                    } ${hour.modified ? 'ring-2 ring-green-300' : ''}`}
+                      hour.is_open ? 'border-gray-200 bg-gray-100/50' : 'border-gray-200 bg-gray-50'
+                    } ${hour.modified ? 'ring-2 ring-gray-300' : ''}`}
                   >
                     <div className="flex items-center gap-4">
                       <span className="font-medium text-gray-900 text-sm w-24">{dayLabel}</span>
                       <button
                         onClick={() => updateBusinessHour(index, 'is_open', !hour.is_open)}
                         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-                          hour.is_open ? 'bg-green-600' : 'bg-gray-300'
+                          hour.is_open ? 'bg-gray-900' : 'bg-gray-300'
                         }`}
                       >
                         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
@@ -431,14 +431,14 @@ export default function AvailabilitySettings() {
                             type="time"
                             value={hour.open_time}
                             onChange={(e) => updateBusinessHour(index, 'open_time', e.target.value)}
-                            className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500"
+                            className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900"
                           />
                           <span className="text-gray-400 text-sm">-</span>
                           <input
                             type="time"
                             value={hour.close_time}
                             onChange={(e) => updateBusinessHour(index, 'close_time', e.target.value)}
-                            className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500"
+                            className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900"
                           />
                         </div>
                       )}
@@ -457,7 +457,7 @@ export default function AvailabilitySettings() {
           <button
             onClick={handleSaveBusinessHours}
             disabled={savingHours || !hasHourChanges}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
           >
             {savingHours ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -474,7 +474,7 @@ export default function AvailabilitySettings() {
         <div className="fixed bottom-4 right-4 z-50">
           <div
             className={`px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium ${
-              toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+              toast.type === 'success' ? 'bg-gray-900' : 'bg-gray-900'
             }`}
           >
             {toast.message}

@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════
+# WRANGLER.TOML - Configuration Cloudflare
+# ═══════════════════════════════════════
+# Ce fichier configure Cloudflare Pages, D1 et R2
+# Documentation : https://developers.cloudflare.com/workers/wrangler/configuration/
+
+name = "fonio-clone"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# ═══════════════════════════════════════
+# Pages (Next.js)
+# ═══════════════════════════════════════
+pages_build_output_dir = ".vercel/output/static"
+
+# ═══════════════════════════════════════
+# D1 Database (SQLite)
+# ═══════════════════════════════════════
+# IMPORTANT : Remplace le database_id par l'ID de ta base D1
+# Tu peux le créer via : wrangler d1 create fonio-db
+# Ou via le dashboard Cloudflare → D1
+
+[[d1_databases]]
+binding = "DB"                              # Nom de la variable dans le code
+database_name = "fonio-db"
+database_id = "4983985f-4220-40bd-9cda-89aa49024a76"
+
+# ═══════════════════════════════════════
+# R2 Storage (Enregistrements d'appels)
+# ═══════════════════════════════════════
+[[r2_buckets]]
+binding = "R2"                              # Nom de la variable dans le code
+bucket_name = "fonio-recordings"
+
+# ═══════════════════════════════════════
+# Variables d'environnement
+# ═══════════════════════════════════════
+# Les secrets se configurent via :
+# wrangler secret put TELNYX_API_KEY
+# wrangler secret put RETELL_API_KEY
+# wrangler secret put STRIPE_SECRET_KEY
+# wrangler secret put AUTH_SECRET
+
+[vars]
+APP_NAME = "VoxyPhone"
+APP_URL = "https://fonio-clone.pages.dev"

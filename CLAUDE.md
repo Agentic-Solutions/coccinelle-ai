@@ -78,6 +78,143 @@ Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().qu
   → Backend appelle Anthropic Claude ou Mistral → reply affiché dans la modale
 ```
 
+## RÈGLES ABSOLUES VOIXIA
+
+1. `session.say(texte_littéral)` — `generate_reply()` INTERDIT
+2. Greeting = phrase courte littérale : "Bonjour, {COMPANY_NAME} !"
+3. Le "+" dans les numéros → encodé "%2B" dans les URLs
+4. UN SEUL prompt `is_active=1` par tenant
+5. `system_prompt` sauvegardé en DB ne contient JAMAIS de variables `{}`
+
+## FICHIERS PYTHON VOIXIA (NE PAS CASSER)
+
+| Fichier | Rôle | Règle absolue |
+|---------|------|---------------|
+| tenant.py | Résolution tenant | phone encodé %2B dans URL |
+| main.py | Orchestration appel | session.say() jamais generate_reply() |
+| pipeline.py | Agent LLM + tools | system_prompt depuis resolve-phone |
+| tools.py | Tools LiveKit | 7 tools connectés aux modules Coccinelle |
+| llm_factory.py | Factory LLM | provider + model dynamiques |
+| prompts.py | Greetings | Textes LITTÉRAUX courts |
+
+## TOOLS VOIXIA (connectés aux modules Coccinelle)
+
+| Tool | Endpoint principal | Alias /tools/ | Module |
+|------|-------------------|---------------|--------|
+| check_availability | GET /api/v1/voixia/appointments/availability | GET /tools/availability | Rendez-vous |
+| book_appointment | POST /api/v1/voixia/appointments | POST /tools/book-appointment | Rendez-vous |
+| search_knowledge | POST /api/v1/voixia/knowledge | GET /tools/knowledge | Base de connaissances |
+| search_products | GET /api/v1/voixia/products | GET /tools/products | Produits |
+| create_prospect | POST /api/v1/voixia/prospects | POST /tools/prospect | Prospects/CRM |
+| send_sms | POST /api/v1/voixia/sms | POST /tools/sms | Canaux/SMS |
+| transfer_to_human | POST /api/v1/voixia/transfer | POST /tools/transfer | Équipes |
+
+**Note :** Les deux schémas de paths fonctionnent. L'agent Python utilise les paths principaux.
+**Vérifié 01/04/2026 :** `check_availability` retourne des créneaux RÉELS depuis `availability_slots` + `appointments`.
+
+## PALETTE DE NODES (éditeur de séquences)
+
+11 types de nodes disponibles, organisés en 4 catégories :
+
+| Catégorie | Types | Description |
+|-----------|-------|-------------|
+| CONVERSATION | call, sms, email | Canaux de communication |
+| LOGIQUE | condition, delay | Branchement et temporisation |
+| ACTIONS | rdv, knowledge, products, prospect, transfer | Appel automatique aux outils VoixIA |
+| FIN | end | Terminaison de séquence |
+
+Chaque node `call` a un champ `script` (texte exact que l'agent vocal prononcera).
+Chaque node action affiche l'outil connecté (ex: `check_availability + book_appointment`).
+Source : `src/components/SequenceEditor.tsx` → `NODE_PALETTE` + `NODE_TYPES`.
+Accessible via : `/dashboard/agents/nodes` (importe `SequenceEditor` depuis `@/components/SequenceEditor`).
+
+## SITEMAP DÉFINITIF (refonte 01/04/2026)
+
+Principe sémantique :
+- **Connaissances** = Ce que l'agent SAIT
+- **Canaux** = Toutes les INTERACTIONS (y compris RDV)
+- **Agents** = Ce que l'agent DIT et FAIT (y compris test vocal)
+- **Analytics** = Ce que l'agent a ACCOMPLI (transcripts, export)
+
+Composant sidebar : `components/DashboardSidebar.tsx`
+**Pattern 2 niveaux (style Linear/Notion) :**
+- Niveau 1 : barre icônes fixe (48px, `bg-gray-50`) — toujours visible
+- Niveau 2 : panneau contextuel (180px, `bg-white`) — s'ouvre pour les 4 modules
+- Total ouvert : 228px, fermé : 48px
+- Layout `lg:ml-12` (48px) dans `app/dashboard/layout.tsx`
+- Mobile : sidebar classique pleine largeur (72px) avec sous-menus always-visible
+- Icône active/ouverte : `bg-gray-900 text-white` (rond)
+- Item niveau 2 actif : `font-semibold border-l-2 border-gray-900 bg-gray-50`
+- Animation slide-in 150ms ease-out
+
+```
+Dashboard /dashboard
+───────────────────────────────────
+Connaissances /knowledge — Ce que l'agent sait
+  ├─ Base de connaissances /knowledge
+  ├─ FAQ /knowledge/faq
+  ├─ Produits & Services /knowledge/products
+  └─ Documents /knowledge/docs
+Canaux /channels — Toutes les interactions
+  ├─ Téléphone /channels/phone
+  ├─ SMS /channels/sms
+  ├─ WhatsApp /channels/whatsapp
+  ├─ Email /channels/email
+  └─ Rendez-vous /appointments
+Agents /agents — Ce que l'agent dit et fait
+  ├─ Configuration /agents/configuration
+  ├─ Scripts /agents/scripts
+  ├─ Séquences /agents/nodes
+  └─ Test vocal /agents/test
+Analytics /analytics — Ce que l'agent a accompli
+  ├─ KPIs /analytics
+  ├─ Transcripts /analytics/transcripts
+  ├─ Performances /analytics/performance
+  └─ Export /analytics/export
+───────────────────────────────────
+Prospects /crm/prospects
+Clients /customers
+Conversations /conversations
+───────────────────────────────────
+Équipes /teams
+Facturation /billing
+Paramètres /settings
+```
+
+**Redirections actives :**
+- `/dashboard/voixia` → `/dashboard/agents/configuration`
+- `/dashboard/voixia/sequence` → `/dashboard/agents/nodes`
+- `/dashboard/sara` → `/dashboard/agents/configuration`
+- `/dashboard/sara-analytics` → `/dashboard/analytics`
+- `/dashboard/products` → `/dashboard/knowledge/products`
+- `/dashboard/prospects` → `/dashboard/crm/prospects`
+
+**Sauvegarde pré-refonte :** `dashboard_backup_20260331_180501` (racine projet, hors build)
+
+## CREDENTIALS VOIXIA
+
+- Numéro VoixIA : +33939035760
+- Numéro test Youssef : +33760762153
+- Tenant test : tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy
+- VoixIA API Key : 813f882e34f8b033e398e9a3c0ed38070e98a88e50eeee485ac0e8e06de11cc9
+- LiveKit API Key : devkey
+- LiveKit Secret : voixia-secret-dev-key-2026-secure
+
+## COMMANDES ESSENTIELLES VOIXIA
+
+```bash
+# Redémarrer l'agent
+ssh root@51.15.130.204 "systemctl restart voixia"
+
+# Voir les logs en direct
+ssh root@51.15.130.204 "journalctl -u voixia -f"
+
+# Smoke test resolve-phone
+curl -s "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/resolve-phone?phone=%2B33760762153" \
+  -H "X-VoixIA-Key: 813f882e34f8b033e398e9a3c0ed38070e98a88e50eeee485ac0e8e06de11cc9" \
+  -H "X-VoixIA-Tenant: tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy"
+```
+
 ## OBJECTIF PRINCIPAL
 
 **Optimiser et rendre 100% opérationnel l'existant.** Ne pas recréer, ne pas repartir de zéro. Améliorer ce qui existe :
@@ -139,46 +276,69 @@ coccinelle-ai/
     │   ├── login/                  # Connexion
     │   ├── signup/                 # Inscription
     │   ├── onboarding/             # Onboarding 7 étapes
-    │   └── dashboard/              # 24 pages dashboard
+    │   └── dashboard/
     │       ├── page.tsx            # Home + KPIs
-    │       ├── analytics/          # 80% → à compléter
-    │       ├── appointments/       # ✅ OK
-    │       ├── appels/             # ✅ OK
-    │       ├── products/           # ✅ OK
-    │       ├── prospects/          # 70% → à compléter
-    │       ├── crm/                # ✅ OK
-    │       ├── customers/          # ✅ OK
-    │       ├── conversations/      # ✅ OK
-    │       ├── inbox/              # ✅ OK
-    │       ├── knowledge/          # ✅ OK
-    │       ├── channels/           # ✅ OK
-    │       │   ├── email/          # Config email (5 onglets)
+    │       ├── agents/             # ✅ Module Agents (remplace VoixIA)
+    │       │   ├── page.tsx        # Liste agents
+    │       │   ├── configuration/  # Config agent (voix, LLM, prompt)
+    │       │   ├── scripts/        # Scripts d'appel par secteur
+    │       │   ├── nodes/          # Éditeur séquences (ex voixia/sequence)
+    │       │   └── test/           # Test vocal en direct
+    │       ├── knowledge/          # ✅ Connaissances enrichi
+    │       │   ├── page.tsx        # Base de connaissances + crawl
+    │       │   ├── faq/            # FAQ pour agent vocal
+    │       │   ├── products/       # Produits & Services
+    │       │   └── docs/           # Upload documents
+    │       ├── channels/           # ✅ Canaux
+    │       │   ├── email/
     │       │   ├── sms/
     │       │   ├── whatsapp/
     │       │   └── phone/
-    │       ├── configuration/      # ✅ OK
+    │       ├── analytics/          # ✅ Analytics (Ce que l'agent a ACCOMPLI)
+    │       │   ├── page.tsx        # KPIs vue d'ensemble
+    │       │   ├── calls/          # Métriques appels
+    │       │   ├── messages/       # Métriques SMS/WhatsApp/Email
+    │       │   ├── transcripts/    # Transcriptions complètes
+    │       │   ├── performance/    # Score global, satisfaction
+    │       │   └── export/         # Export CSV multi-type
+    │       ├── appointments/       # ✅ Rendez-vous
+    │       ├── crm/                # ✅ CRM/Prospects
+    │       ├── customers/          # ✅ Clients
     │       ├── billing/            # 70% → à compléter
     │       ├── settings/           # 30% → à compléter
-    │       ├── teams/              # ✅ OK
-    │       ├── sara/               # ✅ OK
-    │       ├── sara-analytics/     # ✅ OK
-    │       └── integrations/       # ✅ OK
-    └── components/
+    │       ├── voixia/             # ⚡ Redirige → /agents/configuration
+    │       │   └── sequence/       # ⚡ Redirige → /agents/nodes
+    │       ├── sara/               # ⚡ Redirige → /agents/configuration
+    │       ├── sara-analytics/     # ⚡ Redirige → /analytics
+    │       ├── prospects/          # ⚡ Redirige → /crm/prospects
+    │       └── products/           # ⚡ Redirige → /knowledge/products
+    ├── components/
+    │   └── DashboardSidebar.tsx    # Sidebar hiérarchique avec dividers
+    └── src/components/
+        └── SequenceEditor.tsx      # Éditeur séquences partagé
 ```
 
 ## BUGS CONNUS À CORRIGER
 
 | Bug | Détail | Priorité |
 |-----|--------|----------|
-| Retell téléphone | Agent vocal Sara ne fonctionne pas | 🔴 Haute |
+| ~~Tools VoixIA~~ | ~~check_availability retourne créneaux fictifs~~ **CORRIGÉ 01/04** — retourne créneaux réels | ✅ Corrigé |
+| SMS end-to-end | Twilio configuré mais non testé avec l'agent vocal | 🟠 Moyenne |
+| Email | Resend non configuré | 🟠 Moyenne |
+| Données démo | Aucune donnée réaliste pour Nubbo 3 avril | 🟠 Moyenne |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
 | Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |
 
 ## FEATURES INCOMPLÈTES
 
-| Page | Actuel | Cible | Ce qui manque |
-|------|--------|-------|---------------|
+| Feature | Actuel | Cible | Ce qui manque |
+|---------|--------|-------|---------------|
+| ~~Tools VoixIA~~ | ~~0%~~ 100% | 100% | ✅ 7/7 tools connectés + aliases /tools/* (01/04/2026) |
+| Script démo | 0% | 100% | Script 15 min pour Nubbo |
+| Données démo | 0% | 100% | Prospects, appels, RDV réalistes |
+| Refresh token | 0% | 100% | JWT refresh endpoint |
+| hook useTenant() | 0% | 100% | Hook unifié Phase 2 audit |
 | Analytics | 80% | 100% | Graphiques avancés, export, filtres |
 | Billing | 70% | 100% | Intégration Stripe, historique factures |
 | Settings | 30% | 100% | Profil, notifications, préférences, sécurité |
@@ -213,7 +373,7 @@ coccinelle-ai/
 
 | Canal | Envoi | Réception | Status |
 |-------|-------|-----------|--------|
-| 📞 Téléphone | ⚠️ Bug Retell | ✅ Webhook | 🔴 90% |
+| 📞 Téléphone | ✅ VoixIA (LiveKit) | ✅ Webhook | 🟡 95% |
 | 💬 SMS | ✅ Twilio | ✅ Webhook | ✅ 100% |
 | 📱 WhatsApp | ✅ Meta API | ✅ Webhook | 🟡 95% |
 | 📧 Gmail | ✅ Gmail API | ✅ Cloudflare | 🟡 95% |
@@ -227,6 +387,40 @@ coccinelle-ai/
 - Migrations existantes dans `/migrations/`
 - Configs agent Retell (Agent ID: agent_0c566a48e70125020d07aed643)
 
+## MÉTHODE DE TRAVAIL — AGENTIC OS
+
+### Principe orchestrateur
+- 1 seul terminal Claude Code = 1 seul orchestrateur
+- Jamais 2 terminaux sur le même projet simultanément
+- Structure : ORCHESTRATEUR → Agent 1..N → Validation → Documentation
+- Chaque agent valide avant de passer la main
+- Si test échoue → STOP, corriger, retester
+- Mettre à jour CLAUDE.md après chaque mission
+
+### Bootstrap obligatoire
+Claude Code lit automatiquement au démarrage :
+1. CLAUDE.md (règles spécifiques Coccinelle — priorité absolue)
+2. MASTER-PROMPT-V5.md (lien symbolique → ~/Projects/infra/agentic-os/)
+   → 37 règles techniques universelles Agentic OS
+   → Contexte fondateur Youssef / Agentic Solutions
+
+### Ordre de déploiement obligatoire
+1. Backend → wrangler deploy
+2. Agent VoixIA → systemctl restart voixia (si Python modifié)
+3. Frontend → npm run build && wrangler pages deploy
+
+### Source unique de vérité
+
+| Donnée | Source | Ne jamais utiliser |
+|--------|--------|--------------------|
+| company_name | tenants.name | tenants.company_name |
+| secteur | tenants.sector | voixia_configs.secteur |
+| prénom agent | system_prompt (regex) | users.first_name |
+| prompt actif | ai_prompt_versions.is_active=1 | — |
+| voix | voixia_configs.voice_id | — |
+| liste voix | lib/voices.ts | — |
+| prompts secteurs | lib/prompts.ts | PROMPT_TEMPLATES local |
+
 ## COMMANDES DE DÉPLOIEMENT (NE PAS EXÉCUTER SANS OK)
 
 ```bash
@@ -235,7 +429,7 @@ npx wrangler deploy
 
 # Frontend
 cd coccinelle-saas
-npm run pages:build && npx wrangler pages deploy .vercel/output/static --project-name=coccinelle-saas
+npm run build && npx wrangler pages deploy out --project-name coccinelle-saas --commit-dirty=true
 
 # Migration D1
 npx wrangler d1 execute coccinelle-db --remote --file=migrations/XXXX_nom.sql

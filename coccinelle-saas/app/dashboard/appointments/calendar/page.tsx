@@ -299,11 +299,11 @@ export default function RdvPage() {
 
   const getStatusBadge = (status: string) => {
     const badges: { [key: string]: string } = {
-      'scheduled': 'bg-blue-100 text-blue-800',
-      'confirmed': 'bg-green-100 text-green-800',
+      'scheduled': 'bg-gray-100 text-gray-800',
+      'confirmed': 'bg-gray-100 text-gray-800',
       'completed': 'bg-gray-100 text-gray-800',
-      'cancelled': 'bg-red-100 text-red-800',
-      'no_show': 'bg-orange-100 text-orange-800'
+      'cancelled': 'bg-gray-100 text-gray-800',
+      'no_show': 'bg-gray-100 text-gray-800'
     };
     
     const labels: { [key: string]: string } = {
@@ -325,7 +325,7 @@ export default function RdvPage() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Chargement des rendez-vous...</p>
         </div>
       </div>
@@ -379,7 +379,7 @@ export default function RdvPage() {
               <p className="text-gray-600 text-sm">Total RDV</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_appointments}</p>
             </div>
-            <Calendar className="text-blue-600" size={40} />
+            <Calendar className="text-gray-700" size={40} />
           </div>
         </div>
 
@@ -389,7 +389,7 @@ export default function RdvPage() {
               <p className="text-gray-600 text-sm">RDV à venir</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">{stats.upcoming_appointments}</p>
             </div>
-            <Clock className="text-orange-600" size={40} />
+            <Clock className="text-gray-700" size={40} />
           </div>
         </div>
 
@@ -399,7 +399,7 @@ export default function RdvPage() {
               <p className="text-gray-600 text-sm">RDV confirmés</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">{stats.confirmed_appointments}</p>
             </div>
-            <CheckCircle2 className="text-green-600" size={40} />
+            <CheckCircle2 className="text-gray-700" size={40} />
           </div>
         </div>
 
@@ -409,7 +409,7 @@ export default function RdvPage() {
               <p className="text-gray-600 text-sm">Taux présence</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">{stats.attendance_rate}%</p>
             </div>
-            <Users className="text-purple-600" size={40} />
+            <Users className="text-gray-700" size={40} />
           </div>
         </div>
       </div>
@@ -426,7 +426,7 @@ export default function RdvPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
             >
               <option value="all">Tous</option>
               <option value="scheduled">Planifié</option>
@@ -442,7 +442,7 @@ export default function RdvPage() {
             <select
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
             >
               <option value="all">Tous les agents</option>
               {agents.map(agent => (
@@ -458,7 +458,7 @@ export default function RdvPage() {
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
             >
               <option value="all">Toutes les dates</option>
               <option value="today">Aujourd'hui</option>
@@ -476,7 +476,7 @@ export default function RdvPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Nom prospect, agent..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
               />
             </div>
           </div>
@@ -591,7 +591,7 @@ export default function RdvPage() {
                 onClick={() => goToPage(pageNum)}
                 className={`px-4 py-2 rounded-lg ${
                   currentPage === pageNum
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-gray-900 text-white'
                     : 'border border-gray-300 hover:bg-gray-50'
                 }`}
               >
@@ -624,7 +624,7 @@ export default function RdvPage() {
                     required
                     value={newAppointment.prospect_id}
                     onChange={(e) => setNewAppointment({...newAppointment, prospect_id: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
                   >
                     <option value="">Sélectionner un prospect</option>
                     {prospects.map(p => (
@@ -641,7 +641,7 @@ export default function RdvPage() {
                     required
                     value={newAppointment.agent_id}
                     onChange={(e) => setNewAppointment({...newAppointment, agent_id: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
                   >
                     <option value="">Sélectionner un agent</option>
                     {agents.map(a => (
@@ -659,7 +659,7 @@ export default function RdvPage() {
                     required
                     value={newAppointment.appointment_date}
                     onChange={(e) => setNewAppointment({...newAppointment, appointment_date: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
                   />
                 </div>
 
@@ -670,7 +670,7 @@ export default function RdvPage() {
                     required
                     value={newAppointment.appointment_time}
                     onChange={(e) => setNewAppointment({...newAppointment, appointment_time: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
                   />
                 </div>
 
@@ -680,7 +680,7 @@ export default function RdvPage() {
                     value={newAppointment.notes}
                     onChange={(e) => setNewAppointment({...newAppointment, notes: e.target.value})}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900"
                     placeholder="Notes optionnelles..."
                   />
                 </div>
@@ -696,7 +696,7 @@ export default function RdvPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
                 >
                   Créer le RDV
                 </button>

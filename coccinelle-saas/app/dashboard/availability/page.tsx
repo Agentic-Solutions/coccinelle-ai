@@ -188,8 +188,8 @@ export default function AvailabilityPage() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Clock className="w-6 h-6 text-blue-600" />
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <Clock className="w-6 h-6 text-gray-700" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Disponibilités</h1>
@@ -210,7 +210,7 @@ export default function AvailabilityPage() {
               <select
                 value={selectedAgent}
                 onChange={(e) => setSelectedAgent(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent appearance-none bg-white"
               >
                 <option value="">Mes disponibilités</option>
                 {agents.map(a => (
@@ -231,7 +231,7 @@ export default function AvailabilityPage() {
 
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-4 border-gray-600 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
               <div className="space-y-4">
@@ -242,9 +242,9 @@ export default function AvailabilityPage() {
                       key={slot.day_of_week}
                       className={`p-4 rounded-lg border transition-colors ${
                         slot.is_available
-                          ? 'border-blue-200 bg-blue-50/50'
+                          ? 'border-gray-200 bg-gray-100/50'
                           : 'border-gray-200 bg-gray-50'
-                      } ${slot.modified ? 'ring-2 ring-blue-300' : ''}`}
+                      } ${slot.modified ? 'ring-2 ring-gray-300' : ''}`}
                     >
                       {/* Day header with toggle */}
                       <div className="flex items-center justify-between mb-3">
@@ -252,7 +252,7 @@ export default function AvailabilityPage() {
                         <button
                           onClick={() => updateSlot(index, 'is_available', !slot.is_available)}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            slot.is_available ? 'bg-blue-600' : 'bg-gray-300'
+                            slot.is_available ? 'bg-gray-900' : 'bg-gray-300'
                           }`}
                         >
                           <span
@@ -272,7 +272,7 @@ export default function AvailabilityPage() {
                               type="time"
                               value={slot.start_time}
                               onChange={(e) => updateSlot(index, 'start_time', e.target.value)}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             />
                           </div>
                           <div>
@@ -281,7 +281,7 @@ export default function AvailabilityPage() {
                               type="time"
                               value={slot.end_time}
                               onChange={(e) => updateSlot(index, 'end_time', e.target.value)}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             />
                           </div>
                           <div>
@@ -290,7 +290,7 @@ export default function AvailabilityPage() {
                               type="time"
                               value={slot.break_start}
                               onChange={(e) => updateSlot(index, 'break_start', e.target.value)}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             />
                           </div>
                           <div>
@@ -299,7 +299,7 @@ export default function AvailabilityPage() {
                               type="time"
                               value={slot.break_end}
                               onChange={(e) => updateSlot(index, 'break_end', e.target.value)}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             />
                           </div>
                           <div>
@@ -307,7 +307,7 @@ export default function AvailabilityPage() {
                             <select
                               value={slot.slot_duration}
                               onChange={(e) => updateSlot(index, 'slot_duration', Number(e.target.value))}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             >
                               {SLOT_DURATIONS.map(d => (
                                 <option key={d.value} value={d.value}>{d.label}</option>
@@ -328,7 +328,7 @@ export default function AvailabilityPage() {
             <button
               onClick={handleSave}
               disabled={saving || !hasChanges}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+              className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
             >
               {saving ? (
                 <>
@@ -351,7 +351,7 @@ export default function AvailabilityPage() {
         <div className="fixed bottom-4 right-4 z-50">
           <div
             className={`px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium ${
-              toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+              toast.type === 'success' ? 'bg-gray-900' : 'bg-gray-900'
             }`}
           >
             {toast.message}

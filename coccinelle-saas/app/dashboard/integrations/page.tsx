@@ -112,7 +112,7 @@ export default function IntegrationsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg">
                 <CheckCircle className="w-4 h-4" />
                 <span>{configuredIntegrations.length} intégration(s) active(s)</span>
               </div>
@@ -136,14 +136,14 @@ export default function IntegrationsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {configuredIntegrations.map((integration) => (
                     <Link key={integration.id} href={`/dashboard/integrations/${integration.id}`}>
-                      <div className="bg-white border-2 border-green-300 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer">
+                      <div className="bg-white border-2 border-gray-300 rounded-lg p-6 hover:shadow-lg transition-all cursor-pointer">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
                             {integration.logo_url ? (
                               <img src={integration.logo_url} alt={integration.platform_name} className="w-10 h-10 rounded" />
                             ) : (
-                              <div className="w-10 h-10 bg-green-100 rounded flex items-center justify-center">
-                                <Plug className="w-5 h-5 text-green-600" />
+                              <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center">
+                                <Plug className="w-5 h-5 text-gray-700" />
                               </div>
                             )}
                             <div>
@@ -152,7 +152,7 @@ export default function IntegrationsPage() {
                             </div>
                           </div>
                           {integration.enabled ? (
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-gray-1000 rounded-full"></div>
                           ) : (
                             <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
                           )}
@@ -167,13 +167,13 @@ export default function IntegrationsPage() {
                               </span>
                             </div>
                             {integration.last_sync_status === 'success' && (
-                              <div className="flex items-center gap-1 mt-1 text-xs text-green-600">
+                              <div className="flex items-center gap-1 mt-1 text-xs text-gray-700">
                                 <CheckCircle className="w-3 h-3" />
                                 <span>Synchronisé</span>
                               </div>
                             )}
                             {integration.last_sync_status === 'failed' && (
-                              <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
+                              <div className="flex items-center gap-1 mt-1 text-xs text-gray-700">
                                 <XCircle className="w-3 h-3" />
                                 <span>Erreur</span>
                               </div>
@@ -231,7 +231,7 @@ export default function IntegrationsPage() {
                         key={integration.id}
                         className={`bg-white rounded-lg p-6 border-2 transition-all ${
                           configured
-                            ? 'border-green-300 opacity-60'
+                            ? 'border-gray-300 opacity-60'
                             : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
                         }`}
                       >
@@ -248,7 +248,7 @@ export default function IntegrationsPage() {
                               <h3 className="font-bold text-gray-900 flex items-center gap-2">
                                 {integration.name}
                                 {integration.beta === 1 && (
-                                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded">
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-bold rounded">
                                     BETA
                                   </span>
                                 )}
@@ -264,22 +264,22 @@ export default function IntegrationsPage() {
 
                         <div className="flex flex-wrap gap-1 mb-4">
                           {integration.supports_contacts === 1 && (
-                            <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                               Contacts
                             </span>
                           )}
                           {integration.supports_deals === 1 && (
-                            <span className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                               Deals
                             </span>
                           )}
                           {integration.supports_products === 1 && (
-                            <span className="px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                               Produits
                             </span>
                           )}
                           {integration.supports_orders === 1 && (
-                            <span className="px-2 py-1 bg-orange-50 text-orange-700 text-xs rounded">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                               Commandes
                             </span>
                           )}

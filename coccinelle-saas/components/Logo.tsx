@@ -17,18 +17,18 @@ function Logo({ size = 32, className = '' }: LogoProps) {
       style={{ imageRendering: 'pixelated' }}
     >
       {/* Tête arrondie style Pac-Man ghost - pixelisée */}
-      <rect x="3" y="2" width="10" height="1" fill="#EF4444" />
-      <rect x="2" y="3" width="12" height="1" fill="#EF4444" />
-      <rect x="1" y="4" width="14" height="7" fill="#EF4444" />
+      <rect x="3" y="2" width="10" height="1" fill="#6B7280" />
+      <rect x="2" y="3" width="12" height="1" fill="#6B7280" />
+      <rect x="1" y="4" width="14" height="7" fill="#6B7280" />
 
       {/* Ondulations du bas (tentacules) - style mignon */}
-      <rect x="2" y="11" width="2" height="1" fill="#EF4444" />
-      <rect x="7" y="11" width="2" height="1" fill="#EF4444" />
-      <rect x="12" y="11" width="2" height="1" fill="#EF4444" />
+      <rect x="2" y="11" width="2" height="1" fill="#6B7280" />
+      <rect x="7" y="11" width="2" height="1" fill="#6B7280" />
+      <rect x="12" y="11" width="2" height="1" fill="#6B7280" />
 
-      <rect x="2" y="12" width="2" height="2" fill="#EF4444" />
-      <rect x="7" y="12" width="2" height="2" fill="#EF4444" />
-      <rect x="12" y="12" width="2" height="2" fill="#EF4444" />
+      <rect x="2" y="12" width="2" height="2" fill="#6B7280" />
+      <rect x="7" y="12" width="2" height="2" fill="#6B7280" />
+      <rect x="12" y="12" width="2" height="2" fill="#6B7280" />
 
       {/* Yeux blancs rigolos - ronds et grands */}
       <circle cx="5" cy="6" r="2" fill="white" />

@@ -301,7 +301,7 @@ export default function EmailConfigPage() {
 
   // Icons pour chaque provider
   const GmailIcon = ({ size = 'w-8 h-8' }: { size?: string }) => (
-    <svg className={`${size} text-red-500`} viewBox="0 0 24 24" fill="currentColor">
+    <svg className={`${size} text-gray-700`} viewBox="0 0 24 24" fill="currentColor">
       <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
     </svg>
   );
@@ -371,19 +371,19 @@ export default function EmailConfigPage() {
         </div>
       ) : status.connected ? (
         <div className="space-y-4">
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="p-4 bg-gray-100 border border-gray-200 rounded-lg">
             <div className="flex items-center gap-3">
-              <CheckCircle className="w-6 h-6 text-green-500" />
+              <CheckCircle className="w-6 h-6 text-gray-700" />
               <div>
-                <p className="font-medium text-green-800">{providerName} connecté</p>
-                <p className="text-green-700">{status.email}</p>
+                <p className="font-medium text-gray-800">{providerName} connecté</p>
+                <p className="text-gray-700">{status.email}</p>
               </div>
             </div>
           </div>
           
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-medium text-blue-900 mb-2">L&apos;assistant peut maintenant :</h3>
-            <ul className="space-y-1 text-blue-800 text-sm">
+          <div className="p-4 bg-gray-100 border border-gray-200 rounded-lg">
+            <h3 className="font-medium text-gray-900 mb-2">L&apos;assistant peut maintenant :</h3>
+            <ul className="space-y-1 text-gray-800 text-sm">
               <li>📥 Lire les emails reçus sur {status.email}</li>
               <li>📤 Répondre aux emails au nom de {status.email}</li>
               <li>🤖 Traiter automatiquement les demandes clients</li>
@@ -393,7 +393,7 @@ export default function EmailConfigPage() {
           <button
             onClick={onDisconnect}
             disabled={disconnecting === provider}
-            className="w-full px-6 py-3 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 flex items-center justify-center gap-2"
+            className="w-full px-6 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2"
           >
             {disconnecting === provider ? (
               <><Loader2 className="w-5 h-5 animate-spin" />Déconnexion...</>
@@ -439,8 +439,8 @@ export default function EmailConfigPage() {
                 <ArrowLeft className="w-5 h-5 text-gray-600" />
               </Link>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                  <Mail className="w-5 h-5 text-gray-700" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">Configuration Email</h1>
@@ -448,7 +448,7 @@ export default function EmailConfigPage() {
                 </div>
               </div>
             </div>
-            <Link href="/dashboard/inbox" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <Link href="/dashboard/inbox" className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
               <Inbox className="w-4 h-4" />
               Voir l'Inbox
             </Link>
@@ -459,35 +459,35 @@ export default function EmailConfigPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
-            <button onClick={() => setActiveTab('gmail')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'gmail' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <button onClick={() => setActiveTab('gmail')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'gmail' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               <div className="flex items-center gap-2">
                 <GmailIcon size="w-4 h-4" />
                 Gmail
-                {gmailStatus.connected && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
+                {gmailStatus.connected && <span className="w-2 h-2 bg-gray-500 rounded-full"></span>}
               </div>
             </button>
             
-            <button onClick={() => setActiveTab('outlook')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'outlook' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <button onClick={() => setActiveTab('outlook')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'outlook' ? 'border-gray-500 text-gray-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               <div className="flex items-center gap-2">
                 <OutlookIcon size="w-4 h-4" />
                 Outlook
-                {outlookStatus.connected && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
+                {outlookStatus.connected && <span className="w-2 h-2 bg-gray-500 rounded-full"></span>}
               </div>
             </button>
             
-            <button onClick={() => setActiveTab('yahoo')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'yahoo' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <button onClick={() => setActiveTab('yahoo')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'yahoo' ? 'border-gray-500 text-gray-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               <div className="flex items-center gap-2">
                 <YahooIcon size="w-4 h-4" />
                 Yahoo
-                {yahooStatus.connected && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
+                {yahooStatus.connected && <span className="w-2 h-2 bg-gray-500 rounded-full"></span>}
               </div>
             </button>
             
-            <button onClick={() => setActiveTab('domain')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'domain' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <button onClick={() => setActiveTab('domain')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'domain' ? 'border-gray-600 text-gray-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               <div className="flex items-center gap-2"><Globe className="w-4 h-4" />Domaine personnalisé</div>
             </button>
             
-            <button onClick={() => setActiveTab('test')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'test' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <button onClick={() => setActiveTab('test')} className={`px-4 py-3 font-medium text-sm border-b-2 whitespace-nowrap ${activeTab === 'test' ? 'border-gray-600 text-gray-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               <div className="flex items-center gap-2"><TestTube className="w-4 h-4" />Tester l'envoi</div>
             </button>
           </div>
@@ -497,16 +497,16 @@ export default function EmailConfigPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <p className="text-red-700">{error}</p>
-            <button onClick={() => setError(null)} className="ml-auto text-red-500">×</button>
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <p className="text-red-600">{error}</p>
+            <button onClick={() => setError(null)} className="ml-auto text-red-600">×</button>
           </div>
         )}
         {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-500" />
-            <p className="text-green-700">{success}</p>
-            <button onClick={() => setSuccess(null)} className="ml-auto text-green-500">×</button>
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-700">{success}</p>
+            <button onClick={() => setSuccess(null)} className="ml-auto text-gray-700">×</button>
           </div>
         )}
 
@@ -517,7 +517,7 @@ export default function EmailConfigPage() {
             {/* STEP 1: Connexion Gmail */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-sm">1</div>
+                <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-900 flex items-center justify-center font-bold text-sm">1</div>
                 <h2 className="text-lg font-bold text-gray-900">Connexion Gmail</h2>
               </div>
               
@@ -527,18 +527,18 @@ export default function EmailConfigPage() {
                 </div>
               ) : gmailStatus.connected ? (
                 <div className="space-y-4">
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+                  <div className="p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <CheckCircle className="w-6 h-6 text-green-500" />
+                      <CheckCircle className="w-6 h-6 text-gray-700" />
                       <div>
-                        <p className="font-medium text-green-800">Gmail connecté</p>
-                        <p className="text-green-700">{gmailStatus.email}</p>
+                        <p className="font-medium text-gray-800">Gmail connecté</p>
+                        <p className="text-gray-700">{gmailStatus.email}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => handleDisconnectProvider('google', setGmailStatus, 'Gmail')}
                       disabled={disconnecting === 'google'}
-                      className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2 text-sm"
+                      className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2 text-sm"
                     >
                       {disconnecting === 'google' ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
                       Déconnecter
@@ -552,7 +552,7 @@ export default function EmailConfigPage() {
                   </div>
                   <button
                     onClick={() => handleConnectProvider('google')}
-                    className="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-lg hover:border-red-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
+                    className="w-full px-6 py-4 bg-white border-2 border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
                   >
                     <GoogleColorIcon />
                     <span className="font-medium text-gray-700">Connecter avec Google</span>
@@ -565,24 +565,24 @@ export default function EmailConfigPage() {
             {gmailStatus.connected && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">2</div>
+                  <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm">2</div>
                   <h2 className="text-lg font-bold text-gray-900">Réponses automatiques</h2>
                 </div>
                 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-center justify-between p-4 bg-gray-100 border border-gray-200 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-900 to-gray-700 flex items-center justify-center">
                         <Bot className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <p className="font-medium text-purple-900">L&apos;assistant répond aux emails</p>
-                        <p className="text-sm text-purple-700">{autoReplyEnabled ? 'Activé' : 'Désactivé'}</p>
+                        <p className="font-medium text-gray-900">L&apos;assistant répond aux emails</p>
+                        <p className="text-sm text-gray-700">{autoReplyEnabled ? 'Activé' : 'Désactivé'}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => setAutoReplyEnabled(!autoReplyEnabled)}
-                      className={`relative w-14 h-8 rounded-full transition-colors ${autoReplyEnabled ? 'bg-purple-600' : 'bg-gray-300'}`}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${autoReplyEnabled ? 'bg-gray-900' : 'bg-gray-300'}`}
                     >
                       <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${autoReplyEnabled ? 'right-1' : 'left-1'}`} />
                     </button>
@@ -591,7 +591,7 @@ export default function EmailConfigPage() {
                   <button
                     onClick={handleAutoReplyClick}
                     disabled={processingAutoReply}
-                    className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full px-4 py-3 bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-lg hover:from-gray-800 hover:to-gray-900 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {processingAutoReply ? (
                       <><Loader2 className="w-5 h-5 animate-spin" /> Traitement en cours...</>
@@ -608,7 +608,7 @@ export default function EmailConfigPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">3</div>
+                    <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm">3</div>
                     <h2 className="text-lg font-bold text-gray-900">Statistiques</h2>
                   </div>
                   <button
@@ -621,19 +621,19 @@ export default function EmailConfigPage() {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                  <div className="p-4 bg-gray-100 border border-gray-200 rounded-lg text-center">
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <Mail className="w-5 h-5 text-blue-600" />
-                      <span className="text-2xl font-bold text-blue-900">{emailStats.received}</span>
+                      <Mail className="w-5 h-5 text-gray-700" />
+                      <span className="text-2xl font-bold text-gray-900">{emailStats.received}</span>
                     </div>
-                    <p className="text-sm text-blue-700">Emails reçus</p>
+                    <p className="text-sm text-gray-700">Emails reçus</p>
                   </div>
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                  <div className="p-4 bg-gray-100 border border-gray-200 rounded-lg text-center">
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <Bot className="w-5 h-5 text-green-600" />
-                      <span className="text-2xl font-bold text-green-900">{emailStats.replied}</span>
+                      <Bot className="w-5 h-5 text-gray-700" />
+                      <span className="text-2xl font-bold text-gray-900">{emailStats.replied}</span>
                     </div>
-                    <p className="text-sm text-green-700">Réponses IA</p>
+                    <p className="text-sm text-gray-700">Réponses IA</p>
                   </div>
                 </div>
                 
@@ -648,16 +648,16 @@ export default function EmailConfigPage() {
             )}
 
             {/* FAQ Section */}
-            <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+            <div className="bg-gray-100 rounded-xl p-6 border border-gray-200">
               <button onClick={() => setShowHelp(!showHelp)} className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
-                  <HelpCircle className="w-5 h-5 text-blue-600" />
-                  <span className="font-medium text-blue-900">Questions fréquentes</span>
+                  <HelpCircle className="w-5 h-5 text-gray-700" />
+                  <span className="font-medium text-gray-900">Questions fréquentes</span>
                 </div>
-                <span className="text-blue-600">{showHelp ? '−' : '+'}</span>
+                <span className="text-gray-700">{showHelp ? '−' : '+'}</span>
               </button>
               {showHelp && (
-                <div className="mt-4 space-y-4 text-sm text-blue-800">
+                <div className="mt-4 space-y-4 text-sm text-gray-800">
                   <div>
                     <p className="font-medium">Pourquoi connecter Gmail ?</p>
                     <p>L&apos;assistant peut lire et répondre aux emails de vos clients automatiquement, directement depuis votre adresse Gmail professionnelle.</p>
@@ -683,16 +683,16 @@ export default function EmailConfigPage() {
               providerName="Outlook"
               status={outlookStatus}
               icon={<MicrosoftColorIcon />}
-              bgColor="bg-blue-50"
+              bgColor="bg-gray-100"
               onConnect={() => handleConnectProvider('outlook')}
               onDisconnect={() => handleDisconnectProvider('outlook', setOutlookStatus, 'Outlook')}
             />
-            <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
+            <div className="bg-gray-100 rounded-xl p-6 border border-gray-200">
               <div className="flex items-center gap-2 mb-2">
-                <HelpCircle className="w-5 h-5 text-blue-600" />
-                <span className="font-medium text-blue-900">À propos d'Outlook</span>
+                <HelpCircle className="w-5 h-5 text-gray-700" />
+                <span className="font-medium text-gray-900">À propos d'Outlook</span>
               </div>
-              <p className="text-sm text-blue-800">
+              <p className="text-sm text-gray-800">
                 Compatible avec les adresses <strong>@outlook.com</strong>, <strong>@hotmail.com</strong>, <strong>@live.com</strong> et les comptes Microsoft 365 professionnels.
               </p>
             </div>
@@ -706,16 +706,16 @@ export default function EmailConfigPage() {
               providerName="Yahoo"
               status={yahooStatus}
               icon={<YahooIcon size="w-6 h-6" />}
-              bgColor="bg-purple-50"
+              bgColor="bg-gray-100"
               onConnect={() => handleConnectProvider('yahoo')}
               onDisconnect={() => handleDisconnectProvider('yahoo', setYahooStatus, 'Yahoo')}
             />
-            <div className="bg-purple-50 rounded-xl p-6 border border-purple-100">
+            <div className="bg-gray-100 rounded-xl p-6 border border-gray-200">
               <div className="flex items-center gap-2 mb-2">
-                <HelpCircle className="w-5 h-5 text-purple-600" />
-                <span className="font-medium text-purple-900">À propos de Yahoo</span>
+                <HelpCircle className="w-5 h-5 text-gray-700" />
+                <span className="font-medium text-gray-900">À propos de Yahoo</span>
               </div>
-              <p className="text-sm text-purple-800">
+              <p className="text-sm text-gray-800">
                 Compatible avec les adresses <strong>@yahoo.com</strong>, <strong>@yahoo.fr</strong>, <strong>@ymail.com</strong> et <strong>@rocketmail.com</strong>.
               </p>
             </div>
@@ -747,7 +747,7 @@ export default function EmailConfigPage() {
                           <input type="text" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Salon Marie" className="w-full px-3 py-2 border rounded-lg" />
                         </div>
                       </div>
-                      <button type="submit" disabled={adding} className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-50">
+                      <button type="submit" disabled={adding} className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg disabled:opacity-50">
                         {adding ? 'Ajout...' : 'Ajouter le domaine'}
                       </button>
                     </form>
@@ -761,8 +761,8 @@ export default function EmailConfigPage() {
                     <div key={domain.id} className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
                       <button onClick={() => setExpandedDomain(isExpanded ? null : domain.id)} className="w-full p-6 flex items-center justify-between hover:bg-gray-50">
                         <div className="flex items-center gap-3">
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${domain.status === 'verified' ? 'bg-green-100' : 'bg-yellow-100'}`}>
-                            {domain.status === 'verified' ? <CheckCircle className="w-6 h-6 text-green-600" /> : <Globe className="w-6 h-6 text-yellow-600" />}
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${domain.status === 'verified' ? 'bg-gray-100' : 'bg-gray-100'}`}>
+                            {domain.status === 'verified' ? <CheckCircle className="w-6 h-6 text-gray-700" /> : <Globe className="w-6 h-6 text-gray-700" />}
                           </div>
                           <div className="text-left">
                             <h3 className="font-bold text-gray-900">{domain.domain}</h3>
@@ -770,7 +770,7 @@ export default function EmailConfigPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${domain.status === 'verified' ? 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700'}`}>
                             {domain.status === 'verified' ? '✓ Vérifié' : '⏳ En attente'}
                           </span>
                           {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
@@ -784,14 +784,14 @@ export default function EmailConfigPage() {
                                 <span className="text-2xl">📋</span>
                                 <h4 className="font-bold text-gray-900">Configurez ces 4 enregistrements DNS</h4>
                               </div>
-                              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                <p className="text-amber-800 text-sm"><strong>⚠️ Important :</strong> L'enregistrement <strong>MX</strong> est nécessaire pour <strong>recevoir</strong> les emails.</p>
+                              <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg">
+                                <p className="text-gray-800 text-sm"><strong>⚠️ Important :</strong> L'enregistrement <strong>MX</strong> est nécessaire pour <strong>recevoir</strong> les emails.</p>
                               </div>
                               <div className="space-y-4">
                                 {dnsRecords.map((record, index) => (
-                                  <div key={index} className={`rounded-lg p-4 border ${record.type === 'MX' ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                                  <div key={index} className={`rounded-lg p-4 border ${record.type === 'MX' ? 'bg-gray-100 border-gray-200' : 'bg-gray-50 border-gray-200'}`}>
                                     <div className="flex items-center gap-2 mb-3">
-                                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${record.type === 'MX' ? 'bg-blue-600 text-white' : record.type === 'TXT' ? 'bg-gray-600 text-white' : 'bg-purple-100 text-purple-800'}`}>{record.type}</span>
+                                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${record.type === 'MX' ? 'bg-gray-900 text-white' : record.type === 'TXT' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-800'}`}>{record.type}</span>
                                       <span className="text-sm text-gray-600">{record.description}</span>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -799,8 +799,8 @@ export default function EmailConfigPage() {
                                         <label className="block text-xs font-medium text-gray-500 mb-1">Nom {record.priority !== undefined && `| Priorité: ${record.priority}`}</label>
                                         <div className="flex items-center gap-2">
                                           <code className="flex-1 bg-white px-3 py-2 rounded border text-sm font-mono">{record.name}</code>
-                                          <button onClick={() => copyToClipboard(record.name, `${index}-name`)} className="p-2 hover:bg-blue-100 rounded">
-                                            {copiedField === `${index}-name` ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                                          <button onClick={() => copyToClipboard(record.name, `${index}-name`)} className="p-2 hover:bg-gray-100 rounded">
+                                            {copiedField === `${index}-name` ? <Check className="w-4 h-4 text-gray-700" /> : <Copy className="w-4 h-4 text-gray-400" />}
                                           </button>
                                         </div>
                                       </div>
@@ -808,8 +808,8 @@ export default function EmailConfigPage() {
                                         <label className="block text-xs font-medium text-gray-500 mb-1">Valeur</label>
                                         <div className="flex items-center gap-2">
                                           <code className="flex-1 bg-white px-3 py-2 rounded border text-sm font-mono truncate" title={record.value}>{record.value}</code>
-                                          <button onClick={() => copyToClipboard(record.value, `${index}-value`)} className="p-2 hover:bg-blue-100 rounded">
-                                            {copiedField === `${index}-value` ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                                          <button onClick={() => copyToClipboard(record.value, `${index}-value`)} className="p-2 hover:bg-gray-100 rounded">
+                                            {copiedField === `${index}-value` ? <Check className="w-4 h-4 text-gray-700" /> : <Copy className="w-4 h-4 text-gray-400" />}
                                           </button>
                                         </div>
                                       </div>
@@ -823,12 +823,12 @@ export default function EmailConfigPage() {
                             </div>
                           )}
                           {domain.status === 'verified' && (
-                            <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                              <p className="text-green-800">✅ <strong>Domaine vérifié !</strong></p>
+                            <div className="mt-6 p-4 bg-gray-100 rounded-lg border border-gray-200">
+                              <p className="text-gray-800">✅ <strong>Domaine vérifié !</strong></p>
                             </div>
                           )}
                           <div className="mt-4 pt-4 border-t flex justify-end">
-                            <button onClick={() => handleDelete(domain.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2 text-sm">
+                            <button onClick={() => handleDelete(domain.id)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2 text-sm">
                               <Trash2 className="w-4 h-4" />Supprimer
                             </button>
                           </div>
@@ -849,7 +849,7 @@ export default function EmailConfigPage() {
               <input type="email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="votre-email@exemple.com" className="w-full px-4 py-3 border rounded-lg" required />
               <input type="text" value={testSubject} onChange={(e) => setTestSubject(e.target.value)} placeholder="Sujet" className="w-full px-4 py-3 border rounded-lg" />
               <textarea value={testMessage} onChange={(e) => setTestMessage(e.target.value)} rows={4} className="w-full px-4 py-3 border rounded-lg" />
-              <button type="submit" disabled={sending} className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+              <button type="submit" disabled={sending} className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
                 {sending ? <><Loader2 className="w-5 h-5 animate-spin" />Envoi...</> : <><Send className="w-5 h-5" />Envoyer</>}
               </button>
             </form>

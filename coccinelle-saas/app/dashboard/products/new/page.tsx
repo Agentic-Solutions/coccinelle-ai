@@ -305,11 +305,11 @@ export default function NewProductPage() {
       {/* Success Message */}
       {success && (
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
             <div>
-              <p className="font-medium text-green-900">Produit créé avec succès</p>
-              <p className="text-sm text-green-700">Redirection en cours...</p>
+              <p className="font-medium text-gray-900">Produit créé avec succès</p>
+              <p className="text-sm text-gray-700">Redirection en cours...</p>
             </div>
           </div>
         </div>
@@ -318,11 +318,11 @@ export default function NewProductPage() {
       {/* Error Message */}
       {error && (
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
             <div>
-              <p className="font-medium text-red-900">Erreur</p>
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="font-medium text-gray-900">Erreur</p>
+              <p className="text-sm text-gray-700">{error}</p>
             </div>
           </div>
         </div>
@@ -349,7 +349,7 @@ export default function NewProductPage() {
                     setCategory(e.target.value);
                     setAttributes({});
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   required
                   disabled={loadingCategories}
                 >
@@ -365,15 +365,7 @@ export default function NewProductPage() {
             {/* Selected Category Icon */}
             {config && (
               <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <Icon className={`w-6 h-6 ${
-                  config.color === 'blue' ? 'text-blue-600' :
-                  config.color === 'purple' ? 'text-purple-600' :
-                  config.color === 'orange' ? 'text-orange-600' :
-                  config.color === 'green' ? 'text-green-600' :
-                  config.color === 'red' ? 'text-red-600' :
-                  config.color === 'yellow' ? 'text-yellow-600' :
-                  'text-gray-600'
-                }`} />
+                <Icon className="w-6 h-6 text-gray-600" />
                 <span className="font-medium text-gray-900">{config.name}</span>
                 {config.description && (
                   <span className="text-sm text-gray-500">• {config.description}</span>
@@ -392,7 +384,7 @@ export default function NewProductPage() {
                   onClick={() => setType('product')}
                   className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
                     type === 'product'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-gray-900 bg-gray-100 text-gray-900'
                       : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                   }`}
                 >
@@ -404,7 +396,7 @@ export default function NewProductPage() {
                   onClick={() => setType('service')}
                   className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
                     type === 'service'
-                      ? 'border-green-500 bg-green-50 text-green-700'
+                      ? 'border-gray-900 bg-gray-100 text-gray-900'
                       : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                   }`}
                 >
@@ -430,7 +422,7 @@ export default function NewProductPage() {
                 <select
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   disabled={loadingAgents}
                 >
                   <option value="">Aucun agent (partagé)</option>
@@ -459,7 +451,7 @@ export default function NewProductPage() {
                 <select
                   value={appointmentTypeId}
                   onChange={(e) => setAppointmentTypeId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 >
                   <option value="">Aucun type de RDV</option>
                   {appointmentTypes.map((at) => (
@@ -483,7 +475,7 @@ export default function NewProductPage() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 placeholder={getTitlePlaceholder()}
                 required
               />
@@ -497,7 +489,7 @@ export default function NewProductPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 placeholder={getDescriptionPlaceholder()}
               />
             </div>
@@ -513,7 +505,7 @@ export default function NewProductPage() {
                   step="0.01"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="0.00"
                   required
                 />
@@ -525,7 +517,7 @@ export default function NewProductPage() {
                 <select
                   value={priceCurrency}
                   onChange={(e) => setPriceCurrency(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 >
                   <option value="EUR">EUR</option>
                   <option value="USD">USD</option>
@@ -544,21 +536,21 @@ export default function NewProductPage() {
                   {config.fields.map(field => (
                     <div key={field.key}>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {field.label} {field.required && <span className="text-red-500">*</span>}
+                        {field.label} {field.required && <span className="text-gray-700">*</span>}
                       </label>
                       {field.type === 'checkbox' ? (
                         <input
                           type="checkbox"
                           checked={attributes[field.key] || false}
                           onChange={(e) => handleAttributeChange(field.key, e.target.checked, field.type)}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          className="w-4 h-4 text-gray-600 rounded focus:ring-2 focus:ring-gray-900"
                         />
                       ) : (
                         <input
                           type={field.type}
                           value={attributes[field.key] || ''}
                           onChange={(e) => handleAttributeChange(field.key, e.target.value, field.type)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                           placeholder={field.label}
                           required={field.required}
                         />
@@ -585,7 +577,7 @@ export default function NewProductPage() {
                         type="text"
                         value={locationCity}
                         onChange={(e) => setLocationCity(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                         placeholder="Paris"
                       />
                     </div>
@@ -597,7 +589,7 @@ export default function NewProductPage() {
                         type="text"
                         value={locationPostalCode}
                         onChange={(e) => setLocationPostalCode(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                         placeholder="75001"
                       />
                     </div>
@@ -610,7 +602,7 @@ export default function NewProductPage() {
                       type="text"
                       value={locationAddress}
                       onChange={(e) => setLocationAddress(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                       placeholder="123 rue de Rivoli"
                     />
                   </div>
@@ -627,7 +619,7 @@ export default function NewProductPage() {
                 type="text"
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 placeholder="nouveau, promotion, populaire"
               />
             </div>
@@ -639,7 +631,7 @@ export default function NewProductPage() {
                 id="available"
                 checked={available}
                 onChange={(e) => setAvailable(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                className="w-4 h-4 text-gray-600 rounded focus:ring-2 focus:ring-gray-900"
               />
               <label htmlFor="available" className="text-sm font-medium text-gray-700">
                 Produit disponible
@@ -654,7 +646,7 @@ export default function NewProductPage() {
                   id="hasVariants"
                   checked={hasVariants}
                   onChange={(e) => setHasVariants(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-4 h-4 text-gray-600 rounded focus:ring-2 focus:ring-gray-900"
                 />
                 <label htmlFor="hasVariants" className="text-sm font-medium text-gray-700">
                   Ce produit a des variantes (couleur, taille, etc.)
@@ -669,7 +661,7 @@ export default function NewProductPage() {
                     <button
                       type="button"
                       onClick={addVariant}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-900 text-white rounded hover:bg-gray-800"
                     >
                       <Plus className="w-4 h-4" />
                       Ajouter variante
@@ -684,7 +676,7 @@ export default function NewProductPage() {
                           <button
                             type="button"
                             onClick={() => removeVariant(index)}
-                            className="text-red-600 hover:text-red-700"
+                            className="text-gray-600 hover:text-gray-900"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -700,7 +692,7 @@ export default function NewProductPage() {
                             type="text"
                             value={variant.sku}
                             onChange={(e) => updateVariant(index, 'sku', e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="PROD-RED-42"
                             required
                           />
@@ -713,7 +705,7 @@ export default function NewProductPage() {
                             type="number"
                             value={variant.stock}
                             onChange={(e) => updateVariant(index, 'stock', e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="0"
                             min="0"
                             required
@@ -730,7 +722,7 @@ export default function NewProductPage() {
                             type="text"
                             value={variant.attributes.color || ''}
                             onChange={(e) => updateVariant(index, 'color', e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="Rouge, Bleu..."
                           />
                         </div>
@@ -742,7 +734,7 @@ export default function NewProductPage() {
                             type="text"
                             value={variant.attributes.size || ''}
                             onChange={(e) => updateVariant(index, 'size', e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="42, M, L..."
                           />
                         </div>
@@ -757,7 +749,7 @@ export default function NewProductPage() {
                           step="0.01"
                           value={variant.price || ''}
                           onChange={(e) => updateVariant(index, 'price', e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                           placeholder="129.99"
                         />
                       </div>
@@ -780,7 +772,7 @@ export default function NewProductPage() {
             <button
               type="submit"
               disabled={saving || success}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {saving ? (
                 <>

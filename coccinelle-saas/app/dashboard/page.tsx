@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Phone, FileText, Calendar, Activity,
-  Users, Package, MessageSquare, TrendingUp, Zap, ArrowUpRight, Clock,
-  Inbox, Settings
+  Users, Zap, ArrowUpRight, Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import SmartAlerts from '../../src/components/dashboard/SmartAlerts';
@@ -203,24 +202,18 @@ export default function DashboardPage() {
       title: `${stats.rdv} rendez-vous`,
       action: 'Voir',
       icon: Calendar,
-      bgClass: 'bg-green-50',
-      iconClass: 'text-green-600',
       href: '/dashboard/rdv'
     }] : []),
     ...(stats.appels > 0 ? [{
       title: `${stats.appels} appel${stats.appels > 1 ? 's' : ''}`,
       action: 'Écouter',
       icon: Phone,
-      bgClass: 'bg-blue-50',
-      iconClass: 'text-blue-600',
       href: '/dashboard/conversations/appels'
     }] : []),
     ...(stats.documents > 0 ? [{
       title: `${stats.documents} document${stats.documents > 1 ? 's' : ''}`,
       action: 'Gérer',
       icon: FileText,
-      bgClass: 'bg-purple-50',
-      iconClass: 'text-purple-600',
       href: '/dashboard/knowledge'
     }] : []),
   ];
@@ -273,8 +266,8 @@ export default function DashboardPage() {
             <Link href="/dashboard/conversations/appels">
               <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 group-hover:bg-blue-100 rounded-xl flex items-center justify-center transition-colors">
-                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
+                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
                   </div>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.appels}</p>
@@ -285,8 +278,8 @@ export default function DashboardPage() {
             <Link href="/dashboard/knowledge">
               <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 group-hover:bg-purple-100 rounded-xl flex items-center justify-center transition-colors">
-                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
                   </div>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.documents}</p>
@@ -297,8 +290,8 @@ export default function DashboardPage() {
             <Link href="/dashboard/rdv">
               <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-50 group-hover:bg-green-100 rounded-xl flex items-center justify-center transition-colors">
-                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
+                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
                   </div>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.rdv}</p>
@@ -309,161 +302,14 @@ export default function DashboardPage() {
             <Link href="/dashboard/crm">
               <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:shadow-xl transition-all cursor-pointer group">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-50 group-hover:bg-orange-100 rounded-xl flex items-center justify-center transition-colors">
-                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
                   </div>
                 </div>
                 <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{stats.clients}</p>
                 <p className="text-xs sm:text-sm text-gray-600">Clients actifs</p>
               </div>
             </Link>
-          </div>
-
-          {/* Actions rapides - Grid 3x3 optimisé */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Actions rapides</h3>
-              <span className="text-xs text-gray-500">Accès direct aux fonctionnalités</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-              {/* Ligne 1 */}
-              <Link href="/dashboard/conversations/appels">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-blue-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <Phone className="w-5 h-5 text-blue-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Appels</h4>
-                      <p className="text-xs text-gray-600 truncate">Historique vocal</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/knowledge">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-purple-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <FileText className="w-5 h-5 text-purple-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Base de connaissance</h4>
-                      <p className="text-xs text-gray-600 truncate">Docs & FAQ</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/rdv">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-green-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <Calendar className="w-5 h-5 text-green-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Agenda</h4>
-                      <p className="text-xs text-gray-600 truncate">Rendez-vous</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              {/* Ligne 2 */}
-              <Link href="/dashboard/crm">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-orange-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <Users className="w-5 h-5 text-orange-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">CRM</h4>
-                      <p className="text-xs text-gray-600 truncate">Contacts & leads</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/products">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-pink-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <Package className="w-5 h-5 text-pink-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Produits</h4>
-                      <p className="text-xs text-gray-600 truncate">Catalogue</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/channels">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-teal-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <MessageSquare className="w-5 h-5 text-teal-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Canaux</h4>
-                      <p className="text-xs text-gray-600 truncate">Multi-canal</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              {/* Ligne 3 */}
-              <Link href="/dashboard/analytics">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-indigo-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <TrendingUp className="w-5 h-5 text-indigo-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Analytics</h4>
-                      <p className="text-xs text-gray-600 truncate">Rapports</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/inbox">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-cyan-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <Inbox className="w-5 h-5 text-cyan-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Inbox</h4>
-                      <p className="text-xs text-gray-600 truncate">Messages</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/dashboard/settings">
-                <div className="bg-white rounded-xl p-5 border-2 border-gray-200 hover:border-black hover:shadow-lg transition-all cursor-pointer group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-gray-50 group-hover:bg-black rounded-lg flex items-center justify-center transition-colors">
-                      <Settings className="w-5 h-5 text-gray-600 group-hover:text-white transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 mb-0.5 truncate">Configuration</h4>
-                      <p className="text-xs text-gray-600 truncate">Paramètres</p>
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-black transition-colors flex-shrink-0" />
-                  </div>
-                </div>
-              </Link>
-            </div>
           </div>
 
           {/* Section 2 colonnes: Activité + Quick Wins */}
@@ -476,7 +322,7 @@ export default function DashboardPage() {
                     <Activity className="w-5 h-5 text-gray-600" />
                     Activité récente
                   </h3>
-                  <Link href="/dashboard/analytics" className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+                  <Link href="/dashboard/analytics" className="text-sm text-gray-600 hover:text-gray-900 font-medium flex items-center gap-1">
                     Tout voir
                     <ArrowUpRight className="w-4 h-4" />
                   </Link>
@@ -497,12 +343,8 @@ export default function DashboardPage() {
                           )}
 
                           {/* Icon */}
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center relative z-10 ${
-                            activity.type === 'call' ? 'bg-blue-50 border-2 border-blue-200' : 'bg-green-50 border-2 border-green-200'
-                          }`}>
-                            <Icon className={`w-5 h-5 ${
-                              activity.type === 'call' ? 'text-blue-600' : 'text-green-600'
-                            }`} />
+                          <div className="w-10 h-10 rounded-lg flex items-center justify-center relative z-10 bg-gray-100 border-2 border-gray-200">
+                            <Icon className="w-5 h-5 text-gray-600" />
                           </div>
 
                           {/* Content */}
@@ -535,19 +377,19 @@ export default function DashboardPage() {
             {/* Quick Wins & Alerts - 1/3 */}
             <div className="space-y-4">
               {/* Quick Wins - Actions prioritaires */}
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-200">
+              <div className="bg-white rounded-xl p-5 border border-gray-200">
                 <div className="flex items-center gap-2 mb-4">
-                  <Zap className="w-5 h-5 text-amber-600" />
+                  <Zap className="w-5 h-5 text-gray-600" />
                   <h3 className="font-bold text-gray-900">Résumé</h3>
                 </div>
                 {quickWins.length > 0 ? (
                   <div className="space-y-2">
                     {quickWins.map((win, index) => (
                       <Link key={index} href={win.href}>
-                        <div className="bg-white rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer group border border-amber-100">
+                        <div className="bg-gray-50 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer group border border-gray-200">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 ${win.bgClass} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                              <win.icon className={`w-4 h-4 ${win.iconClass}`} />
+                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <win.icon className="w-4 h-4 text-gray-700" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-gray-900 truncate">{win.title}</p>

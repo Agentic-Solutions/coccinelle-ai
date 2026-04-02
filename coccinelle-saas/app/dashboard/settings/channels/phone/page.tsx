@@ -220,14 +220,14 @@ function PhoneConfigContent() {
           </div>
         ) : (
           <>
-            {saved && <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3"><CheckCircle className="w-5 h-5 text-green-600" /><p className="text-green-800 font-medium">Configuration enregistrée !</p></div>}
-            {error && <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3"><AlertCircle className="w-5 h-5 text-red-600" /><p className="text-red-800 font-medium">{error}</p></div>}
+            {saved && <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3"><CheckCircle className="w-5 h-5 text-gray-700" /><p className="text-gray-800 font-medium">Configuration enregistrée !</p></div>}
+            {error && <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3"><AlertCircle className="w-5 h-5 text-red-600" /><p className="text-gray-800 font-medium">{error}</p></div>}
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${config.configured ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                    <Phone className={`w-6 h-6 ${config.configured ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${config.configured ? 'bg-gray-100' : 'bg-gray-100'}`}>
+                    <Phone className={`w-6 h-6 ${config.configured ? 'text-gray-700' : 'text-gray-400'}`} />
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Canal Voix</h2>
@@ -247,14 +247,14 @@ function PhoneConfigContent() {
             </div>
 
             {config.clientPhoneNumber && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-                <h3 className="font-bold text-blue-900 mb-4">Transfert d'appel</h3>
-                <div className="bg-white border border-blue-300 rounded-lg p-4 mb-4 flex items-center justify-between">
+              <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 mb-6">
+                <h3 className="font-bold text-gray-900 mb-4">Transfert d'appel</h3>
+                <div className="bg-white border border-gray-300 rounded-lg p-4 mb-4 flex items-center justify-between">
                   <div><p className="text-xs text-gray-600">Numéro Coccinelle</p><p className="text-2xl font-bold">{TWILIO_SHARED_NUMBER}</p></div>
-                  <button onClick={handleCopyNumber} className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2">{copiedNumber ? <><CheckCircle className="w-4 h-4" />Copié !</> : <><Copy className="w-4 h-4" />Copier</>}</button>
+                  <button onClick={handleCopyNumber} className="px-4 py-2 bg-gray-900 text-white rounded-lg flex items-center gap-2">{copiedNumber ? <><CheckCircle className="w-4 h-4" />Copié !</> : <><Copy className="w-4 h-4" />Copier</>}</button>
                 </div>
                 {transferGuides.map(g => (
-                  <div key={g.id} className="bg-white border border-blue-200 rounded-lg mb-2">
+                  <div key={g.id} className="bg-white border border-gray-200 rounded-lg mb-2">
                     <button onClick={() => setExpandedGuide(expandedGuide === g.id ? null : g.id)} className="w-full px-4 py-3 flex justify-between"><span className="font-medium">{g.name}</span>{expandedGuide === g.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}</button>
                     {expandedGuide === g.id && <div className="px-4 pb-4">{g.steps.map((s, i) => <p key={i} className="text-sm" dangerouslySetInnerHTML={{ __html: `${i + 1}. ${s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}` }} />)}</div>}
                   </div>

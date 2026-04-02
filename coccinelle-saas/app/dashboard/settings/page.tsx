@@ -203,15 +203,15 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
         Les actions ci-dessous sont irréversibles. Procédez avec prudence.
       </p>
 
-      <div className="border border-red-200 rounded-lg p-4 bg-red-50">
-        <h3 className="font-semibold text-red-800 mb-2">Supprimer mon compte</h3>
-        <p className="text-sm text-red-700 mb-4">
+      <div className="border border-gray-200 rounded-lg p-4 bg-gray-100">
+        <h3 className="font-semibold text-gray-800 mb-2">Supprimer mon compte</h3>
+        <p className="text-sm text-gray-700 mb-4">
           Cette action supprimera définitivement votre compte et toutes vos données
           (prospects, clients, produits, rendez-vous). Cette opération est irréversible.
         </p>
         <button
           onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
+          className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
         >
           Supprimer mon compte
         </button>
@@ -227,8 +227,8 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
             </p>
 
             {error && (
-              <div className="rounded-md bg-red-50 p-3 border border-red-200 mb-4">
-                <p className="text-sm text-red-800">{error}</p>
+              <div className="rounded-md bg-gray-100 p-3 border border-gray-200 mb-4">
+                <p className="text-sm text-gray-800">{error}</p>
               </div>
             )}
 
@@ -241,7 +241,7 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
                   type="text"
                   value={confirmation}
                   onChange={(e) => setConfirmation(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500"
                   placeholder="SUPPRIMER"
                   disabled={loading}
                 />
@@ -254,7 +254,7 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-gray-500 focus:border-gray-500"
                   placeholder="Votre mot de passe"
                   disabled={loading}
                 />
@@ -277,7 +277,7 @@ function DangerZone({ onAccountDeleted }: { onAccountDeleted: () => void }) {
               <button
                 onClick={handleDelete}
                 disabled={loading || confirmation !== 'SUPPRIMER' || !password}
-                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Suppression...' : 'Supprimer définitivement'}
               </button>

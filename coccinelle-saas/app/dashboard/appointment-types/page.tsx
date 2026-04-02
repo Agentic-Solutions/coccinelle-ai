@@ -15,12 +15,12 @@ const DURATION_OPTIONS = [
 ];
 
 const COLOR_OPTIONS = [
-  '#3B82F6',
-  '#10B981',
-  '#F59E0B',
-  '#EF4444',
-  '#8B5CF6',
-  '#EC4899',
+  '#111827',
+  '#374151',
+  '#6B7280',
+  '#9CA3AF',
+  '#D1D5DB',
+  '#F3F4F6',
 ];
 
 interface AppointmentType {
@@ -46,7 +46,7 @@ const emptyForm: FormData = {
   duration_minutes: 30,
   description: '',
   price: '',
-  color: '#3B82F6',
+  color: '#111827',
 };
 
 export default function AppointmentTypesPage() {
@@ -167,8 +167,8 @@ export default function AppointmentTypesPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Calendar className="w-6 h-6 text-purple-600" />
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <Calendar className="w-6 h-6 text-gray-700" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Types de RDV</h1>
@@ -181,7 +181,7 @@ export default function AppointmentTypesPage() {
                 setEditingId(null);
                 setShowForm(true);
               }}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm font-medium"
+              className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 flex items-center gap-2 text-sm font-medium"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Ajouter un type de RDV</span>
@@ -216,7 +216,7 @@ export default function AppointmentTypesPage() {
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="Ex: Visite de bien, Consultation, Estimation..."
                   required
                 />
@@ -230,7 +230,7 @@ export default function AppointmentTypesPage() {
                   <select
                     value={form.duration_minutes}
                     onChange={(e) => setForm({ ...form, duration_minutes: Number(e.target.value) })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     {DURATION_OPTIONS.map(d => (
                       <option key={d.value} value={d.value}>{d.label}</option>
@@ -247,7 +247,7 @@ export default function AppointmentTypesPage() {
                     step="0.01"
                     value={form.price}
                     onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                     placeholder="0.00"
                   />
                 </div>
@@ -261,7 +261,7 @@ export default function AppointmentTypesPage() {
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   rows={2}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="Description du type de rendez-vous..."
                 />
               </div>
@@ -296,7 +296,7 @@ export default function AppointmentTypesPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
+                  className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
                 >
                   {saving ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -313,7 +313,7 @@ export default function AppointmentTypesPage() {
         {/* Types list */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-gray-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : types.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
@@ -324,7 +324,7 @@ export default function AppointmentTypesPage() {
             </p>
             <button
               onClick={() => { setForm({ ...emptyForm }); setEditingId(null); setShowForm(true); }}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+              className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
             >
               Créer un type de RDV
             </button>
@@ -373,10 +373,10 @@ export default function AppointmentTypesPage() {
                   </button>
                   <button
                     onClick={() => handleDelete(type.id)}
-                    className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Supprimer"
                   >
-                    <Trash2 className="w-4 h-4 text-red-500" />
+                    <Trash2 className="w-4 h-4 text-gray-700" />
                   </button>
                 </div>
               </div>
@@ -390,7 +390,7 @@ export default function AppointmentTypesPage() {
         <div className="fixed bottom-4 right-4 z-50">
           <div
             className={`px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium ${
-              toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+              toast.type === 'success' ? 'bg-gray-900' : 'bg-gray-900'
             }`}
           >
             {toast.message}

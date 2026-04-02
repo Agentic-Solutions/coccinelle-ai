@@ -44,9 +44,38 @@ export async function handleVoixIARoutes(request, env, path, method) {
       return await handleSearchKnowledge(request, env);
     }
 
+    // POST /api/v1/voixia/transfer — Transférer vers un humain
+    if (path === '/api/v1/voixia/transfer' && method === 'POST') {
+      return await handleTransferToHuman(request, env);
+    }
+
     // GET /api/v1/voixia/resolve-phone — Résoudre un numéro de téléphone vers un tenant
     if (path === '/api/v1/voixia/resolve-phone' && method === 'GET') {
       return await handleResolvePhone(request, env);
+    }
+
+    // ═══ Aliases /tools/* pour compatibilité documentée ═══
+    if (path === '/api/v1/voixia/tools/availability' && method === 'GET') {
+      return await handleCheckAvailability(request, env);
+    }
+    if (path === '/api/v1/voixia/tools/book-appointment' && method === 'POST') {
+      return await handleCreateAppointment(request, env);
+    }
+    if (path === '/api/v1/voixia/tools/knowledge' && method === 'GET') {
+      // Adapter GET → même logique que POST knowledge mais via query params
+      return await handleSearchKnowledgeGET(request, env);
+    }
+    if (path === '/api/v1/voixia/tools/products' && method === 'GET') {
+      return await handleSearchProducts(request, env);
+    }
+    if (path === '/api/v1/voixia/tools/prospect' && method === 'POST') {
+      return await handleCreateProspect(request, env);
+    }
+    if (path === '/api/v1/voixia/tools/sms' && method === 'POST') {
+      return await handleSendSMS(request, env);
+    }
+    if (path === '/api/v1/voixia/tools/transfer' && method === 'POST') {
+      return await handleTransferToHuman(request, env);
     }
 
     return null;
@@ -800,4 +829,127 @@ async function handleResolvePhone(request, env) {
     logger.error('VoixIA resolve-phone error', { error: error.message, phone });
     return errorResponse('Erreur lors de la resolution du numero', 500);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/v1/voixia/transfer — Transférer vers un humain
+// ═══════════════════════════════════════════════════════════════
+
+async function handleTransferToHuman(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  const { tenant_id } = auth;
+
+  let body = {};
+  try {
+    body = await request.json();
+  } catch {
+    // Body optionnel
+  }
+  const { reason, caller_phone } = body;
+
+  // Récupérer le numéro de transfert du tenant (premier numéro actif)
+  let transferNumber = null;
+  try {
+    const mapping = await env.DB.prepare(`
+      SELECT phone_number FROM omni_phone_mappings
+      WHERE tenant_id = ? AND is_active = 1
+      LIMIT 1
+    `).bind(tenant_id).first();
+    transferNumber = mapping?.phone_number || null;
+  } catch {
+    // Non bloquant
+  }
+
+  // Logger le transfert
+  await logAudit(env, {
+    tenant_id,
+    user_id: 'voixia-agent',
+    action: 'voixia.transfer_to_human',
+    resource_type: 'call',
+    changes: { reason: reason || 'Demande client', caller_phone: caller_phone || null }
+  });
+
+  logger.info('VoixIA — transfert vers humain', { tenant_id, reason, caller_phone });
+
+  return successResponse({
+    message: 'Transfert vers un conseiller en cours',
+    transfer_number: transferNumber,
+    reason: reason || 'Demande client'
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GET /api/v1/voixia/tools/knowledge — Alias GET pour knowledge
+// ═══════════════════════════════════════════════════════════════
+
+async function handleSearchKnowledgeGET(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  const { tenant_id } = auth;
+  const url = new URL(request.url);
+  const query = url.searchParams.get('query') || url.searchParams.get('question') || '';
+
+  if (!query) return errorResponse('Paramètre query requis', 400);
+
+  // Réutiliser la logique de recherche textuelle (sans embedding pour GET)
+  let results = [];
+
+  try {
+    const textResults = await env.DB.prepare(`
+      SELECT
+        kc.content, kc.chunk_index,
+        kd.title, kd.source_type, kd.url
+      FROM knowledge_chunks kc
+      LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
+      WHERE kd.tenant_id = ?
+        AND kc.content LIKE ?
+      LIMIT 5
+    `).bind(tenant_id, `%${query}%`).all();
+
+    if (textResults.results?.length > 0) {
+      results = textResults.results.map(chunk => ({
+        content: chunk.content,
+        source_title: chunk.title,
+        source_type: chunk.source_type,
+        source_url: chunk.url
+      }));
+    }
+  } catch (error) {
+    logger.error('VoixIA — erreur recherche knowledge GET', { error: error.message });
+  }
+
+  // Fallback FAQ
+  if (results.length === 0) {
+    try {
+      const faqResults = await env.DB.prepare(`
+        SELECT question, answer
+        FROM knowledge_faq
+        WHERE tenant_id = ?
+          AND (question LIKE ? OR answer LIKE ?)
+        LIMIT 5
+      `).bind(tenant_id, `%${query}%`, `%${query}%`).all();
+
+      if (faqResults.results?.length > 0) {
+        results = faqResults.results.map(faq => ({
+          content: `Q: ${faq.question}\nR: ${faq.answer}`,
+          source_title: 'FAQ',
+          source_type: 'faq'
+        }));
+      }
+    } catch {
+      // Table FAQ peut ne pas exister
+    }
+  }
+
+  return successResponse({
+    results,
+    count: results.length,
+    answer: results.length > 0 ? results[0].content : null,
+    message: results.length > 0
+      ? `${results.length} résultat(s) trouvé(s)`
+      : 'Aucun résultat trouvé dans la base de connaissances'
+  });
 }

@@ -10,16 +10,16 @@ export default function ConfigurationPage() {
       description: 'Configuration de votre assistant intelligent, types d\'agents et base de connaissances',
       href: '/dashboard/sara',
       icon: Bot,
-      bgClass: 'bg-blue-50',
-      iconClass: 'text-blue-600'
+      bgClass: 'bg-gray-100',
+      iconClass: 'text-gray-700'
     },
     {
       title: 'Canaux de communication',
       description: 'Configuration de vos canaux (telephone, SMS, WhatsApp, email)',
       href: '/dashboard/channels',
       icon: Phone,
-      bgClass: 'bg-green-50',
-      iconClass: 'text-green-600'
+      bgClass: 'bg-gray-100',
+      iconClass: 'text-gray-700'
     }
   ];
 
@@ -39,7 +39,7 @@ export default function ConfigurationPage() {
             <Link
               key={section.href}
               href={section.href}
-              className="block bg-white rounded-lg border border-gray-200 p-4 sm:p-6 hover:border-blue-500 hover:shadow-lg transition-all active:bg-gray-50"
+              className="block bg-white rounded-lg border border-gray-200 p-4 sm:p-6 hover:border-gray-500 hover:shadow-lg transition-all active:bg-gray-50"
             >
               <div className="flex items-start gap-3 sm:gap-4">
                 <div className={`p-2.5 sm:p-3 rounded-lg ${section.bgClass} flex-shrink-0`}>

@@ -7,6 +7,7 @@
 export interface PromptNode {
   name: string;
   instruction: string;
+  script?: string;  // Texte exact que l'agent vocal prononcera
 }
 
 export interface QuickScenario {
@@ -90,11 +91,11 @@ Résume ce qui a été convenu.
 Demande s'il y a d'autres questions.
 Remercie et raccroche.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez chaleureusement. Confirmez que vous appelez de {COMPANY_NAME}. Demandez si c\'est le bon moment.' },
-      { name: 'qualification', instruction: 'Identifiez le projet : achat, vente, location, estimation. Posez les questions de qualification une par une.' },
-      { name: 'prise_rdv', instruction: 'Proposez un RDV avec un conseiller. Vérifiez les disponibilités. Confirmez date, heure, lieu.' },
-      { name: 'callback', instruction: 'Si pas disponible : demandez le meilleur moment pour rappeler. Notez et confirmez.' },
-      { name: 'fin', instruction: 'Résumez ce qui a été convenu. Demandez s\'il y a d\'autres questions. Remerciez.' },
+      { name: 'accueil', instruction: 'Accueillez chaleureusement. Confirmez que vous appelez de {COMPANY_NAME}. Demandez si c\'est le bon moment.', script: 'Bonjour ! Vous êtes bien chez {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider aujourd\'hui ?' },
+      { name: 'qualification', instruction: 'Identifiez le projet : achat, vente, location, estimation. Posez les questions de qualification une par une.', script: 'Très bien ! Pour votre projet, quel est votre budget approximatif ?\n\nEt dans quelle ville ou secteur recherchez-vous ?\n\nCombien de pièces souhaitez-vous ?\n\nC\'est pour une résidence principale ou un investissement ?' },
+      { name: 'prise_rdv', instruction: 'Proposez un RDV avec un conseiller. Vérifiez les disponibilités. Confirmez date, heure, lieu.', script: 'Je vous propose un rendez-vous avec l\'un de nos conseillers. Quelles sont vos disponibilités cette semaine ?\n\nParfait. Pouvez-vous me confirmer votre nom et téléphone ?' },
+      { name: 'callback', instruction: 'Si pas disponible : demandez le meilleur moment pour rappeler. Notez et confirmez.', script: 'Pas de problème ! Quand souhaitez-vous être rappelé ?\n\nTrès bien, nous vous rappellerons. Bonne journée !' },
+      { name: 'fin', instruction: 'Résumez ce qui a été convenu. Demandez s\'il y a d\'autres questions. Remerciez.', script: 'Merci de votre confiance. N\'hésitez pas à nous rappeler. Belle journée !' },
     ],
     quick_scenarios: [
       { label: 'Acheter', message: 'Bonjour, je cherche à acheter un appartement.' },
@@ -149,11 +150,11 @@ Confirme le RDV avec tous les détails.
 Informe des documents à apporter.
 Propose un SMS de confirmation.`,
     nodes: [
-      { name: 'accueil', instruction: 'Présentez-vous de {COMPANY_NAME}. Vérifiez l\'identité. Demandez le motif avec bienveillance.' },
-      { name: 'motif', instruction: 'Identifiez : RDV, modification, ordonnance, résultats, certificat. Évaluez l\'urgence.' },
-      { name: 'screening', instruction: 'Nouveau patient : nom, DDN, médecin traitant, mutuelle. Motif : durée, évolution, intensité.' },
-      { name: 'prise_rdv', instruction: 'Proposez créneaux selon urgence. Confirmez date, heure, praticien.' },
-      { name: 'fin', instruction: 'Confirmez le RDV. Documents à apporter. SMS de confirmation.' },
+      { name: 'accueil', instruction: 'Présentez-vous de {COMPANY_NAME}. Vérifiez l\'identité. Demandez le motif avec bienveillance.', script: 'Bonjour, cabinet {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'motif', instruction: 'Identifiez : RDV, modification, ordonnance, résultats, certificat. Évaluez l\'urgence.', script: 'Pour quel motif souhaitez-vous consulter ?\n\nAvec quel médecin ou praticien ?' },
+      { name: 'screening', instruction: 'Nouveau patient : nom, DDN, médecin traitant, mutuelle. Motif : durée, évolution, intensité.', script: 'Je comprends que c\'est urgent. Pouvez-vous décrire rapidement ce qui se passe ?\n\nSi c\'est une urgence vitale, je vous recommande d\'appeler le 15 ou le 112 immédiatement.' },
+      { name: 'prise_rdv', instruction: 'Proposez créneaux selon urgence. Confirmez date, heure, praticien.', script: 'Quelles sont vos disponibilités — en semaine ou le week-end ?\n\nMatin ou après-midi ?\n\nJe vous propose [date] à [heure]. Cela vous convient ?' },
+      { name: 'fin', instruction: 'Confirmez le RDV. Documents à apporter. SMS de confirmation.', script: 'Votre rendez-vous est confirmé. N\'oubliez pas votre carte vitale et mutuelle. Prenez soin de vous. À bientôt !' },
     ],
     quick_scenarios: [
       { label: 'Nouveau RDV', message: 'Bonjour, j\'aimerais prendre rendez-vous avec un médecin.' },
@@ -194,10 +195,10 @@ Informe sur la préparation si nécessaire.
 Confirme le RDV. Rappelle : carte vitale, mutuelle.
 Informe du délai d'attente si urgence.`,
     nodes: [
-      { name: 'accueil', instruction: 'Présentez-vous du cabinet {COMPANY_NAME}. Vérifiez l\'identité du patient.' },
-      { name: 'motif', instruction: 'Urgence : douleur, dent cassée, abcès. Routine : détartrage, contrôle. Première visite : bilan.' },
-      { name: 'prise_rdv', instruction: 'Proposez créneaux selon urgence. Confirmez date, heure, durée.' },
-      { name: 'fin', instruction: 'Confirmez le RDV. Carte vitale, mutuelle. Délai si urgence.' },
+      { name: 'accueil', instruction: 'Présentez-vous du cabinet {COMPANY_NAME}. Vérifiez l\'identité du patient.', script: 'Bonjour, cabinet dentaire {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'motif', instruction: 'Urgence : douleur, dent cassée, abcès. Routine : détartrage, contrôle. Première visite : bilan.', script: 'Est-ce une urgence dentaire ou un rendez-vous de routine ?\n\nPouvez-vous me décrire votre problème ?' },
+      { name: 'prise_rdv', instruction: 'Proposez créneaux selon urgence. Confirmez date, heure, durée.', script: 'Quelles sont vos disponibilités ?\n\nJe vous propose [date] à [heure]. Cela vous convient ?\n\nN\'oubliez pas votre carte vitale et votre mutuelle.' },
+      { name: 'fin', instruction: 'Confirmez le RDV. Carte vitale, mutuelle. Délai si urgence.', script: 'Votre rendez-vous est confirmé. Prenez soin de vous. À bientôt !' },
     ],
     quick_scenarios: [
       { label: 'Urgence dentaire', message: 'Bonjour, j\'ai une rage de dents terrible.' },
@@ -242,11 +243,11 @@ Oriente vers la plateforme de commande si applicable.
 Confirme la réservation avec tous les détails.
 Envoie un SMS de confirmation si demandé.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez chaleureusement. Identifiez : réservation, menu, livraison, autre.' },
-      { name: 'reservation', instruction: 'Date, heure, couverts, nom, téléphone. Allergies, occasion spéciale.' },
-      { name: 'menu', instruction: 'Plats du jour, formules, allergènes. Proposez de réserver.' },
-      { name: 'livraison', instruction: 'Zone, délai, minimum de commande. Plateforme de commande.' },
-      { name: 'fin', instruction: 'Confirmez la réservation. SMS de confirmation.' },
+      { name: 'accueil', instruction: 'Accueillez chaleureusement. Identifiez : réservation, menu, livraison, autre.', script: 'Bonjour, restaurant {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'reservation', instruction: 'Date, heure, couverts, nom, téléphone. Allergies, occasion spéciale.', script: 'Avec plaisir ! Pour quelle date souhaitez-vous réserver ?\n\nÀ quelle heure ?\n\nPour combien de personnes ?\n\nÀ quel nom ?\n\nAvez-vous des allergies ou une occasion spéciale ?' },
+      { name: 'menu', instruction: 'Plats du jour, formules, allergènes. Proposez de réserver.', script: 'Notre carte propose nos spécialités du moment. Le plat du jour est [plat]. Souhaitez-vous réserver une table ?' },
+      { name: 'livraison', instruction: 'Zone, délai, minimum de commande. Plateforme de commande.', script: 'Nous livrons dans un rayon de [X] km. Le délai est d\'environ [X] minutes. Le minimum de commande est de [X] euros.' },
+      { name: 'fin', instruction: 'Confirmez la réservation. SMS de confirmation.', script: 'Merci de votre appel. Nous avons hâte de vous accueillir !' },
     ],
     quick_scenarios: [
       { label: 'Réserver', message: 'Bonjour, je voudrais réserver une table pour ce soir.' },
@@ -288,10 +289,10 @@ Propose essai, RDV commercial ou atelier. Confirme date, heure, durée.
 ### 6. Fin
 Résume le projet. Confirme le RDV. SMS de confirmation.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez. Identifiez : achat, reprise, entretien, SAV, financement.' },
-      { name: 'qualification', instruction: 'Budget, type véhicule, neuf/occasion, carburant, usage.' },
-      { name: 'prise_rdv', instruction: 'Proposez essai ou RDV atelier. Confirmez date, heure.' },
-      { name: 'fin', instruction: 'Résumez le projet. Confirmez le RDV. SMS.' },
+      { name: 'accueil', instruction: 'Accueillez. Identifiez : achat, reprise, entretien, SAV, financement.', script: 'Bonjour, {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'qualification', instruction: 'Budget, type véhicule, neuf/occasion, carburant, usage.', script: 'Vous recherchez un véhicule neuf ou d\'occasion ?\n\nQuel est votre budget approximatif ?\n\nAvez-vous un véhicule à reprendre ?' },
+      { name: 'prise_rdv', instruction: 'Proposez essai ou RDV atelier. Confirmez date, heure.', script: 'Pouvez-vous me donner la marque et le modèle de votre véhicule ?\n\nQuel est le problème constaté ?\n\nQuelles sont vos disponibilités pour un rendez-vous ?' },
+      { name: 'fin', instruction: 'Résumez le projet. Confirmez le RDV. SMS.', script: 'Merci de votre appel chez {COMPANY_NAME}. À très bientôt !' },
     ],
     quick_scenarios: [
       { label: 'Acheter', message: 'Bonjour, je cherche à acheter un SUV.' },
@@ -331,10 +332,10 @@ Confirme date, heure, durée, tarif indicatif.
 Confirme le RDV. Informe d'arriver 5 min avant.
 Demande si questions sur la préparation.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez chaleureusement. Identifiez le service souhaité.' },
-      { name: 'qualification', instruction: 'Coiffure, esthétique ou spa. Détails de la prestation.' },
-      { name: 'prise_rdv', instruction: 'Disponibilité, praticien. Date, heure, durée, tarif.' },
-      { name: 'fin', instruction: 'Confirmez RDV. Arriver 5 min avant. Préparation.' },
+      { name: 'accueil', instruction: 'Accueillez chaleureusement. Identifiez le service souhaité.', script: 'Bonjour, {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'qualification', instruction: 'Coiffure, esthétique ou spa. Détails de la prestation.', script: 'Quelle prestation souhaitez-vous — coupe, couleur, soin, épilation ou autre ?\n\nAvez-vous une préférence pour un praticien ?\n\nEst-ce une première visite chez nous ?' },
+      { name: 'prise_rdv', instruction: 'Disponibilité, praticien. Date, heure, durée, tarif.', script: 'Je vous propose [date] à [heure]. Cela vous convient ?\n\nPouvez-vous confirmer votre nom et numéro ?\n\nMerci d\'arriver 5 minutes avant votre rendez-vous.' },
+      { name: 'fin', instruction: 'Confirmez RDV. Arriver 5 min avant. Préparation.', script: 'Merci. Nous avons hâte de vous accueillir. À bientôt !' },
     ],
     quick_scenarios: [
       { label: 'Coiffure', message: 'Bonjour, je voudrais prendre RDV pour une coupe.' },
@@ -379,11 +380,11 @@ Confirme date, heure, ce qu'il faut apporter.
 ### 5. Fin
 Confirme le RDV. Message motivant. SMS de confirmation.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez dynamiquement. Identifiez : inscription, cours, coaching, info.' },
-      { name: 'qualification', instruction: 'Objectifs, niveau, disponibilités, budget.' },
-      { name: 'offre', instruction: 'Formules adaptées. Séance découverte. Objections.' },
-      { name: 'prise_rdv', instruction: 'Bilan forme ou séance découverte. Date, heure, équipement.' },
-      { name: 'fin', instruction: 'Confirmez RDV. Message motivant. SMS.' },
+      { name: 'accueil', instruction: 'Accueillez dynamiquement. Identifiez : inscription, cours, coaching, info.', script: 'Bonjour, {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'qualification', instruction: 'Objectifs, niveau, disponibilités, budget.', script: 'Quels sont vos objectifs — perte de poids, musculation, cardio ou bien-être ?\n\nAvez-vous déjà pratiqué une activité sportive régulièrement ?' },
+      { name: 'offre', instruction: 'Formules adaptées. Séance découverte. Objections.', script: 'Nos formules démarrent à [prix]/mois avec accès à toutes nos machines et cours. Souhaitez-vous venir voir nos installations ?\n\nJe vous propose une séance découverte gratuite.' },
+      { name: 'prise_rdv', instruction: 'Bilan forme ou séance découverte. Date, heure, équipement.', script: 'Je vous propose [date] à [heure]. Venez en tenue de sport !\n\nVotre nom ?' },
+      { name: 'fin', instruction: 'Confirmez RDV. Message motivant. SMS.', script: 'Super ! On vous attend le [date]. N\'hésitez pas à nous appeler. À bientôt !' },
     ],
     quick_scenarios: [
       { label: 'S\'inscrire', message: 'Bonjour, j\'aimerais m\'inscrire à votre salle.' },
@@ -429,11 +430,11 @@ Si non résolvable → escalade vers un humain.
 Confirme l'action engagée. Donne le délai de traitement.
 Propose un numéro de suivi si applicable.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez. Identifiez : commande, retour, réclamation, conseil.' },
-      { name: 'suivi', instruction: 'Numéro commande, nom. Statut. Problème livraison → réclamation.' },
-      { name: 'retour', instruction: 'Procédure 14 jours. Numéro, motif, état. Remboursement ou échange.' },
-      { name: 'reclamation', instruction: 'Écouter. Reformuler. Solution concrète. Escalade si nécessaire.' },
-      { name: 'fin', instruction: 'Action engagée. Délai. Numéro de suivi.' },
+      { name: 'accueil', instruction: 'Accueillez. Identifiez : commande, retour, réclamation, conseil.', script: 'Bonjour, service client {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'suivi', instruction: 'Numéro commande, nom. Statut. Problème livraison → réclamation.', script: 'Pouvez-vous me donner votre numéro de commande ?\n\nJe vérifie le statut... Votre commande est actuellement [statut].' },
+      { name: 'retour', instruction: 'Procédure 14 jours. Numéro, motif, état. Remboursement ou échange.', script: 'Je comprends. Pour effectuer un retour, vous disposez de 14 jours. Quel est le motif du retour ?\n\nSouhaitez-vous un remboursement ou un échange ?' },
+      { name: 'reclamation', instruction: 'Écouter. Reformuler. Solution concrète. Escalade si nécessaire.', script: 'Je suis désolé pour ce désagrément. Pouvez-vous me décrire le problème ?\n\nJe prends note et je transmets immédiatement à notre équipe.' },
+      { name: 'fin', instruction: 'Action engagée. Délai. Numéro de suivi.', script: 'Votre demande est enregistrée. Vous recevrez une réponse sous [délai]. Bonne journée !' },
     ],
     quick_scenarios: [
       { label: 'Ma commande', message: 'Bonjour, je voudrais savoir où en est ma commande.' },
@@ -477,11 +478,11 @@ Informe du déplacement si applicable.
 ### 5. Fin
 Confirme l'intervention ou le RDV devis. SMS avec heure d'arrivée.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez. Urgence ou travaux planifiés ?' },
-      { name: 'urgence', instruction: 'Gravité, adresse, disponibilité. Délai intervention.' },
-      { name: 'devis', instruction: 'Type travaux, surface, état. RDV devis gratuit.' },
-      { name: 'prise_rdv', instruction: 'Date, heure, durée. Déplacement.' },
-      { name: 'fin', instruction: 'Confirmez intervention ou devis. SMS.' },
+      { name: 'accueil', instruction: 'Accueillez. Urgence ou travaux planifiés ?', script: 'Bonjour, {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'urgence', instruction: 'Gravité, adresse, disponibilité. Délai intervention.', script: 'Je comprends que c\'est urgent. Quelle est votre adresse exacte ?\n\nPouvez-vous décrire le problème ?\n\nNous pouvons intervenir dans un délai de [X].' },
+      { name: 'devis', instruction: 'Type travaux, surface, état. RDV devis gratuit.', script: 'Quel type de travaux souhaitez-vous réaliser ?\n\nQuelle est la surface approximative ?\n\nJe vous propose un devis gratuit sur place.' },
+      { name: 'prise_rdv', instruction: 'Date, heure, durée. Déplacement.', script: 'Quelles sont vos disponibilités pour une visite ?\n\nJe vous propose [date] à [heure].' },
+      { name: 'fin', instruction: 'Confirmez intervention ou devis. SMS.', script: 'Votre rendez-vous est confirmé. Nous vous enverrons un SMS de rappel. À bientôt !' },
     ],
     quick_scenarios: [
       { label: 'Urgence', message: 'Bonjour, j\'ai une fuite d\'eau importante !' },
@@ -525,10 +526,10 @@ Mentionne la possibilité d'aide juridictionnelle si applicable.
 Confirme le RDV. Aucune info sur le fond du dossier.
 Envoie confirmation avec adresse du cabinet.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez. Domaine : famille, travail, immobilier, pénal, commercial.' },
-      { name: 'qualification', instruction: 'Écoutez le problème. Urgence ? JAMAIS de conseil juridique.' },
-      { name: 'prise_rdv', instruction: 'Consultation initiale. Documents à apporter. Aide juridictionnelle.' },
-      { name: 'fin', instruction: 'Confirmez RDV. Aucune info sur le fond. Adresse cabinet.' },
+      { name: 'accueil', instruction: 'Accueillez. Domaine : famille, travail, immobilier, pénal, commercial.', script: 'Bonjour, cabinet {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'qualification', instruction: 'Écoutez le problème. Urgence ? JAMAIS de conseil juridique.', script: 'Dans quel domaine se situe votre question — famille, travail, immobilier, ou autre ?\n\nPouvez-vous me résumer brièvement votre situation ?\n\nY a-t-il une urgence ou un délai légal en cours ?' },
+      { name: 'prise_rdv', instruction: 'Consultation initiale. Documents à apporter. Aide juridictionnelle.', script: 'Je vous propose une consultation avec l\'un de nos avocats. Quelles sont vos disponibilités ?\n\nPensez à apporter tous les documents relatifs à votre dossier.' },
+      { name: 'fin', instruction: 'Confirmez RDV. Aucune info sur le fond. Adresse cabinet.', script: 'Votre rendez-vous est confirmé. L\'adresse du cabinet vous sera envoyée par SMS. À bientôt et courage !' },
     ],
     quick_scenarios: [
       { label: 'Consultation', message: 'Bonjour, j\'aimerais prendre RDV pour une consultation.' },
@@ -575,12 +576,12 @@ Confirme date, heure, format (présentiel ou visio).
 Confirme le RDV. Envoie le programme par email si demandé.
 Précise les documents à préparer.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez. Inscription, programme ou financement ?' },
-      { name: 'qualification', instruction: 'Niveau, objectif pro, disponibilités, financement.' },
-      { name: 'programme', instruction: 'Formation adaptée. Durée, modalités, certification, débouchés.' },
-      { name: 'financement', instruction: 'CPF, OPCO, Pôle Emploi. Conseiller financement.' },
-      { name: 'prise_rdv', instruction: 'Entretien orientation gratuit. Date, heure, format.' },
-      { name: 'fin', instruction: 'Confirmez RDV. Programme par email. Documents à préparer.' },
+      { name: 'accueil', instruction: 'Accueillez. Inscription, programme ou financement ?', script: 'Bonjour, {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'qualification', instruction: 'Niveau, objectif pro, disponibilités, financement.', script: 'Quel est votre projet professionnel ?\n\nQuel est votre niveau actuel ?\n\nPréférez-vous le présentiel, le distanciel ou le week-end ?' },
+      { name: 'programme', instruction: 'Formation adaptée. Durée, modalités, certification, débouchés.', script: 'La formation [nom] dure [durée] et délivre [certification]. Elle couvre [contenus principaux].\n\nLes débouchés sont [débouchés].' },
+      { name: 'financement', instruction: 'CPF, OPCO, Pôle Emploi. Conseiller financement.', script: 'Plusieurs options de financement existent : CPF, OPCO, Pôle Emploi. Souhaitez-vous qu\'un conseiller vous accompagne ?' },
+      { name: 'prise_rdv', instruction: 'Entretien orientation gratuit. Date, heure, format.', script: 'Je vous propose un entretien d\'orientation gratuit. Quelles sont vos disponibilités ?\n\nEn présentiel ou en visio ?' },
+      { name: 'fin', instruction: 'Confirmez RDV. Programme par email. Documents à préparer.', script: 'Votre entretien est confirmé. Nous vous enverrons le programme par email. À bientôt !' },
     ],
     quick_scenarios: [
       { label: 'Inscription', message: 'Bonjour, je voudrais m\'inscrire à une formation.' },
@@ -625,11 +626,11 @@ Résume ce qui a été convenu.
 Envoie confirmation si applicable.
 Remercie et raccroche.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez professionnellement. Motif de l\'appel. Bon moment ?' },
-      { name: 'qualification', instruction: 'Besoin précis. Max 3 questions. Orientation.' },
-      { name: 'prise_rdv', instruction: 'Créneaux disponibles. Confirmez tous les détails.' },
-      { name: 'callback', instruction: 'Disponibilités pour rappel. Confirmez.' },
-      { name: 'fin', instruction: 'Résumez. Confirmation. Remerciez.' },
+      { name: 'accueil', instruction: 'Accueillez professionnellement. Motif de l\'appel. Bon moment ?', script: 'Bonjour, {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'qualification', instruction: 'Besoin précis. Max 3 questions. Orientation.', script: 'Bien sûr, quelle est votre question ?\n\nJe prends votre message. Votre nom et numéro ?' },
+      { name: 'prise_rdv', instruction: 'Créneaux disponibles. Confirmez tous les détails.', script: 'Je vais vous aider à prendre rendez-vous. Pouvez-vous me préciser le motif ?\n\nQuelles sont vos disponibilités ?\n\nJe vous propose [date] à [heure]. Cela vous convient ?\n\nPouvez-vous confirmer votre nom et numéro ?' },
+      { name: 'callback', instruction: 'Disponibilités pour rappel. Confirmez.', script: 'À quel moment souhaitez-vous être rappelé ?\n\nVotre nom et numéro ?\n\nUn conseiller vous rappellera [jour] à [heure].' },
+      { name: 'fin', instruction: 'Résumez. Confirmation. Remerciez.', script: 'Merci de votre appel. Belle journée !' },
     ],
     quick_scenarios: [
       { label: 'RDV', message: 'Bonjour, j\'aimerais prendre un rendez-vous.' },
@@ -662,9 +663,9 @@ Traite la demande ou oriente vers le bon interlocuteur.
 ### 3. Fin
 Confirme l'action engagée. Raccroche poliment.`,
     nodes: [
-      { name: 'accueil', instruction: 'Accueillez. Identifiez le motif sans présupposer.' },
-      { name: 'traitement', instruction: 'Traitez la demande ou orientez vers le bon interlocuteur.' },
-      { name: 'fin', instruction: 'Confirmez l\'action. Raccrochez poliment.' },
+      { name: 'accueil', instruction: 'Accueillez. Identifiez le motif sans présupposer.', script: 'Bonjour, {COMPANY_NAME}, je suis {ASSISTANT_NAME}. Comment puis-je vous aider ?' },
+      { name: 'traitement', instruction: 'Traitez la demande ou orientez vers le bon interlocuteur.', script: 'Je comprends. Pouvez-vous me donner plus de détails ?\n\nJe vais transmettre votre demande au bon interlocuteur.' },
+      { name: 'fin', instruction: 'Confirmez l\'action. Raccrochez poliment.', script: 'Votre demande est prise en compte. Bonne journée !' },
     ],
     quick_scenarios: [
       { label: 'Renseignement', message: 'Bonjour, j\'appelle pour un renseignement.' },

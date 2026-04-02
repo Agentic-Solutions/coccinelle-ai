@@ -299,12 +299,12 @@ export default function BillingPage() {
 
         {/* Success message */}
         {successMessage && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
-            <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-            <p className="text-sm text-green-700">{successMessage}</p>
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-3">
+            <Check className="w-5 h-5 text-gray-700 flex-shrink-0" />
+            <p className="text-sm text-gray-700">{successMessage}</p>
             <button
               onClick={() => setSuccessMessage(null)}
-              className="ml-auto text-green-500 hover:text-green-700 text-sm"
+              className="ml-auto text-gray-600 hover:text-gray-900 text-sm"
             >
               Fermer
             </button>
@@ -313,12 +313,12 @@ export default function BillingPage() {
 
         {/* Error message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <p className="text-sm text-red-700">{error}</p>
+            <p className="text-sm text-gray-700">{error}</p>
             <button
               onClick={() => setError(null)}
-              className="ml-auto text-red-500 hover:text-red-700 text-sm"
+              className="ml-auto text-gray-700 hover:text-gray-700 text-sm"
             >
               Fermer
             </button>
@@ -327,29 +327,29 @@ export default function BillingPage() {
 
         {/* Trial banner */}
         {isTrial && subscription?.trial_days_remaining !== null && subscription.trial_days_remaining > 0 && (
-          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-xl">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-emerald-600" />
-                <span className="font-semibold text-emerald-900">
+                <Clock className="w-5 h-5 text-gray-700" />
+                <span className="font-semibold text-gray-900">
                   Essai gratuit — {subscription.trial_days_remaining} jour{subscription.trial_days_remaining > 1 ? 's' : ''} restant{subscription.trial_days_remaining > 1 ? 's' : ''}
                 </span>
               </div>
               {subscription.trial_ends_at && (
-                <span className="text-xs text-emerald-600">
+                <span className="text-xs text-gray-600">
                   Expire le {new Date(subscription.trial_ends_at).toLocaleDateString('fr-FR')}
                 </span>
               )}
             </div>
-            <div className="w-full bg-emerald-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-emerald-500 h-2 rounded-full transition-all"
+                className="bg-gray-900 h-2 rounded-full transition-all"
                 style={{
                   width: `${Math.max(5, ((14 - (subscription.trial_days_remaining || 0)) / 14) * 100)}%`,
                 }}
               />
             </div>
-            <p className="text-xs text-emerald-600 mt-2">
+            <p className="text-xs text-gray-600 mt-2">
               Profitez de toutes les fonctionnalites pendant votre essai. Choisissez un plan avant la fin.
             </p>
           </div>
@@ -357,10 +357,10 @@ export default function BillingPage() {
 
         {/* Expired / past_due banner */}
         {isExpired && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-xl">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-red-600" />
-              <span className="font-semibold text-red-900">
+              <span className="font-semibold text-gray-900">
                 {isPastDue
                   ? 'Paiement echoue — veuillez mettre a jour votre moyen de paiement'
                   : 'Votre essai est termine — choisissez un plan pour continuer'}
@@ -395,7 +395,7 @@ export default function BillingPage() {
                   </p>
                 )}
                 {subscription.cancel_at_period_end && (
-                  <p className="text-sm text-orange-600 mt-1 font-medium">
+                  <p className="text-sm text-gray-700 mt-1 font-medium">
                     Annulation prevue en fin de periode
                   </p>
                 )}
@@ -416,7 +416,7 @@ export default function BillingPage() {
                 {!subscription.cancel_at_period_end && (
                   <button
                     onClick={() => setShowChurnModal(true)}
-                    className="px-4 py-2.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
+                    className="px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
                   >
                     Annuler
                   </button>
@@ -443,25 +443,19 @@ export default function BillingPage() {
                     key={plan.id}
                     className={`relative bg-white rounded-xl border-2 p-6 flex flex-col ${
                       plan.popular
-                        ? 'border-purple-500 shadow-lg shadow-purple-100'
+                        ? 'border-gray-900 shadow-lg shadow-gray-100'
                         : 'border-gray-200'
                     }`}
                   >
                     {plan.popular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-purple-500 text-white text-xs font-semibold rounded-full">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-900 text-white text-xs font-semibold rounded-full">
                         Populaire
                       </div>
                     )}
 
                     <div className="flex items-center gap-3 mb-4">
                       <div
-                        className={`p-2 rounded-lg ${
-                          plan.color === 'blue'
-                            ? 'bg-blue-100 text-blue-600'
-                            : plan.color === 'purple'
-                            ? 'bg-purple-100 text-purple-600'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
+                        className={`p-2 rounded-lg bg-gray-100 text-gray-600`}
                       >
                         <Icon className="w-5 h-5" />
                       </div>
@@ -479,13 +473,7 @@ export default function BillingPage() {
                       {plan.features.map((feature, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <Check
-                            className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                              plan.color === 'blue'
-                                ? 'text-blue-500'
-                                : plan.color === 'purple'
-                                ? 'text-purple-500'
-                                : 'text-gray-500'
-                            }`}
+                            className={`w-4 h-4 mt-0.5 flex-shrink-0 text-gray-500`}
                           />
                           <span className="text-sm text-gray-700">{feature}</span>
                         </li>
@@ -499,7 +487,7 @@ export default function BillingPage() {
                         isCurrentPlan
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           : plan.popular
-                          ? 'bg-purple-600 text-white hover:bg-purple-700'
+                          ? 'bg-gray-900 text-white hover:bg-gray-800'
                           : 'bg-gray-900 text-white hover:bg-gray-800'
                       } disabled:opacity-60`}
                     >
@@ -557,7 +545,7 @@ export default function BillingPage() {
               {/* Reason selection */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pourquoi souhaitez-vous annuler ? <span className="text-red-500">*</span>
+                  Pourquoi souhaitez-vous annuler ? <span className="text-gray-700">*</span>
                 </label>
                 <div className="space-y-2">
                   {CHURN_REASONS.map((r) => (
@@ -565,7 +553,7 @@ export default function BillingPage() {
                       key={r.value}
                       className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
                         churnReason === r.value
-                          ? 'border-blue-500 bg-blue-50'
+                          ? 'border-gray-900 bg-gray-100'
                           : 'border-gray-200 hover:bg-gray-50'
                       }`}
                     >
@@ -575,7 +563,7 @@ export default function BillingPage() {
                         value={r.value}
                         checked={churnReason === r.value}
                         onChange={(e) => setChurnReason(e.target.value)}
-                        className="text-blue-600"
+                        className="text-gray-700"
                       />
                       <span className="text-sm text-gray-700">{r.label}</span>
                     </label>
@@ -593,7 +581,7 @@ export default function BillingPage() {
                   onChange={(e) => setChurnDetails(e.target.value)}
                   rows={3}
                   placeholder="Dites-nous en plus (facultatif)..."
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 resize-none"
                 />
               </div>
 
@@ -609,11 +597,7 @@ export default function BillingPage() {
                       onClick={() => setChurnRecommend(n)}
                       className={`w-8 h-8 rounded text-xs font-medium transition-colors ${
                         churnRecommend === n
-                          ? n <= 6
-                            ? 'bg-red-500 text-white'
-                            : n <= 8
-                            ? 'bg-yellow-500 text-white'
-                            : 'bg-green-500 text-white'
+                          ? 'bg-gray-900 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
@@ -643,7 +627,7 @@ export default function BillingPage() {
                 <button
                   onClick={handleChurnSubmitAndCancel}
                   disabled={!churnReason || churnLoading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {churnLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

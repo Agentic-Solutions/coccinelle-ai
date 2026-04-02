@@ -264,7 +264,7 @@ export default function AnalyticsPage() {
   const processStatusDistribution = (appointments: any[]) => {
     const statusColors: Record<string, string> = {
       scheduled: '#64748B',
-      confirmed: '#10B981',
+      confirmed: '#374151',
       completed: '#6B7280',
       cancelled: '#94A3B8',
       no_show: '#A8A29E'
@@ -478,11 +478,11 @@ export default function AnalyticsPage() {
 
         {/* Erreur */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-between">
+            <p className="text-sm text-gray-700">{error}</p>
             <button
               onClick={loadAnalytics}
-              className="text-sm text-red-600 font-medium hover:underline ml-4"
+              className="text-sm text-gray-600 font-medium hover:underline ml-4"
             >
               Reessayer
             </button>
@@ -506,7 +506,7 @@ export default function AnalyticsPage() {
             onClick={() => setActiveTab('ai-insights')}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all ${
               activeTab === 'ai-insights'
-                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                ? 'bg-gray-900 text-white shadow-lg'
                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
             }`}
           >
@@ -627,7 +627,7 @@ export default function AnalyticsPage() {
                 <YAxis stroke="#6B7280" />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="count" fill="#10B981" name="RDV" />
+                <Bar dataKey="count" fill="#6B7280" name="RDV" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -644,7 +644,7 @@ export default function AnalyticsPage() {
                   labelLine={false}
                   label={(entry) => `${entry.name}: ${entry.value}`}
                   outerRadius={100}
-                  fill="#8884d8"
+                  fill="#9CA3AF"
                   dataKey="value"
                 >
                   {statusDistribution.map((entry, index) => (

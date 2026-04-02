@@ -107,11 +107,11 @@ export default function RdvDetailPage() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      scheduled: 'bg-blue-100 text-blue-800',
-      confirmed: 'bg-green-100 text-green-800',
+      scheduled: 'bg-gray-100 text-gray-800',
+      confirmed: 'bg-gray-100 text-gray-800',
       completed: 'bg-gray-100 text-gray-800',
-      cancelled: 'bg-red-100 text-red-800',
-      no_show: 'bg-orange-100 text-orange-800'
+      cancelled: 'bg-gray-100 text-gray-800',
+      no_show: 'bg-gray-100 text-gray-800'
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -120,7 +120,7 @@ export default function RdvDetailPage() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Chargement du rendez-vous...</p>
         </div>
       </div>
@@ -245,7 +245,7 @@ export default function RdvDetailPage() {
                   <button
                     onClick={() => updateStatus('confirmed')}
                     disabled={updating}
-                    className="w-full flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    className="w-full flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50"
                   >
                     <CheckCircle2 size={16} />
                     Confirmer
@@ -264,7 +264,7 @@ export default function RdvDetailPage() {
                     <button
                       onClick={() => updateStatus('no_show')}
                       disabled={updating}
-                      className="w-full flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-800 text-sm font-medium rounded-lg hover:bg-orange-200 disabled:opacity-50"
+                      className="w-full flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-800 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50"
                     >
                       <AlertCircle size={16} />
                       Absent
@@ -272,7 +272,7 @@ export default function RdvDetailPage() {
                     <button
                       onClick={() => updateStatus('cancelled')}
                       disabled={updating}
-                      className="w-full flex items-center gap-2 px-4 py-2 bg-red-100 text-red-800 text-sm font-medium rounded-lg hover:bg-red-200 disabled:opacity-50"
+                      className="w-full flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-800 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50"
                     >
                       <XCircle size={16} />
                       Annuler

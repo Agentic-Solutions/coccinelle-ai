@@ -364,26 +364,26 @@ function PhoneConfigContent() {
           <>
         {/* Messages de statut */}
         {saved && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800 font-medium">Configuration enregistrée avec succès !</p>
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-800 font-medium">Configuration enregistrée avec succès !</p>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-800 font-medium">{error}</p>
+            <p className="text-gray-800 font-medium">{error}</p>
           </div>
         )}
 
         {/* Statut de configuration */}
         {!config.configured && (
-          <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-start gap-3">
-            <Info className="w-5 h-5 text-orange-600 mt-0.5" />
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+            <Info className="w-5 h-5 text-gray-700 mt-0.5" />
             <div>
-              <p className="text-orange-900 font-medium mb-1">Configuration requise</p>
-              <p className="text-sm text-orange-800">
+              <p className="text-gray-900 font-medium mb-1">Configuration requise</p>
+              <p className="text-sm text-gray-800">
                 Le canal voix doit être configuré par un administrateur avant utilisation.
                 Contactez <a href="mailto:support@coccinelle.ai" className="underline font-medium">support@coccinelle.ai</a> pour activer ce service.
               </p>
@@ -396,17 +396,17 @@ function PhoneConfigContent() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                config.configured ? 'bg-blue-100' : 'bg-gray-100'
+                config.configured ? 'bg-gray-100' : 'bg-gray-100'
               }`}>
                 <Phone className={`w-6 h-6 ${
-                  config.configured ? 'text-blue-600' : 'text-gray-400'
+                  config.configured ? 'text-gray-700' : 'text-gray-400'
                 }`} />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Canal Voix</h2>
                 <p className="text-sm text-gray-600">Agent IA vocal (Assistant)</p>
                 {config.configured && (
-                  <span className="inline-flex items-center gap-1 mt-1 text-xs text-green-700 font-medium">
+                  <span className="inline-flex items-center gap-1 mt-1 text-xs text-gray-700 font-medium">
                     <CheckCircle className="w-3 h-3" />
                     Configuré
                   </span>
@@ -441,7 +441,7 @@ function PhoneConfigContent() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Numéro de téléphone <span className="text-red-500">*</span>
+              Numéro de téléphone <span className="text-gray-700">*</span>
             </label>
             <input
               type="tel"
@@ -459,17 +459,17 @@ function PhoneConfigContent() {
 
         {/* Configuration du transfert */}
         {config.clientPhoneNumber && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 mb-6">
             <div className="flex items-center gap-2 mb-4">
-              <Info className="w-5 h-5 text-blue-600" />
-              <h3 className="font-bold text-blue-900">Configuration du transfert d'appel</h3>
+              <Info className="w-5 h-5 text-gray-700" />
+              <h3 className="font-bold text-gray-900">Configuration du transfert d'appel</h3>
             </div>
 
-            <p className="text-sm text-blue-800 mb-4">
+            <p className="text-sm text-gray-800 mb-4">
               Pour que Assistant réponde à vos appels, configurez un transfert depuis votre numéro vers :
             </p>
 
-            <div className="bg-white border border-blue-300 rounded-lg p-4 mb-4">
+            <div className="bg-white border border-gray-300 rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-600 mb-1">Numéro Coccinelle.AI</p>
@@ -477,7 +477,7 @@ function PhoneConfigContent() {
                 </div>
                 <button
                   onClick={handleCopyNumber}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
                 >
                   {copiedNumber ? (
                     <>
@@ -495,13 +495,13 @@ function PhoneConfigContent() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-medium text-blue-900 mb-3">Guide selon votre opérateur :</p>
+              <p className="text-sm font-medium text-gray-900 mb-3">Guide selon votre opérateur :</p>
 
               {transferGuides.map((guide) => (
-                <div key={guide.id} className="bg-white border border-blue-200 rounded-lg overflow-hidden">
+                <div key={guide.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                   <button
                     onClick={() => setExpandedGuide(expandedGuide === guide.id ? null : guide.id)}
-                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
                   >
                     <span className="font-medium text-gray-900">{guide.name}</span>
                     {expandedGuide === guide.id ? (
@@ -512,11 +512,11 @@ function PhoneConfigContent() {
                   </button>
 
                   {expandedGuide === guide.id && (
-                    <div className="px-4 pb-4 pt-2 border-t border-blue-100">
+                    <div className="px-4 pb-4 pt-2 border-t border-gray-200">
                       <ol className="space-y-2">
                         {guide.steps.map((step, idx) => (
                           <li key={idx} className="text-sm text-gray-700 flex gap-2">
-                            <span className="font-bold text-blue-600">{idx + 1}.</span>
+                            <span className="font-bold text-gray-700">{idx + 1}.</span>
                             <span dangerouslySetInnerHTML={{ __html: step.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                           </li>
                         ))}
@@ -527,8 +527,8 @@ function PhoneConfigContent() {
               ))}
             </div>
 
-            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p className="text-xs text-yellow-800">
+            <div className="mt-4 bg-gray-100 border border-gray-200 rounded-lg p-3">
+              <p className="text-xs text-gray-800">
                 <strong>💡 Conseil :</strong> Configurez un transfert conditionnel (si occupé / si pas de réponse) pour garder la main sur vos appels tout en bénéficiant de Assistant.
               </p>
             </div>
@@ -629,8 +629,8 @@ function PhoneConfigContent() {
             </div>
 
             {/* Script selon le type d'agent */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <label className="block text-sm font-medium text-blue-900 mb-2">
+            <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Script de {agentTypes.find(t => t.value === config.sara.agentType)?.label}
               </label>
               <textarea
@@ -648,9 +648,9 @@ function PhoneConfigContent() {
                 placeholder={`Script pour l'agent de type "${agentTypes.find(t => t.value === config.sara.agentType)?.label}"...`}
                 rows={4}
                 disabled={!config.configured}
-                className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent disabled:opacity-50 bg-white"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-transparent disabled:opacity-50 bg-white"
               />
-              <p className="text-xs text-blue-700 mt-2">
+              <p className="text-xs text-gray-700 mt-2">
                 Ce script sera utilisé comme prompt système pour l'agent de type <strong>{agentTypes.find(t => t.value === config.sara.agentType)?.label}</strong>. Changez le type d'agent ci-dessus pour configurer les autres scripts.
               </p>
             </div>
@@ -677,16 +677,16 @@ function PhoneConfigContent() {
 
         {/* Test du canal */}
         {config.enabled && config.configured && config.clientPhoneNumber && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-            <h3 className="font-bold text-green-900 mb-2">Tester votre configuration</h3>
-            <p className="text-sm text-green-800 mb-4">
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 mb-6">
+            <h3 className="font-bold text-gray-900 mb-2">Tester votre configuration</h3>
+            <p className="text-sm text-gray-800 mb-4">
               Appelez votre numéro professionnel pour vérifier que Assistant répond correctement
             </p>
             <div className="flex gap-3">
               <button
                 onClick={handleTestCall}
                 disabled={testing}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {testing ? (
                   <>

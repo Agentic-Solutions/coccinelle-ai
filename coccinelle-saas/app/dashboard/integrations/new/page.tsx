@@ -129,7 +129,7 @@ function NewIntegrationContent() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <AlertCircle className="w-12 h-12 text-gray-700 mx-auto mb-3" />
           <p className="text-gray-700">Intégration non trouvée</p>
         </div>
       </div>
@@ -158,16 +158,16 @@ function NewIntegrationContent() {
 
       <div className="max-w-4xl mx-auto px-8 py-8">
         {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800 font-medium">Intégration créée avec succès ! Redirection...</p>
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-800 font-medium">Intégration créée avec succès ! Redirection...</p>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-800 font-medium">{error}</p>
+            <p className="text-gray-800 font-medium">{error}</p>
           </div>
         )}
 
@@ -203,7 +203,7 @@ function NewIntegrationContent() {
                 <button
                   type="button"
                   onClick={handleOAuthConnect}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                  className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 font-medium"
                 >
                   <ExternalLink className="w-5 h-5" />
                   Connecter avec {integration.name}
@@ -260,11 +260,11 @@ function NewIntegrationContent() {
                   </>
                 )}
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-900 font-medium mb-1">
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
+                  <p className="text-sm text-gray-900 font-medium mb-1">
                     Comment obtenir votre clé API ?
                   </p>
-                  <p className="text-sm text-blue-800">
+                  <p className="text-sm text-gray-800">
                     Consultez la documentation de {integration.name} pour créer une clé API
                   </p>
                 </div>

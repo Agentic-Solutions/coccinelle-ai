@@ -223,7 +223,7 @@ export default function ProspectsPage() {
     switch (channel) {
       case 'email': return <Mail className="w-4 h-4" />;
       case 'sms': return <MessageSquare className="w-4 h-4" />;
-      case 'whatsapp': return <MessageSquare className="w-4 h-4 text-green-600" />;
+      case 'whatsapp': return <MessageSquare className="w-4 h-4 text-gray-700" />;
       case 'phone': return <Phone className="w-4 h-4" />;
       default: return null;
     }
@@ -231,10 +231,10 @@ export default function ProspectsPage() {
 
   const getStatusBadge = (status?: string) => {
     const badges: Record<string, string> = {
-      new: 'bg-blue-100 text-blue-800 border-blue-200',
-      contacted: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      qualified: 'bg-green-100 text-green-800 border-green-200',
-      converted: 'bg-purple-100 text-purple-800 border-purple-200',
+      new: 'bg-gray-100 text-gray-800 border-gray-200',
+      contacted: 'bg-gray-100 text-gray-800 border-gray-200',
+      qualified: 'bg-gray-100 text-gray-800 border-gray-200',
+      converted: 'bg-gray-100 text-gray-800 border-gray-200',
       lost: 'bg-gray-100 text-gray-800 border-gray-200',
     };
 
@@ -256,9 +256,9 @@ export default function ProspectsPage() {
 
   const getSegmentBadge = (segment?: string) => {
     const badges: Record<string, string> = {
-      vip: 'bg-purple-100 text-purple-800 border-purple-200',
-      active: 'bg-green-100 text-green-800 border-green-200',
-      prospect: 'bg-blue-100 text-blue-800 border-blue-200',
+      vip: 'bg-gray-100 text-gray-800 border-gray-200',
+      active: 'bg-gray-100 text-gray-800 border-gray-200',
+      prospect: 'bg-gray-100 text-gray-800 border-gray-200',
       standard: 'bg-gray-100 text-gray-800 border-gray-200',
     };
 
@@ -506,9 +506,9 @@ export default function ProspectsPage() {
 
         {/* Error Banner */}
         {error && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-            <p className="text-sm text-yellow-700">{error}</p>
+          <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-gray-700 flex-shrink-0" />
+            <p className="text-sm text-gray-700">{error}</p>
           </div>
         )}
 
@@ -839,9 +839,9 @@ export default function ProspectsPage() {
                 />
               </div>
               {importFile && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-green-600" />
-                  <span className="text-sm text-green-800">{importFile.name}</span>
+                <div className="mb-4 p-3 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-gray-700" />
+                  <span className="text-sm text-gray-800">{importFile.name}</span>
                 </div>
               )}
             </div>

@@ -180,25 +180,25 @@ export default function SMSConfigPage() {
         <>
         {/* Messages de statut */}
         {saved && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800 font-medium">Configuration SMS enregistrée avec succès !</p>
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-800 font-medium">Configuration SMS enregistrée avec succès !</p>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-800 font-medium">{error}</p>
+            <p className="text-gray-800 font-medium">{error}</p>
           </div>
         )}
 
         {/* Info: Géré par Coccinelle.AI */}
-        <div className="mb-6 bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-start gap-3">
-          <Info className="w-5 h-5 text-purple-600 mt-0.5" />
+        <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+          <Info className="w-5 h-5 text-gray-700 mt-0.5" />
           <div>
-            <p className="text-purple-900 font-medium mb-1">Canal géré par Coccinelle.AI</p>
-            <p className="text-sm text-purple-800">
+            <p className="text-gray-900 font-medium mb-1">Canal géré par Coccinelle.AI</p>
+            <p className="text-sm text-gray-800">
               Le canal SMS utilise les numéros Twilio partagés de Coccinelle.AI (+33 9 39 03 57 60 et +33 9 39 03 57 61).
               Vous pouvez activer/désactiver ce canal et choisir les types de messages à envoyer.
             </p>
@@ -209,8 +209,8 @@ export default function SMSConfigPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${config.enabled ? 'bg-green-100' : 'bg-gray-100'}`}>
-                <MessageSquare className={`w-6 h-6 ${config.enabled ? 'text-green-600' : 'text-gray-400'}`} />
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${config.enabled ? 'bg-gray-100' : 'bg-gray-100'}`}>
+                <MessageSquare className={`w-6 h-6 ${config.enabled ? 'text-gray-700' : 'text-gray-400'}`} />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Canal SMS</h2>
@@ -298,9 +298,9 @@ export default function SMSConfigPage() {
 
         {/* Test SMS */}
         {config.enabled && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <h3 className="font-bold text-blue-900 mb-2">Tester le canal SMS</h3>
-            <p className="text-sm text-blue-800 mb-4">
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 mb-6">
+            <h3 className="font-bold text-gray-900 mb-2">Tester le canal SMS</h3>
+            <p className="text-sm text-gray-800 mb-4">
               Envoyez un SMS de test pour vérifier que tout fonctionne correctement
             </p>
             <div className="flex gap-3">
@@ -309,12 +309,12 @@ export default function SMSConfigPage() {
                 placeholder="Numéro de téléphone (ex: +33612345678)"
                 value={testNumber}
                 onChange={(e) => setTestNumber(e.target.value)}
-                className="flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
               />
               <button
                 onClick={handleTestSMS}
                 disabled={testing || !testNumber}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {testing ? (
                   <>

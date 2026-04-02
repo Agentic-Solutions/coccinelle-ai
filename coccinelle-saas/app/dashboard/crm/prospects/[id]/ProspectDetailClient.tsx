@@ -198,11 +198,11 @@ export default function ProspectDetailClient() {
   const getActivityColor = (type: string) => {
     switch (type) {
       case 'message_received':
-        return 'bg-blue-100 text-blue-600';
+        return 'bg-gray-100 text-gray-700';
       case 'message_sent':
-        return 'bg-green-100 text-green-600';
+        return 'bg-gray-100 text-gray-700';
       case 'order_placed':
-        return 'bg-purple-100 text-purple-600';
+        return 'bg-gray-100 text-gray-700';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -212,7 +212,7 @@ export default function ProspectDetailClient() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Chargement...</p>
         </div>
       </div>
@@ -234,7 +234,7 @@ export default function ProspectDetailClient() {
                 <Home className="w-5 h-5" />
                 Dashboard
               </Link>
-              <Link href="/dashboard/customers" className="flex items-center gap-2 text-red-600 font-medium">
+              <Link href="/dashboard/customers" className="flex items-center gap-2 text-gray-900 font-medium">
                 <Users className="w-5 h-5" />
                 Clients
               </Link>
@@ -261,7 +261,7 @@ export default function ProspectDetailClient() {
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-6">
               {/* Avatar */}
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+              <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                 {customer.firstName[0]}{customer.lastName[0]}
               </div>
 
@@ -286,7 +286,7 @@ export default function ProspectDetailClient() {
                 </div>
                 <div className="flex items-center gap-2 mt-3">
                   {customer.segment && (
-                    <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                    <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
                       {customer.segment.toUpperCase()}
                     </span>
                   )}
@@ -308,7 +308,7 @@ export default function ProspectDetailClient() {
                 {isEditing ? <X className="w-5 h-5" /> : <Edit className="w-5 h-5" />}
                 {isEditing ? 'Annuler' : 'Modifier'}
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
                 <MessageSquare className="w-5 h-5" />
                 Envoyer message
               </button>
@@ -322,7 +322,7 @@ export default function ProspectDetailClient() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-600">Total commandes</span>
-            <ShoppingBag className="w-5 h-5 text-blue-600" />
+            <ShoppingBag className="w-5 h-5 text-gray-700" />
           </div>
           <p className="text-3xl font-bold text-gray-900">{customer.totalOrders}</p>
         </div>
@@ -330,7 +330,7 @@ export default function ProspectDetailClient() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-600">Total dépensé</span>
-            <Euro className="w-5 h-5 text-green-600" />
+            <Euro className="w-5 h-5 text-gray-700" />
           </div>
           <p className="text-3xl font-bold text-gray-900">{customer.totalSpent.amount.toFixed(2)} €</p>
         </div>
@@ -338,7 +338,7 @@ export default function ProspectDetailClient() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-600">Panier moyen</span>
-            <TrendingUp className="w-5 h-5 text-purple-600" />
+            <TrendingUp className="w-5 h-5 text-gray-700" />
           </div>
           <p className="text-3xl font-bold text-gray-900">{customer.averageOrderValue.amount.toFixed(2)} €</p>
         </div>
@@ -346,7 +346,7 @@ export default function ProspectDetailClient() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-600">Client depuis</span>
-            <Calendar className="w-5 h-5 text-orange-600" />
+            <Calendar className="w-5 h-5 text-gray-700" />
           </div>
           <p className="text-3xl font-bold text-gray-900">
             {Math.floor((new Date().getTime() - customer.createdAt.getTime()) / (1000 * 60 * 60 * 24))} j
@@ -535,19 +535,19 @@ export default function ProspectDetailClient() {
           {activeTab === 'notes' && (
             <div className="space-y-6">
               {/* Add Note */}
-              <div className="bg-blue-50 rounded-lg p-6">
+              <div className="bg-gray-100 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Ajouter une note</h3>
                 <div className="flex gap-3">
                   <textarea
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
                     placeholder="Ajoutez une note sur ce client..."
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
                     rows={3}
                   />
                   <button
                     onClick={handleAddNote}
-                    className="px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    className="px-6 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
                   >
                     <Plus className="w-5 h-5" />
                     Ajouter

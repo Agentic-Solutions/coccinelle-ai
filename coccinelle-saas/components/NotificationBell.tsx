@@ -154,7 +154,7 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg transition-colors"
+        className="relative p-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-lg transition-colors"
         aria-label="Notifications"
       >
         <svg
@@ -172,7 +172,7 @@ export default function NotificationBell() {
         </svg>
 
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-gray-1000 rounded-full">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -187,7 +187,7 @@ export default function NotificationBell() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-xs text-red-600 hover:text-red-800 font-medium"
+                className="text-xs text-red-600 hover:text-gray-900 font-medium"
               >
                 Tout marquer comme lu
               </button>
@@ -205,13 +205,13 @@ export default function NotificationBell() {
                   key={notif.id}
                   onClick={() => handleNotifClick(notif)}
                   className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 ${
-                    notif.read === 0 ? "bg-red-50/50" : ""
+                    notif.read === 0 ? "bg-gray-100/50" : ""
                   }`}
                 >
                   <div
                     className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                       notif.read === 0
-                        ? "bg-red-100 text-red-600"
+                        ? "bg-gray-100 text-red-600"
                         : "bg-gray-100 text-gray-500"
                     }`}
                   >
@@ -249,7 +249,7 @@ export default function NotificationBell() {
                     </p>
                   </div>
                   {notif.read === 0 && (
-                    <div className="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-2" />
+                    <div className="flex-shrink-0 w-2 h-2 bg-gray-1000 rounded-full mt-2" />
                   )}
                 </button>
               ))

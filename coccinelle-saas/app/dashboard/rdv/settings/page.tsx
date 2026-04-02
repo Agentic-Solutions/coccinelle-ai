@@ -112,16 +112,16 @@ export default function RdvSettingsPage() {
       <div className="max-w-5xl mx-auto px-8 py-8">
         {/* Message de succès */}
         {saved && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800 font-medium">Paramètres enregistrés avec succès !</p>
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-800 font-medium">Paramètres enregistrés avec succès !</p>
           </div>
         )}
 
         {/* Paramètres généraux */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-6">
-            <Settings className="w-6 h-6 text-red-600" />
+            <Settings className="w-6 h-6 text-gray-700" />
             <h2 className="text-xl font-bold text-gray-900">Paramètres généraux</h2>
           </div>
 
@@ -189,7 +189,7 @@ export default function RdvSettingsPage() {
         {/* Horaires de disponibilité */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-6">
-            <Calendar className="w-6 h-6 text-blue-600" />
+            <Calendar className="w-6 h-6 text-gray-700" />
             <h2 className="text-xl font-bold text-gray-900">Horaires de disponibilité</h2>
           </div>
 
@@ -238,14 +238,14 @@ export default function RdvSettingsPage() {
         {/* Notifications et rappels */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-6">
-            <Bell className="w-6 h-6 text-yellow-600" />
+            <Bell className="w-6 h-6 text-gray-700" />
             <h2 className="text-xl font-bold text-gray-900">Notifications et rappels</h2>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
-                <Mail className="w-5 h-5 text-blue-600" />
+                <Mail className="w-5 h-5 text-gray-700" />
                 <div>
                   <p className="font-medium text-gray-900">Rappel par email</p>
                   <p className="text-sm text-gray-600">Envoyer un email de rappel aux clients</p>
@@ -264,7 +264,7 @@ export default function RdvSettingsPage() {
 
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
-                <MessageSquare className="w-5 h-5 text-green-600" />
+                <MessageSquare className="w-5 h-5 text-gray-700" />
                 <div>
                   <p className="font-medium text-gray-900">Rappel par SMS</p>
                   <p className="text-sm text-gray-600">Envoyer un SMS de rappel aux clients</p>
@@ -283,7 +283,7 @@ export default function RdvSettingsPage() {
 
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
-                <Phone className="w-5 h-5 text-green-600" />
+                <Phone className="w-5 h-5 text-gray-700" />
                 <div>
                   <p className="font-medium text-gray-900">Rappel WhatsApp</p>
                   <p className="text-sm text-gray-600">Envoyer un message WhatsApp</p>
@@ -325,7 +325,7 @@ export default function RdvSettingsPage() {
         {/* Règles de planification */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-6">
-            <CheckCircle className="w-6 h-6 text-purple-600" />
+            <CheckCircle className="w-6 h-6 text-gray-700" />
             <h2 className="text-xl font-bold text-gray-900">Règles de planification</h2>
           </div>
 

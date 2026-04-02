@@ -208,9 +208,9 @@ export default function UsagePage() {
 
         {/* Error Banner */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center justify-between">
-            <p className="text-red-700 text-sm">{error}</p>
-            <button onClick={loadUsageData} className="text-red-700 hover:text-red-800 text-sm font-medium underline">
+          <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <p className="text-red-600 text-sm">{error}</p>
+            <button onClick={loadUsageData} className="text-gray-700 hover:text-gray-900 text-sm font-medium underline">
               Reessayer
             </button>
           </div>
@@ -235,7 +235,7 @@ export default function UsagePage() {
                 <CardTitle className="text-sm font-medium text-gray-600">
                   Appels
                 </CardTitle>
-                <Phone className="h-4 w-4 text-blue-600" />
+                <Phone className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{summary.totalCalls}</div>
@@ -248,7 +248,7 @@ export default function UsagePage() {
                 <CardTitle className="text-sm font-medium text-gray-600">
                   SMS
                 </CardTitle>
-                <MessageSquare className="h-4 w-4 text-green-600" />
+                <MessageSquare className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{summary.totalSms}</div>
@@ -261,7 +261,7 @@ export default function UsagePage() {
                 <CardTitle className="text-sm font-medium text-gray-600">
                   Text-to-Speech
                 </CardTitle>
-                <Volume2 className="h-4 w-4 text-purple-600" />
+                <Volume2 className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{summary.totalTtsMinutes}</div>
@@ -274,7 +274,7 @@ export default function UsagePage() {
                 <CardTitle className="text-sm font-medium text-gray-600">
                   Coût total
                 </CardTitle>
-                <TrendingUp className="h-4 w-4 text-orange-600" />
+                <TrendingUp className="h-4 w-4 text-gray-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatPrice(summary.totalCost * 100)}€</div>

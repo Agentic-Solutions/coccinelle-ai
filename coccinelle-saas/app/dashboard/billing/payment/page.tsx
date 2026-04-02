@@ -67,8 +67,8 @@ export default function PaymentPage() {
         <Card className="mb-6">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <CreditCard className="h-6 w-6 text-blue-600" />
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <CreditCard className="h-6 w-6 text-gray-600" />
               </div>
               <div>
                 <CardTitle>Portail de paiement sécurisé</CardTitle>
@@ -81,15 +81,15 @@ export default function PaymentPage() {
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <div className="flex items-start gap-2 text-sm">
-                <Shield className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                <Shield className="h-4 w-4 text-gray-700 mt-0.5 flex-shrink-0" />
                 <span>Paiements 100% sécurisés par Stripe</span>
               </div>
               <div className="flex items-start gap-2 text-sm">
-                <Shield className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                <Shield className="h-4 w-4 text-gray-700 mt-0.5 flex-shrink-0" />
                 <span>Cartes bancaires et virements SEPA acceptés</span>
               </div>
               <div className="flex items-start gap-2 text-sm">
-                <Shield className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                <Shield className="h-4 w-4 text-gray-700 mt-0.5 flex-shrink-0" />
                 <span>Modifiez ou supprimez vos cartes à tout moment</span>
               </div>
             </div>
@@ -188,7 +188,7 @@ export default function PaymentPage() {
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>
             Des questions sur vos paiements ?{' '}
-            <a href="mailto:support@coccinelle.ai" className="text-blue-600 hover:underline">
+            <a href="mailto:support@coccinelle.ai" className="text-gray-700 hover:underline">
               Contactez notre support
             </a>
           </p>

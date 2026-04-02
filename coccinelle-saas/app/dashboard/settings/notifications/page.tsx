@@ -95,8 +95,8 @@ function WeeklyReportToggle() {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-            <Mail className="w-5 h-5 text-indigo-600" />
+          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+            <Mail className="w-5 h-5 text-gray-700" />
           </div>
           <div>
             <p className="font-semibold text-gray-900">Recap hebdomadaire</p>
@@ -152,7 +152,7 @@ function NotificationsContent() {
     {
       channel: 'email',
       name: 'Email',
-      iconColor: 'text-blue-600',
+      iconColor: 'text-gray-700',
       enabled: true,
       verified: true,
       description: 'Recevez des emails détaillés avec pièces jointes',
@@ -166,7 +166,7 @@ function NotificationsContent() {
     {
       channel: 'sms',
       name: 'SMS',
-      iconColor: 'text-green-600',
+      iconColor: 'text-gray-700',
       enabled: true,
       verified: true,
       description: 'Messages texte courts pour les urgences',
@@ -180,7 +180,7 @@ function NotificationsContent() {
     {
       channel: 'whatsapp',
       name: 'WhatsApp',
-      iconColor: 'text-green-600',
+      iconColor: 'text-gray-700',
       enabled: true,
       verified: false,
       description: 'Messages instantanés avec médias',
@@ -194,7 +194,7 @@ function NotificationsContent() {
     {
       channel: 'phone',
       name: 'Téléphone',
-      iconColor: 'text-purple-600',
+      iconColor: 'text-gray-700',
       enabled: true,
       verified: true,
       description: 'Appels directs pour les urgences uniquement',
@@ -301,17 +301,17 @@ function NotificationsContent() {
       <div className="max-w-5xl mx-auto px-8 py-8">
         {/* Message de succès */}
         {saved && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800 font-medium">Préférences enregistrées avec succès !</p>
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-800 font-medium">Préférences enregistrées avec succès !</p>
           </div>
         )}
 
         {/* Message d'erreur */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-800 font-medium">{error}</p>
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-gray-900" />
+            <p className="text-gray-800 font-medium">{error}</p>
           </div>
         )}
 
@@ -347,7 +347,7 @@ function NotificationsContent() {
                   disabled={!channel.enabled}
                   className={`p-4 rounded-lg border-2 transition-all text-left ${
                     isPreferred
-                      ? 'border-red-500 bg-red-50'
+                      ? 'border-gray-500 bg-gray-100'
                       : channel.enabled
                       ? 'border-gray-200 hover:border-gray-300 bg-white'
                       : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
@@ -355,13 +355,13 @@ function NotificationsContent() {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg ${isPreferred ? 'bg-red-100' : 'bg-gray-100'} flex items-center justify-center`}>
-                        <Icon className={`w-5 h-5 ${isPreferred ? 'text-red-600' : channel.iconColor}`} />
+                      <div className={`w-10 h-10 rounded-lg ${isPreferred ? 'bg-gray-100' : 'bg-gray-100'} flex items-center justify-center`}>
+                        <Icon className={`w-5 h-5 ${isPreferred ? 'text-gray-900' : channel.iconColor}`} />
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">{channel.name}</p>
                         {channel.verified && (
-                          <div className="flex items-center gap-1 text-xs text-green-600">
+                          <div className="flex items-center gap-1 text-xs text-gray-700">
                             <CheckCircle className="w-3 h-3" />
                             Vérifié
                           </div>
@@ -369,7 +369,7 @@ function NotificationsContent() {
                       </div>
                     </div>
                     {isPreferred && (
-                      <CheckCircle className="w-5 h-5 text-red-600" />
+                      <CheckCircle className="w-5 h-5 text-gray-900" />
                     )}
                   </div>
                   <p className="text-xs text-gray-600">{channel.description}</p>
@@ -381,17 +381,17 @@ function NotificationsContent() {
 
         {/* Message conditionnel pour canal voix */}
         {preferredChannel === 'phone' && (
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
+          <div className="bg-gradient-to-r from-gray-100 to-gray-100 border-2 border-gray-200 rounded-lg p-6 mb-6">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-6 h-6 text-gray-700" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
                   <Phone className="w-5 h-5" />
                   Canal voix sélectionné
                 </h3>
-                <p className="text-sm text-blue-800 mb-4">
+                <p className="text-sm text-gray-800 mb-4">
                   Pour le canal voix, configurez <strong>Assistant</strong>, votre agent IA vocal qui gère
                   automatiquement vos appels entrants et sortants. Assistant peut prendre des rendez-vous,
                   répondre aux questions, et qualifier vos prospects 24/7.
@@ -435,7 +435,7 @@ function NotificationsContent() {
                       <div>
                         <p className="font-semibold text-gray-900">{channel.name}</p>
                         {preferredChannel === channel.channel && (
-                          <span className="text-xs text-red-600 font-medium">Canal préféré</span>
+                          <span className="text-xs text-gray-900 font-medium">Canal préféré</span>
                         )}
                       </div>
                     </div>

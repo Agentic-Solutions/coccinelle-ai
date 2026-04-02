@@ -183,20 +183,20 @@ export default function AppelsPage() {
   const getSentimentIcon = (sentiment: string | null) => {
     if (!sentiment) return <Meh className="w-4 h-4 text-gray-400" />;
     switch (sentiment.toLowerCase()) {
-      case 'positive': return <Smile className="w-4 h-4 text-green-500" />;
-      case 'negative': return <Frown className="w-4 h-4 text-red-500" />;
-      default: return <Meh className="w-4 h-4 text-yellow-500" />;
+      case 'positive': return <Smile className="w-4 h-4 text-gray-700" />;
+      case 'negative': return <Frown className="w-4 h-4 text-gray-700" />;
+      default: return <Meh className="w-4 h-4 text-gray-700" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      completed: 'bg-green-100 text-green-800',
-      ended: 'bg-green-100 text-green-800',
-      in_progress: 'bg-blue-100 text-blue-800',
-      failed: 'bg-red-100 text-red-800',
-      no_answer: 'bg-yellow-100 text-yellow-800',
-      busy: 'bg-orange-100 text-orange-800'
+      completed: 'bg-gray-100 text-gray-800',
+      ended: 'bg-gray-100 text-gray-800',
+      in_progress: 'bg-gray-100 text-gray-800',
+      failed: 'bg-gray-100 text-gray-800',
+      no_answer: 'bg-gray-100 text-gray-800',
+      busy: 'bg-gray-100 text-gray-800'
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
   };
@@ -239,7 +239,7 @@ export default function AppelsPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-6 rounded-lg shadow-sm text-center max-w-md">
           <p className="text-red-600 mb-4">{error}</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">Retour au dashboard</Link>
+          <Link href="/dashboard" className="text-gray-700 hover:underline">Retour au dashboard</Link>
         </div>
       </div>
     );
@@ -284,14 +284,14 @@ export default function AppelsPage() {
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 mb-1">
-              <Calendar className="w-4 h-4 text-green-500" />
+              <Calendar className="w-4 h-4 text-gray-700" />
               <span className="text-xs text-gray-500">RDV créés</span>
             </div>
             <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats?.appointments_created || 0}</p>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-blue-500" />
+              <TrendingUp className="w-4 h-4 text-gray-700" />
               <span className="text-xs text-gray-500">Conversion</span>
             </div>
             <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats?.conversion_rate || '0%'}</p>
@@ -311,7 +311,7 @@ export default function AppelsPage() {
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-gray-700">Filtres</h3>
               {hasActiveFilters && (
-                <button onClick={resetFilters} className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1">
+                <button onClick={resetFilters} className="text-xs text-gray-600 hover:text-gray-900 flex items-center gap-1">
                   <X className="w-3 h-3" /> Réinitialiser
                 </button>
               )}
@@ -385,7 +385,7 @@ export default function AppelsPage() {
                             key={call.id}
                             onClick={() => setSelectedCallId(call.id === selectedCallId ? null : call.id)}
                             className={`cursor-pointer transition-colors ${
-                              selectedCallId === call.id ? 'bg-blue-50' : 'hover:bg-gray-50'
+                              selectedCallId === call.id ? 'bg-gray-100' : 'hover:bg-gray-50'
                             }`}
                           >
                             <td className="px-4 py-3 whitespace-nowrap text-gray-900">{formatDate(call.created_at)}</td>
@@ -394,7 +394,7 @@ export default function AppelsPage() {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell">
                               <span className={`px-2 py-0.5 text-xs rounded-full ${
-                                call.direction === 'inbound' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                                call.direction === 'inbound' ? 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700'
                               }`}>
                                 {call.direction === 'inbound' ? 'Entrant' : 'Sortant'}
                               </span>
@@ -410,7 +410,7 @@ export default function AppelsPage() {
                               {call.prospect_name ? (
                                 <Link
                                   href={`/dashboard/crm/prospects/${call.prospect_id}`}
-                                  className="text-blue-600 hover:underline"
+                                  className="text-gray-700 hover:underline"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   {call.prospect_name}
@@ -516,16 +516,16 @@ export default function AppelsPage() {
 
                     {/* Prospect lién */}
                     {selectedCall.prospect && (
-                      <div className="bg-blue-50 rounded-lg p-3">
-                        <p className="text-xs font-medium text-blue-700 mb-1">Prospect lié</p>
+                      <div className="bg-gray-100 rounded-lg p-3">
+                        <p className="text-xs font-medium text-gray-700 mb-1">Prospect lié</p>
                         <Link
                           href={`/dashboard/crm/prospects/${selectedCall.prospect.id}`}
-                          className="text-sm font-medium text-blue-800 hover:underline"
+                          className="text-sm font-medium text-gray-800 hover:underline"
                         >
                           {[selectedCall.prospect.first_name, selectedCall.prospect.last_name].filter(Boolean).join(' ')}
                         </Link>
                         {selectedCall.prospect.phone && (
-                          <p className="text-xs text-blue-600 mt-0.5">{selectedCall.prospect.phone}</p>
+                          <p className="text-xs text-gray-700 mt-0.5">{selectedCall.prospect.phone}</p>
                         )}
                       </div>
                     )}

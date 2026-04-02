@@ -181,10 +181,10 @@ export default function InboxPage() {
 
   const getChannelColor = (channel: string) => {
     switch (channel) {
-      case 'sms': return 'text-blue-600 bg-blue-50';
-      case 'email': return 'text-green-600 bg-green-50';
-      case 'whatsapp': return 'text-emerald-600 bg-emerald-50';
-      case 'voice': return 'text-purple-600 bg-purple-50';
+      case 'sms': return 'text-gray-700 bg-gray-100';
+      case 'email': return 'text-gray-700 bg-gray-100';
+      case 'whatsapp': return 'text-gray-700 bg-gray-100';
+      case 'voice': return 'text-gray-700 bg-gray-100';
       default: return 'text-gray-600 bg-gray-50';
     }
   };
@@ -277,7 +277,7 @@ export default function InboxPage() {
                   key={conv.id}
                   onClick={() => setSelectedId(conv.id)}
                   className={`w-full p-3 border-b border-gray-100 text-left transition-colors ${
-                    selectedId === conv.id ? 'bg-blue-50' : 'hover:bg-gray-50'
+                    selectedId === conv.id ? 'bg-gray-100' : 'hover:bg-gray-50'
                   }`}
                 >
                   <div className="flex items-start gap-2.5">
@@ -296,10 +296,10 @@ export default function InboxPage() {
                       <p className="text-xs text-gray-500 truncate mt-0.5">{conv.last_message || 'Pas de message'}</p>
                       <div className="flex items-center gap-2 mt-1">
                         {conv.prospect && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Prospect lie</span>
+                          <span className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">Prospect lie</span>
                         )}
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          conv.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          conv.status === 'active' ? 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-500'
                         }`}>
                           {conv.status === 'active' ? 'Actif' : 'Ferme'}
                         </span>
@@ -384,21 +384,21 @@ export default function InboxPage() {
                 <div className="p-3 flex-1 overflow-y-auto">
                   {selectedConv.prospect ? (
                     <div className="space-y-3">
-                      <div className="bg-blue-50 rounded-lg p-3">
+                      <div className="bg-gray-100 rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-2">
-                          <User className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm font-medium text-blue-900">
+                          <User className="w-4 h-4 text-gray-700" />
+                          <span className="text-sm font-medium text-gray-900">
                             {[selectedConv.prospect.first_name, selectedConv.prospect.last_name].filter(Boolean).join(' ')}
                           </span>
                         </div>
                         {selectedConv.prospect.phone && (
-                          <p className="text-xs text-blue-700 mb-1">{selectedConv.prospect.phone}</p>
+                          <p className="text-xs text-gray-700 mb-1">{selectedConv.prospect.phone}</p>
                         )}
                         {selectedConv.prospect.email && (
-                          <p className="text-xs text-blue-700 mb-1">{selectedConv.prospect.email}</p>
+                          <p className="text-xs text-gray-700 mb-1">{selectedConv.prospect.email}</p>
                         )}
                         {selectedConv.prospect.status && (
-                          <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded capitalize">
+                          <span className="text-xs bg-gray-200 text-gray-800 px-2 py-0.5 rounded capitalize">
                             {selectedConv.prospect.status}
                           </span>
                         )}
@@ -425,7 +425,7 @@ export default function InboxPage() {
                       <button
                         onClick={handleAutoLink}
                         disabled={linking}
-                        className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        className="flex items-center justify-center gap-2 w-full px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
                       >
                         {linking ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -455,7 +455,7 @@ export default function InboxPage() {
                       </div>
                       <div className="flex justify-between">
                         <span>Statut</span>
-                        <span className={`font-medium ${selectedConv.status === 'active' ? 'text-green-600' : 'text-gray-500'}`}>
+                        <span className={`font-medium ${selectedConv.status === 'active' ? 'text-gray-700' : 'text-gray-500'}`}>
                           {selectedConv.status === 'active' ? 'Actif' : 'Ferme'}
                         </span>
                       </div>

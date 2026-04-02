@@ -355,10 +355,10 @@ export default function CustomersPage() {
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, string> = {
-      vip: 'bg-purple-100 text-purple-800 border-purple-200',
-      active: 'bg-green-100 text-green-800 border-green-200',
+      vip: 'bg-gray-100 text-gray-800 border-gray-200',
+      active: 'bg-gray-100 text-gray-800 border-gray-200',
       inactive: 'bg-gray-100 text-gray-800 border-gray-200',
-      prospect: 'bg-blue-100 text-blue-800 border-blue-200',
+      prospect: 'bg-gray-100 text-gray-800 border-gray-200',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${badges[status] || badges.active}`}>
@@ -403,7 +403,7 @@ export default function CustomersPage() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Chargement des clients...</p>
         </div>
       </div>
@@ -415,7 +415,7 @@ export default function CustomersPage() {
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <p className="text-red-600 font-medium mb-4">{error}</p>
-          <button onClick={fetchCustomers} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button onClick={fetchCustomers} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800">
             Réessayer
           </button>
         </div>
@@ -432,7 +432,7 @@ export default function CustomersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div className="pl-10 lg:pl-0">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Users className="w-7 h-7 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" /> Clients
+              <Users className="w-7 h-7 sm:w-8 sm:h-8 text-gray-700 flex-shrink-0" /> Clients
             </h2>
             <p className="text-sm sm:text-base text-gray-600 mt-1">Gérez vos clients et suivez leur activité</p>
           </div>
@@ -451,25 +451,25 @@ export default function CustomersPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div><p className="text-sm text-gray-600">Total clients</p><p className="text-2xl font-bold">{stats.total}</p></div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-6 h-6 text-blue-600" /></div>
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><Users className="w-6 h-6 text-gray-700" /></div>
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div><p className="text-sm text-gray-600">Nouveaux ce mois</p><p className="text-2xl font-bold">{stats.newThisMonth}</p></div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-6 h-6 text-green-600" /></div>
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-6 h-6 text-gray-700" /></div>
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div><p className="text-sm text-gray-600">Clients VIP</p><p className="text-2xl font-bold">{stats.vip}</p></div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center"><Tag className="w-6 h-6 text-purple-600" /></div>
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><Tag className="w-6 h-6 text-gray-700" /></div>
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div><p className="text-sm text-gray-600">Clients actifs</p><p className="text-2xl font-bold">{stats.active}</p></div>
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center"><ShoppingBag className="w-6 h-6 text-orange-600" /></div>
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><ShoppingBag className="w-6 h-6 text-gray-700" /></div>
             </div>
           </div>
         </div>
@@ -480,7 +480,7 @@ export default function CustomersPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input type="text" placeholder="Rechercher..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900" />
             </div>
             <select value={selectedStatus} onChange={(e) => { setSelectedStatus(e.target.value); setPagination(p => ({...p, offset: 0})); }}
               className="px-4 py-2 border border-gray-300 rounded-lg">
@@ -517,7 +517,7 @@ export default function CustomersPage() {
                 <tr key={customer.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                      <div className="w-10 h-10 bg-gradient-to-br from-gray-900 to-gray-800 rounded-full flex items-center justify-center text-white font-semibold">
                         {(customer.first_name?.[0] || '?')}{(customer.last_name?.[0] || '')}
                       </div>
                       <div className="ml-4">
@@ -540,13 +540,13 @@ export default function CustomersPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <Link href={`/dashboard/customers/${customer.id}`} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Voir">
+                      <Link href={`/dashboard/customers/${customer.id}`} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg" title="Voir">
                         <Eye className="w-4 h-4" />
                       </Link>
-                      <button onClick={() => openEditModal(customer)} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg" title="Modifier">
+                      <button onClick={() => openEditModal(customer)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg" title="Modifier">
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => openDeleteModal(customer)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Supprimer">
+                      <button onClick={() => openDeleteModal(customer)} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg" title="Supprimer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -574,7 +574,7 @@ export default function CustomersPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-xl font-bold flex items-center gap-2"><Plus className="w-6 h-6 text-green-600" />Nouveau client</h3>
+              <h3 className="text-xl font-bold flex items-center gap-2"><Plus className="w-6 h-6 text-gray-700" />Nouveau client</h3>
               <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-4 sm:p-6 space-y-4">
@@ -582,26 +582,26 @@ export default function CustomersPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
                   <input type="text" value={formData.first_name} onChange={(e) => { setFormData(p => ({...p, first_name: e.target.value})); setFormErrors(prev => ({...prev, first_name: ''})); }}
-                    className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.first_name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                    className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.first_name ? 'border-gray-400 bg-gray-100' : 'border-gray-300'}`} />
                   {formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
                   <input type="text" value={formData.last_name} onChange={(e) => { setFormData(p => ({...p, last_name: e.target.value})); setFormErrors(prev => ({...prev, last_name: ''})); }}
-                    className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.last_name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                    className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.last_name ? 'border-gray-400 bg-gray-100' : 'border-gray-300'}`} />
                   {formErrors.last_name && <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input type="email" value={formData.email} onChange={(e) => { setFormData(p => ({...p, email: e.target.value})); setFormErrors(prev => ({...prev, email: ''})); }}
-                  className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                  className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.email ? 'border-gray-400 bg-gray-100' : 'border-gray-300'}`} />
                 {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
                 <input type="tel" value={formData.phone} onChange={(e) => { setFormData(p => ({...p, phone: e.target.value})); setFormErrors(prev => ({...prev, phone: ''})); }}
-                  placeholder="+33..." className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                  placeholder="+33..." className={`w-full px-3 py-2.5 border rounded-lg ${formErrors.phone ? 'border-gray-400 bg-gray-100' : 'border-gray-300'}`} />
                 {formErrors.phone && <p className="text-xs text-red-600 mt-1">{formErrors.phone}</p>}
               </div>
               <div>
@@ -625,7 +625,7 @@ export default function CustomersPage() {
             </div>
             <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
               <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">Annuler</button>
-              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2">
                 {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Plus className="w-4 h-4" />}Créer
               </button>
             </div>
@@ -638,7 +638,7 @@ export default function CustomersPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-xl font-bold flex items-center gap-2"><Edit2 className="w-6 h-6 text-blue-600" />Modifier le client</h3>
+              <h3 className="text-xl font-bold flex items-center gap-2"><Edit2 className="w-6 h-6 text-gray-700" />Modifier le client</h3>
               <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6 space-y-4">
@@ -671,7 +671,7 @@ export default function CustomersPage() {
             </div>
             <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
               <button onClick={() => setShowEditModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">Annuler</button>
-              <button onClick={handleUpdate} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={handleUpdate} disabled={saving} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2">
                 {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Edit2 className="w-4 h-4" />}Enregistrer
               </button>
             </div>
@@ -684,7 +684,7 @@ export default function CustomersPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-xl font-bold flex items-center gap-2"><Trash2 className="w-6 h-6 text-red-600" />Supprimer le client</h3>
+              <h3 className="text-xl font-bold flex items-center gap-2"><Trash2 className="w-6 h-6 text-gray-700" />Supprimer le client</h3>
               <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6">
@@ -693,7 +693,7 @@ export default function CustomersPage() {
             </div>
             <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
               <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">Annuler</button>
-              <button onClick={handleDelete} disabled={saving} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={handleDelete} disabled={saving} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2">
                 {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Trash2 className="w-4 h-4" />}Supprimer
               </button>
             </div>

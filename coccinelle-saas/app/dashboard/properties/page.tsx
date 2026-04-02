@@ -116,8 +116,8 @@ export default function PropertiesPage() {
 
   const getStatusBadge = (status: string) => {
     const config = {
-      available: { label: 'Disponible', class: 'bg-green-50 text-green-700 border-green-200' },
-      under_offer: { label: 'Sous offre', class: 'bg-orange-50 text-orange-700 border-orange-200' },
+      available: { label: 'Disponible', class: 'bg-gray-100 text-gray-700 border-gray-200' },
+      under_offer: { label: 'Sous offre', class: 'bg-gray-100 text-gray-700 border-gray-200' },
       sold: { label: 'Vendu', class: 'bg-gray-50 text-gray-700 border-gray-200' }
     };
     const { label, class: className } = config[status as keyof typeof config] || config.available;
@@ -154,18 +154,18 @@ export default function PropertiesPage() {
 
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center gap-2 mb-1">
-              <CheckCircle className="w-4 h-4 text-green-600" />
+              <CheckCircle className="w-4 h-4 text-gray-700" />
               <span className="text-sm text-gray-600">Disponibles</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">{stats.available}</p>
+            <p className="text-2xl font-bold text-gray-700">{stats.available}</p>
           </div>
 
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-orange-600" />
+              <TrendingUp className="w-4 h-4 text-gray-700" />
               <span className="text-sm text-gray-600">Sous offre</span>
             </div>
-            <p className="text-2xl font-bold text-orange-600">{stats.underOffer}</p>
+            <p className="text-2xl font-bold text-gray-700">{stats.underOffer}</p>
           </div>
 
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -177,17 +177,17 @@ export default function PropertiesPage() {
 
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center gap-2 mb-1">
-              <Euro className="w-4 h-4 text-blue-600" />
+              <Euro className="w-4 h-4 text-gray-700" />
               <span className="text-sm text-gray-600">Prix moyen</span>
             </div>
-            <p className="text-xl font-bold text-blue-600">{stats.averagePrice.toLocaleString()}€</p>
+            <p className="text-xl font-bold text-gray-700">{stats.averagePrice.toLocaleString()}€</p>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 bg-gradient-to-br from-purple-50 to-blue-50">
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 bg-gradient-to-br from-gray-100 to-gray-100">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm text-purple-700 font-medium">IA Matches</span>
+              <span className="text-sm text-gray-700 font-medium">IA Matches</span>
             </div>
-            <p className="text-2xl font-bold text-purple-700">{stats.totalMatches}</p>
+            <p className="text-2xl font-bold text-gray-700">{stats.totalMatches}</p>
           </div>
         </div>
 
@@ -264,7 +264,7 @@ export default function PropertiesPage() {
                     {getTypeLabel(property.type)}
                   </span>
                   {property.matches > 0 && (
-                    <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded font-medium">
+                    <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded font-medium">
                       {property.matches} matches IA
                     </span>
                   )}
@@ -301,8 +301,8 @@ export default function PropertiesPage() {
                   <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     <Edit className="w-4 h-4 text-gray-600" />
                   </button>
-                  <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-red-50 transition-colors">
-                    <Trash2 className="w-4 h-4 text-red-600" />
+                  <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
+                    <Trash2 className="w-4 h-4 text-gray-600" />
                   </button>
                 </div>
               </div>

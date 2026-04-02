@@ -278,27 +278,27 @@ export default function WhatsAppConfigPage() {
         <>
         {/* Messages de statut */}
         {saved && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800 font-medium">Configuration WhatsApp enregistrée avec succès !</p>
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-gray-700" />
+            <p className="text-gray-800 font-medium">Configuration WhatsApp enregistrée avec succès !</p>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-800 font-medium">{error}</p>
+            <p className="text-gray-800 font-medium">{error}</p>
           </div>
         )}
 
         {/* Statut de connexion */}
         {!config.configured ? (
           <div>
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="mb-6 bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+              <Info className="w-5 h-5 text-gray-700 mt-0.5" />
               <div>
-                <p className="text-blue-900 font-medium mb-1">Connexion WhatsApp Business requise</p>
-                <p className="text-sm text-blue-800">
+                <p className="text-gray-900 font-medium mb-1">Connexion WhatsApp Business requise</p>
+                <p className="text-sm text-gray-800">
                   Pour utiliser le canal WhatsApp, vous devez connecter votre compte WhatsApp Business.
                   Choisissez une méthode ci-dessous.
                 </p>
@@ -306,12 +306,12 @@ export default function WhatsAppConfigPage() {
             </div>
 
             {/* Méthode 1 : OAuth (Recommandé) */}
-            <div className="bg-white rounded-lg shadow-sm border-2 border-green-300 p-6 mb-4">
+            <div className="bg-white rounded-lg shadow-sm border-2 border-gray-300 p-6 mb-4">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="font-bold text-gray-900 text-lg">Méthode 1 : Connexion automatique</h3>
-                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">
+                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-bold rounded-full">
                       RECOMMANDÉ
                     </span>
                   </div>
@@ -321,15 +321,15 @@ export default function WhatsAppConfigPage() {
                   </p>
                   <ul className="text-sm text-gray-700 space-y-1 mb-4">
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <CheckCircle className="w-4 h-4 text-gray-700" />
                       Aucune configuration technique requise
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <CheckCircle className="w-4 h-4 text-gray-700" />
                       Connexion sécurisée et automatique
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <CheckCircle className="w-4 h-4 text-gray-700" />
                       Opérationnel en moins de 5 minutes
                     </li>
                   </ul>
@@ -337,7 +337,7 @@ export default function WhatsAppConfigPage() {
               </div>
               <button
                 onClick={handleOAuthConnect}
-                className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 font-medium"
               >
                 <MessageSquare className="w-5 h-5" />
                 Connecter mon WhatsApp Business
@@ -372,14 +372,14 @@ export default function WhatsAppConfigPage() {
               {/* Guide manuel */}
               {showManualGuide && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                  <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 mb-6">
                     <div className="flex items-start gap-3">
-                      <Info className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <Info className="w-5 h-5 text-gray-700 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="text-sm text-yellow-900 font-medium mb-1">
+                        <p className="text-sm text-gray-900 font-medium mb-1">
                           Configuration avancée
                         </p>
-                        <p className="text-sm text-yellow-800">
+                        <p className="text-sm text-gray-800">
                           Cette méthode nécessite des connaissances techniques. Si vous préférez une configuration simple,
                           utilisez la méthode 1 (connexion automatique).
                         </p>
@@ -388,11 +388,11 @@ export default function WhatsAppConfigPage() {
                   </div>
 
                   <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <PlayCircle className="w-5 h-5 text-blue-600" />
+                    <PlayCircle className="w-5 h-5 text-gray-700" />
                     Tutoriel vidéo (3 min)
                   </h4>
                   <div className="bg-gray-100 rounded-lg p-8 mb-6 text-center">
-                    <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-3">
                       <PlayCircle className="w-8 h-8 text-white" />
                     </div>
                     <p className="text-sm text-gray-600">
@@ -402,7 +402,7 @@ export default function WhatsAppConfigPage() {
                       href="https://www.youtube.com/watch?v=example"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 mt-3 text-blue-600 hover:text-blue-700 font-medium text-sm"
+                      className="inline-flex items-center gap-2 mt-3 text-gray-700 hover:text-gray-700 font-medium text-sm"
                     >
                       Voir la vidéo
                       <ExternalLink className="w-4 h-4" />
@@ -423,7 +423,7 @@ export default function WhatsAppConfigPage() {
                             href="https://business.facebook.com"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                            className="text-gray-700 hover:underline inline-flex items-center gap-1"
                           >
                             business.facebook.com
                             <ExternalLink className="w-3 h-3" />
@@ -517,7 +517,7 @@ export default function WhatsAppConfigPage() {
                       <Info className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
                       <span>
                         <strong>Besoin d'aide ?</strong> Notre équipe peut configurer votre compte pour vous (99€).
-                        Contactez <a href="mailto:support@coccinelle.ai" className="text-blue-600 hover:underline">support@coccinelle.ai</a>
+                        Contactez <a href="mailto:support@coccinelle.ai" className="text-gray-700 hover:underline">support@coccinelle.ai</a>
                       </span>
                     </p>
                   </div>
@@ -528,11 +528,11 @@ export default function WhatsAppConfigPage() {
         ) : (
           <>
             {/* WhatsApp connecté - Afficher les paramètres */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+            <div className="bg-gray-100 border border-gray-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-gray-700 mt-0.5" />
               <div>
-                <p className="text-green-900 font-medium mb-1">WhatsApp Business connecté</p>
-                <p className="text-sm text-green-800">
+                <p className="text-gray-900 font-medium mb-1">WhatsApp Business connecté</p>
+                <p className="text-sm text-gray-800">
                   Votre compte WhatsApp <strong>{config.whatsappNumber}</strong> est connecté et opérationnel.
                   {config.connectionMethod === 'oauth' && ' (via 360dialog)'}
                 </p>
@@ -543,8 +543,8 @@ export default function WhatsAppConfigPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-green-100">
-                    <MessageSquare className="w-6 h-6 text-green-600" />
+                  <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gray-100">
+                    <MessageSquare className="w-6 h-6 text-gray-700" />
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Canal WhatsApp</h2>
@@ -649,9 +649,9 @@ export default function WhatsAppConfigPage() {
 
             {/* Test du canal */}
             {config.enabled && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-                <h3 className="font-bold text-blue-900 mb-2">Tester le canal WhatsApp</h3>
-                <p className="text-sm text-blue-800 mb-4">
+              <div className="bg-gray-100 border border-gray-200 rounded-lg p-6 mb-6">
+                <h3 className="font-bold text-gray-900 mb-2">Tester le canal WhatsApp</h3>
+                <p className="text-sm text-gray-800 mb-4">
                   Envoyez un message WhatsApp de test pour vérifier que tout fonctionne correctement
                 </p>
                 <div className="flex gap-3">
@@ -660,12 +660,12 @@ export default function WhatsAppConfigPage() {
                     placeholder="Numéro WhatsApp (ex: +33760762153)"
                     value={testNumber}
                     onChange={(e) => setTestNumber(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
                   />
                   <button
                     onClick={handleTestWhatsApp}
                     disabled={testing || !testNumber}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {testing ? (
                       <>
