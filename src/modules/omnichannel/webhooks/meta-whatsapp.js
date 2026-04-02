@@ -201,6 +201,19 @@ export async function handleMetaWhatsAppWebhook(request, env) {
             continue;
           }
 
+          // Declencher l'orchestrateur omnicanal (creation prospect, etc.)
+          try {
+            const { onWhatsAppReceived } = await import('../../omnicanal/orchestrator.js');
+            await onWhatsAppReceived(env, tenantId, {
+              from: fromNumber,
+              text: messageText,
+              profile_name: contactName
+            });
+            omniLogger.info('Omnicanal WhatsApp triggered', { tenantId, from: fromNumber });
+          } catch (omniErr) {
+            omniLogger.warn('Omnicanal WhatsApp error (non-bloquant)', { error: omniErr.message });
+          }
+
           // Conversation
           const conversationId = await findOrCreateConversation(env.DB, tenantId, fromNumber, contactName);
 

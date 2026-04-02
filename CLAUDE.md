@@ -492,12 +492,13 @@ POST /api/v1/email/mark-read  → marquer lu
 
 **Routes :**
 ```
-GET    /api/v1/omnicanal/rules        → lister les regles du tenant
-POST   /api/v1/omnicanal/rules        → creer une regle
-PUT    /api/v1/omnicanal/rules/:id    → modifier (activer/desactiver/editer)
-DELETE /api/v1/omnicanal/rules/:id    → supprimer
-GET    /api/v1/omnicanal/executions   → 50 derniers logs
-POST   /api/v1/omnicanal/test         → simuler un evenement
+GET    /api/v1/omnicanal/rules        → lister les regles du tenant (auth JWT)
+POST   /api/v1/omnicanal/rules        → creer une regle (auth JWT)
+PUT    /api/v1/omnicanal/rules/:id    → modifier (activer/desactiver/editer) (auth JWT)
+DELETE /api/v1/omnicanal/rules/:id    → supprimer (auth JWT)
+GET    /api/v1/omnicanal/executions   → 50 derniers logs (auth JWT)
+POST   /api/v1/omnicanal/test         → simuler un evenement (auth JWT)
+POST   /api/v1/omnicanal/event        → evenement externe (auth VoixIA : X-VoixIA-Key + X-VoixIA-Tenant)
 ```
 
 **Page frontend :** `app/dashboard/agents/nodes/page.tsx` — 3 onglets :
@@ -505,10 +506,25 @@ POST   /api/v1/omnicanal/test         → simuler un evenement
 2. Editeur de sequences (SequenceEditor existant)
 3. Historique des executions
 
-**Connexion evenements :**
-- VoixIA fin d'appel → `onCallEnded()` (a connecter dans agent Python)
-- Webhook Twilio SMS → `onSmsReceived()` (a connecter)
-- Webhook Meta WhatsApp → `onWhatsAppReceived()` (a connecter)
+**Webhooks connectes (02/04/2026) :**
+| Webhook | Fichier | Fonction declenchee |
+|---------|---------|---------------------|
+| Twilio SMS | `src/modules/twilio/routes.js` (handleIncomingSMS) | `onSmsReceived()` |
+| Meta WhatsApp | `src/modules/omnichannel/webhooks/meta-whatsapp.js` (handleMetaWhatsAppWebhook) | `onWhatsAppReceived()` |
+| VoixIA fin d'appel | `POST /api/v1/omnicanal/event` (auth X-VoixIA-Key) | `handleOmniEvent()` |
+
+**Test verifie :** POST /api/v1/omnicanal/event avec auth VoixIA → 3 regles executees (SMS Twilio envoye, prospect CRM cree)
+
+**Connexion agent Python VoixIA :**
+```python
+# Dans pipeline.py ou main.py, apres session.disconnect() :
+import httpx
+httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal/event",
+  headers={"X-VoixIA-Key": VOIXIA_API_KEY, "X-VoixIA-Tenant": tenant_id},
+  json={"event_type": "call_ended", "channel": "voice",
+        "contact": {"phone": caller_phone, "name": caller_name},
+        "data": {"duration": call_duration, "summary": call_summary}})
+```
 
 ## FICHIERS INTERDITS À MODIFIER SANS OK DE YOUSSEF
 

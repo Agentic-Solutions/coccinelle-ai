@@ -6,6 +6,7 @@
  * DELETE /api/v1/omnicanal/rules/:id — supprimer une regle
  * GET /api/v1/omnicanal/executions — logs d'execution
  * POST /api/v1/omnicanal/test — simuler un evenement
+ * POST /api/v1/omnicanal/event — evenement externe (auth VoixIA)
  */
 
 import { logger } from '../../utils/logger.js';
@@ -180,6 +181,52 @@ async function getExecutions(env, tenantId) {
   } catch (error) {
     logger.error('getExecutions error', { error: error.message });
     return errorResponse('Erreur lors de la recuperation des logs', 500);
+  }
+}
+
+/**
+ * POST /api/v1/omnicanal/event — evenement externe (auth VoixIA : X-VoixIA-Key + X-VoixIA-Tenant)
+ * Appele par l'agent Python VoixIA en fin d'appel (call_ended)
+ * Body : { event_type, channel, contact: { phone, email, name }, data: { duration, summary, ... } }
+ */
+export async function handleOmnicanalEvent(request, env) {
+  if (request.method !== 'POST') {
+    return errorResponse('Method not allowed', 405);
+  }
+
+  try {
+    // Auth VoixIA (X-VoixIA-Key + X-VoixIA-Tenant)
+    const { requireVoixIAAuth } = await import('../voixia/auth.js');
+    const auth = await requireVoixIAAuth(request, env);
+    if (auth.error) return errorResponse(auth.error, auth.status);
+
+    const tenantId = auth.tenant_id;
+    const body = await request.json();
+    const { event_type, channel, contact, data } = body;
+
+    if (!event_type || !channel) {
+      return errorResponse('Champs requis: event_type, channel', 400);
+    }
+
+    const event = {
+      type: event_type,
+      channel,
+      contact: {
+        phone: contact?.phone || null,
+        email: contact?.email || null,
+        name: contact?.name || 'Inconnu'
+      },
+      data: data || {}
+    };
+
+    logger.info('Omnicanal event recu', { tenantId, event_type, channel });
+
+    const result = await handleOmniEvent(env, tenantId, event);
+
+    return successResponse({ success: true, executed: result?.executed || 0, details: result });
+  } catch (error) {
+    logger.error('handleOmnicanalEvent error', { error: error.message });
+    return errorResponse('Erreur lors du traitement de l evenement', 500);
   }
 }
 

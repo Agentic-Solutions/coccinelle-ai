@@ -597,6 +597,15 @@ async function handleIncomingSMS(request, env) {
       logger.warn('Could not save incoming SMS to DB', { error: dbError.message });
     }
 
+    // Declencher l'orchestrateur omnicanal (reponse IA, creation prospect, etc.)
+    try {
+      const { onSmsReceived } = await import('../omnicanal/orchestrator.js');
+      await onSmsReceived(env, tenantId, { From: from, To: to, Body: body || '' });
+      logger.info('Omnicanal SMS triggered', { tenantId, from });
+    } catch (omniErr) {
+      logger.warn('Omnicanal SMS error (non-bloquant)', { error: omniErr.message });
+    }
+
     // Répondre avec TwiML vide (accusé de réception sans réponse auto)
     return new Response(
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
