@@ -44,7 +44,7 @@ export default function BusinessKnowledgeView({ documents, onDocumentDelete, onS
   // Vérifier si on a des documents structurés (Google Business ou manuels)
   const hasStructuredDocs = documents.some(doc => doc.sourceType === 'google' || doc.sourceType === 'manual');
 
-  // Fonction pour afficher la vue simple (pages crawlées)
+  // Fonction pour afficher la vue simple (pages importées)
   const renderSimpleView = () => {
     return (
       <div className="space-y-6">
@@ -52,7 +52,7 @@ export default function BusinessKnowledgeView({ documents, onDocumentDelete, onS
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">Pages crawlées</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Pages importées</h2>
               <p className="text-sm text-gray-600">
                 {documents.length} page(s) importée(s) depuis votre site web
               </p>
@@ -364,7 +364,7 @@ export default function BusinessKnowledgeView({ documents, onDocumentDelete, onS
         </div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune information pour le moment</h3>
         <p className="text-gray-600 mb-6">
-          Importez votre fiche Google Business ou crawlez votre site web pour commencer
+          Importez votre fiche Google Business ou importez depuis votre site web pour commencer
         </p>
       </div>
     );
@@ -501,7 +501,7 @@ export default function BusinessKnowledgeView({ documents, onDocumentDelete, onS
         })}
       </div>
 
-      {/* Section Pages crawlées (si présentes) */}
+      {/* Section Pages importées (si présentes) */}
       {(() => {
         const crawledDocs = documents.filter(doc => doc.sourceType === 'crawl');
         if (crawledDocs.length === 0) return null;
@@ -511,7 +511,7 @@ export default function BusinessKnowledgeView({ documents, onDocumentDelete, onS
             <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Pages crawlées</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Pages importées</h2>
                   <p className="text-sm text-gray-600">
                     {crawledDocs.length} page(s) importée(s) depuis votre site web
                   </p>

@@ -49,7 +49,7 @@ export default function PhoneSetupPage() {
 
       <div className="max-w-4xl mx-auto px-8 py-12">
         <div className="space-y-6">
-          {/* Sara Presentation */}
+          {/* Présentation assistant vocal */}
           <div className="bg-white rounded-xl border-2 border-gray-900 p-8">
             <div className="flex items-start gap-6">
               <div className="w-20 h-20 rounded-full bg-gray-900 flex items-center justify-center flex-shrink-0">
@@ -79,7 +79,7 @@ export default function PhoneSetupPage() {
             </div>
           </div>
 
-          {/* Sara's Phone Number */}
+          {/* Numéro de l'assistant */}
           <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Numéro de l&apos;assistant</h3>
             <div className="bg-white rounded-lg border-2 border-gray-900 p-4 flex items-center justify-between">

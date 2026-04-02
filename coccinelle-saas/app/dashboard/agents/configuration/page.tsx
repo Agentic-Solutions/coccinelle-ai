@@ -448,7 +448,7 @@ export default function AgentConfigurationPage() {
                     type="text"
                     value={assistantName}
                     onChange={(e) => setAssistantName(e.target.value)}
-                    placeholder="Ex: Sara, Julien, Léa..."
+                    placeholder="Ex: Julien, Léa, Fati..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   />
                 </div>

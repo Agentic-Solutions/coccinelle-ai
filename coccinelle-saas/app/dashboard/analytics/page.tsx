@@ -190,7 +190,7 @@ export default function AnalyticsPage() {
         avgDuration: saraData.avg_duration_seconds || 0
       });
 
-      // Traiter les donnees pour les graphiques a partir de Sara data
+      // Traiter les donnees pour les graphiques a partir des appels
       const saraCalls = (saraData.calls_by_day || []).map((d: any) => ({
         created_at: d.day + 'T00:00:00Z',
         cost: '0'

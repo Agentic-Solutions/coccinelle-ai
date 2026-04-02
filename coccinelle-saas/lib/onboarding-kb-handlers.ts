@@ -109,9 +109,9 @@ export async function crawlWebsiteForOnboarding(
     if (validPages.length === 0) {
       const totalPages = data.pages.length;
       if (totalPages === 0) {
-        throw new Error(`Le site "${websiteUrl}" ne répond pas assez rapidement ou bloque notre crawler. Vérifiez l'URL ou essayez une autre méthode (import de fichiers ou assistant IA).`);
+        throw new Error(`Le site "${websiteUrl}" ne répond pas assez rapidement ou bloque l'import. Vérifiez l'URL ou essayez une autre méthode (import de fichiers ou assistant IA).`);
       } else {
-        throw new Error(`Le site "${websiteUrl}" a été crawlé (${totalPages} page${totalPages > 1 ? 's' : ''}) mais aucun contenu textuel n'a été trouvé. Le site utilise peut-être beaucoup de JavaScript. Essayez une autre méthode.`);
+        throw new Error(`Le site "${websiteUrl}" a été analysé (${totalPages} page${totalPages > 1 ? 's' : ''}) mais aucun contenu textuel n'a été trouvé. Le site utilise peut-être beaucoup de JavaScript. Essayez une autre méthode.`);
       }
     }
 
@@ -154,7 +154,7 @@ export async function crawlWebsiteForOnboarding(
 
     // Gérer spécifiquement les erreurs de timeout
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Le crawl a pris trop de temps (>45s). Le site est peut-être trop lent. Essayez une autre méthode (import de fichiers ou assistant IA).');
+      throw new Error('L\'import a pris trop de temps (>45s). Le site est peut-être trop lent. Essayez une autre méthode (import de fichiers ou assistant IA).');
     }
 
     throw error;

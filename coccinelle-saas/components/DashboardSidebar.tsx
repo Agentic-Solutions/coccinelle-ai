@@ -10,7 +10,7 @@ import {
   FileText, GitBranch, ListTree, Users2,
   BarChart3, ScrollText, Download,
   Settings, LogOut, Menu, X, PhoneCall,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import CoccinelleIcon from '@/components/CoccinelleIcon';
 
@@ -84,6 +84,15 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + '/');
 }
 
+function getActiveGroupLabel(pathname: string): string | null {
+  for (const group of navigation) {
+    if (group.items.some((item) => isActive(pathname, item.href))) {
+      return group.label;
+    }
+  }
+  return null;
+}
+
 // ── Composant ────────────────────────────────────────
 
 export default function DashboardSidebar() {
@@ -91,6 +100,24 @@ export default function DashboardSidebar() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Accordéons : un Set de labels ouverts
+  const activeGroupLabel = getActiveGroupLabel(pathname);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    return activeGroupLabel ? new Set([activeGroupLabel]) : new Set<string>();
+  });
+
+  // Auto-ouvrir le groupe actif quand la route change
+  useEffect(() => {
+    const label = getActiveGroupLabel(pathname);
+    if (label) {
+      setOpenGroups((prev) => {
+        const next = new Set(prev);
+        next.add(label);
+        return next;
+      });
+    }
+  }, [pathname]);
 
   // Fermer le mobile à chaque changement de route
   useEffect(() => {
@@ -102,6 +129,18 @@ export default function DashboardSidebar() {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
+
+  const toggleGroup = useCallback((label: string) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  }, []);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -150,41 +189,70 @@ export default function DashboardSidebar() {
           )}
         </div>
 
-        {/* Navigation */}
+        {/* Navigation avec accordéons */}
         <nav className="flex-1 overflow-y-auto px-3 pb-3">
-          {navigation.map((group) => (
-            <div key={group.label} className="mb-4">
-              {!collapsed && (
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">
-                  {group.label}
-                </p>
-              )}
-              {collapsed && <div className="w-6 mx-auto border-t border-gray-200 mb-2" />}
-              <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(pathname, item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      title={collapsed ? item.name : undefined}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        active
-                          ? 'bg-gray-100 text-gray-900 font-medium'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      } ${collapsed ? 'justify-center px-0' : ''}`}
-                    >
-                      <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${
-                        active ? 'text-gray-900' : 'text-gray-400'
-                      }`} />
-                      {!collapsed && <span>{item.name}</span>}
-                    </Link>
-                  );
-                })}
+          {navigation.map((group) => {
+            const isOpen = openGroups.has(group.label);
+            const hasActiveItem = group.items.some((item) => isActive(pathname, item.href));
+
+            return (
+              <div key={group.label} className="mb-1">
+                {/* Label groupe cliquable */}
+                {!collapsed ? (
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className={`flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                      hasActiveItem
+                        ? 'hover:bg-gray-100'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${
+                      hasActiveItem ? 'text-gray-600' : 'text-gray-400'
+                    }`}>
+                      {group.label}
+                    </span>
+                    <ChevronDown
+                      className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${
+                        isOpen ? '' : '-rotate-90'
+                      }`}
+                    />
+                  </button>
+                ) : (
+                  <div className="w-6 mx-auto border-t border-gray-200 my-2" />
+                )}
+
+                {/* Items du groupe (avec animation) */}
+                <div
+                  className={`space-y-0.5 overflow-hidden transition-all duration-200 ease-in-out ${
+                    collapsed || isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        title={collapsed ? item.name : undefined}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                          active
+                            ? 'bg-gray-100 text-gray-900 font-medium'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        } ${collapsed ? 'justify-center px-0' : ''}`}
+                      >
+                        <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${
+                          active ? 'text-gray-900' : 'text-gray-400'
+                        }`} />
+                        {!collapsed && <span>{item.name}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Bas de sidebar */}
@@ -262,7 +330,7 @@ export default function DashboardSidebar() {
         {/* Bouton fermer mobile */}
         <button
           onClick={() => setMobileOpen(false)}
-          className="absolute top-3 right-3 p-1.5 hover:bg-gray-100 rounded-lg"
+          className="absolute top-3 right-3 p-1.5 hover:bg-gray-100 rounded-lg z-10"
           aria-label="Fermer"
         >
           <X className="w-5 h-5 text-gray-500" />

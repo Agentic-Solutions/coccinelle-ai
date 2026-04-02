@@ -44,13 +44,13 @@ export default function KnowledgePage() {
   const [useAI, setUseAI] = useState(true);
   const [rateLimit, setRateLimit] = useState<any>(null);
 
-  // Auto-Builder states
+  // Construction automatique states
   const [documents, setDocuments] = useState<any[]>([]);
   const [calls, setCalls] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
-  // Charger les données pour l'Auto-Builder
+  // Charger les données pour l'Construction automatique
   useEffect(() => {
     loadData();
   }, []);
@@ -80,11 +80,11 @@ export default function KnowledgePage() {
 
     const crawledDocs = documents.filter(doc => doc.sourceType === 'crawl');
     if (crawledDocs.length === 0) {
-      toast.error('Aucune page crawlée à structurer');
+      toast.error('Aucune page importée à structurer');
       return;
     }
 
-    if (!confirm(`Voulez-vous structurer ${crawledDocs.length} page(s) crawlée(s) avec l'IA ?\n\nCela créera des documents structurés (Contact, Services, Horaires, etc.) et les pages brutes seront conservées.`)) {
+    if (!confirm(`Voulez-vous structurer ${crawledDocs.length} page(s) importée(s) avec l'IA ?\n\nCela créera des documents structurés (Contact, Services, Horaires, etc.) et les pages brutes seront conservées.`)) {
       return;
     }
 
@@ -149,10 +149,10 @@ export default function KnowledgePage() {
         setUploadStatus(null);
       }, 4000);
     } catch (error) {
-      console.error('❌ Erreur crawl:', error);
+      console.error('Erreur import site:', error);
       setUploadStatus({
         type: 'error',
-        message: 'Erreur lors du crawl: ' + (error instanceof Error ? error.message : 'Erreur inconnue')
+        message: 'Erreur lors de l\'import : ' + (error instanceof Error ? error.message : 'Erreur inconnue')
       });
       setCrawlProgress({ status: 'idle', pages: [], currentPage: 0, totalPages: 0 });
     } finally {
@@ -369,7 +369,7 @@ export default function KnowledgePage() {
           </Link>
           <Logo size={48} className="hidden sm:block" />
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Knowledge Base</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Base de connaissances</h1>
           </div>
         </div>
 
@@ -382,7 +382,7 @@ export default function KnowledgePage() {
             }`}
           >
             <Brain className="w-4 h-4" />
-            Auto-Builder
+            Construction automatique
           </button>
           <button
             onClick={() => setActiveTab('upload')}
@@ -401,11 +401,11 @@ export default function KnowledgePage() {
             }`}
           >
             <MessageSquare className="w-4 h-4" />
-            Tester le RAG
+            Tester la recherche
           </button>
         </div>
 
-        {/* Auto-Builder Tab */}
+        {/* Construction automatique Tab */}
         {activeTab === 'builder' && (
           <div>
             {dataLoading ? (
@@ -448,7 +448,7 @@ export default function KnowledgePage() {
                 }`}
               >
                 <Database className="w-4 h-4" />
-                Crawler une URL
+                Importer depuis un site
               </button>
               <button
                 onClick={() => setUploadMode('file')}
@@ -535,7 +535,7 @@ export default function KnowledgePage() {
                   <>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">URL à crawler</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">URL du site à importer</label>
                         <input
                           type="url"
                           value={url}
@@ -572,7 +572,7 @@ export default function KnowledgePage() {
                       </div>
 
                       <p className="text-xs text-gray-500">
-                        Le crawler va analyser {maxPages} pages max avec une profondeur de {maxDepth} niveau{maxDepth > 1 ? 'x' : ''}
+                        L&apos;import analysera {maxPages} pages max avec une profondeur de {maxDepth} niveau{maxDepth > 1 ? 'x' : ''}
                       </p>
                     </div>
 
@@ -826,7 +826,7 @@ export default function KnowledgePage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">Assistant Knowledge Base</h3>
+                        <h3 className="font-semibold text-gray-900">Assistant Base de connaissances</h3>
                         {answer?.mode === 'ai' && (
                           <span className="px-2 py-0.5 bg-gradient-to-r from-gray-900 to-gray-700 text-white text-xs font-bold rounded-full animate-pulse">
                             AI

@@ -131,17 +131,34 @@ Accessible via : `/dashboard/agents/nodes` (importe `SequenceEditor` depuis `@/c
 ## SITEMAP DÉFINITIF (refonte Fonio 02/04/2026)
 
 Composant sidebar : `components/DashboardSidebar.tsx`
-**Style Fonio — sidebar classique, 5 groupes :**
+**Style Fonio — sidebar classique, 5 groupes avec accordéons :**
 - w-[260px] collapsible → w-[68px], transition 300ms
 - bg-white, border-r border-gray-200
 - Palette : blanc/noir/gris uniquement (brand-600 → gray-900)
 - Item actif : bg-gray-100 text-gray-900 font-medium
 - Icône active : text-gray-900, inactive : text-gray-400
-- Labels groupes : text-xs font-semibold text-gray-400 uppercase
+- Labels groupes : cliquables, accordéon ChevronDown/ChevronRight
+- Groupe auto-ouvert si route active dedans, fermés sinon
 - Bouton "Nouvel appel" : bg-gray-900 text-white
 - Logo : CoccinelleIcon 18px blanc sur fond gray-900 rounded-lg
 - Bas : Paramètres + Déconnexion
 - Mobile : overlay + sidebar 260px
+
+**Règles UI (corrigé 02/04/2026) :**
+- Emoji 🐞 BANNI de toute l'interface — utiliser CoccinelleIcon partout
+- "Sara" BANNI — utiliser "Assistant" ou nom dynamique depuis le prompt
+- Termes techniques BANNIS dans l'UI : RAG, Crawl, crawler, embedding, vector, chunks
+  - RAG → "Recherche intelligente" ou "Tester la recherche"
+  - Crawl → "Importer depuis un site"
+  - Auto-Builder → "Construction automatique"
+  - Knowledge Base → "Base de connaissances"
+
+**Page Paramètres** `app/dashboard/settings/page.tsx` :
+- 3 colonnes style Fonio : Organisation / Facturation / Technique
+- Cartes : Général, Équipe, Abonnement, Intégrations, Webhooks
+- Section "Paramètres généraux" : fuseau horaire, langue
+- Zone dangereuse : suppression compte avec double confirmation
+- Palette : blanc/noir/gris uniquement
 
 **Topbar** dans `app/dashboard/layout.tsx` :
 - h-14, border-b, bg-white
