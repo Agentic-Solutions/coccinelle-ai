@@ -106,6 +106,8 @@ Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().qu
 3. Le "+" dans les numéros → encodé "%2B" dans les URLs
 4. UN SEUL prompt `is_active=1` par tenant
 5. `system_prompt` sauvegardé en DB ne contient JAMAIS de variables `{}`
+6. Le `system_prompt` DOIT contenir : "appelle TOUJOURS search_knowledge avant de répondre à toute question sur les services ou tarifs" — sans cette instruction l'agent ne call pas le tool
+7. JAMAIS de documents crawlés d'un autre site dans la KB — vérifier source_type avant démo
 
 ## FICHIERS PYTHON VOIXIA (NE PAS CASSER)
 
@@ -390,6 +392,8 @@ coccinelle-ai/
 | ~~Transfer humain~~ | ~~pas de logique callback~~ **CORRIGÉ 02/04** — transfer_enabled=0 → propose rappel + create_prospect + SMS. Config Agent onglet Comportement : toggle ON → champ numéro visible, toggle OFF → agent propose rappel | ✅ Corrigé |
 | ~~Port 8081 zombie~~ | ~~process Python bloque le port au restart~~ **CORRIGÉ 02/04** — ExecStartPre fuser -k dans systemd | ✅ Corrigé |
 | ~~Données démo KB~~ | ~~Pas de KB pour demo~~ **CORRIGÉ 02/04** — 4 docs insérés (présentation, tarifs, horaires, FAQ) | ✅ Corrigé |
+| ~~Prompt ecommerce~~ | ~~system_prompt actif = Léa/boutique en ligne (ecommerce)~~ **CORRIGÉ 02/04** — Fati/Agentic Solutions agents IA (ia_voix) | ✅ Corrigé |
+| ~~KB polluée Nestenn~~ | ~~6 docs crawlés Nestenn immobilier parasitaient la KB~~ **CORRIGÉ 02/04** — supprimés, seuls 4 docs Agentic Solutions restent | ✅ Corrigé |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
 | Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |
