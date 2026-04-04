@@ -134,6 +134,7 @@ Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().qu
 
 **Note :** Les deux schémas de paths fonctionnent. L'agent Python utilise les paths principaux.
 **Vérifié 01/04/2026 :** `check_availability` retourne des créneaux RÉELS depuis `availability_slots` + `appointments`.
+**Vérifié 04/04/2026 :** `POST /api/v1/voixia/knowledge` retourne `answer` (priorité source_type='text', tronqué 500 chars) + `found` + `results`. Même logique que GET /tools/knowledge.
 
 ## PALETTE DE NODES (éditeur de séquences)
 
@@ -394,6 +395,8 @@ coccinelle-ai/
 | ~~Données démo KB~~ | ~~Pas de KB pour demo~~ **CORRIGÉ 02/04** — 4 docs insérés (présentation, tarifs, horaires, FAQ) | ✅ Corrigé |
 | ~~Prompt ecommerce~~ | ~~system_prompt actif = Léa/boutique en ligne (ecommerce)~~ **CORRIGÉ 02/04** — Fati/Agentic Solutions agents IA (ia_voix) | ✅ Corrigé |
 | ~~KB polluée Nestenn~~ | ~~6 docs crawlés Nestenn immobilier parasitaient la KB~~ **CORRIGÉ 02/04** — supprimés, seuls 4 docs Agentic Solutions restent | ✅ Corrigé |
+| Prefixe vocal KB | `tools/knowledge.py` retourne "Reponse trouvee : ..." — agent lit le prefixe a voix haute. Fix : retourner le contenu directement | 🔴 Critique |
+| Format answer TTS | Le contenu answer peut etre trop long/mal formate pour la synthese vocale | 🔴 Critique |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
 | Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |
@@ -531,6 +534,83 @@ httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal
   json={"event_type": "call_ended", "channel": "voice",
         "contact": {"phone": caller_phone, "name": caller_name},
         "data": {"duration": call_duration, "summary": call_summary}})
+```
+
+## ÉTAT AU 4 AVRIL 2026
+
+### CE QUI FONCTIONNE
+- VoixIA active (running) sur Scaleway 51.15.130.204
+- resolve-phone retourne Fati / Agentic Solutions / ia_voix
+- Tenant reconnu : tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy
+- search_knowledge appele pendant les appels (confirme dans les logs 04/04)
+- POST /api/v1/voixia/knowledge retourne answer (priorite text, tronque 500 chars)
+- SMS rappel humain fonctionne
+- Prospect cree en CRM
+- Sidebar style Fonio deployee
+- Orchestrateur omnicanal 5 scenarios deploye
+- Email 6 routes operationnelles
+- Onboarding source unique de verite
+- Port 8081 zombie corrige — ExecStartPre fuser -k dans systemd
+
+### BUGS RESTANTS
+**BUG 1 — Agent dit "je consulte ma base de connaissances" a voix haute**
+- Cause : `tools/knowledge.py` retourne `"Reponse trouvee : ..."` — l'agent lit ce prefixe a voix haute
+- Fix requis : dans `/opt/voixia/agent/tools/knowledge.py`, supprimer le prefixe `"Reponse trouvee : "`, retourner directement le contenu
+- Fichier : `/opt/voixia/agent/tools/knowledge.py` ligne ~75 : `return f"Reponse trouvee : {answer}"`
+
+**BUG 2 — Agent ne restitue pas les tarifs correctement**
+- Cause : le contenu answer peut etre trop long ou mal formate pour la synthese vocale TTS
+- Fix requis : verifier le contenu exact retourne par POST /api/v1/voixia/knowledge et formater pour vocal (phrases courtes, pas de caracteres speciaux)
+
+### ACTIONS PRIORITAIRES AVANT NUBBO 10 AVRIL
+1. Fix tools/knowledge.py — supprimer prefixe "Reponse trouvee"
+2. Verifier contenu answer — doit etre Agentic Solutions
+3. Test vocal E2E complet (appeler le +33939035760)
+4. Donnees demo realistes (prospects, appels, RDV)
+5. Script demo 15 min
+
+### SOURCE UNIQUE DE VERITE (verifie 04/04/2026)
+- `tenants.name` = "Agentic solutions"
+- `tenants.sector` = "ia_voix" (corrige 04/04)
+- `voixia_configs.secteur` = "ia_voix" (corrige 04/04)
+- `ai_prompt_versions` id=10, secteur=ia_voix, is_active=1
+- Prompt actif : "Tu es Fati, assistante vocale IA d Agentic Solutions..."
+- KB : 4 documents Agentic Solutions (source_type=text)
+- KB : 0 documents Nestenn (supprimes 02/04)
+
+### FICHIERS CRITIQUES PYTHON VOIXIA (serveur 51.15.130.204)
+| Fichier | Role | Etat |
+|---------|------|------|
+| `/opt/voixia/agent/tools/knowledge.py` | Tool search_knowledge | BUG prefixe a corriger |
+| `/opt/voixia/agent/pipeline.py` | Agent LLM + 8 @function_tool | OK — tools passes a AgentSession |
+| `/opt/voixia/agent/main.py` | Entrypoint + greeting + session | OK |
+| `/opt/voixia/agent/tenant.py` | resolve-phone client | OK |
+| `/opt/voixia/agent/llm_factory.py` | Factory LLM (lk_openai.LLM) | OK — Claude + Mistral |
+| `/opt/voixia/agent/config.py` | Config providers | OK — mistral + claude |
+| `/opt/voixia/agent/prompts.py` | Greetings + prompts fallback | OK |
+| `/opt/voixia/agent/tools/transfer.py` | Transfer humain + callback | OK |
+| `/opt/voixia/.env` | Variables d'env | OK (pas dans agent/.env) |
+
+### COMMANDES ESSENTIELLES (mise a jour 04/04/2026)
+```bash
+# Logs en direct
+ssh root@51.15.130.204 "journalctl -u voixia -f --no-pager"
+
+# Restart VoixIA
+ssh root@51.15.130.204 "systemctl restart voixia"
+
+# Test KB POST (appele par agent Python)
+curl -s -X POST \
+  "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/knowledge" \
+  -H "X-VoixIA-Key: 813f882e34f8b033e398e9a3c0ed38070e98a88e50eeee485ac0e8e06de11cc9" \
+  -H "X-VoixIA-Tenant: tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"tarifs"}'
+
+# Deploiement complet
+cd ~/Projects/saas/coccinelle-ai && npx wrangler deploy
+ssh root@51.15.130.204 "systemctl restart voixia"
+cd coccinelle-saas && npm run build && npx wrangler pages deploy out --project-name coccinelle-saas --commit-dirty=true
 ```
 
 ## FICHIERS INTERDITS À MODIFIER SANS OK DE YOUSSEF

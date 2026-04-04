@@ -729,9 +729,16 @@ async function handleSearchKnowledge(request, env) {
     changes: { question: question.substring(0, 100), results_count: results.length }
   });
 
+  // Selectionner la meilleure answer : source_type='text' en priorite, tronquee a 500 chars
+  const textResults = results.filter(r => r.source_type === 'text');
+  const bestResult = textResults.length > 0 ? textResults[0] : results[0];
+  const answer = bestResult?.content?.substring(0, 500) || null;
+
   return successResponse({
     results,
     count: results.length,
+    answer,
+    found: !!answer,
     search_type: useTextFallback ? 'text' : 'semantic',
     message: results.length > 0
       ? `${results.length} résultat(s) trouvé(s)`
