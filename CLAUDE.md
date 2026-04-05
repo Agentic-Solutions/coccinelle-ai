@@ -110,6 +110,7 @@ Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().qu
 7. JAMAIS de documents crawlés d'un autre site dans la KB — vérifier source_type avant démo
 8. Tools vocaux : JAMAIS de prefixe technique dans le retour ("Reponse trouvee", "Resultats trouves", etc.) — le retour est lu a voix haute par le TTS
 9. Retour tool vocal : max 300 chars, phrases naturelles, pas de markdown, pas de symboles (euros pas EUR, etc.), coupe a la derniere phrase complete
+10. Recherche KB textuelle : TOUJOURS splitter la question en mots significatifs et chercher avec OR (LIKE '%mot1%' OR LIKE '%mot2%'). JAMAIS de LIKE '%phrase entière%' car les mots ne sont pas adjacents dans le contenu
 
 ## FICHIERS PYTHON VOIXIA (NE PAS CASSER)
 
@@ -399,6 +400,7 @@ coccinelle-ai/
 | ~~KB polluée Nestenn~~ | ~~6 docs crawlés Nestenn immobilier parasitaient la KB~~ **CORRIGÉ 02/04** — supprimés, seuls 4 docs Agentic Solutions restent | ✅ Corrigé |
 | ~~Prefixe vocal KB~~ | ~~`tools/knowledge.py` retourne "Reponse trouvee : ..."~~ **CORRIGE 04/04** — prefixe supprime, retourne contenu direct + nettoyage TTS (_nettoyer_pour_tts) | ✅ Corrige |
 | ~~Format answer TTS~~ | ~~contenu trop long/mal formate pour TTS~~ **CORRIGE 04/04** — tronque a 300 chars, coupe a la derniere phrase, supprime markdown, symboles remplaces | ✅ Corrige |
+| ~~KB found=False appel~~ | ~~Recherche KB LIKE '%phrase entiere%' ne matchait pas les phrases naturelles du LLM~~ **CORRIGE 05/04** — split question en mots significatifs + recherche OR sur chaque mot (3 niveaux : chunks, documents, FAQ) | ✅ Corrige |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
 | Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |

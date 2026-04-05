@@ -640,8 +640,23 @@ async function handleSearchKnowledge(request, env) {
   }
 
   // 2b. Fallback : recherche textuelle si la vectorielle n'est pas disponible
+  // Splitter la question en mots significatifs (>= 3 caracteres) pour recherche OR
+  const stopWords = new Set(['les', 'des', 'une', 'est', 'que', 'qui', 'dans', 'pour', 'sur', 'par', 'avec', 'son', 'ses', 'vos', 'nos', 'aux', 'ont', 'sont', 'quels', 'quel', 'quelle', 'quelles', 'comment', 'vous']);
+  const searchWords = question
+    .toLowerCase()
+    .replace(/[^a-zA-ZÀ-ÿ\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !stopWords.has(w));
+
+  // Si aucun mot significatif, utiliser la question brute
+  if (searchWords.length === 0) searchWords.push(question);
+
   if (useTextFallback || results.length === 0) {
     try {
+      // Construire la clause WHERE avec OR pour chaque mot
+      const chunkLikeClauses = searchWords.map(() => 'kc.content LIKE ?').join(' OR ');
+      const chunkParams = [tenant_id, ...searchWords.map(w => `%${w}%`), topK];
+
       const textResults = await env.DB.prepare(`
         SELECT
           kc.content, kc.chunk_index,
@@ -650,11 +665,11 @@ async function handleSearchKnowledge(request, env) {
         FROM knowledge_chunks kc
         LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
         WHERE kd.tenant_id = ?
-          AND kc.content LIKE ?
+          AND (${chunkLikeClauses})
           AND kd.is_active = 1
         ORDER BY priority ASC, kd.created_at DESC
         LIMIT ?
-      `).bind(tenant_id, `%${question}%`, topK).all();
+      `).bind(...chunkParams).all();
 
       if (textResults.results?.length > 0) {
         results = textResults.results.map(chunk => ({
@@ -672,16 +687,20 @@ async function handleSearchKnowledge(request, env) {
     // Fallback : chercher directement dans knowledge_documents.content (pas de chunks)
     if (results.length === 0) {
       try {
+        // OR sur chaque mot dans title ET content
+        const docLikeClauses = searchWords.map(() => '(title LIKE ? OR content LIKE ?)').join(' OR ');
+        const docParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
+
         const docResults = await env.DB.prepare(`
           SELECT title, content, source_url, source_type,
             CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
           FROM knowledge_documents
           WHERE tenant_id = ?
             AND is_active = 1
-            AND (title LIKE ? OR content LIKE ?)
+            AND (${docLikeClauses})
           ORDER BY priority ASC, created_at DESC
           LIMIT ?
-        `).bind(tenant_id, `%${question}%`, `%${question}%`, topK).all();
+        `).bind(...docParams).all();
 
         if (docResults.results?.length > 0) {
           results = docResults.results.map(doc => ({
@@ -700,13 +719,16 @@ async function handleSearchKnowledge(request, env) {
     // Fallback supplémentaire : chercher dans les FAQ
     if (results.length === 0) {
       try {
+        const faqLikeClauses = searchWords.map(() => '(question LIKE ? OR answer LIKE ?)').join(' OR ');
+        const faqParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
+
         const faqResults = await env.DB.prepare(`
           SELECT question, answer
           FROM knowledge_faq
           WHERE tenant_id = ?
-            AND (question LIKE ? OR answer LIKE ?)
+            AND (${faqLikeClauses})
           LIMIT ?
-        `).bind(tenant_id, `%${question}%`, `%${question}%`, topK).all();
+        `).bind(...faqParams).all();
 
         if (faqResults.results?.length > 0) {
           results = faqResults.results.map(faq => ({
@@ -946,11 +968,23 @@ async function handleSearchKnowledgeGET(request, env) {
 
   if (!query) return errorResponse('Paramètre query requis', 400);
 
+  // Splitter la question en mots significatifs (>= 3 caracteres) pour recherche OR
+  const getStopWords = new Set(['les', 'des', 'une', 'est', 'que', 'qui', 'dans', 'pour', 'sur', 'par', 'avec', 'son', 'ses', 'vos', 'nos', 'aux', 'ont', 'sont', 'quels', 'quel', 'quelle', 'quelles', 'comment', 'vous']);
+  const getSearchWords = query
+    .toLowerCase()
+    .replace(/[^a-zA-ZÀ-ÿ\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !getStopWords.has(w));
+  if (getSearchWords.length === 0) getSearchWords.push(query);
+
   // Recherche avec priorite source_type='text' avant 'crawl'
   let results = [];
 
   // 1. Chercher dans knowledge_chunks avec priorite text
   try {
+    const chunkLikeClauses = getSearchWords.map(() => 'kc.content LIKE ?').join(' OR ');
+    const chunkParams = [tenant_id, ...getSearchWords.map(w => `%${w}%`)];
+
     const chunkResults = await env.DB.prepare(`
       SELECT
         kc.content, kc.chunk_index,
@@ -959,11 +993,11 @@ async function handleSearchKnowledgeGET(request, env) {
       FROM knowledge_chunks kc
       LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
       WHERE kd.tenant_id = ?
-        AND kc.content LIKE ?
+        AND (${chunkLikeClauses})
         AND kd.is_active = 1
       ORDER BY priority ASC, kd.created_at DESC
       LIMIT 5
-    `).bind(tenant_id, `%${query}%`).all();
+    `).bind(...chunkParams).all();
 
     if (chunkResults.results?.length > 0) {
       results = chunkResults.results.map(chunk => ({
@@ -980,16 +1014,19 @@ async function handleSearchKnowledgeGET(request, env) {
   // 2. Fallback knowledge_documents directement (priorite text)
   if (results.length === 0) {
     try {
+      const docLikeClauses = getSearchWords.map(() => '(title LIKE ? OR content LIKE ?)').join(' OR ');
+      const docParams = [tenant_id, ...getSearchWords.flatMap(w => [`%${w}%`, `%${w}%`])];
+
       const docResults = await env.DB.prepare(`
         SELECT title, content, source_url, source_type,
           CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
         FROM knowledge_documents
         WHERE tenant_id = ?
           AND is_active = 1
-          AND (title LIKE ? OR content LIKE ?)
+          AND (${docLikeClauses})
         ORDER BY priority ASC, created_at DESC
         LIMIT 5
-      `).bind(tenant_id, `%${query}%`, `%${query}%`).all();
+      `).bind(...docParams).all();
 
       if (docResults.results?.length > 0) {
         results = docResults.results.map(doc => ({
@@ -1007,13 +1044,16 @@ async function handleSearchKnowledgeGET(request, env) {
   // 3. Fallback FAQ
   if (results.length === 0) {
     try {
+      const faqLikeClauses = getSearchWords.map(() => '(question LIKE ? OR answer LIKE ?)').join(' OR ');
+      const faqParams = [tenant_id, ...getSearchWords.flatMap(w => [`%${w}%`, `%${w}%`])];
+
       const faqResults = await env.DB.prepare(`
         SELECT question, answer
         FROM knowledge_faq
         WHERE tenant_id = ?
-          AND (question LIKE ? OR answer LIKE ?)
+          AND (${faqLikeClauses})
         LIMIT 5
-      `).bind(tenant_id, `%${query}%`, `%${query}%`).all();
+      `).bind(...faqParams).all();
 
       if (faqResults.results?.length > 0) {
         results = faqResults.results.map(faq => ({
