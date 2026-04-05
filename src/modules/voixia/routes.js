@@ -566,9 +566,10 @@ async function handleSearchKnowledge(request, env) {
 
   const { tenant_id } = auth;
   const body = await request.json();
-  const { question, topK = 5 } = body;
+  const question = body.question || body.query || '';
+  const topK = body.topK || 5;
 
-  if (!question) return errorResponse('question est requis', 400);
+  if (!question) return errorResponse('question ou query est requis', 400);
 
   // 1. Générer l'embedding de la question via Workers AI
   let queryEmbedding = null;

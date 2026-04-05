@@ -108,6 +108,8 @@ Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().qu
 5. `system_prompt` sauvegardé en DB ne contient JAMAIS de variables `{}`
 6. Le `system_prompt` DOIT contenir : "appelle TOUJOURS search_knowledge avant de répondre à toute question sur les services ou tarifs" — sans cette instruction l'agent ne call pas le tool
 7. JAMAIS de documents crawlés d'un autre site dans la KB — vérifier source_type avant démo
+8. Tools vocaux : JAMAIS de prefixe technique dans le retour ("Reponse trouvee", "Resultats trouves", etc.) — le retour est lu a voix haute par le TTS
+9. Retour tool vocal : max 300 chars, phrases naturelles, pas de markdown, pas de symboles (euros pas EUR, etc.), coupe a la derniere phrase complete
 
 ## FICHIERS PYTHON VOIXIA (NE PAS CASSER)
 
@@ -395,8 +397,8 @@ coccinelle-ai/
 | ~~Données démo KB~~ | ~~Pas de KB pour demo~~ **CORRIGÉ 02/04** — 4 docs insérés (présentation, tarifs, horaires, FAQ) | ✅ Corrigé |
 | ~~Prompt ecommerce~~ | ~~system_prompt actif = Léa/boutique en ligne (ecommerce)~~ **CORRIGÉ 02/04** — Fati/Agentic Solutions agents IA (ia_voix) | ✅ Corrigé |
 | ~~KB polluée Nestenn~~ | ~~6 docs crawlés Nestenn immobilier parasitaient la KB~~ **CORRIGÉ 02/04** — supprimés, seuls 4 docs Agentic Solutions restent | ✅ Corrigé |
-| Prefixe vocal KB | `tools/knowledge.py` retourne "Reponse trouvee : ..." — agent lit le prefixe a voix haute. Fix : retourner le contenu directement | 🔴 Critique |
-| Format answer TTS | Le contenu answer peut etre trop long/mal formate pour la synthese vocale | 🔴 Critique |
+| ~~Prefixe vocal KB~~ | ~~`tools/knowledge.py` retourne "Reponse trouvee : ..."~~ **CORRIGE 04/04** — prefixe supprime, retourne contenu direct + nettoyage TTS (_nettoyer_pour_tts) | ✅ Corrige |
+| ~~Format answer TTS~~ | ~~contenu trop long/mal formate pour TTS~~ **CORRIGE 04/04** — tronque a 300 chars, coupe a la derniere phrase, supprime markdown, symboles remplaces | ✅ Corrige |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
 | Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |
@@ -553,18 +555,21 @@ httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal
 - Port 8081 zombie corrige — ExecStartPre fuser -k dans systemd
 
 ### BUGS RESTANTS
-**BUG 1 — Agent dit "je consulte ma base de connaissances" a voix haute**
-- Cause : `tools/knowledge.py` retourne `"Reponse trouvee : ..."` — l'agent lit ce prefixe a voix haute
-- Fix requis : dans `/opt/voixia/agent/tools/knowledge.py`, supprimer le prefixe `"Reponse trouvee : "`, retourner directement le contenu
-- Fichier : `/opt/voixia/agent/tools/knowledge.py` ligne ~75 : `return f"Reponse trouvee : {answer}"`
+Aucun bug critique restant au 04/04/2026.
 
-**BUG 2 — Agent ne restitue pas les tarifs correctement**
-- Cause : le contenu answer peut etre trop long ou mal formate pour la synthese vocale TTS
-- Fix requis : verifier le contenu exact retourne par POST /api/v1/voixia/knowledge et formater pour vocal (phrases courtes, pas de caracteres speciaux)
+### BUGS RESOLUS 04/04/2026
+**BUG 1 — Prefixe vocal "Reponse trouvee" — CORRIGE**
+- `tools/knowledge.py` retournait `f"Reponse trouvee : {answer}"` → agent lisait le prefixe a voix haute
+- Fix : retourne directement le contenu via `_nettoyer_pour_tts(answer)`
+
+**BUG 2 — Format TTS trop long — CORRIGE**
+- Answer 389 chars, mal formate pour synthese vocale
+- Fix : `_nettoyer_pour_tts()` tronque a 300 chars, coupe a la derniere phrase complete, supprime markdown, remplace symboles
+- Messages d'erreur aussi en langage naturel (pas de codes HTTP, pas de traces)
 
 ### ACTIONS PRIORITAIRES AVANT NUBBO 10 AVRIL
-1. Fix tools/knowledge.py — supprimer prefixe "Reponse trouvee"
-2. Verifier contenu answer — doit etre Agentic Solutions
+1. ~~Fix tools/knowledge.py~~ — FAIT 04/04
+2. ~~Verifier contenu answer~~ — FAIT 04/04 (Agentic Solutions, 300 chars, pas Nestenn)
 3. Test vocal E2E complet (appeler le +33939035760)
 4. Donnees demo realistes (prospects, appels, RDV)
 5. Script demo 15 min
@@ -581,7 +586,7 @@ httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal
 ### FICHIERS CRITIQUES PYTHON VOIXIA (serveur 51.15.130.204)
 | Fichier | Role | Etat |
 |---------|------|------|
-| `/opt/voixia/agent/tools/knowledge.py` | Tool search_knowledge | BUG prefixe a corriger |
+| `/opt/voixia/agent/tools/knowledge.py` | Tool search_knowledge | OK — prefixe supprime, TTS 300 chars max |
 | `/opt/voixia/agent/pipeline.py` | Agent LLM + 8 @function_tool | OK — tools passes a AgentSession |
 | `/opt/voixia/agent/main.py` | Entrypoint + greeting + session | OK |
 | `/opt/voixia/agent/tenant.py` | resolve-phone client | OK |
