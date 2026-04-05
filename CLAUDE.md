@@ -111,6 +111,8 @@ Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().qu
 8. Tools vocaux : JAMAIS de prefixe technique dans le retour ("Reponse trouvee", "Resultats trouves", etc.) — le retour est lu a voix haute par le TTS
 9. Retour tool vocal : max 300 chars, phrases naturelles, pas de markdown, pas de symboles (euros pas EUR, etc.), coupe a la derniere phrase complete
 10. Recherche KB textuelle : TOUJOURS splitter la question en mots significatifs et chercher avec OR (LIKE '%mot1%' OR LIKE '%mot2%'). JAMAIS de LIKE '%phrase entière%' car les mots ne sont pas adjacents dans le contenu
+11. system_prompt DOIT contenir : "ne dis JAMAIS je consulte, je verifie, un instant, je recherche" — sinon le LLM annonce sa demarche avant de donner la reponse
+12. TTS normalisation dans _nettoyer_pour_tts() : 24/7 → "24 heures sur 24, 7 jours sur 7", 24h/24 → "24 heures sur 24", 7j/7 → "7 jours sur 7", / → "sur", % → "pourcent", & → "et"
 
 ## FICHIERS PYTHON VOIXIA (NE PAS CASSER)
 
