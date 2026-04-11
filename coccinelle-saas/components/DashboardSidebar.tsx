@@ -8,7 +8,7 @@ import {
   MessageSquare, MessageCircle, Mail, Voicemail,
   Calendar, BookOpen, HelpCircle, Package,
   FileText, GitBranch, ListTree, Users2,
-  BarChart3, ScrollText, Download,
+  BarChart3, ScrollText, Download, Bell,
   Settings, LogOut, Menu, X, PhoneCall, Clock,
   ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
@@ -47,6 +47,7 @@ const navigation: NavGroup[] = [
       { name: 'WhatsApp', href: '/dashboard/channels/whatsapp', icon: MessageCircle },
       { name: 'Email', href: '/dashboard/channels/email', icon: Mail },
       { name: 'Messagerie vocale', href: '/dashboard/channels/voicemail', icon: Voicemail },
+      { name: 'Notifications proactives', href: '/dashboard/proactive', icon: Bell },
     ],
   },
   {

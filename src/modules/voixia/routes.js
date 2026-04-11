@@ -54,6 +54,11 @@ export async function handleVoixIARoutes(request, env, path, method) {
       return await handleResolvePhone(request, env);
     }
 
+    // POST /api/v1/voixia/log-call — Logger un appel terminé (appelé par agent Python)
+    if (path === '/api/v1/voixia/log-call' && method === 'POST') {
+      return await handleLogCall(request, env);
+    }
+
     // ═══ Aliases /tools/* pour compatibilité documentée ═══
     if (path === '/api/v1/voixia/tools/availability' && method === 'GET') {
       return await handleCheckAvailability(request, env);
@@ -1080,4 +1085,107 @@ async function handleSearchKnowledgeGET(request, env) {
       ? `${results.length} résultat(s) trouvé(s)`
       : 'Aucun résultat trouvé dans la base de connaissances'
   });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/v1/voixia/log-call — Logger un appel termine
+// Appele par l'agent Python VoixIA a la fin de chaque appel
+// ═══════════════════════════════════════════════════════════════
+
+async function handleLogCall(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  const { tenant_id } = auth;
+
+  let body = {};
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse('Body JSON requis', 400);
+  }
+
+  const {
+    caller_phone,
+    duration_seconds,
+    status = 'completed',
+    direction = 'inbound',
+    transcript,
+    summary
+  } = body;
+
+  if (!caller_phone) {
+    return errorResponse('caller_phone requis', 400);
+  }
+
+  try {
+    const callId = generateId();
+
+    // 1. Inserer dans calls (table principale)
+    await env.DB.prepare(`
+      INSERT INTO calls (id, tenant_id, from_number, to_number, direction, status, duration, transcript, started_at, ended_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-' || ? || ' seconds'), datetime('now'), datetime('now'))
+    `).bind(
+      callId,
+      tenant_id,
+      caller_phone,
+      '',
+      direction,
+      status,
+      duration_seconds || 0,
+      transcript || null,
+      duration_seconds || 0
+    ).run();
+
+    // 2. Inserer dans ai_interaction_logs (table analytics)
+    await env.DB.prepare(`
+      INSERT INTO ai_interaction_logs (tenant_id, canal, call_duration_seconds, success, transcript, created_at)
+      VALUES (?, 'voice', ?, ?, ?, datetime('now'))
+    `).bind(
+      tenant_id,
+      duration_seconds || 0,
+      status === 'completed' ? 1 : 0,
+      transcript || null
+    ).run();
+
+    // 3. Si summary, inserer dans call_summaries
+    if (summary) {
+      const summaryId = generateId();
+      await env.DB.prepare(`
+        INSERT INTO call_summaries (id, call_id, tenant_id, summary, duration, created_at)
+        VALUES (?, ?, ?, ?, ?, datetime('now'))
+      `).bind(summaryId, callId, tenant_id, summary, duration_seconds || 0).run();
+    }
+
+    // 4. Dedup prospect
+    if (caller_phone) {
+      try {
+        await findOrCreateProspect(env, tenant_id, {
+          phone: caller_phone,
+          source: 'voixia_call'
+        });
+      } catch (e) {
+        logger.warn('VoixIA log-call — dedup prospect echoue', { error: e.message });
+      }
+    }
+
+    await logAudit(env, {
+      tenant_id,
+      user_id: 'voixia-agent',
+      action: 'voixia.call.logged',
+      resource_type: 'call',
+      resource_id: callId,
+      changes: { caller_phone, duration_seconds, status }
+    });
+
+    return successResponse({
+      call_id: callId,
+      logged: true,
+      message: 'Appel logge avec succes'
+    });
+
+  } catch (error) {
+    logger.error('VoixIA log-call error', { error: error.message });
+    return errorResponse('Erreur lors du logging de l appel', 500);
+  }
 }

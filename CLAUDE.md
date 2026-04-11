@@ -210,7 +210,8 @@ Communication
   ├─ SMS /channels/sms
   ├─ WhatsApp /channels/whatsapp
   ├─ Email /channels/email
-  └─ Messagerie vocale /channels/voicemail
+  ├─ Messagerie vocale /channels/voicemail
+  └─ Notifications proactives /proactive
 Intelligence
   ├─ Base de connaissances /knowledge
   ├─ FAQ /knowledge/faq
@@ -404,6 +405,9 @@ coccinelle-ai/
 | ~~Prefixe vocal KB~~ | ~~`tools/knowledge.py` retourne "Reponse trouvee : ..."~~ **CORRIGE 04/04** — prefixe supprime, retourne contenu direct + nettoyage TTS (_nettoyer_pour_tts) | ✅ Corrige |
 | ~~Format answer TTS~~ | ~~contenu trop long/mal formate pour TTS~~ **CORRIGE 04/04** — tronque a 300 chars, coupe a la derniere phrase, supprime markdown, symboles remplaces | ✅ Corrige |
 | ~~KB found=False appel~~ | ~~Recherche KB LIKE '%phrase entiere%' ne matchait pas les phrases naturelles du LLM~~ **CORRIGE 05/04** — split question en mots significatifs + recherche OR sur chaque mot (3 niveaux : chunks, documents, FAQ) | ✅ Corrige |
+| ~~Agent dit "je consulte"~~ | ~~system_prompt sans instruction silencieuse~~ **CORRIGE 11/04** — prompt reecrit Fati + OUTIL SILENCIEUX | ✅ Corrige |
+| ~~Appels non comptabilises~~ | ~~dashboard mock, pas de log-call~~ **CORRIGE 11/04** — POST /voixia/log-call + dashboard connecte API | ✅ Corrige |
+| ~~Config non prise en compte~~ | ~~resolve-phone verifie : 0 cache, lecture DB directe~~ **CORRIGE 11/04** | ✅ Corrige |
 | Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
 | Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
 | Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |
@@ -543,11 +547,73 @@ httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal
         "data": {"duration": call_duration, "summary": call_summary}})
 ```
 
-## ÉTAT AU 6 AVRIL 2026
+## COMMUNICATION PROACTIVE (cree 11/04/2026)
+
+| Element | Detail |
+|---------|--------|
+| Tables DB | `proactive_templates`, `proactive_logs`, `proactive_settings` |
+| Module backend | `src/modules/proactive/routes.js` |
+| Endpoint trigger | `POST /api/v1/proactive/trigger` (auth X-VoixIA-Key) |
+| Canal actuel | SMS Twilio (Phase 1), appel sortant (Phase 2) |
+| Templates | 6 templates (garage x2, notaire x2, veterinaire, comptable) |
+| Dashboard | `/dashboard/proactive` (4 sections : config, envoi, templates, historique) |
+| Sidebar | sous Communication, icone Bell |
+
+**Routes :**
+```
+POST /api/v1/proactive/trigger    → declenchement notification (auth X-VoixIA-Key)
+GET  /api/v1/proactive/logs       → historique 50 derniers (auth JWT)
+GET  /api/v1/proactive/templates  → templates actifs du tenant (auth JWT)
+GET  /api/v1/proactive/settings   → config du tenant (auth JWT)
+PUT  /api/v1/proactive/settings   → modifier config (auth JWT)
+```
+
+**Appel depuis logiciel metier :**
+```bash
+curl -X POST "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/proactive/trigger" \
+  -H "X-VoixIA-Key: CLE_API" \
+  -H "X-VoixIA-Tenant: TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"client_phone":"+33612345678","client_name":"Marie Martin","trigger_type":"pret","sector":"garage"}'
+```
+
+## ENDPOINT LOG-CALL (cree 11/04/2026)
+
+| Element | Detail |
+|---------|--------|
+| Endpoint | `POST /api/v1/voixia/log-call` (auth X-VoixIA-Key) |
+| Tables alimentees | `calls`, `ai_interaction_logs`, `call_summaries` |
+| Dedup | `findOrCreateProspect()` appele automatiquement |
+| Dashboard | `app/dashboard/page.tsx` connecte a GET /api/v1/calls/stats + GET /api/v1/calls?limit=5 |
+
+**Body attendu :**
+```json
+{
+  "caller_phone": "+33612345678",
+  "duration_seconds": 180,
+  "status": "completed",
+  "direction": "inbound",
+  "transcript": "...",
+  "summary": "Le client a demande les tarifs..."
+}
+```
+
+**Connexion agent Python VoixIA (a faire) :**
+```python
+# Dans pipeline.py, apres session.disconnect() :
+async def _log_call(tenant_id, api_key, base_url, phone, duration, transcript, summary):
+    async with httpx.AsyncClient(timeout=5) as c:
+        await c.post(f"{base_url}/api/v1/voixia/log-call",
+            json={"caller_phone": phone, "duration_seconds": int(duration),
+                  "status": "completed", "transcript": transcript, "summary": summary},
+            headers={"X-VoixIA-Key": api_key, "X-VoixIA-Tenant": tenant_id})
+```
+
+## ETAT AU 11 AVRIL 2026
 
 ### CE QUI FONCTIONNE
 - VoixIA active (running) sur Scaleway 51.15.130.204
-- resolve-phone → Fati / Agentic Solutions / ia_voix
+- resolve-phone → Fati / Agentic Solutions / ia_voix (prompt silencieux KB)
 - Tenant reconnu : tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy
 - search_knowledge appele et retourne les bonnes infos
 - KB : 4 documents Agentic Solutions en langage vocal pur
@@ -562,23 +628,32 @@ httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal
 - Onboarding source unique de verite
 - Port 8081 zombie → ExecStartPre fuser -k dans systemd
 - EnvironmentFile=/opt/voixia/.env dans voixia.service
+- POST /api/v1/voixia/log-call deploye (insere calls + ai_interaction_logs)
+- Dashboard connecte aux vraies donnees (GET /calls/stats + /calls)
+- Communication proactive deployee (5 routes, 6 templates, page dashboard)
+- system_prompt id=21 = Fati + instruction silencieuse KB
+- resolve-phone sans cache (config en temps reel)
 
 ### BUGS RESTANTS
-**BUG 1 — Agent dit "je vais consulter ma KB" a voix haute**
-- Cause suspectee : instruction system_prompt mal formulee
-- Le LLM interprete l'instruction comme texte a prononcer
-- Fix requis : reformuler l'instruction en mode silencieux
-- Diagnostic : verifier system_prompt actif en DB
+Aucun bug bloquant restant.
 
-**BUG 2 — Appels non comptabilises dans le dashboard**
-- Cause suspectee : endpoint logging appels non appele ou table ai_interaction_logs non alimentee
-- Fix requis : verifier et corriger le logging post-appel
-- Diagnostic : verifier ai_interaction_logs en DB
+### BUGS RESOLUS 11/04/2026
+**BUG 1 — Agent dit "je vais consulter ma KB" — CORRIGE 11/04**
+- Cause : system_prompt id=21 etait "Julien/generaliste" sans instruction silencieuse
+- Fix : reecrit en "Fati/ia_voix" avec section "OUTIL SILENCIEUX — REGLE ABSOLUE" + INTERDIT de dire je consulte/je recherche/un instant/je verifie
+- Verifie via resolve-phone : retourne bien le nouveau prompt
 
-**BUG 3 — Changement de compte/voix non pris en compte**
-- L'agent continue avec l'ancienne config apres changement
-- Cause : config chargee au demarrage de l'appel depuis resolve-phone
-- Verifier que resolve-phone retourne bien la nouvelle config
+**BUG 2 — Appels non comptabilises dans dashboard — CORRIGE 11/04**
+- Cause : dashboard/page.tsx utilisait des donnees mock hardcodees, 0 API call
+- Cause : aucun endpoint log-call pour l'agent Python VoixIA
+- Fix 1 : cree POST /api/v1/voixia/log-call (insere dans calls + ai_interaction_logs + call_summaries + dedup prospect)
+- Fix 2 : reecrit dashboard/page.tsx pour lire GET /api/v1/calls/stats + GET /api/v1/calls?limit=5
+- Agent Python doit appeler POST /voixia/log-call a la fin de chaque session
+
+**BUG 3 — Changement config non pris en compte — CORRIGE 11/04**
+- Diagnostic : resolve-phone n'a AUCUN cache, lit la DB a chaque appel
+- Verifie : changement voice_id/llm_model/system_prompt immediatement visible via resolve-phone
+- Le bug etait probablement du au prompt ancien (Julien) qui est maintenant corrige
 
 ### BUGS RESOLUS 04-05/04/2026
 **Prefixe vocal "Reponse trouvee" — CORRIGE 04/04**
@@ -596,13 +671,14 @@ httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal
 **KB documents reecrits en langage vocal pur — FAIT 05/04**
 - 4 documents Agentic Solutions reecrits : phrases courtes max 15 mots, pas de symboles, pas d'abreviations
 
-### ACTIONS PRIORITAIRES AVANT NUBBO 10 AVRIL
-1. Fix Bug 1 — supprimer "je vais consulter ma KB"
-2. Fix Bug 2 — comptabiliser les appels dans dashboard
-3. Fix Bug 3 — changement config agent en temps reel
+### ACTIONS PRIORITAIRES AVANT NUBBO 20 AVRIL
+1. ~~Fix Bug 1 — supprimer "je vais consulter ma KB"~~ **CORRIGE 11/04**
+2. ~~Fix Bug 2 — comptabiliser les appels dans dashboard~~ **CORRIGE 11/04**
+3. ~~Fix Bug 3 — changement config agent en temps reel~~ **CORRIGE 11/04**
 4. Donnees demo realistes (prospects, appels simules)
 5. Script demo 15 min
 6. Test vocal E2E complet
+7. Connecter agent Python au endpoint POST /voixia/log-call
 
 ### REGLES TTS ABSOLUES (ajoutees 06/04/2026)
 - `_nettoyer_pour_tts()` dans `/opt/voixia/agent/tools/knowledge.py`

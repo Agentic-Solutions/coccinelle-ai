@@ -1,28 +1,49 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   Phone, PhoneIncoming, Clock, TrendingUp,
-  PhoneOutgoing, PhoneMissed, ArrowUp, ArrowDown
+  PhoneOutgoing, PhoneMissed, ArrowUp, ArrowDown, Loader2
 } from 'lucide-react';
 
-// ── Données mock pour démo Nubbo ─────────────────────
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
-const metrics = [
-  { label: "Appels aujourd'hui", value: '47', change: +12, icon: Phone },
-  { label: 'Appels entrants', value: '28', change: +8, icon: PhoneIncoming },
-  { label: 'Durée moyenne', value: '3m 42s', change: +5, icon: Clock },
-  { label: 'Taux de réponse', value: '94%', change: -2, icon: TrendingUp },
-];
+interface CallStats {
+  total_calls: number;
+  inbound_calls: number;
+  avg_duration_seconds: number;
+  completed_calls: number;
+  total_calls_count: number;
+}
 
-const recentCalls = [
-  { name: 'Marie Martin', phone: '+33 6 12 34 56 78', duration: '4m 23s', ago: 'il y a 5 min', type: 'inbound' as const },
-  { name: 'Pierre Durand', phone: '+33 1 23 45 67 89', duration: '12m 05s', ago: 'il y a 15 min', type: 'outbound' as const },
-  { name: 'Inconnu', phone: '+33 7 89 01 23 45', duration: '-', ago: 'il y a 23 min', type: 'missed' as const },
-  { name: 'Lucas Bernard', phone: '+33 6 45 67 89 01', duration: '2m 45s', ago: 'il y a 30 min', type: 'inbound' as const },
-  { name: 'Sophie Petit', phone: '+33 6 78 90 12 34', duration: '0m 52s', ago: 'il y a 45 min', type: 'outbound' as const },
-];
+interface Call {
+  id: string;
+  from_number: string;
+  direction: 'inbound' | 'outbound';
+  status: string;
+  duration: number;
+  prospect_name: string | null;
+  created_at: string;
+}
 
-// ── Helpers ───────────────────────────────────────────
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '0m 00s';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
+function formatTimeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'a l\'instant';
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `il y a ${diffH}h`;
+  return `il y a ${Math.floor(diffH / 24)}j`;
+}
 
 function getInitials(name: string): string {
   return name
@@ -33,41 +54,79 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-function getCallIcon(type: 'inbound' | 'outbound' | 'missed') {
-  switch (type) {
-    case 'inbound':
-      return <PhoneIncoming className="w-4 h-4 text-gray-500" />;
-    case 'outbound':
-      return <PhoneOutgoing className="w-4 h-4 text-gray-500" />;
-    case 'missed':
-      return <PhoneMissed className="w-4 h-4 text-red-500" />;
+function getCallIcon(direction: string, status: string) {
+  if (status === 'failed' || status === 'no_answer' || status === 'busy') {
+    return <PhoneMissed className="w-4 h-4 text-red-500" />;
   }
+  if (direction === 'outbound') {
+    return <PhoneOutgoing className="w-4 h-4 text-gray-500" />;
+  }
+  return <PhoneIncoming className="w-4 h-4 text-gray-500" />;
 }
 
-function getCallLabel(type: 'inbound' | 'outbound' | 'missed'): string {
-  switch (type) {
-    case 'inbound': return 'Entrant';
-    case 'outbound': return 'Sortant';
-    case 'missed': return 'Manqué';
-  }
+function getCallLabel(direction: string, status: string): string {
+  if (status === 'failed' || status === 'no_answer' || status === 'busy') return 'Manque';
+  if (direction === 'outbound') return 'Sortant';
+  return 'Entrant';
 }
-
-// ── Composant ────────────────────────────────────────
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<CallStats | null>(null);
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    const headers = { 'Authorization': `Bearer ${token}` };
+
+    Promise.all([
+      fetch(`${API_URL}/api/v1/calls/stats`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${API_URL}/api/v1/calls?limit=5`, { headers }).then(r => r.json()).catch(() => null)
+    ]).then(([statsRes, callsRes]) => {
+      if (statsRes?.stats) setStats(statsRes.stats);
+      if (callsRes?.calls) setCalls(callsRes.calls);
+      setLoading(false);
+    });
+  }, []);
+
+  const totalCalls = stats?.total_calls || 0;
+  const inboundCalls = stats?.inbound_calls || 0;
+  const avgDuration = stats?.avg_duration_seconds || 0;
+  const completedCalls = stats?.completed_calls || 0;
+  const responseRate = totalCalls > 0 ? Math.round((completedCalls / totalCalls) * 100) : 0;
+
+  const metrics = [
+    { label: "Appels aujourd'hui", value: String(totalCalls), icon: Phone },
+    { label: 'Appels entrants', value: String(inboundCalls), icon: PhoneIncoming },
+    { label: 'Duree moyenne', value: formatDuration(avgDuration), icon: Clock },
+    { label: 'Taux de reponse', value: `${responseRate}%`, icon: TrendingUp },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Titre */}
       <div className="pl-10 lg:pl-0">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activité</p>
+        <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activite</p>
       </div>
 
-      {/* Métriques */}
+      {/* Metriques */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
-          const isPositive = metric.change >= 0;
           return (
             <div
               key={metric.label}
@@ -78,74 +137,70 @@ export default function DashboardPage() {
                 <Icon className="w-5 h-5 text-gray-400" />
               </div>
               <p className="text-3xl font-bold text-gray-900">{metric.value}</p>
-              <div className="flex items-center gap-1 mt-2">
-                {isPositive ? (
-                  <ArrowUp className="w-3.5 h-3.5 text-green-600" />
-                ) : (
-                  <ArrowDown className="w-3.5 h-3.5 text-red-500" />
-                )}
-                <span className={`text-sm font-medium ${
-                  isPositive ? 'text-green-600' : 'text-red-500'
-                }`}>
-                  {isPositive ? '+' : ''}{metric.change}%
-                </span>
-                <span className="text-sm text-gray-400 ml-1">vs hier</span>
-              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Appels récents */}
+      {/* Appels recents */}
       <div className="bg-white border border-gray-200 rounded-xl">
         <div className="px-5 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Appels récents</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Appels recents</h2>
         </div>
-        <div className="divide-y divide-gray-100">
-          {recentCalls.map((call, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
-            >
-              {/* Avatar initiales */}
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 ${
-                call.type === 'missed'
-                  ? 'bg-red-50 text-red-600'
-                  : 'bg-gray-100 text-gray-700'
-              }`}>
-                {getInitials(call.name)}
-              </div>
+        {calls.length === 0 ? (
+          <div className="px-5 py-8 text-center text-gray-400 text-sm">
+            Aucun appel enregistre pour le moment
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {calls.map((call) => {
+              const displayName = call.prospect_name || call.from_number || 'Inconnu';
+              return (
+                <div
+                  key={call.id}
+                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors"
+                >
+                  {/* Avatar initiales */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 ${
+                    call.status === 'failed' || call.status === 'no_answer'
+                      ? 'bg-red-50 text-red-600'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {getInitials(displayName)}
+                  </div>
 
-              {/* Nom et numéro */}
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${
-                  call.type === 'missed' ? 'text-red-600' : 'text-gray-900'
-                }`}>
-                  {call.name}
-                </p>
-                <p className="text-xs text-gray-500 truncate">{call.phone}</p>
-              </div>
+                  {/* Nom et numero */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${
+                      call.status === 'failed' || call.status === 'no_answer' ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                      {displayName}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">{call.from_number}</p>
+                  </div>
 
-              {/* Type d'appel */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                {getCallIcon(call.type)}
-                <span className="text-xs text-gray-500 hidden sm:inline">
-                  {getCallLabel(call.type)}
-                </span>
-              </div>
+                  {/* Type appel */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {getCallIcon(call.direction, call.status)}
+                    <span className="text-xs text-gray-500 hidden sm:inline">
+                      {getCallLabel(call.direction, call.status)}
+                    </span>
+                  </div>
 
-              {/* Durée */}
-              <div className="text-sm text-gray-600 w-16 text-right flex-shrink-0">
-                {call.duration}
-              </div>
+                  {/* Duree */}
+                  <div className="text-sm text-gray-600 w-16 text-right flex-shrink-0">
+                    {formatDuration(call.duration)}
+                  </div>
 
-              {/* Temps relatif */}
-              <div className="text-xs text-gray-400 w-24 text-right flex-shrink-0 hidden sm:block">
-                {call.ago}
-              </div>
-            </div>
-          ))}
-        </div>
+                  {/* Temps relatif */}
+                  <div className="text-xs text-gray-400 w-24 text-right flex-shrink-0 hidden sm:block">
+                    {formatTimeAgo(call.created_at)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
