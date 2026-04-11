@@ -112,7 +112,8 @@ Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().qu
 9. Retour tool vocal : max 300 chars, phrases naturelles, pas de markdown, pas de symboles (euros pas EUR, etc.), coupe a la derniere phrase complete
 10. Recherche KB textuelle : TOUJOURS splitter la question en mots significatifs et chercher avec OR (LIKE '%mot1%' OR LIKE '%mot2%'). JAMAIS de LIKE '%phrase entière%' car les mots ne sont pas adjacents dans le contenu
 11. system_prompt DOIT contenir : "ne dis JAMAIS je consulte, je verifie, un instant, je recherche" — sinon le LLM annonce sa demarche avant de donner la reponse
-12. TTS normalisation dans _nettoyer_pour_tts() : 24/7 → "24 heures sur 24, 7 jours sur 7", 24h/24 → "24 heures sur 24", 7j/7 → "7 jours sur 7", / → "sur", % → "pourcent", & → "et"
+12. TTS _nettoyer_pour_tts() : 45+ remplacements en 11 categories — temporel (24h/24, 7j/7), monetaire (euros/mois), pourcent, connecteurs (&, +), abreviations (min, max, rdv, tel), sigles (PME, SLA, CRM, SMS), ordinaux (1er, 2eme), ponctuation, markdown, espaces, troncature 300 chars
+13. Documents KB ecrits en langage vocal pur : phrases courtes max 15 mots, pas de symboles, pas d'abreviations, pas de sigles, pas de markdown. Reecrits le 05/04/2026
 
 ## FICHIERS PYTHON VOIXIA (NE PAS CASSER)
 
@@ -542,55 +543,88 @@ httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal
         "data": {"duration": call_duration, "summary": call_summary}})
 ```
 
-## ÉTAT AU 4 AVRIL 2026
+## ÉTAT AU 6 AVRIL 2026
 
 ### CE QUI FONCTIONNE
 - VoixIA active (running) sur Scaleway 51.15.130.204
-- resolve-phone retourne Fati / Agentic Solutions / ia_voix
+- resolve-phone → Fati / Agentic Solutions / ia_voix
 - Tenant reconnu : tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy
-- search_knowledge appele pendant les appels (confirme dans les logs 04/04)
-- POST /api/v1/voixia/knowledge retourne answer (priorite text, tronque 500 chars)
+- search_knowledge appele et retourne les bonnes infos
+- KB : 4 documents Agentic Solutions en langage vocal pur
+- POST /api/v1/voixia/knowledge accepte question ET query
+- Recherche SQL word-split (LIKE par mot, pas phrase entiere)
+- _nettoyer_pour_tts() : 45+ remplacements, 15/15 tests
 - SMS rappel humain fonctionne
 - Prospect cree en CRM
 - Sidebar style Fonio deployee
 - Orchestrateur omnicanal 5 scenarios deploye
 - Email 6 routes operationnelles
 - Onboarding source unique de verite
-- Port 8081 zombie corrige — ExecStartPre fuser -k dans systemd
+- Port 8081 zombie → ExecStartPre fuser -k dans systemd
+- EnvironmentFile=/opt/voixia/.env dans voixia.service
 
 ### BUGS RESTANTS
-Aucun bug critique restant au 04/04/2026.
+**BUG 1 — Agent dit "je vais consulter ma KB" a voix haute**
+- Cause suspectee : instruction system_prompt mal formulee
+- Le LLM interprete l'instruction comme texte a prononcer
+- Fix requis : reformuler l'instruction en mode silencieux
+- Diagnostic : verifier system_prompt actif en DB
 
-### BUGS RESOLUS 04/04/2026
-**BUG 1 — Prefixe vocal "Reponse trouvee" — CORRIGE**
+**BUG 2 — Appels non comptabilises dans le dashboard**
+- Cause suspectee : endpoint logging appels non appele ou table ai_interaction_logs non alimentee
+- Fix requis : verifier et corriger le logging post-appel
+- Diagnostic : verifier ai_interaction_logs en DB
+
+**BUG 3 — Changement de compte/voix non pris en compte**
+- L'agent continue avec l'ancienne config apres changement
+- Cause : config chargee au demarrage de l'appel depuis resolve-phone
+- Verifier que resolve-phone retourne bien la nouvelle config
+
+### BUGS RESOLUS 04-05/04/2026
+**Prefixe vocal "Reponse trouvee" — CORRIGE 04/04**
 - `tools/knowledge.py` retournait `f"Reponse trouvee : {answer}"` → agent lisait le prefixe a voix haute
 - Fix : retourne directement le contenu via `_nettoyer_pour_tts(answer)`
 
-**BUG 2 — Format TTS trop long — CORRIGE**
+**Format TTS trop long — CORRIGE 04/04**
 - Answer 389 chars, mal formate pour synthese vocale
 - Fix : `_nettoyer_pour_tts()` tronque a 300 chars, coupe a la derniere phrase complete, supprime markdown, remplace symboles
-- Messages d'erreur aussi en langage naturel (pas de codes HTTP, pas de traces)
+
+**KB found=False appel — CORRIGE 05/04**
+- Recherche KB LIKE '%phrase entiere%' ne matchait pas les phrases naturelles du LLM
+- Fix : split question en mots significatifs + recherche OR sur chaque mot (3 niveaux : chunks, documents, FAQ)
+
+**KB documents reecrits en langage vocal pur — FAIT 05/04**
+- 4 documents Agentic Solutions reecrits : phrases courtes max 15 mots, pas de symboles, pas d'abreviations
 
 ### ACTIONS PRIORITAIRES AVANT NUBBO 10 AVRIL
-1. ~~Fix tools/knowledge.py~~ — FAIT 04/04
-2. ~~Verifier contenu answer~~ — FAIT 04/04 (Agentic Solutions, 300 chars, pas Nestenn)
-3. Test vocal E2E complet (appeler le +33939035760)
-4. Donnees demo realistes (prospects, appels, RDV)
+1. Fix Bug 1 — supprimer "je vais consulter ma KB"
+2. Fix Bug 2 — comptabiliser les appels dans dashboard
+3. Fix Bug 3 — changement config agent en temps reel
+4. Donnees demo realistes (prospects, appels simules)
 5. Script demo 15 min
+6. Test vocal E2E complet
 
-### SOURCE UNIQUE DE VERITE (verifie 04/04/2026)
+### REGLES TTS ABSOLUES (ajoutees 06/04/2026)
+- `_nettoyer_pour_tts()` dans `/opt/voixia/agent/tools/knowledge.py`
+- 45+ remplacements en 11 categories (temporel, monetaire, pourcent, connecteurs, abreviations, sigles, ordinaux, ponctuation, markdown, espaces, troncature)
+- Tests unitaires : 15/15
+- KB documents ecrits en langage vocal pur (pas de symboles)
+- LLM NE DIT JAMAIS de prefixe technique
+- Recherche SQL : word-split par mot (pas phrase entiere)
+
+### SOURCE UNIQUE DE VERITE (verifie 06/04/2026)
 - `tenants.name` = "Agentic solutions"
-- `tenants.sector` = "ia_voix" (corrige 04/04)
-- `voixia_configs.secteur` = "ia_voix" (corrige 04/04)
+- `tenants.sector` = "ia_voix"
+- `voixia_configs.secteur` = "ia_voix"
 - `ai_prompt_versions` id=10, secteur=ia_voix, is_active=1
 - Prompt actif : "Tu es Fati, assistante vocale IA d Agentic Solutions..."
-- KB : 4 documents Agentic Solutions (source_type=text)
+- KB : 4 documents Agentic Solutions (source_type=text, langage vocal pur)
 - KB : 0 documents Nestenn (supprimes 02/04)
 
 ### FICHIERS CRITIQUES PYTHON VOIXIA (serveur 51.15.130.204)
 | Fichier | Role | Etat |
 |---------|------|------|
-| `/opt/voixia/agent/tools/knowledge.py` | Tool search_knowledge | OK — prefixe supprime, TTS 300 chars max |
+| `/opt/voixia/agent/tools/knowledge.py` | Tool search_knowledge + _nettoyer_pour_tts | OK — word-split, TTS 300 chars, 15/15 tests |
 | `/opt/voixia/agent/pipeline.py` | Agent LLM + 8 @function_tool | OK — tools passes a AgentSession |
 | `/opt/voixia/agent/main.py` | Entrypoint + greeting + session | OK |
 | `/opt/voixia/agent/tenant.py` | resolve-phone client | OK |
@@ -598,9 +632,9 @@ Aucun bug critique restant au 04/04/2026.
 | `/opt/voixia/agent/config.py` | Config providers | OK — mistral + claude |
 | `/opt/voixia/agent/prompts.py` | Greetings + prompts fallback | OK |
 | `/opt/voixia/agent/tools/transfer.py` | Transfer humain + callback | OK |
-| `/opt/voixia/.env` | Variables d'env | OK (pas dans agent/.env) |
+| `/opt/voixia/.env` | Variables d'env | OK (EnvironmentFile dans systemd) |
 
-### COMMANDES ESSENTIELLES (mise a jour 04/04/2026)
+### COMMANDES ESSENTIELLES (mise a jour 06/04/2026)
 ```bash
 # Logs en direct
 ssh root@51.15.130.204 "journalctl -u voixia -f --no-pager"
@@ -620,6 +654,21 @@ curl -s -X POST \
 cd ~/Projects/saas/coccinelle-ai && npx wrangler deploy
 ssh root@51.15.130.204 "systemctl restart voixia"
 cd coccinelle-saas && npm run build && npx wrangler pages deploy out --project-name coccinelle-saas --commit-dirty=true
+```
+
+### COMMANDES DIAGNOSTIC BUGS (ajoutees 06/04/2026)
+```bash
+# Bug 1 — Voir system_prompt actif
+wrangler d1 execute coccinelle-db --remote --command "
+SELECT SUBSTR(system_prompt, 1, 500) as prompt
+FROM ai_prompt_versions
+WHERE tenant_id = 'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+AND is_active = 1;"
+
+# Bug 2 — Verifier logs appels
+wrangler d1 execute coccinelle-db --remote --command "
+SELECT COUNT(*) as total FROM ai_interaction_logs
+WHERE tenant_id = 'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy';"
 ```
 
 ## FICHIERS INTERDITS À MODIFIER SANS OK DE YOUSSEF
