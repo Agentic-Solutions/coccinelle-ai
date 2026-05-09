@@ -1,11 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import SequenceEditor from '@/components/SequenceEditor';
+import dynamic from 'next/dynamic';
+
+const SequenceFlow = dynamic(
+  () => import('@/components/sequence/SequenceFlow'),
+  { ssr: false, loading: () => (
+    <div className="flex items-center justify-center h-[500px]">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+    </div>
+  )}
+);
 import { buildApiUrl, getAuthHeaders } from '@/lib/config';
 import {
-  Phone, MessageSquare, Mail, Users, Zap, Plus, Trash2, RefreshCw,
-  CheckCircle, XCircle, Clock, AlertCircle, ChevronDown
+  Phone, MessageSquare, Mail, Users, Zap, Bot, UserPlus, RefreshCw,
+  CheckCircle, XCircle, Clock, AlertCircle
 } from 'lucide-react';
 
 interface OmniRule {
@@ -117,21 +126,12 @@ const SCENARIOS = [
 ];
 
 export default function AgentNodesPage() {
-  const [tab, setTab] = useState<'sequences' | 'rules' | 'history'>('rules');
+  const [tab, setTab] = useState<'sequences' | 'rules' | 'history'>('sequences');
   const [rules, setRules] = useState<OmniRule[]>([]);
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [newRule, setNewRule] = useState({
-    trigger_event: 'call_ended',
-    trigger_channel: 'voice',
-    action_channel: 'sms',
-    action_type: 'send_message',
-    action_template: '',
-    delay_seconds: 0,
-  });
 
   const showMsg = (msg: string, isError = false) => {
     if (isError) { setError(msg); setSuccess(''); }
@@ -160,6 +160,11 @@ export default function AgentNodesPage() {
     } catch { /* ignore */ }
   }, []);
 
+  // Pre-load rules on mount so toggles reflect DB state immediately
+  useEffect(() => {
+    loadRules();
+  }, [loadRules]);
+
   useEffect(() => {
     if (tab === 'rules') loadRules();
     if (tab === 'history') loadExecutions();
@@ -179,66 +184,32 @@ export default function AgentNodesPage() {
     } catch { showMsg('Erreur', true); }
   };
 
-  const deleteRule = async (ruleId: number) => {
-    try {
-      const res = await fetch(buildApiUrl(`/api/v1/omnicanal/rules/${ruleId}`), {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) { showMsg('Regle supprimee'); loadRules(); }
-    } catch { showMsg('Erreur', true); }
-  };
-
-  const createRule = async () => {
-    try {
-      const res = await fetch(buildApiUrl('/api/v1/omnicanal/rules'), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(newRule),
-      });
-      if (res.ok) {
-        showMsg('Regle creee');
-        setShowCreate(false);
-        loadRules();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showMsg(data.error || 'Erreur', true);
-      }
-    } catch { showMsg('Erreur reseau', true); }
-  };
-
-  const activateScenario = async (scenario: typeof SCENARIOS[0]) => {
-    // Verifier si la regle existe deja
-    const exists = rules.find(
+  const handleCardToggle = async (scenario: typeof SCENARIOS[0]) => {
+    const matchingRule = rules.find(
       r => r.trigger_event === scenario.trigger_event &&
            r.trigger_channel === scenario.trigger_channel &&
            r.action_channel === scenario.action_channel &&
            r.action_type === scenario.action_type
     );
-    if (exists) {
-      if (!exists.is_active) {
-        await toggleRule(exists.id, 0);
-      } else {
-        showMsg('Ce scenario est deja actif');
-      }
-      return;
+    if (matchingRule) {
+      await toggleRule(matchingRule.id, matchingRule.is_active);
+    } else {
+      try {
+        const res = await fetch(buildApiUrl('/api/v1/omnicanal/rules'), {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            trigger_event: scenario.trigger_event,
+            trigger_channel: scenario.trigger_channel,
+            action_channel: scenario.action_channel,
+            action_type: scenario.action_type,
+            action_template: scenario.template,
+            delay_seconds: scenario.delay,
+          }),
+        });
+        if (res.ok) { showMsg('Regle activee'); loadRules(); }
+      } catch { showMsg('Erreur', true); }
     }
-
-    try {
-      const res = await fetch(buildApiUrl('/api/v1/omnicanal/rules'), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          trigger_event: scenario.trigger_event,
-          trigger_channel: scenario.trigger_channel,
-          action_channel: scenario.action_channel,
-          action_type: scenario.action_type,
-          action_template: scenario.template,
-          delay_seconds: scenario.delay,
-        }),
-      });
-      if (res.ok) { showMsg('Scenario active'); loadRules(); }
-    } catch { showMsg('Erreur', true); }
   };
 
   const isScenarioActive = (scenario: typeof SCENARIOS[0]) => {
@@ -268,8 +239,8 @@ export default function AgentNodesPage() {
           {/* Tabs */}
           <div className="flex gap-1 mt-4 border-b border-gray-200 -mb-px">
             {[
-              { id: 'rules' as const, label: 'Regles automatiques' },
               { id: 'sequences' as const, label: 'Editeur de sequences' },
+              { id: 'rules' as const, label: 'Regles automatiques' },
               { id: 'history' as const, label: 'Historique' },
             ].map(t => (
               <button
@@ -304,200 +275,66 @@ export default function AgentNodesPage() {
 
       {/* TAB CONTENT */}
       {tab === 'sequences' && (
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <SequenceEditor />
+        <div className="px-4 sm:px-6 lg:px-8 py-4">
+          <SequenceFlow />
         </div>
       )}
 
       {tab === 'rules' && (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-          {/* Scenarios rapides */}
           <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-3">Scenarios Coccinelle.ai</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {SCENARIOS.map((s, i) => {
-                const active = isScenarioActive(s);
-                const TriggerIcon = CHANNEL_ICONS[s.trigger_channel] || Zap;
-                const ActionIcon = CHANNEL_ICONS[s.action_channel] || Zap;
+            <h2 className="text-lg font-semibold text-gray-900">Actions automatiques</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Ces actions se declenchent automatiquement apres chaque interaction. Activez ou desactivez selon vos besoins.
+            </p>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[
+                { scenario: SCENARIOS[0], icon: MessageSquare, title: 'SMS de remerciement', description: "Envoie un SMS au client 30 secondes apres la fin de l'appel", badge: 'Voix \u2192 SMS', comingSoon: false, disabled: false },
+                { scenario: SCENARIOS[1], icon: Mail, title: 'Email recapitulatif', description: "Envoie un email de recapitulatif 1 minute apres la fin de l'appel", badge: 'Voix \u2192 Email', comingSoon: false, disabled: false },
+                { scenario: SCENARIOS[2], icon: Bot, title: 'Reponse SMS automatique', description: "Repond automatiquement aux SMS recus grace a l'IA", badge: 'SMS \u2192 IA', comingSoon: false, disabled: false },
+                { scenario: SCENARIOS[3], icon: UserPlus, title: 'Contact CRM depuis WhatsApp', description: 'Cree automatiquement une fiche contact quand un message WhatsApp est recu', badge: 'WhatsApp \u2192 CRM', comingSoon: true, disabled: true },
+                { scenario: SCENARIOS[4], icon: UserPlus, title: 'Contact CRM apres appel', description: 'Cree automatiquement une fiche prospect apres chaque appel', badge: 'Voix \u2192 CRM', comingSoon: false, disabled: false },
+              ].map((card, i) => {
+                const active = isScenarioActive(card.scenario);
+                const Icon = card.icon;
                 return (
-                  <div key={i} className="bg-white rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TriggerIcon className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-400">→</span>
-                      <ActionIcon className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm font-medium text-gray-900">{s.title}</span>
+                  <div key={i} className={`bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-4${card.disabled ? ' opacity-50' : ''}`}>
+                    <div className="bg-gray-100 p-2 rounded-lg shrink-0">
+                      <Icon className="w-5 h-5 text-gray-600" />
                     </div>
-                    <p className="text-xs text-gray-500 mb-3">{s.desc}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-sm font-medium text-gray-900">{card.title}</span>
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{card.badge}</span>
+                        {card.comingSoon && (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-600">Bientot disponible</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">{card.description}</p>
+                    </div>
                     <button
-                      onClick={() => activateScenario(s)}
-                      disabled={active}
-                      className={`w-full py-1.5 rounded text-xs font-medium transition-colors ${
-                        active
-                          ? 'bg-gray-100 text-gray-500 cursor-default'
-                          : 'bg-gray-900 text-white hover:bg-gray-800'
-                      }`}
+                      onClick={() => !card.disabled && handleCardToggle(card.scenario)}
+                      disabled={card.disabled}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                        active ? 'bg-green-500' : 'bg-gray-300'
+                      }${card.disabled ? ' cursor-not-allowed' : ' cursor-pointer'}`}
                     >
-                      {active ? 'Actif' : 'Activer'}
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        active ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
                     </button>
                   </div>
                 );
               })}
             </div>
-          </div>
-
-          {/* Liste des regles */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold text-gray-900">Regles actives</h2>
-              <div className="flex items-center gap-2">
-                <button onClick={loadRules} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setShowCreate(!showCreate)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Ajouter
-                </button>
-              </div>
-            </div>
-
-            {/* Formulaire creation */}
-            {showCreate && (
-              <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-3">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Declencheur</label>
-                    <select
-                      value={newRule.trigger_event}
-                      onChange={e => setNewRule({ ...newRule, trigger_event: e.target.value })}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                    >
-                      <option value="call_ended">Appel termine</option>
-                      <option value="message_received">Message recu</option>
-                      <option value="appointment_created">RDV cree</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Canal source</label>
-                    <select
-                      value={newRule.trigger_channel}
-                      onChange={e => setNewRule({ ...newRule, trigger_channel: e.target.value })}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                    >
-                      <option value="voice">Telephone</option>
-                      <option value="sms">SMS</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="email">Email</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
-                    <select
-                      value={newRule.action_type}
-                      onChange={e => setNewRule({ ...newRule, action_type: e.target.value })}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
-                    >
-                      <option value="send_message">Envoyer SMS</option>
-                      <option value="send_email">Envoyer email</option>
-                      <option value="ai_reply">Reponse IA</option>
-                      <option value="create_prospect">Creer contact</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Template message (optionnel)</label>
-                  <textarea
-                    value={newRule.action_template}
-                    onChange={e => setNewRule({ ...newRule, action_template: e.target.value })}
-                    placeholder="Variables : {company_name}, {contact_name}, {summary}, {rdv_date}"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none h-20"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-600">Delai :</label>
-                    <select
-                      value={newRule.delay_seconds}
-                      onChange={e => setNewRule({ ...newRule, delay_seconds: parseInt(e.target.value) })}
-                      className="px-2 py-1 border border-gray-300 rounded text-sm"
-                    >
-                      <option value={0}>Immediat</option>
-                      <option value={30}>30 secondes</option>
-                      <option value={60}>1 minute</option>
-                      <option value={300}>5 minutes</option>
-                      <option value={3600}>1 heure</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Annuler</button>
-                    <button onClick={createRule} className="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800">Creer</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Liste */}
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-              </div>
-            ) : rules.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-                <Zap className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Aucune regle configuree</p>
-                <p className="text-xs text-gray-400 mt-1">Activez un scenario ci-dessus pour commencer</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {rules.map(rule => {
-                  const TriggerIcon = CHANNEL_ICONS[rule.trigger_channel] || Zap;
-                  const ActionIcon = CHANNEL_ICONS[rule.action_channel] || Zap;
-                  return (
-                    <div key={rule.id} className={`bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between ${!rule.is_active ? 'opacity-50' : ''}`}>
-                      <div className="flex items-center gap-3">
-                        <TriggerIcon className="w-4 h-4 text-gray-500" />
-                        <span className="text-gray-400">→</span>
-                        <ActionIcon className="w-4 h-4 text-gray-500" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Si {TRIGGER_LABELS[rule.trigger_event] || rule.trigger_event} ({CHANNEL_LABELS[rule.trigger_channel] || rule.trigger_channel})
-                            → {ACTION_LABELS[rule.action_type] || rule.action_type}
-                          </p>
-                          {rule.action_template && (
-                            <p className="text-xs text-gray-500 mt-0.5 max-w-md truncate">{rule.action_template}</p>
-                          )}
-                          {rule.delay_seconds > 0 && (
-                            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> Delai : {rule.delay_seconds}s
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => toggleRule(rule.id, rule.is_active)}
-                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                            rule.is_active
-                              ? 'bg-gray-900 text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {rule.is_active ? 'Actif' : 'Inactif'}
-                        </button>
-                        <button
-                          onClick={() => deleteRule(rule.id)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       )}
 

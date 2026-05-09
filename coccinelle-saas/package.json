@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
+    "@xyflow/react": "^12.10.2",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
     "cheerio": "^1.1.2",

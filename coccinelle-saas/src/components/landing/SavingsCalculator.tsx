@@ -16,15 +16,15 @@ function calculate(callsPerDay: number, avgDuration: number) {
 
   let plan: string, base: number, included: number, extraRate: number;
   if (monthlyMinutes <= 500) {
-    plan = 'Starter';
+    plan = 'Essentiel';
     base = 79;
     included = 500;
-    extraRate = 0.15;
+    extraRate = 0.08;
   } else {
     plan = 'Pro';
     base = 199;
-    included = 2000;
-    extraRate = 0.12;
+    included = 1000;
+    extraRate = 0.07;
   }
 
   const extraMinutes = Math.max(0, monthlyMinutes - included);

@@ -30,6 +30,18 @@ export async function getPlans(request, env) {
       planId: row.plan_id,
       name: row.name,
       description: row.description,
+      // Flat fields for upgrade page compatibility
+      monthlyPriceCents: row.monthly_price_cents,
+      yearlyPriceCents: row.yearly_price_cents || 0,
+      includedCalls: row.included_calls,
+      includedSms: row.included_sms,
+      includedTtsMinutes: row.included_tts_minutes,
+      includedWhatsapp: 0,
+      overpriceCalls: row.overage_call_price_cents,
+      overpriceSms: row.overage_sms_price_cents,
+      overpriceTts: row.overage_tts_minute_price_cents,
+      overpriceWhatsapp: 0,
+      // Nested fields for other consumers
       pricing: {
         monthly: row.monthly_price_cents / 100,
         yearly: row.yearly_price_cents ? row.yearly_price_cents / 100 : null,

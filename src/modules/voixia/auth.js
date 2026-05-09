@@ -46,7 +46,7 @@ export async function requireVoixIAAuth(request, env) {
       return { error: 'Token manquant', status: 401 };
     }
 
-    const payload = verifyToken(token, env.JWT_SECRET);
+    const payload = await verifyToken(token, env.JWT_SECRET);
     if (!payload) {
       return { error: 'Token invalide ou expiré', status: 401 };
     }
@@ -90,14 +90,15 @@ async function validateTenantAndLog(request, env, tenantId, userId) {
       return { error: 'Tenant inactif', status: 403 };
     }
 
-    await logAudit(env, {
+    // Audit non-bloquant (fire-and-forget) — ne retarde pas la reponse temps-reel
+    logAudit(env, {
       tenant_id: tenantId,
       user_id: userId,
       action: 'voixia.api_call',
       resource_type: 'voixia',
       ip_address: getClientIP(request),
       user_agent: request.headers.get('User-Agent')
-    });
+    }).catch(() => {});
 
     return { tenant_id: tenantId, tenant };
 

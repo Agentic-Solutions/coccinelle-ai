@@ -28,6 +28,11 @@ export async function handleCallsRoutes(request, env, ctx, corsHeaders) {
       return await getCallStats(env, tenantId, corsHeaders);
     }
 
+    // GET /api/v1/calls/transcripts
+    if (path === '/api/v1/calls/transcripts' && method === 'GET') {
+      return await listTranscripts(request, env, tenantId, corsHeaders);
+    }
+
     // GET /api/v1/calls/:id
     const callDetailMatch = path.match(/^\/api\/v1\/calls\/([^\/]+)$/);
     if (callDetailMatch && method === 'GET') {
@@ -239,6 +244,63 @@ async function getCallStats(env, tenantId, corsHeaders) {
 }
 
 /**
+ * GET /api/v1/calls/transcripts — Liste des appels avec transcription
+ */
+async function listTranscripts(request, env, tenantId, corsHeaders) {
+  const url = new URL(request.url);
+  const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 200);
+  const offset = parseInt(url.searchParams.get('offset')) || 0;
+
+  const countResult = await env.DB.prepare(
+    `SELECT COUNT(*) as total FROM calls
+     WHERE tenant_id = ? AND transcript IS NOT NULL AND transcript != ''`
+  ).bind(tenantId).first();
+
+  const callsResult = await env.DB.prepare(`
+    SELECT
+      c.id,
+      c.from_number,
+      c.to_number,
+      c.direction,
+      c.status,
+      c.duration,
+      c.transcript,
+      c.created_at,
+      cs.summary,
+      cs.sentiment,
+      p.first_name as prospect_first_name,
+      p.last_name as prospect_last_name
+    FROM calls c
+    LEFT JOIN call_summaries cs ON cs.call_id = c.id
+    LEFT JOIN prospects p ON p.id = c.prospect_id
+    WHERE c.tenant_id = ?
+    AND c.transcript IS NOT NULL AND c.transcript != ''
+    ORDER BY c.created_at DESC
+    LIMIT ? OFFSET ?
+  `).bind(tenantId, limit, offset).all();
+
+  const transcripts = (callsResult.results || []).map(call => ({
+    id: call.id,
+    from_number: call.from_number,
+    to_number: call.to_number,
+    direction: call.direction || 'inbound',
+    status: call.status,
+    duration: call.duration || 0,
+    transcript: call.transcript,
+    summary: call.summary || null,
+    sentiment: call.sentiment || null,
+    prospect_name: [call.prospect_first_name, call.prospect_last_name].filter(Boolean).join(' ') || null,
+    created_at: call.created_at
+  }));
+
+  return Response.json({
+    success: true,
+    transcripts,
+    total: countResult?.total || 0
+  }, { headers: corsHeaders });
+}
+
+/**
  * Formatte un appel pour l'API
  */
 function formatCallForAPI(call) {
@@ -248,7 +310,7 @@ function formatCallForAPI(call) {
     try {
       const analysis = JSON.parse(call.post_call_analysis);
       sentiment = analysis.user_sentiment || analysis.sentiment || null;
-    } catch (e) {}
+    } catch (e) { console.error('[Calls] sentiment parse error:', e.message); }
   }
 
   let summary = call.summary || null;
@@ -256,7 +318,7 @@ function formatCallForAPI(call) {
     try {
       const analysis = JSON.parse(call.post_call_analysis);
       summary = analysis.call_summary || null;
-    } catch (e) {}
+    } catch (e) { console.error('[Calls] summary parse error:', e.message); }
   }
 
   return {

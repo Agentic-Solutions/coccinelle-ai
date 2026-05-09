@@ -1772,7 +1772,7 @@ export default function ProductTourModal({
           <div className="flex-1 text-center">
             <span className="inline-block bg-white px-4 py-1 rounded-md text-[12px] text-gray-500 font-mono">
               {screen.sidebarIndex === -1
-                ? `coccinelle-saas.pages.dev${screen.url}`
+                ? `coccinelle.ai${screen.url}`
                 : `app.coccinelle.ai${screen.url}`}
             </span>
           </div>

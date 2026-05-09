@@ -61,7 +61,7 @@ export function useAuth() {
       if (data.success && data.token) {
         localStorage.setItem('auth_token', data.token);
         Cookies.set('auth_token', data.token, {
-          expires: 7,
+          expires: 30,
           path: '/',
           sameSite: 'strict',
           secure: true

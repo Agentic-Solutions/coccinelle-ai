@@ -98,7 +98,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   // ========================================
   if (path === '/api/v1/auth/signup' && method === 'POST') {
     try {
-      const body = await request.json();
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
       const { company_name, email, password, name, phone, sector, cgu_accepted } = body;
 
       // Validation des données
@@ -190,10 +191,10 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       await env.DB.prepare(`INSERT INTO users (id, tenant_id, email, password_hash, name, role, is_active, cgu_accepted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(userId, tenantId, email.toLowerCase().trim(), passwordHash, name.trim(), 'admin', 1, cgu_accepted ? now : null, now, now).run();
 
       // Générer JWT et créer session
-      const token = auth.generateToken({ user_id: userId, tenant_id: tenantId, role: 'admin', email: email.toLowerCase().trim() }, env.JWT_SECRET, '7d');
+      const token = await auth.generateToken({ user_id: userId, tenant_id: tenantId, role: 'admin', email: email.toLowerCase().trim() }, env.JWT_SECRET, '30d');
       const sessionId = auth.generateId('session');
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
+      expiresAt.setDate(expiresAt.getDate() + 30);
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
       const userAgent = request.headers.get('User-Agent') || 'unknown';
 
@@ -206,9 +207,9 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       const verificationToken = crypto.randomUUID();
       await env.DB.prepare('UPDATE users SET verification_token = ? WHERE id = ?').bind(verificationToken, userId).run();
 
-      const verifyLink = `https://coccinelle-saas.pages.dev/verify-email?token=${verificationToken}`;
+      const verifyLink = `${env.FRONTEND_URL || 'https://coccinelle.ai'}/verify-email?token=${verificationToken}`;
       try {
-        await fetch('https://api.resend.com/emails', {
+        const emailRes = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${env.RESEND_API_KEY}`,
@@ -232,6 +233,10 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
             `
           })
         });
+        if (!emailRes.ok) {
+          const emailErrBody = await emailRes.text().catch(() => '');
+          logger.error('Resend API error on signup verification', { status: emailRes.status, body: emailErrBody });
+        }
       } catch (emailError) {
         logger.error('Failed to send verification email on signup', { error: emailError.message });
       }
@@ -274,7 +279,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   // ========================================
   if (path === '/api/v1/auth/login' && method === 'POST') {
     try {
-      const body = await request.json();
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
       const { email, password } = body;
 
       if (!email || !auth.isValidEmail(email)) {
@@ -303,11 +309,11 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         return new Response(JSON.stringify({ success: false, error: 'Organisation introuvable' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const token = auth.generateToken({ user_id: user.id, tenant_id: user.tenant_id, role: user.role, email: user.email }, env.JWT_SECRET, '7d');
+      const token = await auth.generateToken({ user_id: user.id, tenant_id: user.tenant_id, role: user.role, email: user.email }, env.JWT_SECRET, '30d');
       const sessionId = auth.generateId('session');
       const now = new Date().toISOString();
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
+      expiresAt.setDate(expiresAt.getDate() + 30);
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
       const userAgent = request.headers.get('User-Agent') || 'unknown';
 
@@ -358,6 +364,15 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
 
       const { user, tenant, session } = authResult;
 
+      // Récupérer agent_name depuis omni_agent_configs
+      let agentName = null;
+      try {
+        const agentConfig = await env.DB.prepare(
+          'SELECT agent_name FROM omni_agent_configs WHERE tenant_id = ? LIMIT 1'
+        ).bind(tenant.id).first();
+        if (agentConfig) agentName = agentConfig.agent_name;
+      } catch (e) { /* ignore */ }
+
       // Calculer trial_active et jours restants
       let trialActive = false;
       let trialDaysRemaining = 0;
@@ -377,6 +392,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
           name: user.name,
           phone: user.phone || null,
           phone_verified: user.phone_verified || 0,
+          email_verified: user.email_verified || 0,
           role: user.role,
           tenant_id: user.tenant_id,
           is_active: user.is_active,
@@ -400,6 +416,7 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
           trial_days_remaining: trialDaysRemaining,
           setup_completed_at: tenant.setup_completed_at,
           test_call_done: tenant.test_call_done === 1,
+          agent_name: agentName,
           created_at: tenant.created_at
         },
         session: {
@@ -449,22 +466,77 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   // ========================================
   if (path === '/api/v1/auth/refresh' && method === 'POST') {
     try {
-      const authResult = await auth.requireAuth(request, env);
-      if (authResult.error) {
-        return new Response(JSON.stringify({ success: false, error: authResult.error }), { status: authResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const authHeader = request.headers.get('Authorization');
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ success: false, error: 'Token manquant' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const { user, tenant, session } = authResult;
-      const newToken = auth.generateToken({ user_id: user.id, tenant_id: user.tenant_id, role: user.role, email: user.email }, env.JWT_SECRET, '7d');
+      const currentToken = authHeader.substring(7);
+
+      // Verify signature but ignore expiration — allows refreshing expired tokens
+      const decoded = await auth.verifyTokenIgnoreExpiry(currentToken, env.JWT_SECRET);
+      if (!decoded) {
+        return new Response(JSON.stringify({ success: false, error: 'Token invalide (signature incorrecte)' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Check grace period: token must not have been expired for more than 7 days
+      if (decoded.exp) {
+        const nowTs = Math.floor(Date.now() / 1000);
+        const expiredSince = nowTs - decoded.exp;
+        const GRACE_PERIOD_SECONDS = 7 * 24 * 60 * 60; // 7 days
+        if (expiredSince > GRACE_PERIOD_SECONDS) {
+          return new Response(JSON.stringify({ success: false, error: 'Token expiré depuis trop longtemps. Veuillez vous reconnecter.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+
+      // Verify user still exists and is active
+      const user = await env.DB.prepare(
+        'SELECT id, tenant_id, email, name, role, is_active FROM users WHERE id = ?'
+      ).bind(decoded.user_id).first();
+
+      if (!user) {
+        return new Response(JSON.stringify({ success: false, error: 'Utilisateur introuvable' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (!user.is_active) {
+        return new Response(JSON.stringify({ success: false, error: 'Compte désactivé' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Verify tenant still exists and is active
+      const tenant = await env.DB.prepare(
+        'SELECT id, status FROM tenants WHERE id = ?'
+      ).bind(decoded.tenant_id).first();
+
+      if (!tenant) {
+        return new Response(JSON.stringify({ success: false, error: 'Organisation introuvable' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (tenant.status && tenant.status !== 'active' && tenant.status !== 'trial') {
+        return new Response(JSON.stringify({ success: false, error: 'Organisation inactive' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Generate new token (30d)
+      const newToken = await auth.generateToken({ user_id: user.id, tenant_id: user.tenant_id, role: user.role, email: user.email }, env.JWT_SECRET, '30d');
       const now = new Date().toISOString();
       const newExpiresAt = new Date();
-      newExpiresAt.setDate(newExpiresAt.getDate() + 7);
-
-      await env.DB.prepare(`UPDATE sessions SET token = ?, expires_at = ?, created_at = ? WHERE id = ?`).bind(newToken, newExpiresAt.toISOString(), now, session.id).run();
-
+      newExpiresAt.setDate(newExpiresAt.getDate() + 30);
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
       const userAgent = request.headers.get('User-Agent') || 'unknown';
-      await auth.logAudit(env, { tenant_id: tenant.id, user_id: user.id, action: 'user.token_refresh', resource_type: 'session', resource_id: session.id, ip_address: clientIp, user_agent: userAgent });
+
+      // Try to update existing session, or create a new one
+      const existingSession = await env.DB.prepare(
+        'SELECT id FROM sessions WHERE token = ?'
+      ).bind(currentToken).first();
+
+      if (existingSession) {
+        await env.DB.prepare(`UPDATE sessions SET token = ?, expires_at = ?, created_at = ? WHERE id = ?`).bind(newToken, newExpiresAt.toISOString(), now, existingSession.id).run();
+      } else {
+        // Old session may have been cleaned up; create a fresh one
+        const sessionId = auth.generateId('session');
+        await env.DB.prepare(`INSERT INTO sessions (id, user_id, tenant_id, token, ip_address, user_agent, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(sessionId, user.id, user.tenant_id, newToken, clientIp, userAgent, newExpiresAt.toISOString(), now).run();
+      }
+
+      auth.logAudit(env, { tenant_id: user.tenant_id, user_id: user.id, action: 'user.token_refresh', resource_type: 'session', resource_id: existingSession?.id || 'new', ip_address: clientIp, user_agent: userAgent }).catch(() => {});
 
       return new Response(JSON.stringify({ success: true, token: newToken, expires_at: newExpiresAt.toISOString(), message: 'Token renouvelé avec succès' }), {
         status: 200,
@@ -621,7 +693,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   // ========================================
   if (path === '/api/v1/auth/forgot-password' && method === 'POST') {
     try {
-      const body = await request.json();
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
       const { email } = body;
 
       if (!email || !auth.isValidEmail(email)) {
@@ -642,9 +715,9 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         ).bind(resetToken, expiresAt, user.id).run();
 
         // Envoyer email via Resend
-        const resetLink = `https://coccinelle-saas.pages.dev/reset-password?token=${resetToken}`;
+        const resetLink = `${env.FRONTEND_URL || 'https://coccinelle.ai'}/reset-password?token=${resetToken}`;
         try {
-          await fetch('https://api.resend.com/emails', {
+          const resetEmailRes = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${env.RESEND_API_KEY}`,
@@ -671,6 +744,10 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
               `
             })
           });
+          if (!resetEmailRes.ok) {
+            const resetErrBody = await resetEmailRes.text().catch(() => '');
+            logger.error('Resend API error on password reset', { status: resetEmailRes.status, body: resetErrBody });
+          }
         } catch (emailError) {
           logger.error('Failed to send reset email', { error: emailError.message });
         }
@@ -695,7 +772,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   // ========================================
   if (path === '/api/v1/auth/reset-password' && method === 'POST') {
     try {
-      const body = await request.json();
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
       const { token, newPassword } = body;
 
       if (!token || !newPassword) {
@@ -797,6 +875,11 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         'UPDATE users SET email_verified = 1, verification_token = NULL, updated_at = ? WHERE id = ?'
       ).bind(now, user.id).run();
 
+      // Fetch onboarding_completed to help frontend decide redirect
+      const tenant = await env.DB.prepare(
+        'SELECT onboarding_completed FROM tenants WHERE id = ?'
+      ).bind(user.tenant_id).first();
+
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
       const userAgent = request.headers.get('User-Agent') || 'unknown';
       await auth.logAudit(env, {
@@ -809,7 +892,11 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         user_agent: userAgent
       });
 
-      return new Response(JSON.stringify({ success: true, message: 'Email vérifié avec succès' }), {
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Email vérifié avec succès',
+        onboarding_completed: tenant?.onboarding_completed || 0
+      }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -845,9 +932,9 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       ).bind(verificationToken, now, user.id).run();
 
       // Envoyer email via Resend
-      const verifyLink = `https://coccinelle-saas.pages.dev/verify-email?token=${verificationToken}`;
+      const verifyLink = `${env.FRONTEND_URL || 'https://coccinelle.ai'}/verify-email?token=${verificationToken}`;
       try {
-        await fetch('https://api.resend.com/emails', {
+        const resendRes = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${env.RESEND_API_KEY}`,
@@ -871,6 +958,10 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
             `
           })
         });
+        if (!resendRes.ok) {
+          const resendErrBody = await resendRes.text().catch(() => '');
+          logger.error('Resend API error on resend-verification', { status: resendRes.status, body: resendErrBody });
+        }
       } catch (emailError) {
         logger.error('Failed to send verification email', { error: emailError.message });
       }

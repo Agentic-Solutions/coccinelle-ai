@@ -10,7 +10,8 @@ import { getInvoices, getInvoiceDetails, downloadInvoicePDF } from './controller
 // PLANS PRICING (price IDs from env)
 // ========================================
 const PLAN_PRICES = {
-  starter: 'STRIPE_PRICE_STARTER',
+  essentiel: 'STRIPE_PRICE_ESSENTIEL',
+  starter: 'STRIPE_PRICE_ESSENTIEL', // backward compat
   pro: 'STRIPE_PRICE_PRO',
   business: 'STRIPE_PRICE_BUSINESS',
 };
@@ -94,8 +95,9 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
 
   // ========================================
   // 1. POST /api/v1/billing/create-checkout-session
+  //    POST /api/v1/billing/stripe/checkout (alias frontend upgrade)
   // ========================================
-  if (path === '/api/v1/billing/create-checkout-session' && method === 'POST') {
+  if ((path === '/api/v1/billing/create-checkout-session' || path === '/api/v1/billing/stripe/checkout') && method === 'POST') {
     try {
       const authResult = await auth.requireAuth(request, env);
       if (authResult.error) {
@@ -107,11 +109,12 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
 
       const { tenant } = authResult;
       const body = await request.json();
-      const { plan } = body;
+      // Accept both 'plan' (billing page) and 'planId' (upgrade page)
+      const plan = body.plan || body.planId;
 
       if (!plan || !PLAN_PRICES[plan]) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Plan invalide. Choisissez starter, pro ou business.' }),
+          JSON.stringify({ success: false, error: 'Plan invalide. Choisissez essentiel, pro ou business.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -128,6 +131,27 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
       let sub = await env.DB.prepare(
         'SELECT * FROM subscriptions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1'
       ).bind(tenant.id).first();
+
+      // BUG #007 — Bloquer le double checkout si abonnement actif
+      if (sub && sub.status === 'active' && sub.stripe_subscription_id) {
+        // Abonnement deja actif — rediriger vers le portail Stripe au lieu de creer un nouveau checkout
+        if (sub.stripe_customer_id) {
+          const portal = await stripeRequest('POST', '/billing_portal/sessions', env.STRIPE_SECRET_KEY, {
+            customer: sub.stripe_customer_id,
+            return_url: `${env.FRONTEND_URL || 'https://coccinelle.ai'}/dashboard/billing`,
+          });
+          if (portal.url) {
+            return new Response(
+              JSON.stringify({ success: true, url: portal.url, redirect_to_portal: true }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+        return new Response(
+          JSON.stringify({ success: false, error: 'Vous avez deja un abonnement actif. Utilisez "Gerer mon abonnement" pour modifier votre plan.' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       let stripeCustomerId = sub?.stripe_customer_id;
 
@@ -164,13 +188,16 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
       }
 
       // Create Checkout Session
+      // BUG #008 — payment_method_types explicite + 3DS automatique (seulement si requis par la banque)
       const session = await stripeRequest('POST', '/checkout/sessions', env.STRIPE_SECRET_KEY, {
         mode: 'subscription',
         customer: stripeCustomerId,
         'line_items[0][price]': priceId,
         'line_items[0][quantity]': '1',
-        success_url: 'https://coccinelle-saas.pages.dev/dashboard/billing?success=true',
-        cancel_url: 'https://coccinelle-saas.pages.dev/dashboard/billing?canceled=true',
+        'payment_method_types[0]': 'card',
+        'payment_method_options[card][request_three_d_secure]': 'automatic',
+        success_url: `${env.FRONTEND_URL || 'https://coccinelle.ai'}/dashboard/billing?success=true`,
+        cancel_url: `${env.FRONTEND_URL || 'https://coccinelle.ai'}/dashboard/billing?canceled=true`,
         'metadata[tenant_id]': tenant.id,
         'metadata[plan]': plan,
       });
@@ -239,7 +266,7 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
                   stripe_customer_id = ?,
                   updated_at = datetime('now')
               WHERE tenant_id = ?
-            `).bind(plan || 'starter', stripeSubId, customerId, tenantId).run();
+            `).bind(plan || 'essentiel', stripeSubId, customerId, tenantId).run();
           }
           break;
         }
@@ -308,9 +335,10 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
   }
 
   // ========================================
-  // 3. GET /api/v1/billing/subscription
+  // 3. GET /api/v1/billing/subscription (singular)
+  //    GET /api/v1/billing/subscriptions (plural — alias upgrade page)
   // ========================================
-  if (path === '/api/v1/billing/subscription' && method === 'GET') {
+  if ((path === '/api/v1/billing/subscription' || path === '/api/v1/billing/subscriptions') && method === 'GET') {
     try {
       const authResult = await auth.requireAuth(request, env);
       if (authResult.error) {
@@ -332,7 +360,9 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
             success: true,
             subscription: {
               plan: 'trial',
+              plan_id: 'free_trial',
               status: 'trialing',
+              billing_period: 'monthly',
               trial_days_remaining: 0,
               current_period_end: null,
               cancel_at_period_end: false,
@@ -356,6 +386,8 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
           success: true,
           subscription: {
             plan: sub.plan,
+            plan_id: sub.plan, // alias pour upgrade page
+            billing_period: sub.billing_period || 'monthly',
             status: sub.status,
             trial_days_remaining: trialDaysRemaining,
             trial_ends_at: sub.trial_ends_at,
@@ -378,8 +410,9 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
 
   // ========================================
   // 4. POST /api/v1/billing/portal
+  //    POST /api/v1/billing/stripe/portal (alias payment page)
   // ========================================
-  if (path === '/api/v1/billing/portal' && method === 'POST') {
+  if ((path === '/api/v1/billing/portal' || path === '/api/v1/billing/stripe/portal') && method === 'POST') {
     try {
       const authResult = await auth.requireAuth(request, env);
       if (authResult.error) {
@@ -404,7 +437,7 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
 
       const session = await stripeRequest('POST', '/billing_portal/sessions', env.STRIPE_SECRET_KEY, {
         customer: sub.stripe_customer_id,
-        return_url: 'https://coccinelle-saas.pages.dev/dashboard/billing',
+        return_url: `${env.FRONTEND_URL || 'https://coccinelle.ai'}/dashboard/billing`,
       });
 
       if (session.error) {
@@ -453,7 +486,9 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
             success: true,
             subscription: {
               plan: 'trial',
+              plan_id: 'free_trial',
               status: 'trialing',
+              billing_period: 'monthly',
               trial_days_remaining: 0,
               current_period_end: null,
               cancel_at_period_end: false,
@@ -476,6 +511,8 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
           success: true,
           subscription: {
             plan: sub.plan,
+            plan_id: sub.plan,
+            billing_period: sub.billing_period || 'monthly',
             status: sub.status,
             trial_days_remaining: trialDaysRemaining,
             trial_ends_at: sub.trial_ends_at,

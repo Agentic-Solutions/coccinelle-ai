@@ -313,9 +313,7 @@ export async function saveAssistantConfig(request, env, sessionId, tenantId) {
     const {
       agent_type,
       agent_name,
-      voice,
-      enable_appointments,
-      enable_products
+      voice
     } = await request.json();
 
     // Validation
@@ -349,28 +347,23 @@ export async function saveAssistantConfig(request, env, sessionId, tenantId) {
 
     // Transaction atomique
     const statements = [
-      // 1. Créer/mettre à jour la config agent
+      // 1. Créer/mettre à jour la config agent (BUG #018 fix — removed enable_appointments/enable_products columns that don't exist in production schema)
       env.DB.prepare(`
         INSERT INTO omni_agent_configs (
           id, tenant_id, agent_type, agent_name,
           voice_provider, voice_id, voice_language,
           greeting_message,
-          enable_appointments, enable_products,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 'elevenlabs', ?, 'fr-FR', ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, 'elevenlabs', ?, 'fr-FR', ?, ?, ?)
         ON CONFLICT(tenant_id) DO UPDATE SET
           agent_type = excluded.agent_type,
           agent_name = excluded.agent_name,
           voice_id = excluded.voice_id,
           greeting_message = excluded.greeting_message,
-          enable_appointments = excluded.enable_appointments,
-          enable_products = excluded.enable_products,
           updated_at = excluded.updated_at
       `).bind(
         configId, tenantId, agent_type, agent_name,
         voiceId, greeting,
-        enable_appointments ? 1 : 0,
-        enable_products ? 1 : 0,
         now, now
       )
     ];
@@ -1101,33 +1094,86 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
 
           case 'business':
             if (data) {
+              const companyName = data.company_name || data.name || null;
+              // Correction 3 : email_pro = email du compte JWT si non fourni
+              const emailPro = data.email_pro || authResult.user.email || null;
               await env.DB.prepare(
-                `UPDATE tenants SET name = COALESCE(?, name), sector = COALESCE(?, sector), updated_at = datetime('now') WHERE id = ?`
-              ).bind(data.name || null, data.sector || null, tenantId).run();
-              // Sauvegarder téléphone pro du tenant
-              if (data.phone) {
-                await env.DB.prepare(
-                  `UPDATE tenants SET phone = ? WHERE id = ?`
-                ).bind(data.phone, tenantId).run();
-              }
+                `UPDATE tenants SET
+                  name = COALESCE(?, name),
+                  sector = COALESCE(?, sector),
+                  phone = COALESCE(?, phone),
+                  email_pro = COALESCE(?, email_pro),
+                  horaires = COALESCE(?, horaires),
+                  updated_at = datetime('now')
+                WHERE id = ?`
+              ).bind(
+                companyName,
+                data.sector || null,
+                data.phone || null,
+                emailPro,
+                data.horaires || null,
+                tenantId
+              ).run();
             }
             break;
 
           case 'assistant':
             if (data) {
-              // Mettre à jour voixia_configs
+              const tenantSector = authResult.tenant.sector || data.secteur || 'generaliste';
+              const voiceId = data.voice_id || 'cgSgspJ2msm6clMCkdW9';
+
+              // UPSERT voixia_configs — INSERT si nouveau tenant, UPDATE si existant (BUG #016 fix)
               try {
                 await env.DB.prepare(
-                  `UPDATE voixia_configs SET voice_id = COALESCE(?, voice_id), llm_model = COALESCE(?, llm_model) WHERE tenant_id = ?`
-                ).bind(data.voice_id || null, data.llm_model || null, tenantId).run();
-              } catch { /* table may not exist */ }
-              // Mettre à jour le prompt actif
-              if (data.secteur) {
+                  `INSERT INTO voixia_configs
+                    (tenant_id, voice_id, llm_provider, llm_model, secteur, created_at, updated_at)
+                   VALUES (?, ?, 'mistral', COALESCE(?, 'mistral-large-latest'), ?, datetime('now'), datetime('now'))
+                   ON CONFLICT(tenant_id) DO UPDATE SET
+                     voice_id = COALESCE(excluded.voice_id, voixia_configs.voice_id),
+                     llm_model = COALESCE(excluded.llm_model, voixia_configs.llm_model),
+                     secteur = excluded.secteur,
+                     updated_at = datetime('now')`
+                ).bind(tenantId, voiceId, data.llm_model || null, tenantSector).run();
+              } catch (e) {
+                logger.error('voixia_configs upsert error', { error: e.message, tenantId });
+              }
+
+              // Créer ou mettre à jour le prompt actif
+              if (data.system_prompt) {
+                try {
+                  // Désactiver les prompts existants
+                  await env.DB.prepare(
+                    `UPDATE ai_prompt_versions SET is_active = 0 WHERE tenant_id = ?`
+                  ).bind(tenantId).run();
+                  // Créer le nouveau prompt actif
+                  await env.DB.prepare(
+                    `INSERT INTO ai_prompt_versions (id, tenant_id, system_prompt, secteur, is_active, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))`
+                  ).bind(generateId('prompt'), tenantId, data.system_prompt, tenantSector).run();
+                } catch (e) {
+                  logger.error('ai_prompt_versions create error', { error: e.message, tenantId });
+                }
+              } else if (data.secteur) {
                 try {
                   await env.DB.prepare(
                     `UPDATE ai_prompt_versions SET secteur = ? WHERE tenant_id = ? AND is_active = 1`
                   ).bind(data.secteur, tenantId).run();
                 } catch { /* table may not exist */ }
+              }
+
+              // Sauvegarder agent_name dans omni_agent_configs (BUG #018 fix)
+              if (data.agent_name) {
+                try {
+                  await env.DB.prepare(`
+                    INSERT INTO omni_agent_configs (id, tenant_id, agent_name, created_at, updated_at)
+                    VALUES (?, ?, ?, datetime('now'), datetime('now'))
+                    ON CONFLICT(tenant_id) DO UPDATE SET
+                      agent_name = excluded.agent_name,
+                      updated_at = datetime('now')
+                  `).bind(generateId('agent'), tenantId, data.agent_name).run();
+                } catch (e) {
+                  console.error('[Onboarding] Error saving agent_name to omni_agent_configs:', e.message);
+                }
               }
             }
             break;
@@ -1145,17 +1191,106 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
             }
             break;
 
-          case 'knowledge':
+          case 'knowledge': {
+            // Generation automatique de documents KB depuis les 3 champs essentiels
+            const { adresse, services, tarifs, qa_items } = data || {};
+
+            if (adresse && adresse.trim()) {
+              await env.DB.prepare(`
+                INSERT OR REPLACE INTO knowledge_documents (id, tenant_id, title, content, source_type, created_at, updated_at)
+                VALUES (?, ?, 'Adresse et localisation', ?, 'onboarding', datetime('now'), datetime('now'))
+              `).bind(
+                `doc_adresse_${tenantId}`,
+                tenantId,
+                `Notre adresse est : ${adresse.trim()}. Nous sommes situes a ${adresse.trim()}.`
+              ).run();
+            }
+
+            if (services && services.trim()) {
+              await env.DB.prepare(`
+                INSERT OR REPLACE INTO knowledge_documents (id, tenant_id, title, content, source_type, created_at, updated_at)
+                VALUES (?, ?, 'Nos services et prestations', ?, 'onboarding', datetime('now'), datetime('now'))
+              `).bind(
+                `doc_services_${tenantId}`,
+                tenantId,
+                `Nous proposons : ${services.trim()}.`
+              ).run();
+            }
+
+            if (tarifs && tarifs.trim()) {
+              await env.DB.prepare(`
+                INSERT OR REPLACE INTO knowledge_documents (id, tenant_id, title, content, source_type, created_at, updated_at)
+                VALUES (?, ?, 'Nos tarifs', ?, 'onboarding', datetime('now'), datetime('now'))
+              `).bind(
+                `doc_tarifs_${tenantId}`,
+                tenantId,
+                `Concernant nos tarifs : ${tarifs.trim()}.`
+              ).run();
+            }
+
+            // Q&A supplementaires (max 3)
+            if (qa_items && Array.isArray(qa_items)) {
+              for (let i = 0; i < Math.min(qa_items.length, 3); i++) {
+                const qa = qa_items[i];
+                if (qa.question && qa.answer) {
+                  await env.DB.prepare(`
+                    INSERT OR REPLACE INTO knowledge_documents (id, tenant_id, title, content, source_type, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'onboarding', datetime('now'), datetime('now'))
+                  `).bind(
+                    `doc_qa_${i}_${tenantId}`,
+                    tenantId,
+                    qa.question.trim(),
+                    qa.answer.trim()
+                  ).run();
+                }
+              }
+            }
+
+            logger.info('Onboarding KB docs generated', { tenantId, hasAdresse: !!adresse, hasServices: !!services, hasTarifs: !!tarifs });
+            break;
+          }
+
           case 'products':
-            // Ces étapes utilisent leurs propres endpoints API
+            // Cette étape utilise ses propres endpoints API
             // On enregistre juste la progression
             break;
 
-          case 'complete':
+          case 'complete': {
+            // Correction 5 : onboarding terminé → Plan Pro trial 14 jours
             await env.DB.prepare(
-              `UPDATE tenants SET onboarding_completed = 1, setup_completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+              `UPDATE tenants SET
+                onboarding_completed = 1,
+                setup_completed_at = datetime('now'),
+                subscription_plan = 'pro',
+                trial_ends_at = datetime('now', '+14 days'),
+                updated_at = datetime('now')
+              WHERE id = ?`
             ).bind(tenantId).run();
+
+            // Créer phone mapping si téléphone pro configuré
+            try {
+              const tenant = await env.DB.prepare(
+                `SELECT phone FROM tenants WHERE id = ?`
+              ).bind(tenantId).first();
+              if (tenant?.phone) {
+                await env.DB.prepare(
+                  `INSERT INTO omni_phone_mappings (phone, tenant_id, created_at)
+                   VALUES (?, ?, datetime('now'))
+                   ON CONFLICT(phone) DO UPDATE SET tenant_id = excluded.tenant_id`
+                ).bind(tenant.phone, tenantId).run();
+              }
+            } catch (e) {
+              console.error('[Onboarding] Error creating phone mapping:', e.message);
+            }
+
+            // Marquer la session comme terminée
+            try {
+              await env.DB.prepare(
+                `UPDATE onboarding_sessions SET status = 'completed', completed_at = datetime('now') WHERE tenant_id = ? AND status = 'in_progress'`
+              ).bind(tenantId).run();
+            } catch { /* session may not exist */ }
             break;
+          }
 
           default:
             return new Response(JSON.stringify({ success: false, error: `Étape inconnue: ${step}` }), {
@@ -1165,7 +1300,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
         }
 
         // Mettre à jour la progression dans onboarding_sessions
-        const stepMap = { sector: 1, business: 2, verification: 3, knowledge: 4, products: 5, channels: 6, assistant: 7, complete: 8 };
+        const stepMap = { business: 1, assistant: 2, knowledge: 3, complete: 4, sector: 1, verification: 1, products: 3, channels: 3 };
         const stepNum = stepMap[step] || 0;
         try {
           await env.DB.prepare(
@@ -1206,7 +1341,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
         // Requête unifiée tenant + user + session
         const tenant = await env.DB.prepare(
           `SELECT t.name, t.sector, t.phone AS tenant_phone, t.onboarding_completed,
-                  t.setup_completed_at, t.company_name
+                  t.setup_completed_at, t.company_name, t.email_pro, t.horaires
            FROM tenants t WHERE t.id = ?`
         ).bind(tenantId).first();
 
@@ -1227,6 +1362,8 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
             name: tenant?.name || '',
             sector: tenant?.sector || '',
             phone: tenant?.tenant_phone || '',
+            email_pro: tenant?.email_pro || '',
+            horaires: tenant?.horaires || '',
             onboarding_completed: tenant?.onboarding_completed || 0
           },
           user: {

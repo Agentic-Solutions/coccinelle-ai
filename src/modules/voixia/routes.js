@@ -14,6 +14,35 @@ import { findOrCreateProspect } from '../prospects/dedup.js';
  */
 export async function handleVoixIARoutes(request, env, path, method) {
   try {
+    // ═══ Routes Agents (/api/v1/voixia/agents/*) ═══
+
+    // POST /api/v1/voixia/agents/versions/:id/activate — Activer une version
+    if (path.startsWith('/api/v1/voixia/agents/versions/') && path.endsWith('/activate') && method === 'POST') {
+      const id = path.split('/').slice(-2)[0];
+      return await handleActivateVersion(request, env, id);
+    }
+
+    // GET /api/v1/voixia/agents/versions — Historique versions
+    if (path === '/api/v1/voixia/agents/versions' && method === 'GET') {
+      return await handleGetAgentVersions(request, env);
+    }
+
+    // POST /api/v1/voixia/agents — Créer un agent
+    if (path === '/api/v1/voixia/agents' && method === 'POST') {
+      return await handleCreateAgentConfig(request, env);
+    }
+
+    // DELETE /api/v1/voixia/agents/:id — Supprimer un agent (soft)
+    if (path.startsWith('/api/v1/voixia/agents/') && method === 'DELETE') {
+      const id = path.split('/').pop();
+      return await handleDeleteAgent(request, env, id);
+    }
+
+    // GET /api/v1/voixia/agents — Liste des agents
+    if (path === '/api/v1/voixia/agents' && method === 'GET') {
+      return await handleGetAgents(request, env);
+    }
+
     // POST /api/v1/voixia/appointments — Prendre un RDV
     if (path === '/api/v1/voixia/appointments' && method === 'POST') {
       return await handleCreateAppointment(request, env);
@@ -229,6 +258,7 @@ async function handleCheckAvailability(request, env) {
   const url = new URL(request.url);
   const date = url.searchParams.get('date');
   const service = url.searchParams.get('service');
+  const serviceId = url.searchParams.get('service_id');
   const agentId = url.searchParams.get('agent_id');
 
   if (!date) return errorResponse('Paramètre date requis (format YYYY-MM-DD)', 400);
@@ -237,6 +267,66 @@ async function handleCheckAvailability(request, env) {
   const dateObj = new Date(date + 'T00:00:00Z');
   const jsDay = dateObj.getUTCDay(); // 0=dimanche
   const dayOfWeek = jsDay === 0 ? 7 : jsDay; // Convertir en 1=lundi...7=dimanche
+
+  // 1b. Résoudre le service et les agents assignés
+  let resolvedServiceId = serviceId || null;
+  let serviceAgentIds = null; // null = pas de filtre par service
+  let serviceDuration = null; // duree du service
+  let agentCustomDurations = {}; // agent_id → custom_duration_minutes
+
+  if (!resolvedServiceId && service) {
+    // Résoudre par nom de service
+    try {
+      const likePattern = '%' + service.toLowerCase() + '%';
+      const svcResult = await env.DB.prepare(
+        "SELECT id, duration_minutes FROM services WHERE tenant_id = ? AND is_active = 1 AND LOWER(name) LIKE ? LIMIT 1"
+      ).bind(tenant_id, likePattern).first();
+      if (svcResult) {
+        resolvedServiceId = svcResult.id;
+        serviceDuration = svcResult.duration_minutes;
+      }
+    } catch (err) {
+      logger.error('VoixIA — service name resolution error', { error: err.message, service });
+    }
+  }
+
+  if (resolvedServiceId) {
+    // Récupérer la durée du service si pas encore fait
+    if (!serviceDuration) {
+      try {
+        const svcRow = await env.DB.prepare(`SELECT duration_minutes FROM services WHERE id = ? AND tenant_id = ?`).bind(resolvedServiceId, tenant_id).first();
+        if (svcRow) serviceDuration = svcRow.duration_minutes;
+      } catch { /* fallback 30min */ }
+    }
+
+    // Récupérer les agents assignés à cette prestation
+    try {
+      const casResult = await env.DB.prepare(`
+        SELECT cas.agent_id, cas.custom_duration_minutes
+        FROM commercial_agent_services cas
+        WHERE cas.service_id = ? AND cas.tenant_id = ? AND cas.is_active = 1
+      `).bind(resolvedServiceId, tenant_id).all();
+      const rows = casResult.results || [];
+      if (rows.length > 0) {
+        serviceAgentIds = rows.map(r => r.agent_id);
+        for (const r of rows) {
+          if (r.custom_duration_minutes) agentCustomDurations[r.agent_id] = r.custom_duration_minutes;
+        }
+      }
+    } catch { /* continue sans filtre */ }
+  }
+
+  // Si service demandé mais aucun agent ne le propose → retourner liste vide
+  if (resolvedServiceId && serviceAgentIds && serviceAgentIds.length === 0) {
+    return successResponse({
+      date,
+      day_of_week: dayOfWeek,
+      available_slots: [],
+      count: 0,
+      service_id: resolvedServiceId,
+      message: 'Aucun membre ne propose cette prestation'
+    });
+  }
 
   // 2. Récupérer les créneaux de disponibilité des agents
   let query = `
@@ -260,6 +350,10 @@ async function handleCheckAvailability(request, env) {
   if (agentId) {
     query += ' AND avs.agent_id = ?';
     params.push(agentId);
+  } else if (serviceAgentIds && serviceAgentIds.length > 0) {
+    // Filtrer par agents qui proposent la prestation
+    query += ` AND avs.agent_id IN (${serviceAgentIds.map(() => '?').join(',')})`;
+    params.push(...serviceAgentIds);
   }
 
   let slots;
@@ -287,17 +381,27 @@ async function handleCheckAvailability(request, env) {
   }
 
   // 4. Construire les créneaux disponibles
-  const bookedTimes = new Set(
-    existingAppointments.map(a => {
-      const d = new Date(a.scheduled_at);
-      return `${a.agent_id}:${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`;
-    })
-  );
+  // FIX BUG #009 : double-booking — RDV VoixIA stockés avec agent_id=null
+  // doivent bloquer les créneaux pour tous les agents
+  const bookedByAgent = new Set();  // clé agent_id:HH:MM
+  const bookedGlobal = new Set();   // clé HH:MM (RDV sans agent = VoixIA)
+
+  for (const a of existingAppointments) {
+    const d = new Date(a.scheduled_at);
+    const timeStr = `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`;
+    if (a.agent_id) {
+      bookedByAgent.add(`${a.agent_id}:${timeStr}`);
+    } else {
+      // RDV sans agent (VoixIA) → bloque le créneau pour tous les agents
+      bookedGlobal.add(timeStr);
+    }
+  }
 
   const availableSlots = [];
 
   for (const slot of slots) {
-    const duration = slot.slot_duration || 30;
+    // Priorité durée : custom par agent > service > slot_duration > 30min
+    const duration = agentCustomDurations[slot.agent_id] || serviceDuration || slot.slot_duration || 30;
     const [startH, startM] = (slot.start_time || '09:00').split(':').map(Number);
     const [endH, endM] = (slot.end_time || '18:00').split(':').map(Number);
     const breakStart = slot.break_start ? slot.break_start.split(':').map(Number) : null;
@@ -319,13 +423,18 @@ async function handleCheckAvailability(request, env) {
 
       const h = Math.floor(currentMinutes / 60).toString().padStart(2, '0');
       const m = (currentMinutes % 60).toString().padStart(2, '0');
-      const timeKey = `${slot.agent_id}:${h}:${m}`;
+      const timeStr = `${h}:${m}`;
 
-      if (!bookedTimes.has(timeKey)) {
+      // Un créneau est pris si :
+      // - RDV avec cet agent à cette heure (bookedByAgent)
+      // - OU RDV sans agent à cette heure (bookedGlobal = VoixIA)
+      const isBooked = bookedByAgent.has(`${slot.agent_id}:${timeStr}`) || bookedGlobal.has(timeStr);
+
+      if (!isBooked) {
         availableSlots.push({
           agent_id: slot.agent_id,
           agent_name: slot.agent_name?.trim() || null,
-          time: `${h}:${m}`,
+          time: timeStr,
           duration_minutes: duration
         });
       }
@@ -334,19 +443,20 @@ async function handleCheckAvailability(request, env) {
     }
   }
 
-  await logAudit(env, {
+  logAudit(env, {
     tenant_id,
     user_id: 'voixia-agent',
     action: 'voixia.availability.check',
     resource_type: 'availability',
-    changes: { date, service, agent_id: agentId, slots_found: availableSlots.length }
-  });
+    changes: { date, service, service_id: resolvedServiceId, agent_id: agentId, slots_found: availableSlots.length }
+  }).catch(() => {});
 
   return successResponse({
     date,
     day_of_week: dayOfWeek,
     available_slots: availableSlots,
     count: availableSlots.length,
+    service_id: resolvedServiceId || null,
     message: availableSlots.length > 0
       ? `${availableSlots.length} créneau(x) disponible(s) le ${date}`
       : `Aucun créneau disponible le ${date}`
@@ -576,34 +686,31 @@ async function handleSearchKnowledge(request, env) {
 
   if (!question) return errorResponse('question ou query est requis', 400);
 
-  // 1. Générer l'embedding de la question via Workers AI
-  let queryEmbedding = null;
-  let useTextFallback = false;
+  // ── OPTIMISE BUG #011 : preparer la recherche textuelle en parallele de l'embedding ──
+  // Splitter la question en mots significatifs (>= 3 caracteres) pour recherche OR
+  const stopWords = new Set(['les', 'des', 'une', 'est', 'que', 'qui', 'dans', 'pour', 'sur', 'par', 'avec', 'son', 'ses', 'vos', 'nos', 'aux', 'ont', 'sont', 'quels', 'quel', 'quelle', 'quelles', 'comment', 'vous']);
+  const searchWords = question
+    .toLowerCase()
+    .replace(/[^a-zA-ZÀ-ÿ\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !stopWords.has(w));
+  if (searchWords.length === 0) searchWords.push(question);
 
-  try {
-    if (env.AI) {
-      const result = await env.AI.run('@cf/baai/bge-base-en-v1.5', { text: [question] });
-      if (result?.data?.[0] && Array.isArray(result.data[0]) && result.data[0].length > 0) {
-        queryEmbedding = result.data[0];
-      } else {
-        useTextFallback = true;
-      }
-    } else {
-      useTextFallback = true;
-    }
-  } catch (error) {
-    logger.warn('VoixIA — Workers AI embedding échoué, fallback texte', { error: error.message });
-    useTextFallback = true;
-  }
+  // ── Lancer recherche textuelle ET vectorielle en parallele ──
+  // La recherche textuelle est toujours prete comme fallback immediat
+  const textSearchPromise = _searchKnowledgeText(env, tenant_id, searchWords, topK);
 
   let results = [];
+  let searchType = 'text';
 
-  // 2a. Recherche vectorielle si l'embedding est disponible
-  if (!useTextFallback && queryEmbedding) {
+  // Recherche vectorielle (seulement si Workers AI et Vectorize disponibles)
+  const targetVectorize = env.VECTORIZE_V2 || env.VECTORIZE;
+  if (env.AI && targetVectorize) {
     try {
-      const targetVectorize = env.VECTORIZE_V2 || env.VECTORIZE;
+      const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', { text: [question] });
+      const queryEmbedding = embeddingResult?.data?.[0];
 
-      if (targetVectorize) {
+      if (queryEmbedding && Array.isArray(queryEmbedding) && queryEmbedding.length > 0) {
         const searchResults = await targetVectorize.query(queryEmbedding, {
           topK,
           returnMetadata: true,
@@ -623,7 +730,6 @@ async function handleSearchKnowledge(request, env) {
             WHERE kc.id IN (${placeholders})
           `).bind(...chunkIds).all();
 
-          // Associer les scores aux résultats
           const scoreMap = {};
           for (const match of searchResults.matches) {
             scoreMap[match.id] = match.score;
@@ -636,130 +742,32 @@ async function handleSearchKnowledge(request, env) {
             source_url: chunk.source_url,
             relevance_score: scoreMap[chunk.id] || 0
           }));
+          searchType = 'semantic';
         }
       }
     } catch (error) {
-      logger.warn('VoixIA — recherche vectorielle échouée, fallback texte', { error: error.message });
-      useTextFallback = true;
+      logger.warn('VoixIA — recherche vectorielle echouee, fallback texte', { error: error.message });
     }
   }
 
-  // 2b. Fallback : recherche textuelle si la vectorielle n'est pas disponible
-  // Splitter la question en mots significatifs (>= 3 caracteres) pour recherche OR
-  const stopWords = new Set(['les', 'des', 'une', 'est', 'que', 'qui', 'dans', 'pour', 'sur', 'par', 'avec', 'son', 'ses', 'vos', 'nos', 'aux', 'ont', 'sont', 'quels', 'quel', 'quelle', 'quelles', 'comment', 'vous']);
-  const searchWords = question
-    .toLowerCase()
-    .replace(/[^a-zA-ZÀ-ÿ\s]/g, '')
-    .split(/\s+/)
-    .filter(w => w.length >= 3 && !stopWords.has(w));
-
-  // Si aucun mot significatif, utiliser la question brute
-  if (searchWords.length === 0) searchWords.push(question);
-
-  if (useTextFallback || results.length === 0) {
-    try {
-      // Construire la clause WHERE avec OR pour chaque mot
-      const chunkLikeClauses = searchWords.map(() => 'kc.content LIKE ?').join(' OR ');
-      const chunkParams = [tenant_id, ...searchWords.map(w => `%${w}%`), topK];
-
-      const textResults = await env.DB.prepare(`
-        SELECT
-          kc.content, kc.chunk_index,
-          kd.title, kd.source_type, kd.source_url,
-          CASE WHEN kd.source_type = 'text' THEN 0 ELSE 1 END as priority
-        FROM knowledge_chunks kc
-        LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
-        WHERE kd.tenant_id = ?
-          AND (${chunkLikeClauses})
-          AND kd.is_active = 1
-        ORDER BY priority ASC, kd.created_at DESC
-        LIMIT ?
-      `).bind(...chunkParams).all();
-
-      if (textResults.results?.length > 0) {
-        results = textResults.results.map(chunk => ({
-          content: chunk.content,
-          source_title: chunk.title,
-          source_type: chunk.source_type,
-          source_url: chunk.source_url,
-          relevance_score: null
-        }));
-      }
-    } catch (error) {
-      logger.error('VoixIA — recherche textuelle échouée', { error: error.message });
-    }
-
-    // Fallback : chercher directement dans knowledge_documents.content (pas de chunks)
-    if (results.length === 0) {
-      try {
-        // OR sur chaque mot dans title ET content
-        const docLikeClauses = searchWords.map(() => '(title LIKE ? OR content LIKE ?)').join(' OR ');
-        const docParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
-
-        const docResults = await env.DB.prepare(`
-          SELECT title, content, source_url, source_type,
-            CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
-          FROM knowledge_documents
-          WHERE tenant_id = ?
-            AND is_active = 1
-            AND (${docLikeClauses})
-          ORDER BY priority ASC, created_at DESC
-          LIMIT ?
-        `).bind(...docParams).all();
-
-        if (docResults.results?.length > 0) {
-          results = docResults.results.map(doc => ({
-            content: doc.content,
-            source_title: doc.title,
-            source_type: doc.source_type,
-            source_url: doc.source_url,
-            relevance_score: null
-          }));
-        }
-      } catch (error) {
-        logger.warn('VoixIA — recherche knowledge_documents echouee', { error: error.message });
-      }
-    }
-
-    // Fallback supplémentaire : chercher dans les FAQ
-    if (results.length === 0) {
-      try {
-        const faqLikeClauses = searchWords.map(() => '(question LIKE ? OR answer LIKE ?)').join(' OR ');
-        const faqParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
-
-        const faqResults = await env.DB.prepare(`
-          SELECT question, answer
-          FROM knowledge_faq
-          WHERE tenant_id = ?
-            AND (${faqLikeClauses})
-          LIMIT ?
-        `).bind(...faqParams).all();
-
-        if (faqResults.results?.length > 0) {
-          results = faqResults.results.map(faq => ({
-            content: `Q: ${faq.question}\nR: ${faq.answer}`,
-            source_title: 'FAQ',
-            source_type: 'faq',
-            relevance_score: null
-          }));
-        }
-      } catch {
-        // Table FAQ peut ne pas exister — non bloquant
-      }
-    }
+  // Si vectorielle n'a rien donne → utiliser le resultat textuel (deja en cours)
+  if (results.length === 0) {
+    results = await textSearchPromise;
+    searchType = 'text';
   }
 
-  await logAudit(env, {
+  // Audit non-bloquant (fire-and-forget)
+  logAudit(env, {
     tenant_id,
     user_id: 'voixia-agent',
     action: 'voixia.knowledge.search',
     resource_type: 'knowledge',
     changes: { question: question.substring(0, 100), results_count: results.length }
-  });
+  }).catch(() => {});
 
   // Selectionner la meilleure answer : source_type='text' en priorite, tronquee a 500 chars
-  const textResults = results.filter(r => r.source_type === 'text');
-  const bestResult = textResults.length > 0 ? textResults[0] : results[0];
+  const textPriorityResults = results.filter(r => r.source_type === 'text');
+  const bestResult = textPriorityResults.length > 0 ? textPriorityResults[0] : results[0];
   const answer = bestResult?.content?.substring(0, 500) || null;
 
   return successResponse({
@@ -767,11 +775,94 @@ async function handleSearchKnowledge(request, env) {
     count: results.length,
     answer,
     found: !!answer,
-    search_type: useTextFallback ? 'text' : 'semantic',
+    search_type: searchType,
     message: results.length > 0
       ? `${results.length} résultat(s) trouvé(s)`
       : 'Aucun résultat trouvé dans la base de connaissances'
   });
+}
+
+/**
+ * Recherche textuelle knowledge — 3 niveaux en parallele (chunks, documents, FAQ)
+ * Utilisee comme fallback rapide ou recherche principale
+ */
+async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
+  // Lancer les 3 niveaux de recherche en parallele
+  const chunkLikeClauses = searchWords.map(() => 'kc.content LIKE ?').join(' OR ');
+  const chunkParams = [tenant_id, ...searchWords.map(w => `%${w}%`), topK];
+
+  const docLikeClauses = searchWords.map(() => '(title LIKE ? OR content LIKE ?)').join(' OR ');
+  const docParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
+
+  const faqLikeClauses = searchWords.map(() => '(question LIKE ? OR answer LIKE ?)').join(' OR ');
+  const faqParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
+
+  // ── Lancer les 3 requetes en parallele (Promise.allSettled) ──
+  const [chunksRes, docsRes, faqRes] = await Promise.allSettled([
+    env.DB.prepare(`
+      SELECT kc.content, kc.chunk_index,
+             kd.title, kd.source_type, kd.source_url,
+             CASE WHEN kd.source_type = 'text' THEN 0 ELSE 1 END as priority
+      FROM knowledge_chunks kc
+      LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
+      WHERE kd.tenant_id = ?
+        AND (${chunkLikeClauses})
+        AND kd.is_active = 1
+      ORDER BY priority ASC, kd.created_at DESC
+      LIMIT ?
+    `).bind(...chunkParams).all(),
+
+    env.DB.prepare(`
+      SELECT title, content, source_url, source_type,
+             CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
+      FROM knowledge_documents
+      WHERE tenant_id = ?
+        AND is_active = 1
+        AND (${docLikeClauses})
+      ORDER BY priority ASC, created_at DESC
+      LIMIT ?
+    `).bind(...docParams).all(),
+
+    env.DB.prepare(`
+      SELECT question, answer
+      FROM knowledge_faq
+      WHERE tenant_id = ?
+        AND (${faqLikeClauses})
+      LIMIT ?
+    `).bind(...faqParams).all()
+  ]);
+
+  // Priorite : chunks > documents > FAQ
+  if (chunksRes.status === 'fulfilled' && chunksRes.value.results?.length > 0) {
+    return chunksRes.value.results.map(chunk => ({
+      content: chunk.content,
+      source_title: chunk.title,
+      source_type: chunk.source_type,
+      source_url: chunk.source_url,
+      relevance_score: null
+    }));
+  }
+
+  if (docsRes.status === 'fulfilled' && docsRes.value.results?.length > 0) {
+    return docsRes.value.results.map(doc => ({
+      content: doc.content,
+      source_title: doc.title,
+      source_type: doc.source_type,
+      source_url: doc.source_url,
+      relevance_score: null
+    }));
+  }
+
+  if (faqRes.status === 'fulfilled' && faqRes.value.results?.length > 0) {
+    return faqRes.value.results.map(faq => ({
+      content: `Q: ${faq.question}\nR: ${faq.answer}`,
+      source_title: 'FAQ',
+      source_type: 'faq',
+      relevance_score: null
+    }));
+  }
+
+  return [];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -802,29 +893,35 @@ async function handleResolvePhone(request, env) {
   const normalizedPhone = String(phone).replace(/^\+/, '');
 
   try {
-    // 1. Recherche dans omni_phone_mappings avec jointure tenants
-    //    SOURCE UNIQUE : company_name = t.name, secteur = t.sector
-    const mapping = await env.DB.prepare(`
-      SELECT m.tenant_id, m.phone_number, m.is_active,
-             t.name AS company_name, t.sector, t.api_key
+    // ── OPTIMISE BUG #010 : 1 seule requete JOIN au lieu de 3 sequentielles ──
+    // Fusionne : omni_phone_mappings + tenants + voixia_configs + ai_prompt_versions
+    const resolved = await env.DB.prepare(`
+      SELECT
+        m.tenant_id, m.phone_number, m.is_active,
+        t.name AS company_name, t.sector, t.api_key,
+        vc.llm_provider, vc.llm_model, vc.voice_id,
+        vc.active_prompt_id, vc.secteur AS vc_secteur,
+        apv.system_prompt, apv.version AS prompt_version
       FROM omni_phone_mappings m
       INNER JOIN tenants t ON m.tenant_id = t.id
+      LEFT JOIN voixia_configs vc ON vc.tenant_id = m.tenant_id
+      LEFT JOIN ai_prompt_versions apv ON vc.active_prompt_id = apv.id
       WHERE (m.phone_number = ? OR m.phone_number = ?)
         AND m.is_active = 1
       LIMIT 1
     `).bind(phone, normalizedPhone).first();
 
-    // Audit de la resolution
-    await logAudit(env, {
+    // Audit non-bloquant (fire-and-forget) — ne retarde pas la reponse
+    logAudit(env, {
       tenant_id,
       user_id: 'voixia-agent',
       action: 'voixia.resolve_phone',
       resource_type: 'phone_mapping',
-      changes: { phone: phone, found: !!mapping }
-    });
+      changes: { phone: phone, found: !!resolved }
+    }).catch(() => {});
 
     // Numero non trouve — retour par defaut avec template generaliste
-    if (!mapping) {
+    if (!resolved) {
       const defaultTemplate = await env.DB.prepare(`
         SELECT system_prompt, llm_provider, llm_model, voice_id
         FROM ai_sector_templates WHERE secteur = 'generaliste' LIMIT 1
@@ -843,24 +940,13 @@ async function handleResolvePhone(request, env) {
       });
     }
 
-    // 2. Recuperer la config VoixIA du tenant (voixia_configs)
-    const config = await env.DB.prepare(`
-      SELECT vc.llm_provider, vc.llm_model, vc.voice_id,
-             vc.active_prompt_id, vc.secteur,
-             apv.system_prompt, apv.version as prompt_version
-      FROM voixia_configs vc
-      LEFT JOIN ai_prompt_versions apv ON vc.active_prompt_id = apv.id
-      WHERE vc.tenant_id = ?
-      LIMIT 1
-    `).bind(mapping.tenant_id).first();
-
-    // 3. Si pas de config tenant, utiliser le template sectoriel
-    let systemPrompt = config?.system_prompt || null;
-    let llmProvider = config?.llm_provider || 'mistral';
-    let llmModel = config?.llm_model || 'mistral-large-latest';
-    let voiceId = config?.voice_id || 'cgSgspJ2msm6clMCkdW9';
-    // SOURCE UNIQUE : secteur vient de tenants.sector (via mapping.sector)
-    const secteur = mapping.sector || 'generaliste';
+    // Si config tenant trouvee mais pas de system_prompt → fallback template sectoriel
+    let systemPrompt = resolved.system_prompt || null;
+    let llmProvider = resolved.llm_provider || 'mistral';
+    let llmModel = resolved.llm_model || 'mistral-large-latest';
+    let voiceId = resolved.voice_id || 'cgSgspJ2msm6clMCkdW9';
+    // SOURCE UNIQUE : secteur vient de tenants.sector
+    const secteur = resolved.sector || 'generaliste';
 
     if (!systemPrompt) {
       const template = await env.DB.prepare(`
@@ -870,24 +956,24 @@ async function handleResolvePhone(request, env) {
 
       if (template) {
         systemPrompt = template.system_prompt;
-        llmProvider = config?.llm_provider || template.llm_provider;
-        llmModel = config?.llm_model || template.llm_model;
-        voiceId = config?.voice_id || template.voice_id;
+        llmProvider = resolved.llm_provider || template.llm_provider;
+        llmModel = resolved.llm_model || template.llm_model;
+        voiceId = resolved.voice_id || template.voice_id;
       }
     }
 
-    // Numero trouve — retourner config complete
+    // Numero trouve — retourner config complete (format identique pour agent Python)
     return successResponse({
-      tenant_id: mapping.tenant_id,
-      company_name: mapping.company_name,
+      tenant_id: resolved.tenant_id,
+      company_name: resolved.company_name,
       prompt_type: secteur,
-      api_key: mapping.api_key,
+      api_key: resolved.api_key,
       llm_provider: llmProvider,
       llm_model: llmModel,
       voice_id: voiceId,
       system_prompt: systemPrompt,
-      active_prompt_id: config?.active_prompt_id || null,
-      prompt_version: config?.prompt_version || null,
+      active_prompt_id: resolved.active_prompt_id || null,
+      prompt_version: resolved.prompt_version || null,
       message: 'Tenant resolu avec succes'
     });
 
@@ -982,95 +1068,8 @@ async function handleSearchKnowledgeGET(request, env) {
     .filter(w => w.length >= 3 && !getStopWords.has(w));
   if (getSearchWords.length === 0) getSearchWords.push(query);
 
-  // Recherche avec priorite source_type='text' avant 'crawl'
-  let results = [];
-
-  // 1. Chercher dans knowledge_chunks avec priorite text
-  try {
-    const chunkLikeClauses = getSearchWords.map(() => 'kc.content LIKE ?').join(' OR ');
-    const chunkParams = [tenant_id, ...getSearchWords.map(w => `%${w}%`)];
-
-    const chunkResults = await env.DB.prepare(`
-      SELECT
-        kc.content, kc.chunk_index,
-        kd.title, kd.source_type, kd.source_url,
-        CASE WHEN kd.source_type = 'text' THEN 0 ELSE 1 END as priority
-      FROM knowledge_chunks kc
-      LEFT JOIN knowledge_documents kd ON kc.document_id = kd.id
-      WHERE kd.tenant_id = ?
-        AND (${chunkLikeClauses})
-        AND kd.is_active = 1
-      ORDER BY priority ASC, kd.created_at DESC
-      LIMIT 5
-    `).bind(...chunkParams).all();
-
-    if (chunkResults.results?.length > 0) {
-      results = chunkResults.results.map(chunk => ({
-        content: chunk.content,
-        source_title: chunk.title,
-        source_type: chunk.source_type,
-        source_url: chunk.source_url
-      }));
-    }
-  } catch (error) {
-    logger.error('VoixIA — erreur recherche knowledge GET chunks', { error: error.message });
-  }
-
-  // 2. Fallback knowledge_documents directement (priorite text)
-  if (results.length === 0) {
-    try {
-      const docLikeClauses = getSearchWords.map(() => '(title LIKE ? OR content LIKE ?)').join(' OR ');
-      const docParams = [tenant_id, ...getSearchWords.flatMap(w => [`%${w}%`, `%${w}%`])];
-
-      const docResults = await env.DB.prepare(`
-        SELECT title, content, source_url, source_type,
-          CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
-        FROM knowledge_documents
-        WHERE tenant_id = ?
-          AND is_active = 1
-          AND (${docLikeClauses})
-        ORDER BY priority ASC, created_at DESC
-        LIMIT 5
-      `).bind(...docParams).all();
-
-      if (docResults.results?.length > 0) {
-        results = docResults.results.map(doc => ({
-          content: doc.content,
-          source_title: doc.title,
-          source_type: doc.source_type,
-          source_url: doc.source_url
-        }));
-      }
-    } catch (error) {
-      logger.warn('VoixIA — fallback knowledge_documents GET echoue', { error: error.message });
-    }
-  }
-
-  // 3. Fallback FAQ
-  if (results.length === 0) {
-    try {
-      const faqLikeClauses = getSearchWords.map(() => '(question LIKE ? OR answer LIKE ?)').join(' OR ');
-      const faqParams = [tenant_id, ...getSearchWords.flatMap(w => [`%${w}%`, `%${w}%`])];
-
-      const faqResults = await env.DB.prepare(`
-        SELECT question, answer
-        FROM knowledge_faq
-        WHERE tenant_id = ?
-          AND (${faqLikeClauses})
-        LIMIT 5
-      `).bind(...faqParams).all();
-
-      if (faqResults.results?.length > 0) {
-        results = faqResults.results.map(faq => ({
-          content: `Q: ${faq.question}\nR: ${faq.answer}`,
-          source_title: 'FAQ',
-          source_type: 'faq'
-        }));
-      }
-    } catch {
-      // Table FAQ peut ne pas exister
-    }
-  }
+  // ── OPTIMISE BUG #011 : reutilise _searchKnowledgeText (3 niveaux en parallele) ──
+  const results = await _searchKnowledgeText(env, tenant_id, getSearchWords, 5);
 
   // Selectionner la meilleure answer : source_type='text' en priorite, tronquee a 500 chars
   const textResults = results.filter(r => r.source_type === 'text');
@@ -1081,6 +1080,7 @@ async function handleSearchKnowledgeGET(request, env) {
     results,
     count: results.length,
     answer,
+    found: !!answer,
     message: results.length > 0
       ? `${results.length} résultat(s) trouvé(s)`
       : 'Aucun résultat trouvé dans la base de connaissances'
@@ -1119,7 +1119,7 @@ async function handleLogCall(request, env) {
   }
 
   try {
-    const callId = generateId();
+    const callId = generateId('call');
 
     // 1. Inserer dans calls (table principale)
     await env.DB.prepare(`
@@ -1150,20 +1150,25 @@ async function handleLogCall(request, env) {
 
     // 3. Si summary, inserer dans call_summaries
     if (summary) {
-      const summaryId = generateId();
+      const summaryId = generateId('cs');
       await env.DB.prepare(`
         INSERT INTO call_summaries (id, call_id, tenant_id, summary, duration, created_at)
         VALUES (?, ?, ?, ?, ?, datetime('now'))
       `).bind(summaryId, callId, tenant_id, summary, duration_seconds || 0).run();
     }
 
-    // 4. Dedup prospect
+    // 4. Dedup prospect + lier au call
     if (caller_phone) {
       try {
-        await findOrCreateProspect(env, tenant_id, {
+        const { prospect } = await findOrCreateProspect(env, tenant_id, {
           phone: caller_phone,
           source: 'voixia_call'
         });
+        if (prospect?.id) {
+          await env.DB.prepare(
+            `UPDATE calls SET prospect_id = ? WHERE id = ? AND tenant_id = ?`
+          ).bind(prospect.id, callId, tenant_id).run();
+        }
       } catch (e) {
         logger.warn('VoixIA log-call — dedup prospect echoue', { error: e.message });
       }
@@ -1187,5 +1192,216 @@ async function handleLogCall(request, env) {
   } catch (error) {
     logger.error('VoixIA log-call error', { error: error.message });
     return errorResponse('Erreur lors du logging de l appel', 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AGENTS — Liste, création, versions, activation
+// ═══════════════════════════════════════════════════════════════
+
+async function handleGetAgents(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  try {
+    const result = await env.DB.prepare(`
+      SELECT
+        vc.id,
+        vc.agent_name,
+        vc.agent_type,
+        vc.llm_model,
+        vc.llm_provider,
+        vc.voice_id,
+        vc.secteur,
+        vc.active_prompt_id,
+        vc.transfer_enabled,
+        vc.transfer_number,
+        vc.updated_at,
+        apv.id as prompt_id,
+        apv.secteur as prompt_secteur,
+        apv.is_active,
+        SUBSTR(apv.system_prompt, 1, 150) as prompt_preview,
+        (SELECT COUNT(*) FROM ai_prompt_versions apv2
+         WHERE apv2.tenant_id = vc.tenant_id) as versions_count
+      FROM voixia_configs vc
+      LEFT JOIN ai_prompt_versions apv ON apv.id = vc.active_prompt_id
+      WHERE vc.tenant_id = ?
+      ORDER BY vc.updated_at DESC
+    `).bind(auth.tenant_id).all();
+
+    return successResponse({ agents: result.results || [] });
+  } catch (error) {
+    logger.error('Get agents error', { error: error.message });
+    return errorResponse('Erreur lors du chargement des agents', 500);
+  }
+}
+
+async function handleGetAgentVersions(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  try {
+    const result = await env.DB.prepare(`
+      SELECT id, secteur, canal, version, is_active, created_at, activated_at,
+        SUBSTR(system_prompt, 1, 200) as preview
+      FROM ai_prompt_versions
+      WHERE tenant_id = ?
+      ORDER BY created_at DESC
+    `).bind(auth.tenant_id).all();
+
+    return successResponse({ versions: result.results || [] });
+  } catch (error) {
+    logger.error('Get agent versions error', { error: error.message });
+    return errorResponse('Erreur lors du chargement des versions', 500);
+  }
+}
+
+async function handleCreateAgentConfig(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  let body;
+  try { body = await request.json(); } catch { return errorResponse('Body JSON invalide', 400); }
+
+  const {
+    agent_name = 'Assistant',
+    agent_type = 'single_prompt',
+    template_id = null,
+    secteur = 'generaliste',
+    company_name = '',
+    horaires = '',
+    telephone = '',
+  } = body;
+
+  try {
+    let systemPrompt = '';
+
+    // 1. Récupérer le prompt depuis un template
+    if (template_id && agent_type === 'single_prompt') {
+      const tmpl = await env.DB.prepare(
+        'SELECT system_prompt FROM ai_sector_templates WHERE secteur = ?'
+      ).bind(template_id).first();
+      if (tmpl) systemPrompt = tmpl.system_prompt;
+    }
+    if (template_id && agent_type === 'conversational_flow') {
+      const tmpl = await env.DB.prepare(
+        'SELECT greeting FROM voixia_templates WHERE id = ?'
+      ).bind(template_id).first();
+      if (tmpl) systemPrompt = tmpl.greeting || '';
+    }
+
+    // Fallback si pas de template
+    if (!systemPrompt) {
+      systemPrompt = `Tu es ${agent_name}, assistant vocal IA de ${company_name || 'votre entreprise'}.`;
+    }
+
+    // 2. Remplacer les variables
+    systemPrompt = systemPrompt
+      .replace(/\{ASSISTANT_NAME\}/g, agent_name)
+      .replace(/\{NOM_AGENT\}/g, agent_name)
+      .replace(/\{COMPANY_NAME\}/g, company_name || 'votre entreprise')
+      .replace(/\{NOM_ENTREPRISE\}/g, company_name || 'votre entreprise')
+      .replace(/\{HORAIRES\}/g, horaires || 'horaires habituels')
+      .replace(/\{TELEPHONE\}/g, telephone || '');
+
+    // 3. Trouver la version max
+    const maxV = await env.DB.prepare(
+      'SELECT MAX(version) as mv FROM ai_prompt_versions WHERE tenant_id = ? AND secteur = ?'
+    ).bind(auth.tenant_id, secteur).first();
+    const nextVersion = (maxV?.mv || 0) + 1;
+
+    // 4. Créer le prompt
+    const ins = await env.DB.prepare(`
+      INSERT INTO ai_prompt_versions (tenant_id, canal, secteur, version, system_prompt, is_active, notes)
+      VALUES (?, 'voice', ?, ?, ?, 0, ?)
+    `).bind(auth.tenant_id, secteur, nextVersion, systemPrompt, `Agent ${agent_name} cree`).run();
+    const promptId = ins.meta?.last_row_id;
+
+    // 5. Désactiver tous les prompts + activer celui-ci
+    await env.DB.prepare(
+      'UPDATE ai_prompt_versions SET is_active = 0 WHERE tenant_id = ?'
+    ).bind(auth.tenant_id).run();
+    await env.DB.prepare(
+      'UPDATE ai_prompt_versions SET is_active = 1, activated_at = datetime(\'now\') WHERE id = ?'
+    ).bind(promptId).run();
+
+    // 6. Upsert voixia_configs
+    await env.DB.prepare(`
+      INSERT INTO voixia_configs (tenant_id, agent_name, agent_type, active_prompt_id, secteur, updated_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(tenant_id) DO UPDATE SET
+        agent_name = excluded.agent_name,
+        agent_type = excluded.agent_type,
+        active_prompt_id = excluded.active_prompt_id,
+        secteur = excluded.secteur,
+        updated_at = datetime('now')
+    `).bind(auth.tenant_id, agent_name, agent_type, promptId, secteur).run();
+
+    return successResponse({
+      agent_name,
+      agent_type,
+      prompt_id: promptId,
+      version: nextVersion,
+      message: 'Agent cree avec succes'
+    }, 201);
+  } catch (error) {
+    logger.error('Create agent error', { error: error.message });
+    return errorResponse('Erreur lors de la creation de l agent', 500);
+  }
+}
+
+async function handleDeleteAgent(request, env, agentId) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  try {
+    // Soft delete : désactiver tous les prompts du tenant
+    await env.DB.prepare(
+      'UPDATE ai_prompt_versions SET is_active = 0 WHERE tenant_id = ?'
+    ).bind(auth.tenant_id).run();
+
+    // Retirer l'active_prompt_id
+    await env.DB.prepare(
+      'UPDATE voixia_configs SET active_prompt_id = NULL, updated_at = datetime(\'now\') WHERE id = ? AND tenant_id = ?'
+    ).bind(agentId, auth.tenant_id).run();
+
+    return successResponse({ message: 'Agent desactive' });
+  } catch (error) {
+    logger.error('Delete agent error', { error: error.message });
+    return errorResponse('Erreur lors de la suppression', 500);
+  }
+}
+
+async function handleActivateVersion(request, env, versionId) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  try {
+    // Vérifier que la version appartient au tenant
+    const version = await env.DB.prepare(
+      'SELECT id, secteur FROM ai_prompt_versions WHERE id = ? AND tenant_id = ?'
+    ).bind(versionId, auth.tenant_id).first();
+    if (!version) return errorResponse('Version non trouvee', 404);
+
+    // Désactiver toutes les versions
+    await env.DB.prepare(
+      'UPDATE ai_prompt_versions SET is_active = 0 WHERE tenant_id = ?'
+    ).bind(auth.tenant_id).run();
+
+    // Activer cette version
+    await env.DB.prepare(
+      'UPDATE ai_prompt_versions SET is_active = 1, activated_at = datetime(\'now\') WHERE id = ?'
+    ).bind(versionId).run();
+
+    // Mettre à jour voixia_configs
+    await env.DB.prepare(`
+      UPDATE voixia_configs SET active_prompt_id = ?, secteur = ?, updated_at = datetime('now')
+      WHERE tenant_id = ?
+    `).bind(versionId, version.secteur, auth.tenant_id).run();
+
+    return successResponse({ activated: true, version_id: versionId });
+  } catch (error) {
+    logger.error('Activate version error', { error: error.message });
+    return errorResponse('Erreur lors de l activation', 500);
   }
 }

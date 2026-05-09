@@ -126,11 +126,7 @@ export default function ProactivePage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/proactive/trigger`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-VoixIA-Key': '813f882e34f8b033e398e9a3c0ed38070e98a88e50eeee485ac0e8e06de11cc9',
-          'X-VoixIA-Tenant': localStorage.getItem('tenant_id') || '',
-        },
+        headers: authHeaders(),
         body: JSON.stringify({
           client_phone: testPhone,
           client_name: testName || undefined,

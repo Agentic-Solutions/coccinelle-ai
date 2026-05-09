@@ -6,6 +6,33 @@
 import { logger } from '../../utils/logger.js';
 
 /**
+ * Normalise un numero francais en format E.164 (+33xxx) et local (0xxx).
+ * Retourne les deux variantes pour recherche flexible dans la DB.
+ */
+export function phoneVariants(phone) {
+  if (!phone) return [];
+  const cleaned = phone.replace(/[\s\-.()]/g, '');
+  const variants = new Set();
+  variants.add(cleaned);
+
+  // +33xxxxxxxxx → 0xxxxxxxxx
+  if (cleaned.startsWith('+33')) {
+    variants.add('0' + cleaned.slice(3));
+  }
+  // 0033xxxxxxxxx → 0xxxxxxxxx / +33xxxxxxxxx
+  if (cleaned.startsWith('0033')) {
+    variants.add('0' + cleaned.slice(4));
+    variants.add('+33' + cleaned.slice(4));
+  }
+  // 0xxxxxxxxx → +33xxxxxxxxx
+  if (cleaned.startsWith('0') && !cleaned.startsWith('00') && cleaned.length === 10) {
+    variants.add('+33' + cleaned.slice(1));
+  }
+
+  return [...variants];
+}
+
+/**
  * findOrCreateProspect — Logique de deduplication prospect
  * @param {object} env - Cloudflare env (DB, etc.)
  * @param {string} tenantId
@@ -19,9 +46,12 @@ export async function findOrCreateProspect(env, tenantId, data) {
   let existing = null;
 
   if (phone) {
+    // Chercher toutes les variantes du numero (+33xxx, 0xxx, 0033xxx)
+    const variants = phoneVariants(phone);
+    const placeholders = variants.map(() => '?').join(', ');
     existing = await env.DB.prepare(`
-      SELECT * FROM prospects WHERE tenant_id = ? AND phone = ? LIMIT 1
-    `).bind(tenantId, phone).first();
+      SELECT * FROM prospects WHERE tenant_id = ? AND phone IN (${placeholders}) LIMIT 1
+    `).bind(tenantId, ...variants).first();
   }
 
   if (!existing && email) {

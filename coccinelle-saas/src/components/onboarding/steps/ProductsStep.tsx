@@ -284,7 +284,8 @@ export default function ProductsStep({ productsData, onProductsChange, onNext, o
         <button
           type="button"
           onClick={onBack}
-          className="px-6 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
+          disabled={saving || uploading}
+          className="px-6 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Retour
         </button>
@@ -292,7 +293,8 @@ export default function ProductsStep({ productsData, onProductsChange, onNext, o
           <button
             type="button"
             onClick={onSkip}
-            className="px-6 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
+            disabled={saving || uploading}
+            className="px-6 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Passer cette étape
           </button>
@@ -300,7 +302,8 @@ export default function ProductsStep({ productsData, onProductsChange, onNext, o
             <button
               type="button"
               onClick={onNext}
-              className="px-8 py-3 bg-[#D85A30] hover:bg-[#993C1D] text-white font-semibold rounded-lg transition-colors"
+              disabled={saving || uploading}
+              className="px-8 py-3 bg-[#D85A30] hover:bg-[#993C1D] text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Continuer
             </button>

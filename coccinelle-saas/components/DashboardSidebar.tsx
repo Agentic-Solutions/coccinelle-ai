@@ -6,11 +6,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Phone, Users, Hash, Bot,
   MessageSquare, MessageCircle, Mail, Voicemail,
-  Calendar, BookOpen, HelpCircle, Package,
-  FileText, GitBranch, ListTree, Users2,
-  BarChart3, ScrollText, Download, Bell,
+  Calendar, BookOpen, HelpCircle, Package, Briefcase,
+  GitBranch, ListTree, Users2,
+  BarChart3, ScrollText, Download, Bell, TrendingUp,
   Settings, LogOut, Menu, X, PhoneCall, Clock,
-  ChevronLeft, ChevronRight, ChevronDown
+  ChevronLeft, ChevronRight, ChevronDown, CreditCard
 } from 'lucide-react';
 import CoccinelleIcon from '@/components/CoccinelleIcon';
 
@@ -63,12 +63,13 @@ const navigation: NavGroup[] = [
     items: [
       { name: 'Rendez-vous', href: '/dashboard/appointments', icon: Calendar },
       { name: 'Disponibilités', href: '/dashboard/availability', icon: Clock },
+      { name: 'Prestations', href: '/dashboard/services', icon: Briefcase },
+      { name: 'Equipe', href: '/dashboard/teams', icon: Users },
     ],
   },
   {
     label: 'Configuration',
     items: [
-      { name: 'Scripts', href: '/dashboard/agents/scripts', icon: FileText },
       { name: 'Séquences', href: '/dashboard/agents/nodes', icon: GitBranch },
       { name: 'IVR / SVI', href: '/dashboard/channels/ivr', icon: ListTree },
       { name: "Files d'attente", href: '/dashboard/channels/queues', icon: Users2 },
@@ -78,6 +79,7 @@ const navigation: NavGroup[] = [
     label: 'Rapports',
     items: [
       { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+      { name: 'Insights', href: '/dashboard/analytics/insights', icon: TrendingUp },
       { name: 'Transcripts', href: '/dashboard/analytics/transcripts', icon: ScrollText },
       { name: 'Export', href: '/dashboard/analytics/export', icon: Download },
     ],
@@ -102,11 +104,46 @@ function getActiveGroupLabel(pathname: string): string | null {
 
 // ── Composant ────────────────────────────────────────
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+
+const PLAN_LABELS: Record<string, string> = {
+  trial: 'Essai',
+  essentiel: 'Essentiel',
+  starter: 'Essentiel',
+  pro: 'Pro',
+  business: 'Business',
+};
+
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [subPlan, setSubPlan] = useState<string | null>(null);
+  const [subStatus, setSubStatus] = useState<string | null>(null);
+  const [trialDays, setTrialDays] = useState<number | null>(null);
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
+      : null;
+    if (!token) return;
+    fetch(`${API_URL}/api/v1/billing/subscription`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.subscription) {
+          setSubPlan(data.subscription.plan);
+          setSubStatus(data.subscription.status);
+          setTrialDays(data.subscription.trial_days_remaining);
+        } else {
+          setSubPlan('trial');
+          setSubStatus('trialing');
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Accordéons : un Set de labels ouverts
   const activeGroupLabel = getActiveGroupLabel(pathname);
@@ -196,6 +233,45 @@ export default function DashboardSidebar() {
           )}
         </div>
 
+        {/* Badge abonnement */}
+        {subPlan && !collapsed && (
+          <Link
+            href="/dashboard/billing"
+            className="mx-3 mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <CreditCard className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-medium text-gray-700">
+                {PLAN_LABELS[subPlan] || subPlan}
+              </span>
+              {subStatus === 'trialing' && trialDays !== null && trialDays > 0 && (
+                <span className="ml-1.5 text-xs text-gray-400">{trialDays}j</span>
+              )}
+              {subStatus === 'trialing' && (trialDays === null || trialDays <= 0) && (
+                <span className="ml-1.5 text-xs text-gray-400">expire</span>
+              )}
+            </div>
+            {subStatus === 'active' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+            )}
+            {subStatus === 'trialing' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 flex-shrink-0" />
+            )}
+            {(subStatus === 'past_due' || subStatus === 'canceled') && (
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+            )}
+          </Link>
+        )}
+        {subPlan && collapsed && (
+          <Link
+            href="/dashboard/billing"
+            title={`${PLAN_LABELS[subPlan] || subPlan}${subStatus === 'trialing' && trialDays ? ` — ${trialDays}j` : ''}`}
+            className="mx-3 mb-2 flex items-center justify-center py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <CreditCard className="w-4 h-4 text-gray-400" />
+          </Link>
+        )}
+
         {/* Navigation avec accordéons */}
         <nav className="flex-1 overflow-y-auto px-3 pb-3">
           {navigation.map((group) => {
@@ -252,7 +328,16 @@ export default function DashboardSidebar() {
                         <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${
                           active ? 'text-gray-900' : 'text-gray-400'
                         }`} />
-                        {!collapsed && <span>{item.name}</span>}
+                        {!collapsed && (
+                          <>
+                            <span>{item.name}</span>
+                            {item.name === 'WhatsApp' && (
+                              <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full ml-auto leading-none">
+                                Bientot
+                              </span>
+                            )}
+                          </>
+                        )}
                       </Link>
                     );
                   })}

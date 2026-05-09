@@ -73,7 +73,7 @@ export async function crawlWebsiteForOnboarding(
 
   try {
     const response = await fetch(
-      buildApiUrl('/api/knowledge/crawl'),
+      buildApiUrl('/api/v1/knowledge/crawl'),
       {
         method: 'POST',
         headers: getAuthHeaders(),

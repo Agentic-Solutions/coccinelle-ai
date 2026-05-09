@@ -22,7 +22,7 @@ export async function handlePushRoutes(request, env, ctx, corsHeaders) {
     if (!authHeader) {
       return Response.json({ error: 'Authorization required' }, { status: 401, headers: corsHeaders });
     }
-    const payload = verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
+    const payload = await verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
     if (!payload) {
       return Response.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }
@@ -40,7 +40,7 @@ export async function handlePushRoutes(request, env, ctx, corsHeaders) {
     if (!authHeader) {
       return Response.json({ error: 'Authorization required' }, { status: 401, headers: corsHeaders });
     }
-    const payload = verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
+    const payload = await verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
     if (!payload) {
       return Response.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }
@@ -71,7 +71,7 @@ export async function handlePushRoutes(request, env, ctx, corsHeaders) {
     if (!authHeader) {
       return Response.json({ error: 'Authorization required' }, { status: 401, headers: corsHeaders });
     }
-    const payload = verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
+    const payload = await verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
     if (!payload) {
       return Response.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }
@@ -98,7 +98,7 @@ export async function handlePushRoutes(request, env, ctx, corsHeaders) {
     if (!authHeader) {
       return Response.json({ error: 'Authorization required' }, { status: 401, headers: corsHeaders });
     }
-    const payload = verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
+    const payload = await verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
     if (!payload) {
       return Response.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }
@@ -119,7 +119,7 @@ export async function handlePushRoutes(request, env, ctx, corsHeaders) {
     if (!authHeader) {
       return Response.json({ error: 'Authorization required' }, { status: 401, headers: corsHeaders });
     }
-    const payload = verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
+    const payload = await verifyToken(authHeader.replace('Bearer ', ''), env.JWT_SECRET);
     if (!payload) {
       return Response.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }

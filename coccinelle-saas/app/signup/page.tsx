@@ -75,7 +75,7 @@ export default function SignupPage() {
 
         // CRITIQUE : Stocker aussi le token dans un cookie (pour le middleware)
         Cookies.set('auth_token', demoData.token, {
-          expires: 7,
+          expires: 30,
           path: '/',
           sameSite: 'strict',
           secure: true
@@ -117,7 +117,7 @@ export default function SignupPage() {
 
       // CRITIQUE : Stocker aussi le token dans un cookie (pour le middleware)
       Cookies.set('auth_token', data.token, {
-        expires: 7,
+        expires: 30,
         path: '/',
         sameSite: 'strict',
         secure: true
@@ -308,11 +308,11 @@ export default function SignupPage() {
             />
             <label htmlFor="cgu" className="text-xs text-gray-500">
               J&apos;accepte les{' '}
-              <Link href="/cgu" target="_blank" className="text-gray-700 hover:text-black underline">
+              <Link href="/legal/cgu" target="_blank" className="text-gray-700 hover:text-black underline">
                 Conditions Generales d&apos;Utilisation
               </Link>{' '}
               et la{' '}
-              <Link href="/confidentialite" target="_blank" className="text-gray-700 hover:text-black underline">
+              <Link href="/legal/politique-confidentialite" target="_blank" className="text-gray-700 hover:text-black underline">
                 Politique de Confidentialite
               </Link>{' '}
               *

@@ -1,6 +1,4 @@
-// src/auth.js - Fonctions d'authentification
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+// src/auth.js - Fonctions d'authentification (Edge-compatible, Web Crypto)
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -26,33 +24,106 @@ export function generateSlug(companyName) {
 }
 
 /**
- * Hash un mot de passe avec bcrypt
+ * Hash un mot de passe avec SHA-256 (Web Crypto)
  */
 export async function hashPassword(password) {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
  * Vérifie un mot de passe contre un hash
  */
 export async function verifyPassword(password, hash) {
-  return bcrypt.compare(password, hash);
+  const inputHash = await hashPassword(password);
+  return inputHash === hash;
+}
+
+// --- JWT helpers (HMAC-SHA256, Web Crypto) ---
+
+function base64UrlEncode(str) {
+  const base64 = btoa(str);
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function base64UrlDecode(str) {
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) base64 += '=';
+  return atob(base64);
+}
+
+async function hmacSign(data, secret) {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  return base64UrlEncode(String.fromCharCode(...new Uint8Array(signature)));
+}
+
+function parseExpiry(expiresIn) {
+  const match = expiresIn.match(/^(\d+)([smhd])$/);
+  if (!match) return 7 * 86400; // Default 7d
+  const value = parseInt(match[1]);
+  const unit = match[2];
+  const multipliers = { 's': 1, 'm': 60, 'h': 3600, 'd': 86400 };
+  return value * (multipliers[unit] || 86400);
 }
 
 /**
- * Génère un JWT token
+ * Génère un JWT token (async, Web Crypto HMAC-SHA256)
  */
-export function generateToken(payload, secret, expiresIn = '7d') {
-  return jwt.sign(payload, secret, { expiresIn });
+export async function generateToken(payload, secret, expiresIn = '7d') {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + parseExpiry(expiresIn);
+  const jwtPayload = { ...payload, iat: now, exp };
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(jwtPayload));
+  const signature = await hmacSign(`${encodedHeader}.${encodedPayload}`, secret);
+  return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
 /**
- * Vérifie et décode un JWT token
+ * Vérifie et décode un JWT token (async, Web Crypto HMAC-SHA256)
  */
-export function verifyToken(token, secret) {
+export async function verifyToken(token, secret) {
   try {
-    return jwt.verify(token, secret);
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, signatureB64] = parts;
+    const expectedSignature = await hmacSign(`${headerB64}.${payloadB64}`, secret);
+    if (signatureB64 !== expectedSignature) return null;
+    const payload = JSON.parse(base64UrlDecode(payloadB64));
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) return null;
+    return payload;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Vérifie la signature d'un JWT mais IGNORE l'expiration.
+ * Utilisé par le refresh token endpoint pour accepter des tokens expirés.
+ * Retourne le payload décodé si la signature est valide, null sinon.
+ */
+export async function verifyTokenIgnoreExpiry(token, secret) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, signatureB64] = parts;
+    const expectedSignature = await hmacSign(`${headerB64}.${payloadB64}`, secret);
+    if (signatureB64 !== expectedSignature) return null;
+    const payload = JSON.parse(base64UrlDecode(payloadB64));
+    return payload;
   } catch (error) {
     return null;
   }
@@ -96,7 +167,7 @@ export async function requireAuth(request, env) {
   
   try {
     // Vérifier JWT
-    const decoded = verifyToken(token, env.JWT_SECRET);
+    const decoded = await verifyToken(token, env.JWT_SECRET);
     
     if (!decoded) {
       return { error: 'Token invalide ou expiré', status: 401 };
@@ -111,9 +182,9 @@ export async function requireAuth(request, env) {
       return { error: 'Session invalide ou expirée', status: 401 };
     }
     
-    // Récupérer user
+    // Récupérer user (include phone, phone_verified, email_verified for /me endpoint)
     const user = await env.DB.prepare(
-      'SELECT id, tenant_id, email, name, role, is_active, weekly_report_enabled FROM users WHERE id = ?'
+      'SELECT id, tenant_id, email, name, role, is_active, weekly_report_enabled, phone, phone_verified, email_verified FROM users WHERE id = ?'
     ).bind(decoded.user_id).first();
     
     if (!user) {

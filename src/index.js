@@ -9,7 +9,8 @@ import { handleAgentsRoutes } from './modules/agents/routes.js';
 import { handleAppointmentsRoutes } from './modules/appointments/routes.js';
 import { handleProductsRoutes } from './modules/products/routes.js';
 import { handleProductCategoriesRoutes } from './modules/products/categories-routes.js';
-import { handleVapiRoutes } from './modules/vapi/routes.js';
+// [B4] VAPI = dead code (remplacé par VoixIA) — routes non authentifiées désactivées 26/04/2026
+// import { handleVapiRoutes } from './modules/vapi/routes.js';
 import { handleTwilioRoutes } from './modules/twilio/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
 import { handleKnowledgeManualRoutes } from './modules/knowledge/manual.js';
@@ -18,7 +19,8 @@ import { handleIntegrationsRoutes } from './modules/integrations/routes.js';
 // Module Omnichannel (indépendant, activable via OMNICHANNEL_ENABLED)
 import { handleOmnichannelRoutes } from './modules/omnichannel/index.js';
 import { handleMetaWebhookVerification, handleMetaWhatsAppWebhook } from "./modules/omnichannel/webhooks/meta-whatsapp.js";
-import { handleRetellRoutes } from './modules/retell/routes.js';
+// [B4] RETELL = dead code (remplace par VoixIA) — import desactive 26/04/2026
+// import { handleRetellRoutes } from './modules/retell/routes.js';
 import { handlePermissionsRoutes } from './modules/permissions/routes.js';
 import { handleTeamsRoutes } from './modules/teams/routes.js';
 import { handleCustomersRoutes } from './modules/customers/routes.js';
@@ -48,8 +50,17 @@ import { handleOrchestrateRoutes } from './modules/voixia/orchestrator.js';
 import { handleOmnicanalRoutes, handleOmnicanalEvent } from './modules/omnicanal/routes.js';
 // Module Communication Proactive
 import { handleProactiveRoutes } from './modules/proactive/routes.js';
+// Module Team (gestion equipe / commercial_agents)
+import { handleTeamRoutes } from './modules/team/routes.js';
+// Module Services/Prestations
+import { handleServicesRoutes } from './modules/services/routes.js';
+// Cron SMS Rappel J-1 pour RDV
+import { handleScheduled, sendTomorrowReminders } from './cron/reminders.js';
 
 export default {
+  async scheduled(event, env, ctx) {
+    await handleScheduled(event, env, ctx);
+  },
   async fetch(request, env, ctx) {
     const startTime = Date.now();
     const url = new URL(request.url);
@@ -82,6 +93,18 @@ export default {
 
       if (path.startsWith('/api/v1/ai')) {
         response = await handleAIRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Team = gestion equipe (commercial_agents + slots)
+      if (path.startsWith("/api/v1/team/")) {
+        response = await handleTeamRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Services/Prestations
+      if (path.startsWith('/api/v1/services')) {
+        response = await handleServicesRoutes(request, env, path, method);
         if (response) return response;
       }
 
@@ -136,6 +159,22 @@ export default {
         if (response) return response;
       }
 
+      // Route manuelle — Envoyer les rappels SMS J-1 (tous tenants)
+      if (path === '/api/v1/reminders/send-tomorrow' && method === 'POST') {
+        const corsHeaders = getCorsHeaders(request);
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader) {
+          return Response.json({ error: 'Authorization required' }, { status: 401, headers: corsHeaders });
+        }
+        const token = authHeader.replace('Bearer ', '');
+        const payload = await verifyToken(token, env.JWT_SECRET);
+        if (!payload) {
+          return Response.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
+        }
+        const result = await sendTomorrowReminders(env);
+        return Response.json({ success: true, ...result }, { headers: corsHeaders });
+      }
+
       // Reminders & followups
       if (path.startsWith('/api/v1/appointments/send-reminders') || path.startsWith('/api/v1/appointments/send-followups') || path.startsWith('/api/v1/feedback')) {
         response = await handleRemindersRoutes(request, env, ctx, getCorsHeaders(request));
@@ -167,7 +206,7 @@ export default {
           return Response.json({ error: 'Authorization required' }, { status: 401, headers: getCorsHeaders(request) });
         }
         const token = authHeader.replace('Bearer ', '');
-        const payload = verifyToken(token, env.JWT_SECRET);
+        const payload = await verifyToken(token, env.JWT_SECRET);
         if (!payload) {
           return Response.json({ error: 'Invalid token' }, { status: 401, headers: getCorsHeaders(request) });
         }
@@ -271,10 +310,11 @@ export default {
         if (response) return response;
       }
       
-      if (path.startsWith('/api/v1/vapi') || path.startsWith('/webhooks/vapi')) {
-        response = await handleVapiRoutes(request, env, path, method);
-        if (response) return response;
-      }
+      // [B4] VAPI = dead code (remplacé par VoixIA) — routes non authentifiées désactivées 26/04/2026
+      // if (path.startsWith('/api/v1/vapi') || path.startsWith('/webhooks/vapi')) {
+      //   response = await handleVapiRoutes(request, env, path, method);
+      //   if (response) return response;
+      // }
 
       // Twilio ConversationRelay + SMS routes
       // Inclut /api/v1/twilio/*, /webhooks/twilio/*, /api/v1/sms/* et /api/v1/channels/sms/send
@@ -289,11 +329,11 @@ export default {
         if (response) return response;
       }
 
-      // Routes Retell (Agent vocal IA)
-      if (path.startsWith('/api/v1/retell') || path.startsWith('/webhooks/retell')) {
-        response = await handleRetellRoutes(request, env, path, method);
-        if (response) return response;
-      }
+      // [B4] RETELL = dead code (remplace par VoixIA) — routing desactive 26/04/2026
+      // if (path.startsWith('/api/v1/retell') || path.startsWith('/webhooks/retell')) {
+      //   response = await handleRetellRoutes(request, env, path, method);
+      //   if (response) return response;
+      // }
       // META WHATSAPP WEBHOOK
       if (path.startsWith("/webhooks/meta/whatsapp")) {
         if (method === "GET") {

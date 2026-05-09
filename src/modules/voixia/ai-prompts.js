@@ -19,6 +19,17 @@ import { requireVoixIAAuth } from './auth.js';
 export async function handleAIRoutes(request, env, path, method) {
   try {
 
+    // GET /api/v1/ai/flow-templates — Templates de flows conversationnels
+    if (path === '/api/v1/ai/flow-templates' && method === 'GET') {
+      return await handleGetFlowTemplates(request, env);
+    }
+
+    // GET /api/v1/ai/flow-templates/:id — Un template de flow par ID
+    if (path.startsWith('/api/v1/ai/flow-templates/') && method === 'GET') {
+      const id = path.split('/').pop();
+      return await handleGetFlowTemplate(request, env, id);
+    }
+
     // GET /api/v1/ai/templates — Templates sectoriels
     if (path === '/api/v1/ai/templates' && method === 'GET') {
       return await handleGetTemplates(request, env);
@@ -457,5 +468,44 @@ async function handleSimulate(request, env) {
   } catch (error) {
     logger.error('AI simulate error', { error: error.message });
     return errorResponse('Erreur lors de la simulation', 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GET /api/v1/ai/flow-templates — Tous les templates de flows
+// ═══════════════════════════════════════════════════════════════
+
+async function handleGetFlowTemplates(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  try {
+    const result = await env.DB.prepare(
+      'SELECT * FROM voixia_templates WHERE is_active = 1 ORDER BY name'
+    ).all();
+    return successResponse({ templates: result.results || [] });
+  } catch (error) {
+    logger.error('Flow templates list error', { error: error.message });
+    return errorResponse('Erreur lors du chargement des templates', 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GET /api/v1/ai/flow-templates/:id — Un template de flow
+// ═══════════════════════════════════════════════════════════════
+
+async function handleGetFlowTemplate(request, env, id) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+
+  try {
+    const result = await env.DB.prepare(
+      'SELECT * FROM voixia_templates WHERE id = ? AND is_active = 1'
+    ).bind(id).first();
+    if (!result) return errorResponse('Template non trouvé', 404);
+    return successResponse({ template: result });
+  } catch (error) {
+    logger.error('Flow template get error', { error: error.message, id });
+    return errorResponse('Erreur lors du chargement du template', 500);
   }
 }

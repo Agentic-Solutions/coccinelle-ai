@@ -11,9 +11,7 @@
     "db:seed": "wrangler d1 execute coccinelle-db --local --file=database/seed-data.sql"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.2",
     "itty-router": "^4.0.0",
-    "jsonwebtoken": "^9.0.2",
     "stripe": "^20.0.0"
   },
   "devDependencies": {

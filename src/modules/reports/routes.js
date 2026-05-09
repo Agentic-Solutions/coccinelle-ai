@@ -181,14 +181,14 @@ function generateWeeklyEmailHTML(report, tenantName) {
 
     <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
     <div style="text-align:center;">
-      <a href="https://coccinelle-saas.pages.dev/dashboard/analytics"
+      <a href="https://coccinelle.ai/dashboard/analytics"
          style="display:inline-block;padding:12px 24px;background:#111827;color:white;text-decoration:none;border-radius:8px;font-weight:bold;">
         Voir le dashboard complet
       </a>
     </div>
     <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:20px;">
       Coccinelle.ai &mdash; Votre assistant IA<br>
-      <a href="https://coccinelle-saas.pages.dev/dashboard/settings/notifications" style="color:#9ca3af;">
+      <a href="https://coccinelle.ai/dashboard/settings/notifications" style="color:#9ca3af;">
         Se desabonner du recap hebdomadaire
       </a>
     </p>

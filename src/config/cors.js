@@ -22,7 +22,7 @@ export function getCorsHeaders(request) {
 
   // Vérifier si l'origine est dans la liste OU correspond au pattern Cloudflare Pages
   const isAllowed = allowedOrigins.includes(origin) || cloudflarePreviewPattern.test(origin);
-  const allowedOrigin = isAllowed ? origin : 'https://coccinelle-saas.pages.dev';
+  const allowedOrigin = isAllowed ? origin : 'https://coccinelle.ai';
 
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
@@ -34,7 +34,7 @@ export function getCorsHeaders(request) {
 
 // DEPRECATED: Use getCorsHeaders(request) instead for proper origin checking.
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://coccinelle-saas.pages.dev',
+  'Access-Control-Allow-Origin': 'https://coccinelle.ai',
   'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-tenant-id, x-user-id, X-VoixIA-Key, X-VoixIA-Tenant',

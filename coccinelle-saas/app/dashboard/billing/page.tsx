@@ -30,19 +30,21 @@ interface Subscription {
 
 const PLANS = [
   {
-    id: 'starter',
-    name: 'Starter',
+    id: 'essentiel',
+    name: 'Essentiel',
     price: 79,
     icon: Zap,
     color: 'blue',
     features: [
-      '500 minutes IA / mois',
-      '1 utilisateur',
-      'CRM prospects et clients',
-      'Agenda et réservation en ligne',
-      'Confirmations SMS automatiques',
-      'Export CSV',
+      '500 minutes vocales IA / mois',
+      '1 agent vocal',
+      'Base de connaissances',
+      'Agenda et rendez-vous',
+      'CRM contacts',
+      'Confirmations SMS',
+      'Support email (48h)',
     ],
+    overage: '0,08 euros/min',
   },
   {
     id: 'pro',
@@ -52,42 +54,47 @@ const PLANS = [
     color: 'purple',
     popular: true,
     features: [
-      '2 000 minutes IA / mois',
-      'Jusqu\'à 5 utilisateurs',
-      'Tout Starter +',
-      'Sources de connaissances illimitées',
-      'Analytics avancés + export CSV',
-      'Rôles et permissions',
-      'Support prioritaire',
+      '1 000 minutes vocales IA / mois',
+      '250 SMS inclus / mois',
+      'Tout Essentiel +',
+      'WhatsApp + Email',
+      'CRM complet + export',
+      'Catalogue produits',
+      'Analytics avances',
+      'Roles et permissions',
+      'Support prioritaire (24h)',
     ],
+    overage: '0,07 euros/min + 0,10 euros/SMS',
   },
   {
     id: 'business',
-    name: 'Enterprise',
+    name: 'Business',
     price: 0,
     icon: Building2,
     color: 'gray',
     features: [
-      'Minutes personnalisées',
-      'Utilisateurs illimités',
+      'Minutes personnalisees',
+      'Utilisateurs illimites',
       'Tout Pro +',
-      'Voix personnalisée',
+      'Voix personnalisee',
       'SLA garanti',
-      'Account manager dédié',
-      'API et intégrations sur mesure',
+      'Account manager dedie (4h)',
+      'API et integrations sur mesure',
     ],
   },
 ];
 
 const PLAN_LABELS: Record<string, string> = {
   trial: 'Essai gratuit',
-  starter: 'Starter',
+  essentiel: 'Essentiel',
+  starter: 'Essentiel', // backward compat
   pro: 'Pro',
-  business: 'Enterprise',
+  business: 'Business',
 };
 
 const PLAN_PRICES: Record<string, number> = {
-  starter: 79,
+  essentiel: 79,
+  starter: 79, // backward compat
   pro: 199,
   business: 0,
 };
@@ -180,6 +187,8 @@ export default function BillingPage() {
       const data = await res.json();
       if (data.success && data.url) {
         window.location.href = data.url;
+      } else if (res.status === 409) {
+        setError(data.error || 'Vous avez deja un abonnement actif.');
       } else {
         setError(data.error || 'Erreur lors de la creation de la session de paiement.');
       }
@@ -463,10 +472,14 @@ export default function BillingPage() {
                     </div>
 
                     <div className="mb-6">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold text-gray-900">{plan.price}&euro;</span>
-                        <span className="text-gray-500 text-sm">/ mois</span>
-                      </div>
+                      {plan.price > 0 ? (
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-bold text-gray-900">{plan.price}&euro;</span>
+                          <span className="text-gray-500 text-sm">/ mois HT</span>
+                        </div>
+                      ) : (
+                        <span className="text-xl font-bold text-gray-900">Nous consulter</span>
+                      )}
                     </div>
 
                     <ul className="space-y-3 mb-6 flex-1">
@@ -480,25 +493,32 @@ export default function BillingPage() {
                       ))}
                     </ul>
 
-                    <button
-                      onClick={() => handleChoosePlan(plan.id)}
-                      disabled={isLoading || isCurrentPlan}
-                      className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
-                        isCurrentPlan
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : plan.popular
-                          ? 'bg-gray-900 text-white hover:bg-gray-800'
-                          : 'bg-gray-900 text-white hover:bg-gray-800'
-                      } disabled:opacity-60`}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : isCurrentPlan ? (
-                        'Plan actuel'
-                      ) : (
-                        'Choisir ce plan'
-                      )}
-                    </button>
+                    {plan.price === 0 ? (
+                      <a
+                        href="mailto:contact@coccinelle.ai"
+                        className="w-full py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 border border-gray-200 text-gray-700 hover:bg-gray-50"
+                      >
+                        Nous consulter
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => handleChoosePlan(plan.id)}
+                        disabled={isLoading || isCurrentPlan}
+                        className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 ${
+                          isCurrentPlan
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gray-900 text-white hover:bg-gray-800'
+                        } disabled:opacity-60`}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : isCurrentPlan ? (
+                          'Plan actuel'
+                        ) : (
+                          'Choisir ce plan'
+                        )}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -511,21 +531,21 @@ export default function BillingPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Questions frequentes</h3>
           <div className="space-y-4">
             <div>
+              <p className="font-medium text-gray-900 text-sm">Que se passe-t-il si je depasse mon forfait ?</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Les minutes supplementaires sont facturees au tarif de votre plan (0,08 euros/min Essentiel, 0,07 euros/min Pro). Vous etes prevenu a 80% et 100% de votre quota.
+              </p>
+            </div>
+            <div>
               <p className="font-medium text-gray-900 text-sm">Puis-je changer de plan a tout moment ?</p>
               <p className="text-sm text-gray-500 mt-1">
-                Oui, vous pouvez upgrader ou downgrader votre plan a tout moment. La facturation sera ajustee au prorata.
+                Oui, vous pouvez passer d&apos;Essentiel a Pro (ou inversement) a tout moment. La facturation est ajustee au prorata.
               </p>
             </div>
             <div>
-              <p className="font-medium text-gray-900 text-sm">Que se passe-t-il a la fin de l&apos;essai ?</p>
+              <p className="font-medium text-gray-900 text-sm">L&apos;essai gratuit est-il vraiment sans engagement ?</p>
               <p className="text-sm text-gray-500 mt-1">
-                Si vous ne choisissez pas de plan, votre acces sera limite. Vos donnees sont conservees pendant 30 jours.
-              </p>
-            </div>
-            <div>
-              <p className="font-medium text-gray-900 text-sm">Comment annuler mon abonnement ?</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Cliquez sur &quot;Gerer mon abonnement&quot; pour acceder au portail de gestion Stripe et annuler a tout moment.
+                Oui. 14 jours, 60 minutes vocales et 20 SMS inclus, sans carte bancaire. Vos donnees sont conservees 30 jours apres expiration.
               </p>
             </div>
           </div>

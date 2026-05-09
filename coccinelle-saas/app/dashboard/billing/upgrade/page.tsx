@@ -141,10 +141,12 @@ export default function UpgradePage() {
     switch (planId) {
       case 'free_trial':
         return <Zap className="h-6 w-6" />;
+      case 'essentiel':
       case 'starter':
         return <Zap className="h-6 w-6" />;
       case 'pro':
         return <Crown className="h-6 w-6" />;
+      case 'business':
       case 'enterprise':
         return <Building2 className="h-6 w-6" />;
       default:

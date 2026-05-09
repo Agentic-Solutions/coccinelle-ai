@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import {
   Phone, PhoneIncoming, Clock, TrendingUp,
-  PhoneOutgoing, PhoneMissed, ArrowUp, ArrowDown, Loader2
+  PhoneOutgoing, PhoneMissed, ArrowUp, ArrowDown, Loader2,
+  CreditCard, AlertCircle
 } from 'lucide-react';
+import Link from 'next/link';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -70,13 +72,30 @@ function getCallLabel(direction: string, status: string): string {
   return 'Entrant';
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  trial: 'Essai gratuit',
+  essentiel: 'Essentiel',
+  starter: 'Essentiel',
+  pro: 'Pro',
+  business: 'Business',
+};
+
+interface SubInfo {
+  plan: string;
+  status: string;
+  trial_days_remaining: number | null;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<CallStats | null>(null);
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sub, setSub] = useState<SubInfo | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
+      : null;
     if (!token) {
       setLoading(false);
       return;
@@ -86,10 +105,16 @@ export default function DashboardPage() {
 
     Promise.all([
       fetch(`${API_URL}/api/v1/calls/stats`, { headers }).then(r => r.json()).catch(() => null),
-      fetch(`${API_URL}/api/v1/calls?limit=5`, { headers }).then(r => r.json()).catch(() => null)
-    ]).then(([statsRes, callsRes]) => {
+      fetch(`${API_URL}/api/v1/calls?limit=5`, { headers }).then(r => r.json()).catch(() => null),
+      fetch(`${API_URL}/api/v1/billing/subscription`, { headers }).then(r => r.json()).catch(() => null),
+    ]).then(([statsRes, callsRes, subRes]) => {
       if (statsRes?.stats) setStats(statsRes.stats);
       if (callsRes?.calls) setCalls(callsRes.calls);
+      if (subRes?.success && subRes.subscription) {
+        setSub(subRes.subscription);
+      } else {
+        setSub({ plan: 'trial', status: 'trialing', trial_days_remaining: 0 });
+      }
       setLoading(false);
     });
   }, []);
@@ -122,6 +147,56 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activite</p>
       </div>
+
+      {/* Banniere abonnement */}
+      {sub && sub.status === 'trialing' && sub.trial_days_remaining !== null && sub.trial_days_remaining > 0 && (
+        <Link href="/dashboard/billing" className="block">
+          <div className="flex items-center justify-between p-4 bg-gray-100 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">
+                Essai gratuit — {sub.trial_days_remaining} jour{sub.trial_days_remaining > 1 ? 's' : ''} restant{sub.trial_days_remaining > 1 ? 's' : ''}
+              </span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">Choisir un plan &rarr;</span>
+          </div>
+        </Link>
+      )}
+      {sub && (sub.status === 'trialing') && (sub.trial_days_remaining === null || sub.trial_days_remaining <= 0) && (
+        <Link href="/dashboard/billing" className="block">
+          <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <span className="text-sm font-medium text-red-700">
+                Votre essai est termine
+              </span>
+            </div>
+            <span className="text-sm font-medium text-red-900">Choisir un plan &rarr;</span>
+          </div>
+        </Link>
+      )}
+      {sub && (sub.status === 'past_due' || sub.status === 'canceled') && (
+        <Link href="/dashboard/billing" className="block">
+          <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <span className="text-sm font-medium text-red-700">
+                {sub.status === 'past_due' ? 'Paiement echoue' : 'Abonnement annule'} — mettez a jour votre facturation
+              </span>
+            </div>
+            <span className="text-sm font-medium text-red-900">Facturation &rarr;</span>
+          </div>
+        </Link>
+      )}
+      {sub && sub.status === 'active' && (
+        <div className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl">
+          <CreditCard className="w-4 h-4 text-gray-400" />
+          <span className="text-sm text-gray-600">
+            Plan <span className="font-medium text-gray-900">{PLAN_LABELS[sub.plan] || sub.plan}</span>
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+        </div>
+      )}
 
       {/* Metriques */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

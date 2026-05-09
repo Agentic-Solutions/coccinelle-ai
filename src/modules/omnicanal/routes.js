@@ -21,7 +21,7 @@ async function requireAuth(request, env) {
   const token = authHeader.replace('Bearer ', '');
   // Import dynamique pour eviter circular
   const { verifyToken } = await import('../auth/helpers.js');
-  const payload = verifyToken(token, env.JWT_SECRET);
+  const payload = await verifyToken(token, env.JWT_SECRET);
   if (!payload) return { error: 'Invalid token', status: 401 };
   return { user: payload, tenant_id: payload.tenant_id };
 }

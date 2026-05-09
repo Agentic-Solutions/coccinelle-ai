@@ -11,9 +11,9 @@ N8N_WEBHOOK_URL = "https://coccinelle-n8n.onrender.com"
 TWILIO_PHONE_NUMBER = "+33939035760"
 TWILIO_PHONE_NUMBER_2 = "+33939035761"
 TWILIO_CONVERSATIONS_SERVICE_SID = "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-RESEND_FROM_EMAIL = "Sara <sara@coccinelle.ai>"
+RESEND_FROM_EMAIL = "sara@coccinelle.ai"
 OMNICHANNEL_ENABLED = "true"
-FRONTEND_URL = "https://coccinelle-saas.pages.dev"
+FRONTEND_URL = "https://coccinelle.ai"
 GOOGLE_CLIENT_ID = "4699769016-fo6jp6vid80sno7nngjb58o180b1sr3o.apps.googleusercontent.com"
 GOOGLE_REDIRECT_URI = "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/oauth/google/callback"
 META_WHATSAPP_ACCESS_TOKEN = "EAFprwicaq0wBQvqGR8NKZCanfoTreBFibfyZALzUISeqObpsH3BTRxANqfgwZC5U0tn3bBE2Bu10DXzn5Yk6JS3VVPVGGWgHBzNCh45FROZCcovMBFUEjLpegGr0IM4Tcq1QHRphwdFPcMimYV5WbnE2rf0QWntD4TF21zcyaleFQW8MhvwQ9SGRjjfWsFEFS2DSVAk9jHl6Bv9geguLDiuaZBruukTTyeOYHnqUscPrhSP7YrwghLsnqAytbzS6nuV8eFor83cI3J3VQRxAUreWOiLrF64JUDUUZD"
@@ -40,8 +40,10 @@ META_BUSINESS_ID = "2369569113476967"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "coccinelle-db"
-database_id = "f4d7ff42-fc12-4c16-9c19-ada63c023827"
+database_name = "coccinelle-db-eu"
+database_id = "befc34ae-9a65-4aba-998d-ea1d5a88b359"
+# Ancien ID US East (ENAM) : f4d7ff42-fc12-4c16-9c19-ada63c023827
+# Migré vers EU West (WEUR/CDG) le 28/04/2026
 
 # Workers AI binding pour embeddings gratuits
 [ai]
@@ -91,6 +93,9 @@ bucket_name = "omnichannel-audio"
 # YAHOO_CLIENT_ID = "à configurer"
 # YAHOO_CLIENT_SECRET = "à configurer"
 # YAHOO_REDIRECT_URI = "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/oauth/yahoo/callback"
+
+[triggers]
+crons = ["0 17 * * *"]
 
 [observability]
 enabled = false

@@ -900,9 +900,10 @@ async function sendResendEmail(request, env, tenantId) {
     `).bind(tenantId).first();
 
     const emailConfig = config ? JSON.parse(config.config_public || '{}') : {};
-    const fromEmail = emailConfig.from_email || env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai';
+    const rawFromEmail = emailConfig.from_email || env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai';
     const fromName = emailConfig.from_name || 'Coccinelle.ai';
     const replyTo = emailConfig.reply_to || undefined;
+    const fromHeader = rawFromEmail.includes('<') ? rawFromEmail : `${fromName} <${rawFromEmail}>`;
 
     // Envoyer via Resend
     const resendRes = await fetch('https://api.resend.com/emails', {
@@ -912,7 +913,7 @@ async function sendResendEmail(request, env, tenantId) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
+        from: fromHeader,
         to: Array.isArray(to) ? to : [to],
         subject,
         html,
@@ -968,8 +969,9 @@ async function sendTestEmail(request, env, tenantId) {
     `).bind(tenantId).first();
 
     const emailConfig = config ? JSON.parse(config.config_public || '{}') : {};
-    const fromEmail = emailConfig.from_email || env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai';
+    const rawFromEmail = emailConfig.from_email || env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai';
     const fromName = emailConfig.from_name || 'Coccinelle.ai';
+    const fromHeader = rawFromEmail.includes('<') ? rawFromEmail : `${fromName} <${rawFromEmail}>`;
 
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -978,7 +980,7 @@ async function sendTestEmail(request, env, tenantId) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
+        from: fromHeader,
         to: [to],
         subject: 'Test Coccinelle.ai — Email fonctionnel',
         html: `<h2>Félicitations !</h2>

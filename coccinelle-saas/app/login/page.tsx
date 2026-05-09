@@ -60,7 +60,7 @@ export default function LoginPage() {
 
         // 🔥 CRITIQUE : Stocker AUSSI le token dans un cookie (pour le middleware)
         Cookies.set('auth_token', demoData.token, {
-          expires: 7, // 7 jours
+          expires: 30, // 30 jours
           path: '/',
           sameSite: 'strict',
           secure: true
@@ -97,7 +97,7 @@ export default function LoginPage() {
 
       // 🔥 CRITIQUE : Stocker AUSSI le token dans un cookie (pour le middleware)
       Cookies.set('auth_token', data.token, {
-        expires: 7, // 7 jours
+        expires: 30, // 30 jours
         path: '/',
         sameSite: 'strict',
         secure: true

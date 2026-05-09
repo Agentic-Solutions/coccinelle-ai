@@ -189,7 +189,7 @@ async function handleSendFollowups(request, env, corsHeaders) {
     `).bind(feedbackId, rdv.id, tenant.id, feedbackToken).run();
 
     // Envoyer l'email de suivi
-    const feedbackUrl = `https://coccinelle-saas.pages.dev/feedback?token=${feedbackToken}`;
+    const feedbackUrl = `${env.FRONTEND_URL || 'https://coccinelle.ai'}/feedback?token=${feedbackToken}`;
 
     try {
       await fetch('https://api.resend.com/emails', {

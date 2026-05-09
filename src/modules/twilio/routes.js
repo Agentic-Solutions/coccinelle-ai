@@ -597,6 +597,43 @@ async function handleIncomingSMS(request, env) {
       logger.warn('Could not save incoming SMS to DB', { error: dbError.message });
     }
 
+    // Detecter reponse CONFIRMER / ANNULER pour RDV
+    const upperBody = (body || '').trim().toUpperCase();
+    if (['CONFIRMER', 'OUI', 'CONFIRM'].includes(upperBody)) {
+      const apt = await env.DB.prepare(`
+        SELECT id FROM appointments
+        WHERE (customer_phone = ? OR customer_phone = ?)
+          AND DATE(scheduled_at) >= DATE('now')
+          AND status NOT IN ('cancelled','completed','confirmed')
+        ORDER BY scheduled_at ASC LIMIT 1
+      `).bind(from, from.replace('+33', '0')).first();
+      if (apt) {
+        await env.DB.prepare(`UPDATE appointments SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?`).bind(apt.id).run();
+        logger.info('Appointment confirmed via SMS', { appointmentId: apt.id, from });
+      }
+      return new Response(
+        '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Votre RDV est confirme. A bientot !</Message></Response>',
+        { headers: { 'Content-Type': 'application/xml' } }
+      );
+    }
+    if (['ANNULER', 'NON', 'CANCEL'].includes(upperBody)) {
+      const apt = await env.DB.prepare(`
+        SELECT id FROM appointments
+        WHERE (customer_phone = ? OR customer_phone = ?)
+          AND DATE(scheduled_at) >= DATE('now')
+          AND status NOT IN ('cancelled','completed')
+        ORDER BY scheduled_at ASC LIMIT 1
+      `).bind(from, from.replace('+33', '0')).first();
+      if (apt) {
+        await env.DB.prepare(`UPDATE appointments SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?`).bind(apt.id).run();
+        logger.info('Appointment cancelled via SMS', { appointmentId: apt.id, from });
+      }
+      return new Response(
+        '<?xml version="1.0" encoding="UTF-8"?><Response><Message>RDV annule. N\'hesitez pas a reprendre RDV.</Message></Response>',
+        { headers: { 'Content-Type': 'application/xml' } }
+      );
+    }
+
     // Declencher l'orchestrateur omnicanal (reponse IA, creation prospect, etc.)
     try {
       const { onSmsReceived } = await import('../omnicanal/orchestrator.js');

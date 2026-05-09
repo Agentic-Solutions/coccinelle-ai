@@ -49,6 +49,7 @@ export async function handleProactiveRoutes(request, env, path, method, corsHead
 // ═══════════════════════════════════════════════════════════════
 
 async function handleProactiveTrigger(request, env, corsHeaders) {
+  // requireVoixIAAuth supporte X-VoixIA-Key ET JWT Bearer nativement
   const auth = await requireVoixIAAuth(request, env);
   if (auth.error) return errorResponse(auth.error, auth.status);
 

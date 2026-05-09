@@ -9,6 +9,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
+import { phoneVariants } from '../prospects/dedup.js';
 
 // Fonction principale — declenchee apres chaque evenement
 export async function handleOmniEvent(env, tenantId, event) {
@@ -147,7 +148,9 @@ async function executeRule(env, rule, tenant, tenantId, event) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai',
+          from: (env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai').includes('<')
+            ? (env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai')
+            : `Coccinelle.ai <${env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai'}>`,
           to: [to],
           subject,
           html
@@ -205,13 +208,16 @@ async function executeRule(env, rule, tenant, tenantId, event) {
     }
 
     case 'create_prospect': {
-      // Creer prospect dans CRM
+      // Creer prospect dans CRM (avec dedup phoneVariants)
       const phone = event.contact?.phone;
       if (!phone) return { success: false, error: 'No phone number' };
 
+      // Dedup : chercher toutes les variantes du numero (+33xxx, 0xxx, 0033xxx)
+      const variants = phoneVariants(phone);
+      const placeholders = variants.map(() => '?').join(', ');
       const existing = await env.DB.prepare(`
-        SELECT id FROM prospects WHERE tenant_id = ? AND phone = ?
-      `).bind(tenantId, phone).first();
+        SELECT id FROM prospects WHERE tenant_id = ? AND phone IN (${placeholders})
+      `).bind(tenantId, ...variants).first();
 
       if (existing) {
         // Incrementer interaction_count

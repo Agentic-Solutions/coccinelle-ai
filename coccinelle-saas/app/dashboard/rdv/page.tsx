@@ -17,7 +17,8 @@ import {
   ArrowLeft,
   Settings,
   ClipboardList,
-  Link2
+  Link2,
+  Send
 } from 'lucide-react';
 import Logo from '../../../src/components/Logo';
 import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '../../../lib/mockData';
@@ -37,6 +38,7 @@ interface Appointment {
   prospect_name?: string;
   prospect_phone?: string;
   agent_name?: string;
+  reminder_sent?: number;
 }
 
 interface Stats {
@@ -90,6 +92,9 @@ export default function RdvPage() {
     appointment_time: '',
     notes: ''
   });
+
+  const [sendingReminders, setSendingReminders] = useState(false);
+  const [reminderResult, setReminderResult] = useState<{ sent: number; errors: number } | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -300,6 +305,35 @@ export default function RdvPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSendReminders = async () => {
+    setSendingReminders(true);
+    setReminderResult(null);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/api/v1/reminders/send-tomorrow`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReminderResult({ sent: data.sent, errors: data.errors });
+        if (data.sent > 0) {
+          toast.success(`${data.sent} rappel(s) envoye(s)`);
+          fetchData();
+        } else {
+          toast.info('Aucun RDV a rappeler demain');
+        }
+      } else {
+        toast.error('Erreur lors de l\'envoi des rappels');
+      }
+    } catch (error) {
+      console.error('Erreur envoi rappels:', error);
+      toast.error('Erreur lors de l\'envoi des rappels');
+    } finally {
+      setSendingReminders(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const badges: { [key: string]: string } = {
       'scheduled': 'bg-gray-100 text-gray-800',
@@ -393,6 +427,15 @@ export default function RdvPage() {
               <span className="sm:hidden">Param.</span>
             </button>
           </Link>
+          <button
+            onClick={handleSendReminders}
+            disabled={sendingReminders}
+            className="px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+          >
+            <Send size={18} />
+            <span className="hidden sm:inline">{sendingReminders ? 'Envoi...' : 'Envoyer les rappels'}</span>
+            <span className="sm:hidden">{sendingReminders ? '...' : 'Rappels'}</span>
+          </button>
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex-1 sm:flex-none bg-gray-900 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-800 flex items-center justify-center gap-2 text-sm"
@@ -576,6 +619,9 @@ export default function RdvPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {getStatusBadge(appointment.status)}
+                    {appointment.reminder_sent === 1 && (
+                      <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Rappel envoye</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                     {appointment.notes || '-'}

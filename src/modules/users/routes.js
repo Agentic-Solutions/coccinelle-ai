@@ -168,7 +168,7 @@ export async function handleUsersRoutes(request, env, ctx, corsHeaders) {
       `).bind(now, invitation.id).run();
 
       // Générer JWT
-      const jwtToken = generateToken({
+      const jwtToken = await generateToken({
         user_id: userId,
         tenant_id: invitation.tenant_id,
         role: invitation.role,
@@ -395,7 +395,7 @@ export async function handleUsersRoutes(request, env, ctx, corsHeaders) {
       ).run();
 
       // Envoyer l'email via Resend
-      const inviteUrl = `https://coccinelle-saas.pages.dev/accept-invite?token=${inviteToken}`;
+      const inviteUrl = `${env.FRONTEND_URL || 'https://coccinelle.ai'}/accept-invite?token=${inviteToken}`;
       const roleName = (role || 'employee') === 'manager' ? 'Manager' : 'Collaborateur';
 
       try {
