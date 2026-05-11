@@ -316,9 +316,9 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
     const prevCutoffISO = prevCutoff.toISOString();
 
     try {
-      // Run all queries in parallel — use pre-computed ISO cutoff strings
-      const [kpisRes, callsByDayRes, callsByHourRes, callsByWeekdayRes, rdvRes, prospectsByDayRes, topicsRes, prevKpisRes] = await Promise.all([
-        // 1. KPIs globaux (status 'completed' or 'ended' to match calls/stats)
+      // Run all queries in parallel with allSettled — resilient to individual query failures
+      const results = await Promise.allSettled([
+        // 0. KPIs globaux (status 'completed' or 'ended' to match calls/stats)
         env.DB.prepare(`
           SELECT COUNT(*) as total_calls,
             SUM(CASE WHEN status IN ('completed','ended') THEN 1 ELSE 0 END) as completed_calls,
@@ -328,7 +328,7 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
           FROM calls WHERE tenant_id = ? AND created_at >= ?
         `).bind(tenantId, cutoffISO).first(),
 
-        // 2. Appels par jour
+        // 1. Appels par jour
         env.DB.prepare(`
           SELECT DATE(created_at) as date, COUNT(*) as calls,
             SUM(CASE WHEN status IN ('completed','ended') THEN 1 ELSE 0 END) as completed,
@@ -337,35 +337,35 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
           GROUP BY DATE(created_at) ORDER BY date ASC
         `).bind(tenantId, cutoffISO).all(),
 
-        // 3. Heures de pointe
+        // 2. Heures de pointe
         env.DB.prepare(`
           SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
           FROM calls WHERE tenant_id = ? AND created_at >= ?
           GROUP BY hour ORDER BY hour ASC
         `).bind(tenantId, cutoffISO).all(),
 
-        // 4. Jours de la semaine
+        // 3. Jours de la semaine
         env.DB.prepare(`
           SELECT CAST(strftime('%w', created_at) AS INTEGER) as day_of_week, COUNT(*) as count
           FROM calls WHERE tenant_id = ? AND created_at >= ?
           GROUP BY day_of_week ORDER BY day_of_week ASC
         `).bind(tenantId, cutoffISO).all(),
 
-        // 5. RDV conversion
+        // 4. RDV conversion
         env.DB.prepare(`
           SELECT
             (SELECT COUNT(*) FROM appointments WHERE tenant_id = ? AND created_at >= ?) as rdv_booked,
             (SELECT COUNT(*) FROM calls WHERE tenant_id = ? AND created_at >= ?) as total_calls
         `).bind(tenantId, cutoffISO, tenantId, cutoffISO).first(),
 
-        // 6. Prospects par jour
+        // 5. Prospects par jour
         env.DB.prepare(`
           SELECT DATE(created_at) as date, COUNT(*) as count
           FROM prospects WHERE tenant_id = ? AND created_at >= ?
           GROUP BY DATE(created_at) ORDER BY date ASC
         `).bind(tenantId, cutoffISO).all(),
 
-        // 7. Sujets frequents (from call_summaries for richer data)
+        // 6. Sujets frequents (from call_summaries for richer data)
         env.DB.prepare(`
           SELECT cs.summary, COUNT(*) as count
           FROM calls c
@@ -375,7 +375,7 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
           GROUP BY cs.summary ORDER BY count DESC LIMIT 10
         `).bind(tenantId, cutoffISO).all(),
 
-        // 8. KPIs periode precedente (pour variation)
+        // 7. KPIs periode precedente (pour variation)
         env.DB.prepare(`
           SELECT COUNT(*) as total_calls,
             SUM(CASE WHEN status IN ('completed','ended') THEN 1 ELSE 0 END) as completed_calls,
@@ -385,6 +385,26 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
         `).bind(tenantId, prevCutoffISO, cutoffISO).first(),
       ]);
 
+      // Extract results safely — fulfilled → value, rejected → null/empty
+      const safeVal = (r) => r.status === 'fulfilled' ? r.value : null;
+      const safeResults = (r) => r.status === 'fulfilled' ? (r.value?.results || []) : [];
+
+      // Log any rejected queries for debugging
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`[Analytics] insights query ${i} failed:`, r.reason?.message || r.reason);
+        }
+      });
+
+      const kpisRes = safeVal(results[0]);
+      const callsByDayResults = safeResults(results[1]);
+      const callsByHourResults = safeResults(results[2]);
+      const callsByWeekdayResults = safeResults(results[3]);
+      const rdvRes = safeVal(results[4]);
+      const prospectsByDayResults = safeResults(results[5]);
+      const topicsResults = safeResults(results[6]);
+      const prevKpisRes = safeVal(results[7]);
+
       const kpis = kpisRes || {};
       const prevKpis = prevKpisRes || {};
       const rdv = rdvRes || {};
@@ -393,10 +413,10 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
       const rdvRate = totalCalls > 0 ? parseFloat(((rdvBooked / totalCalls) * 100).toFixed(1)) : 0;
 
       // Prospects count
-      const prospectsTotal = (prospectsByDayRes?.results || []).reduce((s, r) => s + r.count, 0);
+      const prospectsTotal = prospectsByDayResults.reduce((s, r) => s + (r.count || 0), 0);
 
       // If topics from call_summaries are empty, fallback to calls.summary (post_call_analysis extracted)
-      let topTopics = topicsRes?.results || [];
+      let topTopics = topicsResults;
       if (topTopics.length === 0) {
         try {
           const fallbackTopics = await env.DB.prepare(`
@@ -426,10 +446,10 @@ export async function handleAnalyticsRoutes(request, env, ctx, corsHeaders) {
           prev_completed_calls: prevKpis.completed_calls || 0,
           prev_avg_duration: prevKpis.avg_duration || 0,
         },
-        calls_by_day: (callsByDayRes?.results || []),
-        calls_by_hour: (callsByHourRes?.results || []),
-        calls_by_weekday: (callsByWeekdayRes?.results || []),
-        prospects_by_day: (prospectsByDayRes?.results || []),
+        calls_by_day: callsByDayResults,
+        calls_by_hour: callsByHourResults,
+        calls_by_weekday: callsByWeekdayResults,
+        prospects_by_day: prospectsByDayResults,
         top_topics: topTopics,
         rdv_conversion: {
           booked: rdvBooked,

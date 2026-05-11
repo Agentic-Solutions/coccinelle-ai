@@ -18,7 +18,6 @@ import {
   Settings
 } from 'lucide-react';
 import Logo from '@/components/Logo';
-import { isDemoMode, mockAppointments, mockProspects, mockAgents } from '@/lib/mockData';
 import { useToast } from '../../../../hooks/useToast';
 import ActionToastContainer from '../../../../src/components/ActionToast';
 
@@ -93,7 +92,7 @@ export default function RdvPage() {
 
   const getAuthHeaders = (): Record<string, string> => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { 'Authorization': `Bearer ${token}` } : { 'x-api-key': 'demo-key-12345' };
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
 
   useEffect(() => {
@@ -107,37 +106,6 @@ export default function RdvPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Mode démo - utiliser mockData
-      if (isDemoMode()) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simule délai réseau
-
-        setAppointments(mockAppointments);
-        const total = mockAppointments.length;
-        const upcoming = mockAppointments.filter((a: Appointment) =>
-          new Date(a.scheduled_at) >= new Date() && a.status === 'scheduled'
-        ).length;
-        const confirmed = mockAppointments.filter((a: Appointment) =>
-          a.status === 'confirmed'
-        ).length;
-        const completed = mockAppointments.filter((a: Appointment) =>
-          a.status === 'completed'
-        ).length;
-        const attendance = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-        setStats({
-          total_appointments: total,
-          upcoming_appointments: upcoming,
-          confirmed_appointments: confirmed,
-          attendance_rate: attendance
-        });
-
-        setProspects(mockProspects);
-        setAgents(mockAgents);
-        setLoading(false);
-        return;
-      }
-
-      // Mode production - fetch API
       const rdvResponse = await fetch(`${API_URL}/api/v1/appointments`, {
         headers: { ...getAuthHeaders() }
       });
@@ -169,11 +137,17 @@ export default function RdvPage() {
       const prospectsData = await prospectsResponse.json();
       setProspects(prospectsData.prospects || []);
 
-      const agentsResponse = await fetch(`${API_URL}/api/v1/agents`, {
+      const agentsResponse = await fetch(`${API_URL}/api/v1/team/members`, {
         headers: { ...getAuthHeaders() }
       });
       const agentsData = await agentsResponse.json();
-      setAgents(agentsData.agents || []);
+      const teamMembers = (agentsData.members || []).map((m: any) => ({
+        id: m.id,
+        first_name: m.first_name || m.name?.split(' ')[0] || '',
+        last_name: m.last_name || m.name?.split(' ').slice(1).join(' ') || '',
+        email: m.email || '',
+      }));
+      setAgents(teamMembers);
 
     } catch (error) {
       console.error('Erreur chargement données:', error);

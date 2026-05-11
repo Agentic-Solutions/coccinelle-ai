@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Logo from '../../../src/components/Logo';
-import { isDemoMode, mockCalls, mockAppointments, mockStats, mockDocuments } from '../../../lib/mockData';
 import AIInsightsPanel from '../../../src/components/dashboard/AIInsightsPanel';
 
 // Lazy load recharts (only when analytics tab is active)
@@ -118,68 +117,35 @@ export default function AnalyticsPage() {
     setLoading(true);
     setError(null);
     try {
-      // Mode démo - utiliser mockData
-      if (isDemoMode()) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simule délai réseau
-
-        const documentsData = { documents: mockDocuments };
-        const callsData = { calls: mockCalls };
-        const appointmentsData = { appointments: mockAppointments };
-        const vapiStats = mockStats;
-
-        // Store raw data for AI Insights
-        setCalls(callsData.calls || []);
-        setAppointments(appointmentsData.appointments || []);
-        setDocuments(documentsData.documents || []);
-
-        // Calculer les stats globales
-        const totalDocs = documentsData.documents?.length || 0;
-        const totalCalls = callsData.calls?.length || 0;
-        const totalAppts = appointmentsData.appointments?.length || 0;
-        const convRate = totalCalls > 0 ? (totalAppts / totalCalls) * 100 : 0;
-
-        setStats({
-          totalDocuments: totalDocs,
-          totalCalls: totalCalls,
-          totalAppointments: totalAppts,
-          conversionRate: parseFloat(vapiStats.conversion_rate) || convRate,
-          totalCost: parseFloat(vapiStats.total_cost_usd) || 0,
-          avgDuration: vapiStats.avg_duration_seconds || 0
-        });
-
-        // Traiter les données pour les graphiques
-        processCallsByDay(callsData.calls || []);
-        processAppointmentsByWeekday(appointmentsData.appointments || []);
-        processStatusDistribution(appointmentsData.appointments || []);
-        processCostData(callsData.calls || []);
-        processTopQuestions(callsData.calls || []);
-        processAgentPerformance(appointmentsData.appointments || []);
-
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setError('Non authentifie');
         setLoading(false);
         return;
       }
+      const authHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
 
-      // Mode production - fetch API avec overview reel
-      const token = localStorage.getItem('auth_token');
-      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
-      const [overviewRes, saraRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/analytics/overview`, { headers: authHeaders }),
-        fetch(`${API_URL}/api/v1/analytics/sara?period=${period}`, { headers: authHeaders }),
+      // Charger insights (riche), overview et appointments en parallele
+      const [insightsRes, overviewRes, appointmentsRes] = await Promise.all([
+        fetch(`${API_URL}/api/v1/analytics/insights?period=${period}`, { headers: authHeaders }).catch(() => null),
+        fetch(`${API_URL}/api/v1/analytics/overview`, { headers: authHeaders }).catch(() => null),
+        fetch(`${API_URL}/api/v1/appointments`, { headers: authHeaders }).catch(() => null),
       ]);
 
-      const overviewData = overviewRes.ok ? await overviewRes.json() : {};
-      const saraData = saraRes.ok ? await saraRes.json() : {};
+      const insightsData = insightsRes?.ok ? await insightsRes.json() : null;
+      const overviewData = overviewRes?.ok ? await overviewRes.json() : {};
+      const appointmentsData = appointmentsRes?.ok ? await appointmentsRes.json() : {};
 
-      // Store raw data for AI Insights (empty in real mode, populated by API)
+      // Stocker les donnees pour AI Insights
+      const appointmentsList = appointmentsData.appointments || [];
       setCalls([]);
-      setAppointments([]);
+      setAppointments(appointmentsList);
       setDocuments([]);
 
       const totalProspects = overviewData.total_prospects || 0;
-      const totalCalls = saraData.total_calls || 0;
+      const totalCalls = insightsData?.kpis?.total_calls || 0;
       const totalAppts = overviewData.total_appointments_month || 0;
-      const convRate = saraData.conversion_rate || 0;
+      const convRate = insightsData?.kpis?.rdv_rate || 0;
 
       setStats({
         totalDocuments: totalProspects,
@@ -187,27 +153,43 @@ export default function AnalyticsPage() {
         totalAppointments: totalAppts,
         conversionRate: convRate,
         totalCost: overviewData.total_customers || 0,
-        avgDuration: saraData.avg_duration_seconds || 0
+        avgDuration: insightsData?.kpis?.avg_duration || 0
       });
 
-      // Traiter les donnees pour les graphiques a partir des appels
-      const saraCalls = (saraData.calls_by_day || []).map((d: any) => ({
-        created_at: d.day + 'T00:00:00Z',
-        cost: '0'
-      }));
-      // Repeat entries per count for chart processing
-      const expandedCalls: any[] = [];
-      for (const d of (saraData.calls_by_day || [])) {
-        for (let i = 0; i < d.count; i++) {
-          expandedCalls.push({ created_at: d.day + 'T00:00:00Z', cost: '0' });
-        }
+      // Graphiques depuis insights API
+      if (insightsData) {
+        // Appels par jour (directement depuis insights)
+        const callsByDayData = (insightsData.calls_by_day || []).map((d: any) => ({
+          date: new Date(d.date + 'T00:00:00Z').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+          calls: d.calls || d.count || 0,
+        }));
+        setCallsByDay(callsByDayData);
+
+        // Appels par jour de la semaine
+        const weekdayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+        const weekdayData = (insightsData.calls_by_weekday || []).map((d: any) => ({
+          day: weekdayNames[d.day_of_week] || `Jour ${d.day_of_week}`,
+          count: d.count || 0,
+        }));
+        setAppointmentsByWeekday(weekdayData.length > 0 ? weekdayData : processAppointmentsByWeekdayFromList(appointmentsList));
+
+        // Top sujets (depuis insights)
+        const topics = (insightsData.top_topics || []).slice(0, 5).map((t: any) => ({
+          question: t.summary || t.question || 'Sujet inconnu',
+          count: t.count || 1,
+        }));
+        setTopQuestions(topics);
+      } else {
+        // Fallback si insights non disponible
+        setCallsByDay([]);
+        setAppointmentsByWeekday(processAppointmentsByWeekdayFromList(appointmentsList));
+        setTopQuestions([]);
       }
-      processCallsByDay(expandedCalls);
-      processAppointmentsByWeekday([]);
-      processStatusDistribution([]);
+
+      // Repartition statuts RDV
+      processStatusDistribution(appointmentsList);
       processCostData([]);
-      processTopQuestions([]);
-      processAgentPerformance([]);
+      processAgentPerformance(appointmentsList);
 
     } catch (error) {
       console.error('Erreur chargement analytics:', error);
@@ -241,7 +223,7 @@ export default function AnalyticsPage() {
     setCallsByDay(data);
   };
 
-  const processAppointmentsByWeekday = (appointments: any[]) => {
+  const processAppointmentsByWeekdayFromList = (appointments: any[]): AppointmentByWeekday[] => {
     const weekdays = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     const counts = new Array(7).fill(0);
 
@@ -253,12 +235,10 @@ export default function AnalyticsPage() {
       }
     });
 
-    const data = weekdays.map((day, index) => ({
+    return weekdays.map((day, index) => ({
       day,
       count: counts[index]
     }));
-
-    setAppointmentsByWeekday(data);
   };
 
   const processStatusDistribution = (appointments: any[]) => {
@@ -320,18 +300,7 @@ export default function AnalyticsPage() {
     setCostData(data);
   };
 
-  const processTopQuestions = (calls: any[]) => {
-    // Simulé - dans un vrai système, on analyserait les transcripts
-    const questions = [
-      { question: "Quels sont vos horaires d'ouverture ?", count: 45 },
-      { question: "Comment prendre rendez-vous ?", count: 38 },
-      { question: "Quels types de biens proposez-vous ?", count: 32 },
-      { question: "Quels sont vos tarifs ?", count: 28 },
-      { question: "Où êtes-vous situés ?", count: 24 }
-    ];
-
-    setTopQuestions(questions);
-  };
+  // processTopQuestions est gere directement par les donnees de l'API insights
 
   const processAgentPerformance = (appointments: any[]) => {
     const agentCounts: Record<string, number> = {};

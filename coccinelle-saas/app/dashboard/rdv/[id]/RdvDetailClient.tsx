@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Clock, User, MapPin, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import Logo from '@/components/Logo';
-import { isDemoMode, mockAppointments } from '../../../../lib/mockData';
 import { useToast } from '../../../../hooks/useToast';
 import ActionToastContainer from '@/components/ActionToast';
 
@@ -42,14 +41,6 @@ export default function RdvDetailPage() {
   const fetchAppointment = async () => {
     setLoading(true);
     try {
-      if (isDemoMode()) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        const found = mockAppointments.find((a: Appointment) => a.id === params.id);
-        setAppointment(found || null);
-        setLoading(false);
-        return;
-      }
-
       const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_URL}/api/v1/appointments/${params.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }

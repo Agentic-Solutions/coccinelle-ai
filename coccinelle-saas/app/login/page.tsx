@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Cookies from 'js-cookie';
-import { isDemoMode, mockTenant } from '@/lib/mockData';
 import { buildApiUrl } from '@/lib/config';
 
 export default function LoginPage() {
@@ -36,44 +35,6 @@ export default function LoginPage() {
     }, 10000);
 
     try {
-      // Mode démo - simulation sans backend
-      if (isDemoMode()) {
-        await new Promise(resolve => setTimeout(resolve, 800)); // Simuler latence réseau
-
-        const demoUser = {
-          id: 'user_demo_001',
-          name: 'Utilisateur Démo',
-          email: email,
-          tenant_id: mockTenant.id
-        };
-
-        const demoData = {
-          token: 'demo_token_' + Date.now(),
-          user: demoUser,
-          tenant: mockTenant
-        };
-
-        // Stocker le token dans localStorage (pour le frontend)
-        localStorage.setItem('auth_token', demoData.token);
-        localStorage.setItem('user', JSON.stringify(demoData.user));
-        localStorage.setItem('tenant', JSON.stringify(demoData.tenant));
-
-        // 🔥 CRITIQUE : Stocker AUSSI le token dans un cookie (pour le middleware)
-        Cookies.set('auth_token', demoData.token, {
-          expires: 30, // 30 jours
-          path: '/',
-          sameSite: 'strict',
-          secure: true
-        });
-
-        console.log('✅ Token stocké dans localStorage ET cookie (mode démo)');
-
-        // Redirection vers le dashboard
-        router.push('/dashboard');
-        return;
-      }
-
-      // Mode production - appel API réel
       const response = await fetch(buildApiUrl('/api/v1/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

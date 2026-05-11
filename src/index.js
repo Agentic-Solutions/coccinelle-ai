@@ -54,6 +54,8 @@ import { handleProactiveRoutes } from './modules/proactive/routes.js';
 import { handleTeamRoutes } from './modules/team/routes.js';
 // Module Services/Prestations
 import { handleServicesRoutes } from './modules/services/routes.js';
+// Module Settings (parametres utilisateur + entreprise)
+import { handleSettingsRoutes } from './modules/settings/routes.js';
 // Cron SMS Rappel J-1 pour RDV
 import { handleScheduled, sendTomorrowReminders } from './cron/reminders.js';
 
@@ -144,6 +146,12 @@ export default {
       // Users & invitations
       if (path.startsWith('/api/v1/users')) {
         response = await handleUsersRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Settings (parametres utilisateur + entreprise)
+      if (path.startsWith('/api/v1/settings')) {
+        response = await handleSettingsRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 

@@ -72,18 +72,26 @@ export default function InsightsPage() {
   const [data, setData] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const loadInsights = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
+      const headers = getAuthHeaders();
+      if (!headers['Authorization']) {
+        throw new Error('Non authentifie — veuillez vous reconnecter');
+      }
       const res = await fetch(buildApiUrl(`/api/v1/analytics/insights?period=${period}`), {
-        headers: getAuthHeaders(),
+        headers,
       });
       if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        console.error('[Insights] API error:', res.status, body);
-        throw new Error(`Erreur ${res.status}`);
+        const body = await res.json().catch(() => null);
+        const msg = body?.error || `Erreur ${res.status}`;
+        console.error('[Insights] API error:', res.status, msg);
+        throw new Error(msg);
       }
       const json = await res.json();
       // Validate response structure — API returns flat object with period, kpis, etc.
@@ -135,7 +143,7 @@ export default function InsightsPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  if (loading || !mounted) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900" />
@@ -147,8 +155,8 @@ export default function InsightsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">{error || 'Aucune donnee'}</p>
-          <button onClick={loadInsights} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm">Reessayer</button>
+          <p className="text-gray-600 mb-4">{error || 'Aucune donnee disponible'}</p>
+          <button onClick={loadInsights} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors">Reessayer</button>
         </div>
       </div>
     );

@@ -5,7 +5,6 @@ import { ArrowLeft, Database, Upload, MessageSquare, Send, Loader2, BookOpen, Ch
 import Link from 'next/link';
 import BusinessKnowledgeView from '../../../src/components/dashboard/BusinessKnowledgeView';
 import Logo from '../../../src/components/Logo';
-import { isDemoMode, mockCalls, mockAppointments, mockDocuments } from '../../../lib/mockData';
 import { buildApiUrl, getAuthHeaders, getCurrentTenantId, getTenantStorageKey, migrateOldDocuments } from '../../../lib/config';
 import { processLocalCrawl } from '../../../lib/crawl-processor';
 import { useToast } from '../../../hooks/useToast';

@@ -6,7 +6,6 @@
 import { buildApiUrl, getAuthHeaders, getCurrentTenantId, getTenantStorageKey } from './config';
 import { processLocalCrawl } from './crawl-processor';
 import { generateDocumentsFromAnswers, calculateInitialScore } from './kb-assistant-questions';
-import { isDemoMode } from './mockData';
 
 /**
  * Sauvegarder les documents via l'API
@@ -227,11 +226,7 @@ export async function generateDocumentsFromAssistant(
   // Sauvegarder les documents
   setProgressCallback('Sauvegarde dans votre Knowledge Base...');
 
-  if (isDemoMode()) {
-    await saveToDemoMode(documents);
-  } else {
-    await saveToProduction(documents, tenant);
-  }
+  await saveToProduction(documents, tenant);
 
   await new Promise(resolve => setTimeout(resolve, 400));
 

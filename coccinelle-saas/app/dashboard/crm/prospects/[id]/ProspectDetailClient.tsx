@@ -81,90 +81,55 @@ export default function ProspectDetailClient() {
   const [newNote, setNewNote] = useState('');
   const [editedPreferences, setEditedPreferences] = useState<CommunicationPreferences | null>(null);
 
-  // Charger les données (TODO: remplacer par vraie API)
   useEffect(() => {
-    setTimeout(() => {
-      // Mock data
-      const mockCustomer: Customer = {
-        id: customerId,
-        firstName: 'Julie',
-        lastName: 'Martin',
-        email: 'julie.martin@example.com',
-        phone: '+33601020304',
-        preferredChannel: 'sms',
-        communicationPreferences: {
-          preferredChannel: 'sms',
-          emailOptIn: true,
-          smsOptIn: true,
-          whatsappOptIn: false,
-          phoneOptIn: true,
-          marketingOptIn: true,
-          frequency: 'daily',
-          doNotDisturb: {
-            enabled: true,
-            startTime: '20:00',
-            endTime: '08:00'
-          }
-        },
-        segment: 'vip',
-        tags: ['fidele', 'actif', 'vip'],
-        totalOrders: 12,
-        totalSpent: { amount: 1280, currency: 'EUR' },
-        averageOrderValue: { amount: 106.67, currency: 'EUR' },
-        createdAt: new Date('2024-01-15'),
-        lastOrderAt: new Date('2025-11-10'),
-        defaultAddress: {
-          street: '123 Rue de la Paix',
-          city: 'Paris',
-          postalCode: '75001',
-          country: 'France',
-        },
-      };
-
-      const mockActivities: CustomerActivity[] = [
-        {
-          id: '1',
-          type: 'message_received',
-          channel: 'sms',
-          description: 'Message reçu: "Bonjour, avez-vous la robe en 38 ?"',
-          timestamp: new Date('2025-11-15T14:30:00'),
-        },
-        {
-          id: '2',
-          type: 'order_placed',
-          channel: 'website',
-          description: 'Commande #2847 passée - 89,90€',
-          timestamp: new Date('2025-11-10T16:20:00'),
-        },
-        {
-          id: '3',
-          type: 'message_sent',
-          channel: 'sms',
-          description: 'Message envoyé: "Bonjour Julie, votre colis a été expédié!"',
-          timestamp: new Date('2025-11-08T10:15:00'),
-        },
-      ];
-
-      const mockNotes: CustomerNote[] = [
-        {
-          id: '1',
-          content: 'Cliente très fidèle, toujours satisfaite de ses achats',
-          createdBy: 'Assistanth (propriétaire)',
-          createdAt: new Date('2025-10-20'),
-        },
-        {
-          id: '2',
-          content: 'Préfère les robes et les couleurs vives',
-          createdBy: 'IA Coccinelle',
-          createdAt: new Date('2025-11-01'),
-        },
-      ];
-
-      setCustomer(mockCustomer);
-      setActivities(mockActivities);
-      setNotes(mockNotes);
-      setIsLoading(false);
-    }, 500);
+    const fetchProspect = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) { setIsLoading(false); return; }
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+        const res = await fetch(`${API_URL}/api/v1/prospects/${customerId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) { setIsLoading(false); return; }
+        const data = await res.json();
+        const p = data.prospect || data;
+        if (p && p.id) {
+          setCustomer({
+            id: p.id,
+            firstName: p.first_name || '',
+            lastName: p.last_name || '',
+            email: p.email || undefined,
+            phone: p.phone || undefined,
+            preferredChannel: p.preferred_channel || 'phone',
+            communicationPreferences: {
+              preferredChannel: (p.preferred_channel || 'phone') as any,
+              emailOptIn: true,
+              smsOptIn: true,
+              whatsappOptIn: false,
+              phoneOptIn: true,
+              marketingOptIn: true,
+              frequency: 'daily',
+              doNotDisturb: { enabled: false },
+            },
+            segment: p.status || 'prospect',
+            tags: p.tags ? (typeof p.tags === 'string' ? p.tags.split(',') : p.tags) : [],
+            totalOrders: p.interaction_count || 0,
+            totalSpent: { amount: 0, currency: 'EUR' },
+            averageOrderValue: { amount: 0, currency: 'EUR' },
+            createdAt: new Date(p.created_at || Date.now()),
+            lastOrderAt: p.last_interaction ? new Date(p.last_interaction) : undefined,
+          });
+        }
+        // TODO: Charger les activites et notes depuis l'API quand les endpoints existeront
+        setActivities([]);
+        setNotes([]);
+      } catch (err) {
+        console.error('Erreur chargement contact:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProspect();
   }, [customerId]);
 
   const handleAddNote = () => {

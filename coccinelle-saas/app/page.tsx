@@ -3,57 +3,58 @@ import {
   Mic, BookOpen, Package, Calendar, MessageSquare, Users,
   Phone, HelpCircle, ShoppingBag, BarChart3, Check, ArrowRight,
   Building2, Heart, UtensilsCrossed, Car, Scissors, Scale, Calculator, Stethoscope,
-  Star, Minus,
+  Star,
 } from 'lucide-react';
 import LandingNav from '@/components/LandingNav';
 import { CoccinelleIcon } from '@/components/CoccinelleIcon';
+import DigitalPlans from '@/components/landing/DigitalPlans';
 
 const steps = [
-  { icon: Phone, num: '1', title: 'Il appelle', desc: 'Reponse en 2 secondes, voix naturelle, sans SVI' },
-  { icon: HelpCircle, num: '2', title: 'Il pose une question', desc: "L'agent consulte votre base de connaissances" },
-  { icon: ShoppingBag, num: '3', title: 'Il veut un produit', desc: "L'agent connait votre catalogue et vos prix" },
-  { icon: Calendar, num: '4', title: 'Il veut un RDV', desc: 'Reservation en direct dans votre agenda' },
+  { icon: Phone, num: '1', title: 'Votre client appelle', desc: 'Réponse en 2 secondes, voix naturelle, sans SVI' },
+  { icon: HelpCircle, num: '2', title: 'Votre client pose une question', desc: "L'agent consulte votre base de connaissances" },
+  { icon: ShoppingBag, num: '3', title: 'Votre client veut un produit', desc: "L'agent connaît votre catalogue et vos prix" },
+  { icon: Calendar, num: '4', title: 'Votre client veut un RDV', desc: 'Réservation en direct dans votre agenda' },
   { icon: MessageSquare, num: '5', title: 'Il raccroche', desc: 'Confirmation SMS, WhatsApp ou email automatique' },
-  { icon: BarChart3, num: '6', title: 'Vous', desc: "Prospect dans le CRM, RDV dans l'agenda, resume dans le dashboard" },
+  { icon: BarChart3, num: '6', title: 'Vous recevez tout', desc: "Prospect dans le CRM, RDV dans l'agenda, résumé dans le dashboard" },
 ];
 
 const modules = [
-  { icon: Mic, title: 'Agent vocal IA', desc: 'Repond 24h/24, voix naturelle, sans SVI' },
-  { icon: BookOpen, title: 'Base de connaissances', desc: 'Repond precisement a toutes vos questions clients' },
-  { icon: Package, title: 'Catalogue produits', desc: 'Presente vos offres, prix et disponibilites' },
+  { icon: Mic, title: 'Agent vocal IA', desc: 'Répond 24h/24, voix naturelle, sans SVI' },
+  { icon: BookOpen, title: 'Base de connaissances', desc: 'Répond précisément à toutes vos questions clients' },
+  { icon: Package, title: 'Catalogue produits', desc: 'Présente vos offres, prix et disponibilités' },
   { icon: Calendar, title: 'Agenda & RDV', desc: 'Prend et confirme les rendez-vous en direct' },
   { icon: MessageSquare, title: 'Multicanal', desc: 'Voix, SMS, WhatsApp, Email — tout en un' },
-  { icon: Users, title: 'CRM integre', desc: 'Chaque appel cree un contact et un historique' },
+  { icon: Users, title: 'CRM intégré', desc: 'Chaque appel crée un contact et un historique' },
 ];
 
 const sectors = [
-  { icon: Building2, label: 'Immobilier' },
-  { icon: Heart, label: 'Sante' },
-  { icon: UtensilsCrossed, label: 'Restaurant' },
-  { icon: Car, label: 'Automobile' },
-  { icon: Scissors, label: 'Beaute' },
-  { icon: Scale, label: 'Notaire' },
-  { icon: Calculator, label: 'Comptable' },
-  { icon: Stethoscope, label: 'Veterinaire' },
+  { icon: Building2, label: 'Immobilier', href: '/secteurs/immobilier' },
+  { icon: Heart, label: 'Sant\u00e9', href: '/secteurs/sante' },
+  { icon: UtensilsCrossed, label: 'Restaurant', href: '/secteurs/restaurant' },
+  { icon: Car, label: 'Automobile', href: '/secteurs/automobile' },
+  { icon: Scissors, label: 'Beaut\u00e9', href: '/secteurs/beaute' },
+  { icon: Scale, label: 'Juridique', href: '/secteurs/juridique' },
+  { icon: Calculator, label: 'Comptable', href: undefined },
+  { icon: Stethoscope, label: 'V\u00e9t\u00e9rinaire', href: undefined },
 ];
 
 const testimonials = [
   {
-    quote: "Depuis que j'utilise VoixIA, je ne rate plus aucun appel le week-end. Mon agent repond, qualifie les prospects et prend les rendez-vous de visite automatiquement.",
+    quote: "Depuis que j'utilise VoixIA, je ne rate plus aucun appel le week-end. Mon agent répond, qualifie les prospects et prend les rendez-vous de visite automatiquement.",
     name: 'Marie D.',
-    role: 'Agence immobiliere, Lyon',
+    role: 'Agence immobilière, Lyon',
     initials: 'MD',
     color: 'bg-blue-100 text-blue-700',
   },
   {
-    quote: "Mes patients peuvent prendre rendez-vous a n'importe quelle heure. La secretaire IA repond en 2 secondes, c'est bluffant.",
+    quote: "Mes patients peuvent prendre rendez-vous à n'importe quelle heure. La secrétaire IA répond en 2 secondes, c'est bluffant.",
     name: 'Dr. Philippe M.',
-    role: 'Medecin generaliste, Toulouse',
+    role: 'Médecin généraliste, Toulouse',
     initials: 'PM',
     color: 'bg-green-100 text-green-700',
   },
   {
-    quote: "On recoit 40 appels par soir pour des reservations. L'agent gere tout, je me concentre sur la cuisine.",
+    quote: "On reçoit 40 appels par soir pour des réservations. L'agent gère tout, je me concentre sur la cuisine.",
     name: 'Karim B.',
     role: 'Restaurant, Paris',
     initials: 'KB',
@@ -101,10 +102,10 @@ export default function LandingPage() {
                 La relation client des grands groupes
               </h1>
               <p className="mt-4 text-xl sm:text-2xl font-semibold text-gray-900">
-                Sans SVI. Multicanal. Des 79&#8239;euros/mois.
+                Sans SVI. Multicanal. Dès 79&#8239;euros/mois.
               </p>
               <p className="mt-6 text-lg text-gray-600 leading-relaxed max-w-xl">
-                Votre agent vocal repond 24h/24, connait vos services,
+                Votre agent vocal répond 24h/24, connaît vos services,
                 prend les rendez-vous et confirme par SMS — pendant que vous travaillez.
               </p>
               <div className="mt-10 flex flex-col sm:flex-row gap-4">
@@ -119,7 +120,7 @@ export default function LandingPage() {
                   href="#demo"
                   className="inline-flex items-center justify-center px-8 py-4 text-base font-medium rounded-lg text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
                 >
-                  Voir la demo
+                  Voir la démo
                 </a>
               </div>
             </div>
@@ -149,7 +150,7 @@ export default function LandingPage() {
                       <p className="text-sm text-gray-700">Bonjour, est-ce que je peux prendre rendez-vous pour vendredi ?</p>
                     </div>
                     <div className="bg-gray-900 rounded-xl px-4 py-3 max-w-[85%] ml-auto">
-                      <p className="text-sm text-white">Bien sur ! J&apos;ai un creneau disponible vendredi a 14h. Je vous le reserve ?</p>
+                      <p className="text-sm text-white">Bien sûr ! J&apos;ai un créneau disponible vendredi à 14h. Je vous le réserve ?</p>
                     </div>
                   </div>
                   <div className="space-y-2.5 pt-4 border-t border-gray-100">
@@ -157,19 +158,19 @@ export default function LandingPage() {
                       <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
                         <Check className="w-3 h-3 text-green-600" />
                       </div>
-                      <span className="text-gray-600">RDV reserve — Vendredi 14h00</span>
+                      <span className="text-gray-600">RDV réservé — Vendredi 14h00</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
                         <Check className="w-3 h-3 text-green-600" />
                       </div>
-                      <span className="text-gray-600">SMS de confirmation envoye</span>
+                      <span className="text-gray-600">SMS de confirmation envoyé</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
                         <Check className="w-3 h-3 text-green-600" />
                       </div>
-                      <span className="text-gray-600">Contact ajoute au CRM</span>
+                      <span className="text-gray-600">Contact ajouté au CRM</span>
                     </div>
                   </div>
                 </div>
@@ -219,7 +220,7 @@ export default function LandingPage() {
               Le parcours client parfait, automatiquement
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              De l&apos;appel entrant au compte-rendu dans votre dashboard, tout est gere.
+              De l&apos;appel entrant au compte rendu dans votre dashboard, tout est géré.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -279,12 +280,24 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-3xl mx-auto">
             {sectors.map((s) => {
               const Icon = s.icon;
-              return (
-                <div key={s.label} className="flex flex-col items-center gap-3 p-4">
-                  <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
+              const content = (
+                <>
+                  <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors">
                     <Icon className="w-6 h-6 text-gray-900" />
                   </div>
                   <span className="text-sm font-medium text-gray-900">{s.label}</span>
+                </>
+              );
+              if (s.href) {
+                return (
+                  <Link key={s.label} href={s.href} className="flex flex-col items-center gap-3 p-4 group">
+                    {content}
+                  </Link>
+                );
+              }
+              return (
+                <div key={s.label} className="flex flex-col items-center gap-3 p-4 group">
+                  {content}
                 </div>
               );
             })}
@@ -348,19 +361,19 @@ export default function LandingPage() {
             {/* Essentiel */}
             <div className="bg-white rounded-xl border border-gray-200 p-8 flex flex-col">
               <h3 className="text-xl font-bold text-gray-900 mb-1">Essentiel</h3>
-              <p className="text-sm text-gray-500 mb-6">Pour demarrer</p>
+              <p className="text-sm text-gray-500 mb-6">Pour démarrer</p>
               <div className="mb-8">
                 <span className="text-4xl font-bold text-gray-900">79&#8239;euros</span>
                 <span className="text-gray-500">/mois HT</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[
-                  '500 minutes vocales IA',
+                  '300 minutes vocales IA',
+                  '50 SMS inclus (confirmations automatiques)',
                   '1 agent vocal',
                   'Base de connaissances',
                   'Agenda & rendez-vous',
                   'CRM contacts',
-                  'Confirmations SMS',
                   'Support email (48h)',
                 ].map((f) => (
                   <li key={f} className="flex items-start gap-2.5">
@@ -369,7 +382,7 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-gray-400 mb-4">Depassement : 0,08 euros/min</p>
+              <p className="text-xs text-gray-400 mb-4">Dépassement : 0,10&#8239;euros/min &middot; 0,10&#8239;euros/SMS</p>
               <Link
                 href="/signup"
                 className="block w-full text-center px-6 py-3 text-sm font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
@@ -386,7 +399,7 @@ export default function LandingPage() {
                 </span>
               </div>
               <h3 className="text-xl font-bold mb-1">Pro</h3>
-              <p className="text-sm text-gray-400 mb-6">Pour les equipes</p>
+              <p className="text-sm text-gray-400 mb-6">Pour les équipes</p>
               <div className="mb-8">
                 <span className="text-4xl font-bold">199&#8239;euros</span>
                 <span className="text-gray-400">/mois HT</span>
@@ -396,11 +409,11 @@ export default function LandingPage() {
                   '1 000 minutes vocales IA',
                   '250 SMS inclus',
                   'Tout Essentiel +',
-                  'WhatsApp (bientot) + Email',
+                  'Email automatique inclus',
                   'CRM complet + export',
                   'Catalogue produits',
-                  'Analytics avances',
-                  'Roles et permissions',
+                  'Analytics avancés',
+                  'Rôles et permissions',
                   'Support prioritaire (24h)',
                 ].map((f) => (
                   <li key={f} className="flex items-start gap-2.5">
@@ -409,7 +422,7 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-gray-500 mb-4">Depassement : 0,07 euros/min &middot; 0,10 euros/SMS</p>
+              <p className="text-xs text-gray-500 mb-4">Dépassement : 0,07&#8239;euros/min &middot; 0,10&#8239;euros/SMS</p>
               <Link
                 href="/signup"
                 className="block w-full text-center px-6 py-3 text-sm font-semibold rounded-lg bg-white text-gray-900 hover:bg-gray-100 transition-colors"
@@ -427,13 +440,13 @@ export default function LandingPage() {
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[
-                  'Minutes personnalisees',
-                  'Utilisateurs illimites',
+                  'Minutes personnalisées',
+                  'Utilisateurs illimités',
                   'Tout Pro +',
-                  'Voix personnalisee',
+                  'Voix personnalisée',
                   'SLA garanti',
-                  'Account manager dedie (4h)',
-                  'API et integrations sur mesure',
+                  'Account manager dédié (4h)',
+                  'API et intégrations sur mesure',
                 ].map((f) => (
                   <li key={f} className="flex items-start gap-2.5">
                     <Check className="w-5 h-5 text-gray-900 flex-shrink-0 mt-0.5" />
@@ -450,111 +463,29 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* ── Plans Digital ── */}
-          <div className="mt-16">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="flex-1 h-px bg-gray-200" />
-              <p className="text-sm font-medium text-gray-500 whitespace-nowrap">
-                Vous n&apos;avez pas besoin de voix ?
-              </p>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-8">
-              <div className="text-center mb-8">
-                <h3 className="text-lg font-bold text-gray-900 mb-1">Plans Digital — Sans agent vocal</h3>
-                <p className="text-sm text-gray-500">SMS, Email et WhatsApp uniquement</p>
-              </div>
-              <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                {/* Digital SMS */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
-                  <h4 className="text-base font-bold text-gray-900 mb-1">SMS</h4>
-                  <p className="text-xs text-gray-500 mb-4">L&apos;essentiel</p>
-                  <div className="mb-6">
-                    <span className="text-3xl font-bold text-gray-900">39&#8239;&#8364;</span>
-                    <span className="text-gray-500 text-sm">/mois HT</span>
-                  </div>
-                  <ul className="space-y-2.5 mb-6 flex-1 text-sm">
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">50 SMS/mois</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Support email</span></li>
-                    <li className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-300 flex-shrink-0" /><span className="text-gray-400">Email</span></li>
-                    <li className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-300 flex-shrink-0" /><span className="text-gray-400">WhatsApp</span></li>
-                  </ul>
-                  <p className="text-xs text-gray-400 mb-3">0,15&#8239;&#8364;/SMS au-dela</p>
-                  <Link href="/signup" className="block w-full text-center px-4 py-2.5 text-sm font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
-                    Commencer
-                  </Link>
-                </div>
-
-                {/* Digital Pro */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
-                  <h4 className="text-base font-bold text-gray-900 mb-1">Digital Pro</h4>
-                  <p className="text-xs text-gray-500 mb-4">SMS + Email</p>
-                  <div className="mb-6">
-                    <span className="text-3xl font-bold text-gray-900">69&#8239;&#8364;</span>
-                    <span className="text-gray-500 text-sm">/mois HT</span>
-                  </div>
-                  <ul className="space-y-2.5 mb-6 flex-1 text-sm">
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">100 SMS/mois</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Email inclus</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Insights basiques</span></li>
-                    <li className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-300 flex-shrink-0" /><span className="text-gray-400">WhatsApp</span></li>
-                  </ul>
-                  <p className="text-xs text-gray-400 mb-3">0,15&#8239;&#8364;/SMS au-dela</p>
-                  <Link href="/signup" className="block w-full text-center px-4 py-2.5 text-sm font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
-                    Commencer
-                  </Link>
-                </div>
-
-                {/* Digital Omnicanal */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
-                  <h4 className="text-base font-bold text-gray-900 mb-1">Digital Omnicanal</h4>
-                  <p className="text-xs text-gray-500 mb-4">Tous canaux</p>
-                  <div className="mb-6">
-                    <span className="text-3xl font-bold text-gray-900">129&#8239;&#8364;</span>
-                    <span className="text-gray-500 text-sm">/mois HT</span>
-                  </div>
-                  <ul className="space-y-2.5 mb-6 flex-1 text-sm">
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">300 SMS/mois</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Email inclus</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">WhatsApp</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
-                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Insights complets</span></li>
-                  </ul>
-                  <p className="text-xs text-gray-400 mb-3">0,15&#8239;&#8364;/SMS au-dela &middot; WhatsApp bientot disponible</p>
-                  <Link href="/signup" className="block w-full text-center px-4 py-2.5 text-sm font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
-                    Commencer
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* ── Plans Digitaux (repliable) ── */}
+          <DigitalPlans />
 
           {/* FAQ Tarifs */}
           <div className="max-w-3xl mx-auto mt-16">
-            <h3 className="text-xl font-bold text-gray-900 text-center mb-8">Questions frequentes</h3>
+            <h3 className="text-xl font-bold text-gray-900 text-center mb-8">Questions fréquentes</h3>
             <div className="space-y-6">
               <div>
-                <p className="font-medium text-gray-900 text-sm">Que se passe-t-il si je depasse mon forfait de minutes ?</p>
+                <p className="font-medium text-gray-900 text-sm">Que se passe-t-il si je dépasse mon forfait de minutes ?</p>
                 <p className="text-sm text-gray-600 mt-1">
-                  Les minutes supplementaires sont facturees au tarif de depassement de votre plan (0,08 euros/min Essentiel, 0,07 euros/min Pro). Vous etes prevenu par email a 80% et 100% de votre quota.
+                  Les minutes supplémentaires sont facturées au tarif de dépassement de votre plan (0,10&#8239;euros/min Essentiel, 0,07&#8239;euros/min Pro). Vous êtes prévenu par email à 80% et 100% de votre quota.
                 </p>
               </div>
               <div>
-                <p className="font-medium text-gray-900 text-sm">Puis-je changer de plan a tout moment ?</p>
+                <p className="font-medium text-gray-900 text-sm">Puis-je changer de plan à tout moment ?</p>
                 <p className="text-sm text-gray-600 mt-1">
-                  Oui, vous pouvez passer d&apos;Essentiel a Pro (ou inversement) a tout moment. La facturation est ajustee au prorata.
+                  Oui, vous pouvez passer d&apos;Essentiel à Pro (ou inversement) à tout moment. La facturation est ajustée au prorata.
                 </p>
               </div>
               <div>
                 <p className="font-medium text-gray-900 text-sm">L&apos;essai gratuit est-il vraiment sans engagement ?</p>
                 <p className="text-sm text-gray-600 mt-1">
-                  Oui. 14 jours, 60 minutes vocales et 20 SMS inclus, sans carte bancaire. Vos donnees sont conservees 30 jours apres expiration.
+                  Oui. 14 jours, 60 minutes vocales et 20 SMS inclus, sans carte bancaire. Vos données sont conservées 30 jours après expiration.
                 </p>
               </div>
             </div>
@@ -569,11 +500,11 @@ export default function LandingPage() {
             Pourquoi Coccinelle.ai ?
           </h2>
           <blockquote className="text-lg sm:text-xl text-gray-300 leading-relaxed mb-8">
-            &laquo;&nbsp;Apres 25 ans dans la relation client, j&apos;ai vu les grands groupes offrir
-            des experiences fluides pendant que les PME restaient coincees avec des SVI
-            des annees 90. J&apos;ai voulu changer ca. Pas pour quelques grands comptes —
-            pour tous. Le plombier a Toulouse, le kine a Bordeaux, l&apos;agence immo a Lyon.
-            Coccinelle.ai c&apos;est la democratisation de la relation client.&nbsp;&raquo;
+            &laquo;&nbsp;Après 25 ans dans la relation client, j&apos;ai vu les grands groupes offrir
+            des expériences fluides pendant que les PME restaient coincées avec des SVI
+            des années 90. J&apos;ai voulu changer ça. Pas pour quelques grands comptes —
+            pour tous. Le plombier à Toulouse, le kiné à Bordeaux, l&apos;agence immo à Lyon.
+            Coccinelle.ai c&apos;est la démocratisation de la relation client.&nbsp;&raquo;
           </blockquote>
           <div className="flex items-center justify-center gap-4">
             <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center">
@@ -604,7 +535,7 @@ export default function LandingPage() {
             <ArrowRight className="ml-2 w-5 h-5" />
           </Link>
           <p className="mt-6 text-sm text-gray-500">
-            14 jours d&apos;essai gratuit &middot; Annulation a tout moment
+            14 jours d&apos;essai gratuit &middot; Annulation à tout moment
           </p>
         </div>
       </section>

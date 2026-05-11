@@ -58,7 +58,7 @@ export default function KnowledgeProductsPage() {
     const token = localStorage.getItem('auth_token');
     return token
       ? { 'Authorization': `Bearer ${token}` }
-      : { 'x-api-key': 'demo-key-12345' };
+      : {};
   };
 
   useEffect(() => {

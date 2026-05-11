@@ -10,7 +10,7 @@ export const API_CONFIG = {
   baseURL: useLocalAPI
     ? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
     : (process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev'),
-  apiKey: process.env.NEXT_PUBLIC_API_KEY || 'demo-key-12345',
+  apiKey: process.env.NEXT_PUBLIC_API_KEY || '',
   useLocalAPI,
 
   // Endpoints - adaptés selon API locale ou externe

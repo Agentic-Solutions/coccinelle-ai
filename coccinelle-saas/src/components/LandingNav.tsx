@@ -114,20 +114,20 @@ function SectorsMenu() {
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">PME & Services</h4>
         <div className="space-y-1">
-          <MegaLink icon={Building2} title="Immobilier" desc="Agences et gestionnaires" />
-          <MegaLink icon={Stethoscope} title="Sant&eacute; & M&eacute;dical" desc="Cabinets et cliniques" />
-          <MegaLink icon={UtensilsCrossed} title="Restaurant & H&ocirc;tellerie" desc="R&eacute;servations automatiques" />
-          <MegaLink icon={Car} title="Automobile" desc="Garages et concessions" />
+          <MegaLink icon={Building2} title="Immobilier" desc="Agences et gestionnaires" href="/secteurs/immobilier" />
+          <MegaLink icon={Stethoscope} title="Sant&eacute; & M&eacute;dical" desc="Cabinets et cliniques" href="/secteurs/sante" />
+          <MegaLink icon={UtensilsCrossed} title="Restaurant & H&ocirc;tellerie" desc="R&eacute;servations automatiques" href="/secteurs/restaurant" />
+          <MegaLink icon={Car} title="Automobile" desc="Garages et concessions" href="/secteurs/automobile" />
         </div>
       </div>
 
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Professions lib&eacute;rales</h4>
         <div className="space-y-1">
-          <MegaLink icon={Scale} title="Notaire & Juridique" desc="&Eacute;tudes et cabinets" />
+          <MegaLink icon={Scale} title="Juridique" desc="Cabinets d&apos;avocats et notaires" href="/secteurs/juridique" />
           <MegaLink icon={Calculator} title="Comptable & Finance" desc="Experts-comptables" />
           <MegaLink icon={Heart} title="V&eacute;t&eacute;rinaire" desc="Cliniques v&eacute;t&eacute;rinaires" />
-          <MegaLink icon={Scissors} title="Beaut&eacute; & Bien-&ecirc;tre" desc="Salons et instituts" />
+          <MegaLink icon={Scissors} title="Beaut&eacute; & Bien-&ecirc;tre" desc="Salons et instituts" href="/secteurs/beaute" />
         </div>
       </div>
     </div>
@@ -399,14 +399,14 @@ export default function LandingNav() {
                   onToggle={() => setMobileAccordion(prev => prev === 'sectors' ? null : 'sectors')}
                 >
                   <div className="space-y-0.5 py-2">
-                    <MobileItem icon={Building2} label="Immobilier" onClick={closeMobile} />
-                    <MobileItem icon={Stethoscope} label="Sant&eacute; & M&eacute;dical" onClick={closeMobile} />
-                    <MobileItem icon={UtensilsCrossed} label="Restaurant & H&ocirc;tellerie" onClick={closeMobile} />
-                    <MobileItem icon={Car} label="Automobile" onClick={closeMobile} />
-                    <MobileItem icon={Scale} label="Notaire & Juridique" onClick={closeMobile} />
+                    <MobileItem icon={Building2} label="Immobilier" href="/secteurs/immobilier" onClick={closeMobile} />
+                    <MobileItem icon={Stethoscope} label="Sant&eacute; & M&eacute;dical" href="/secteurs/sante" onClick={closeMobile} />
+                    <MobileItem icon={UtensilsCrossed} label="Restaurant & H&ocirc;tellerie" href="/secteurs/restaurant" onClick={closeMobile} />
+                    <MobileItem icon={Car} label="Automobile" href="/secteurs/automobile" onClick={closeMobile} />
+                    <MobileItem icon={Scale} label="Juridique" href="/secteurs/juridique" onClick={closeMobile} />
                     <MobileItem icon={Calculator} label="Comptable & Finance" onClick={closeMobile} />
                     <MobileItem icon={Heart} label="V&eacute;t&eacute;rinaire" onClick={closeMobile} />
-                    <MobileItem icon={Scissors} label="Beaut&eacute; & Bien-&ecirc;tre" onClick={closeMobile} />
+                    <MobileItem icon={Scissors} label="Beaut&eacute; & Bien-&ecirc;tre" href="/secteurs/beaute" onClick={closeMobile} />
                   </div>
                 </MobileAccordion>
 

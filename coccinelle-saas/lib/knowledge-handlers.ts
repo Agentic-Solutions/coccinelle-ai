@@ -1,50 +1,22 @@
 import { buildApiUrl, getAuthHeaders, getCurrentTenantId, getTenantStorageKey } from './config';
 import { processLocalCrawl } from './crawl-processor';
-import { isDemoMode } from './mockData';
 
 export async function loadKnowledgeData(
   setDocuments: (docs: any[]) => void,
   setCalls: (calls: any[]) => void,
   setAppointments: (appts: any[]) => void
 ) {
-  console.log('🔄 loadData() appelé');
+  const authHeaders = getAuthHeaders();
 
-  if (isDemoMode()) {
-    console.log('📍 Mode démo activé');
-    const { migrateOldDocuments } = await import('./config');
-    migrateOldDocuments();
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const storageKey = getTenantStorageKey('kb_documents');
-    console.log('🔑 Lecture depuis:', storageKey);
-
-    const kbDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    console.log('📚 Documents chargés depuis localStorage:', kbDocs.length);
-
-    const { mockDocuments, mockCalls, mockAppointments } = await import('./mockData');
-    const docsToUse = kbDocs.length > 0 ? kbDocs : mockDocuments;
-    console.log('📚 Documents à afficher:', docsToUse.length);
-
-    setDocuments(docsToUse);
-    console.log('✅ setDocuments() appelé avec', docsToUse.length, 'documents');
-
-    setCalls(mockCalls);
-    setAppointments(mockAppointments);
-    return;
-  }
-
-  // Mode production - utiliser le proxy Next.js
-  const tenantId = getCurrentTenantId();
   const [docsRes, callsRes, apptsRes] = await Promise.all([
-    fetch(`/api/proxy?path=/api/v1/knowledge/documents&tenantId=${tenantId}`),
-    fetch(`/api/proxy?path=/api/v1/vapi/calls&tenantId=${tenantId}`),
-    fetch(`/api/proxy?path=/api/v1/appointments&tenantId=${tenantId}`)
+    fetch(buildApiUrl('/api/v1/knowledge/documents'), { headers: authHeaders }),
+    fetch(buildApiUrl('/api/v1/calls?limit=50'), { headers: authHeaders }),
+    fetch(buildApiUrl('/api/v1/appointments'), { headers: authHeaders }),
   ]);
 
-  const docsData = await docsRes.json();
-  const callsData = await callsRes.json();
-  const apptsData = await apptsRes.json();
+  const docsData = docsRes.ok ? await docsRes.json() : {};
+  const callsData = callsRes.ok ? await callsRes.json() : {};
+  const apptsData = apptsRes.ok ? await apptsRes.json() : {};
 
   setDocuments(docsData.documents || []);
   setCalls(callsData.calls || []);
@@ -127,27 +99,6 @@ export async function saveCrawledPages(pages: any[]) {
   }
 
   const tenantId = getCurrentTenantId();
-
-  // Si mode démo, sauvegarder dans localStorage
-  if (isDemoMode()) {
-    const finalDocs = structuredDocs.map((doc: any, index: number) => ({
-      id: `doc_crawl_${Date.now()}_${index}`,
-      title: doc.title,
-      content: doc.content,
-      category: doc.category,
-      created_at: new Date().toISOString(),
-      sourceType: 'crawl'
-    }));
-
-    const storageKey = getTenantStorageKey('kb_documents');
-    const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    const allDocs = [...existingDocs, ...finalDocs];
-    localStorage.setItem(storageKey, JSON.stringify(allDocs));
-
-    return finalDocs;
-  }
-
-  // Mode production : sauvegarder directement vers l'API Cloudflare Workers
   const savedDocs = [];
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -220,24 +171,6 @@ export async function importFromGoogle(url: string) {
 }
 
 export async function uploadManualDocument(title: string, content: string) {
-  if (isDemoMode()) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const newDoc = {
-      id: `doc_manual_${Date.now()}`,
-      title: title,
-      content: content,
-      created_at: new Date().toISOString(),
-      sourceType: 'manual'
-    };
-
-    const existingDocs = JSON.parse(localStorage.getItem(getTenantStorageKey('kb_documents')) || '[]');
-    localStorage.setItem(getTenantStorageKey('kb_documents'), JSON.stringify([...existingDocs, newDoc]));
-
-    return newDoc;
-  }
-
-  // Mode production
   const response = await fetch(buildApiUrl('/api/v1/knowledge/documents'), {
     method: 'POST',
     headers: getAuthHeaders(),

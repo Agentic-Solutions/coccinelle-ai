@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Cookies from 'js-cookie';
-import { isDemoMode, mockTenant } from '@/lib/mockData';
 import { buildApiUrl } from '@/lib/config';
 
 export default function SignupPage() {
@@ -48,45 +47,6 @@ export default function SignupPage() {
     }
 
     try {
-      // Mode démo - simulation sans backend
-      if (isDemoMode()) {
-        await new Promise(resolve => setTimeout(resolve, 800)); // Simuler latence réseau
-
-        const demoUser = {
-          id: 'user_demo_001',
-          name: formData.name,
-          email: formData.email,
-          tenant_id: mockTenant.id
-        };
-
-        const demoData = {
-          token: 'demo_token_' + Date.now(),
-          user: demoUser,
-          tenant: {
-            ...mockTenant,
-            name: formData.email.split('@')[1] || 'Demo Company'
-          }
-        };
-
-        // Stocker les infos
-        localStorage.setItem('auth_token', demoData.token);
-        localStorage.setItem('user', JSON.stringify(demoData.user));
-        localStorage.setItem('tenant', JSON.stringify(demoData.tenant));
-
-        // CRITIQUE : Stocker aussi le token dans un cookie (pour le middleware)
-        Cookies.set('auth_token', demoData.token, {
-          expires: 30,
-          path: '/',
-          sameSite: 'strict',
-          secure: true
-        });
-
-        // Redirection vers l'onboarding
-        router.push('/onboarding');
-        return;
-      }
-
-      // Mode production - appel API réel
       const response = await fetch(
         buildApiUrl('/api/v1/auth/signup'),
         {

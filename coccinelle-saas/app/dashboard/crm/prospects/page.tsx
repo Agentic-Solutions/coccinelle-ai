@@ -109,75 +109,10 @@ export default function ProspectsPage() {
       }
     } catch (err) {
       console.error('Erreur chargement prospects:', err);
-      // Fallback to mock data
-      const mockProspects: Prospect[] = [
-        {
-          id: '1',
-          firstName: 'Julie',
-          lastName: 'Martin',
-          email: 'julie.martin@example.com',
-          phone: '+33601020304',
-          preferredChannel: 'sms',
-          segment: 'vip',
-          tags: ['fidele', 'actif'],
-          totalOrders: 12,
-          totalSpent: { amount: 1280, currency: 'EUR' },
-          createdAt: new Date('2024-01-15'),
-          lastOrderAt: new Date('2025-11-10'),
-          source: 'website',
-          status: 'converted',
-        },
-        {
-          id: '2',
-          firstName: 'Emma',
-          lastName: 'Rousseau',
-          email: 'emma.rousseau@example.com',
-          phone: '+33612345678',
-          preferredChannel: 'email',
-          segment: 'active',
-          tags: ['nouveau'],
-          totalOrders: 3,
-          totalSpent: { amount: 245, currency: 'EUR' },
-          createdAt: new Date('2025-10-20'),
-          lastOrderAt: new Date('2025-11-05'),
-          source: 'appel',
-          status: 'qualified',
-        },
-        {
-          id: '3',
-          firstName: 'Sophie',
-          lastName: 'Dubois',
-          email: 'sophie.dubois@example.com',
-          phone: '+33698765432',
-          preferredChannel: 'whatsapp',
-          segment: 'prospect',
-          tags: ['auto-created', 'premier-contact'],
-          totalOrders: 0,
-          totalSpent: { amount: 0, currency: 'EUR' },
-          createdAt: new Date('2025-11-15'),
-          source: 'assistant',
-          status: 'new',
-        },
-        {
-          id: '4',
-          firstName: 'Pierre',
-          lastName: 'Leroy',
-          email: 'pierre.leroy@example.com',
-          phone: '+33678901234',
-          preferredChannel: 'phone',
-          segment: 'standard',
-          tags: ['contact-tel'],
-          totalOrders: 0,
-          totalSpent: { amount: 0, currency: 'EUR' },
-          createdAt: new Date('2025-12-01'),
-          source: 'assistant',
-          status: 'contacted',
-        },
-      ];
-      setProspects(mockProspects);
-      setFilteredProspects(mockProspects);
-      computeStats(mockProspects);
-      setError('Mode hors-ligne : données locales affichées');
+      setProspects([]);
+      setFilteredProspects([]);
+      computeStats([]);
+      setError('Impossible de charger les contacts. Verifiez votre connexion.');
     } finally {
       setIsLoading(false);
     }
