@@ -57,7 +57,7 @@ export async function handleTeamRoutes(request, env, path, method) {
     let body;
     try { body = await request.json(); } catch { return new Response(JSON.stringify({ success: false, error: 'Body JSON invalide' }), { status: 400, headers: jsonHeaders }); }
 
-    const { name, email, role, color } = body;
+    const { name, email, phone, role, color } = body;
     if (!name || !name.trim()) return new Response(JSON.stringify({ success: false, error: 'Le nom est requis' }), { status: 400, headers: jsonHeaders });
 
     const parts = name.trim().split(/\s+/);
@@ -67,9 +67,9 @@ export async function handleTeamRoutes(request, env, path, method) {
 
     try {
       await env.DB.prepare(`
-        INSERT INTO commercial_agents (id, tenant_id, first_name, last_name, email, role, color, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
-      `).bind(id, tenantId, firstName, lastName, email || null, role || 'member', color || '#6366f1').run();
+        INSERT INTO commercial_agents (id, tenant_id, first_name, last_name, email, phone, role, color, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
+      `).bind(id, tenantId, firstName, lastName, email || null, phone || null, role || 'member', color || '#6366f1').run();
 
       return new Response(JSON.stringify({ success: true, id, name: `${firstName} ${lastName}`.trim() }), { status: 201, headers: jsonHeaders });
     } catch (err) {
@@ -89,7 +89,7 @@ export async function handleTeamRoutes(request, env, path, method) {
     let body;
     try { body = await request.json(); } catch { return new Response(JSON.stringify({ success: false, error: 'Body JSON invalide' }), { status: 400, headers: jsonHeaders }); }
 
-    const { name, email, role, color } = body;
+    const { name, email, phone, role, color } = body;
     const parts = name ? name.trim().split(/\s+/) : [];
     const firstName = parts[0] || null;
     const lastName = parts.slice(1).join(' ') || null;
@@ -100,11 +100,12 @@ export async function handleTeamRoutes(request, env, path, method) {
           first_name = COALESCE(?, first_name),
           last_name = COALESCE(?, last_name),
           email = COALESCE(?, email),
+          phone = COALESCE(?, phone),
           role = COALESCE(?, role),
           color = COALESCE(?, color),
           updated_at = datetime('now')
         WHERE id = ? AND tenant_id = ?
-      `).bind(firstName, lastName, email || null, role || null, color || null, memberId, tenantId).run();
+      `).bind(firstName, lastName, email || null, phone || null, role || null, color || null, memberId, tenantId).run();
 
       return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
     } catch (err) {
@@ -289,6 +290,142 @@ export async function handleTeamRoutes(request, env, path, method) {
     } catch (err) {
       logger.error('[Team] PUT member services error', { error: err.message });
       return new Response(JSON.stringify({ success: false, error: 'Erreur sauvegarde prestations' }), { status: 500, headers: jsonHeaders });
+    }
+  }
+
+  // ── GET /api/v1/team/members-with-skills ───────
+  if (path === '/api/v1/team/members-with-skills' && method === 'GET') {
+    const auth = await requireAuth(request, env);
+    if (auth.error) return new Response(JSON.stringify({ success: false, error: auth.error }), { status: auth.status, headers: jsonHeaders });
+
+    const tenantId = auth.tenant.id;
+    try {
+      const membersResult = await env.DB.prepare(`
+        SELECT ca.id, ca.first_name, ca.last_name, ca.email, ca.phone, ca.role, ca.color, ca.is_active, ca.created_at
+        FROM commercial_agents ca
+        WHERE ca.tenant_id = ? AND ca.is_active = 1
+        ORDER BY ca.first_name ASC
+      `).bind(tenantId).all();
+
+      const members = (membersResult.results || []).map(m => ({
+        ...m,
+        name: `${m.first_name} ${m.last_name}`.trim()
+      }));
+
+      // Fetch skills for all members in one query
+      const skillsResult = await env.DB.prepare(`
+        SELECT ms.id, ms.member_id, ms.skill_type,
+          ms.task_type_id, ms.service_id,
+          ms.duration_minutes, ms.priority, ms.is_active,
+          tt.name as task_type_name, tt.secteur, tt.priority as task_priority,
+          s.name as service_name, s.duration_minutes as service_duration
+        FROM member_skills ms
+        LEFT JOIN task_types tt ON tt.id = ms.task_type_id
+        LEFT JOIN services s ON s.id = ms.service_id
+        WHERE ms.tenant_id = ? AND ms.is_active = 1
+        ORDER BY ms.skill_type, ms.priority ASC
+      `).bind(tenantId).all();
+
+      const skillsByMember = {};
+      for (const sk of (skillsResult.results || [])) {
+        if (!skillsByMember[sk.member_id]) skillsByMember[sk.member_id] = [];
+        skillsByMember[sk.member_id].push(sk);
+      }
+
+      const enriched = members.map(m => ({
+        ...m,
+        skills: skillsByMember[m.id] || []
+      }));
+
+      return new Response(JSON.stringify({ success: true, members: enriched }), { headers: jsonHeaders });
+    } catch (err) {
+      logger.error('[Team] GET members-with-skills error', { error: err.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur serveur' }), { status: 500, headers: jsonHeaders });
+    }
+  }
+
+  // ── POST /api/v1/team/members/:id/skills ──────
+  const postSkillMatch = path.match(/^\/api\/v1\/team\/members\/([^/]+)\/skills$/);
+  if (postSkillMatch && method === 'POST') {
+    const auth = await requireAuth(request, env);
+    if (auth.error) return new Response(JSON.stringify({ success: false, error: auth.error }), { status: auth.status, headers: jsonHeaders });
+
+    const tenantId = auth.tenant.id;
+    const memberId = postSkillMatch[1];
+    let body;
+    try { body = await request.json(); } catch { return new Response(JSON.stringify({ success: false, error: 'Body JSON invalide' }), { status: 400, headers: jsonHeaders }); }
+
+    const { skill_type, task_type_id, service_id, duration_minutes, priority } = body;
+    if (!skill_type || !['task', 'rdv'].includes(skill_type)) {
+      return new Response(JSON.stringify({ success: false, error: 'skill_type requis (task ou rdv)' }), { status: 400, headers: jsonHeaders });
+    }
+    if (skill_type === 'task' && !task_type_id) {
+      return new Response(JSON.stringify({ success: false, error: 'task_type_id requis pour skill_type=task' }), { status: 400, headers: jsonHeaders });
+    }
+    if (skill_type === 'rdv' && !service_id) {
+      return new Response(JSON.stringify({ success: false, error: 'service_id requis pour skill_type=rdv' }), { status: 400, headers: jsonHeaders });
+    }
+
+    // Check member exists
+    const member = await env.DB.prepare('SELECT id FROM commercial_agents WHERE id = ? AND tenant_id = ?').bind(memberId, tenantId).first();
+    if (!member) return new Response(JSON.stringify({ success: false, error: 'Membre introuvable' }), { status: 404, headers: jsonHeaders });
+
+    const id = generateId('ms');
+    try {
+      await env.DB.prepare(
+        `INSERT INTO member_skills (id, tenant_id, member_id, skill_type, task_type_id, service_id, duration_minutes, priority, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`
+      ).bind(id, tenantId, memberId, skill_type, task_type_id || null, service_id || null, duration_minutes || null, priority || 1).run();
+
+      return new Response(JSON.stringify({ success: true, id }), { status: 201, headers: jsonHeaders });
+    } catch (err) {
+      logger.error('[Team] POST skill error', { error: err.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur ajout competence' }), { status: 500, headers: jsonHeaders });
+    }
+  }
+
+  // ── DELETE /api/v1/team/members/:id/skills/:skillId ──
+  const delSkillMatch = path.match(/^\/api\/v1\/team\/members\/([^/]+)\/skills\/([^/]+)$/);
+  if (delSkillMatch && method === 'DELETE') {
+    const auth = await requireAuth(request, env);
+    if (auth.error) return new Response(JSON.stringify({ success: false, error: auth.error }), { status: auth.status, headers: jsonHeaders });
+
+    const tenantId = auth.tenant.id;
+    const memberId = delSkillMatch[1];
+    const skillId = delSkillMatch[2];
+
+    try {
+      await env.DB.prepare(
+        'DELETE FROM member_skills WHERE id = ? AND member_id = ? AND tenant_id = ?'
+      ).bind(skillId, memberId, tenantId).run();
+
+      return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
+    } catch (err) {
+      logger.error('[Team] DELETE skill error', { error: err.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur suppression competence' }), { status: 500, headers: jsonHeaders });
+    }
+  }
+
+  // ── GET /api/v1/team/skills-catalog ───────────
+  if (path === '/api/v1/team/skills-catalog' && method === 'GET') {
+    const auth = await requireAuth(request, env);
+    if (auth.error) return new Response(JSON.stringify({ success: false, error: auth.error }), { status: auth.status, headers: jsonHeaders });
+
+    const tenantId = auth.tenant.id;
+    try {
+      const [taskTypesResult, servicesResult] = await Promise.all([
+        env.DB.prepare('SELECT id, name, secteur, priority FROM task_types WHERE tenant_id = ? ORDER BY secteur, name').bind(tenantId).all(),
+        env.DB.prepare('SELECT id, name, duration_minutes FROM services WHERE tenant_id = ? AND is_active = 1 ORDER BY name').bind(tenantId).all(),
+      ]);
+
+      return new Response(JSON.stringify({
+        success: true,
+        task_types: taskTypesResult.results || [],
+        services: servicesResult.results || [],
+      }), { headers: jsonHeaders });
+    } catch (err) {
+      logger.error('[Team] GET skills-catalog error', { error: err.message });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur serveur' }), { status: 500, headers: jsonHeaders });
     }
   }
 

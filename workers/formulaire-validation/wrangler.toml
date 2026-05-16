@@ -1,0 +1,8 @@
+name = "formulaire-validation"
+main = "src/index.js"
+compatibility_date = "2024-09-02"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "coccinelle-validation"
+database_id = "adb74adb-56f8-4e9a-864c-8f3799c3bfea"

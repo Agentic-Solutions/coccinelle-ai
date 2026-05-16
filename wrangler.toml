@@ -16,10 +16,7 @@ OMNICHANNEL_ENABLED = "true"
 FRONTEND_URL = "https://coccinelle.ai"
 GOOGLE_CLIENT_ID = "4699769016-fo6jp6vid80sno7nngjb58o180b1sr3o.apps.googleusercontent.com"
 GOOGLE_REDIRECT_URI = "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/oauth/google/callback"
-META_WHATSAPP_ACCESS_TOKEN = "EAFprwicaq0wBQvqGR8NKZCanfoTreBFibfyZALzUISeqObpsH3BTRxANqfgwZC5U0tn3bBE2Bu10DXzn5Yk6JS3VVPVGGWgHBzNCh45FROZCcovMBFUEjLpegGr0IM4Tcq1QHRphwdFPcMimYV5WbnE2rf0QWntD4TF21zcyaleFQW8MhvwQ9SGRjjfWsFEFS2DSVAk9jHl6Bv9geguLDiuaZBruukTTyeOYHnqUscPrhSP7YrwghLsnqAytbzS6nuV8eFor83cI3J3VQRxAUreWOiLrF64JUDUUZD"
-META_WEBHOOK_VERIFY_TOKEN = "coccinelle_meta_verify_2026"
 META_APP_ID = "25451229527845708"
-META_APP_SECRET = "39b16ccc8d6c3bbabaae052bbdd33926"
 META_BUSINESS_ID = "2369569113476967"
 
 # Clé API VoixIA — à configurer via : wrangler secret put VOIXIA_API_KEY
@@ -37,6 +34,9 @@ META_BUSINESS_ID = "2369569113476967"
 # - STRIPE_SECRET_KEY (clé secrète Stripe - mode test: sk_test_xxx, mode live: sk_live_xxx)
 # - STRIPE_WEBHOOK_SECRET (secret des webhooks Stripe - whsec_xxx)
 # - GOOGLE_CLOUD_API_KEY (pour Google Cloud TTS)
+# - META_WHATSAPP_ACCESS_TOKEN (token Meta WhatsApp Business API)
+# - META_APP_SECRET (secret Meta App)
+# - META_WEBHOOK_VERIFY_TOKEN (token de vérification webhook Meta)
 
 [[d1_databases]]
 binding = "DB"
@@ -65,22 +65,12 @@ binding = "AUDIO_BUCKET"
 bucket_name = "omnichannel-audio"
 
 # ========================================
-# 📧 EMAIL ROUTING - Réception des emails
+# EMAIL ROUTING - Réception des emails
 # ========================================
 # Pour recevoir les emails, le client doit :
 # 1. Ajouter son domaine sur Cloudflare
 # 2. Configurer Email Routing vers ce Worker
 # 3. Ajouter le record MX dans ses DNS
-
-# ========================================
-# 📧 EMAIL ROUTING - Réception des emails
-# ========================================
-# Pour recevoir les emails, le client doit :
-# 1. Ajouter son domaine sur Cloudflare
-# 2. Configurer Email Routing vers ce Worker
-# 3. Ajouter le record MX dans ses DNS
-
-# ========================================
 
 
 

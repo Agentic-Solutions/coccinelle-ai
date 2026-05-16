@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Phone, Users, Hash, Bot,
   MessageSquare, MessageCircle, Mail, Voicemail,
   Calendar, BookOpen, HelpCircle, Package, Briefcase,
-  GitBranch, ListTree, Users2,
+  GitBranch, ListTree, Users2, CheckSquare,
   BarChart3, ScrollText, Download, Bell, TrendingUp,
   Settings, LogOut, Menu, X, PhoneCall, Clock,
   ChevronLeft, ChevronRight, ChevronDown, CreditCard
@@ -36,6 +36,7 @@ const navigation: NavGroup[] = [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { name: 'Appels', href: '/dashboard/analytics/calls', icon: Phone },
       { name: 'Contacts', href: '/dashboard/crm/prospects', icon: Users },
+      { name: 'Tâches', href: '/dashboard/tasks', icon: CheckSquare },
     ],
   },
   {
@@ -122,15 +123,15 @@ export default function DashboardSidebar() {
   const [subPlan, setSubPlan] = useState<string | null>(null);
   const [subStatus, setSubStatus] = useState<string | null>(null);
   const [trialDays, setTrialDays] = useState<number | null>(null);
+  const [urgentTasks, setUrgentTasks] = useState(0);
 
   useEffect(() => {
     const token = typeof window !== 'undefined'
       ? localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
       : null;
     if (!token) return;
-    fetch(`${API_URL}/api/v1/billing/subscription`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const headers = { Authorization: `Bearer ${token}` };
+    fetch(`${API_URL}/api/v1/billing/subscription`, { headers })
       .then(r => r.json())
       .then(data => {
         if (data.success && data.subscription) {
@@ -140,6 +141,14 @@ export default function DashboardSidebar() {
         } else {
           setSubPlan('trial');
           setSubStatus('trialing');
+        }
+      })
+      .catch(() => {});
+    fetch(`${API_URL}/api/v1/tasks/stats`, { headers })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.stats) {
+          setUrgentTasks(data.stats.urgent || 0);
         }
       })
       .catch(() => {});
@@ -334,6 +343,11 @@ export default function DashboardSidebar() {
                             {item.name === 'WhatsApp' && (
                               <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full ml-auto leading-none">
                                 Bientot
+                              </span>
+                            )}
+                            {item.name === 'Tâches' && urgentTasks > 0 && (
+                              <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full ml-auto leading-none font-medium min-w-[18px] text-center">
+                                {urgentTasks}
                               </span>
                             )}
                           </>

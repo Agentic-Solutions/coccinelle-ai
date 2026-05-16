@@ -87,16 +87,16 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
   const path = url.pathname;
   const method = request.method;
 
-  // Rate limit login/signup: 10 requests/minute per IP
-  if (path === '/api/v1/auth/login' || path === '/api/v1/auth/signup') {
+  // Rate limit login/signup/register: 10 requests/minute per IP
+  if (path === '/api/v1/auth/login' || path === '/api/v1/auth/signup' || path === '/api/v1/auth/register') {
     const rateLimited = rateLimitResponse(request, path, { maxRequests: 10, windowMs: 60000 });
     if (rateLimited) return rateLimited;
   }
 
   // ========================================
-  // POST /api/v1/auth/signup
+  // POST /api/v1/auth/signup (+ alias /register)
   // ========================================
-  if (path === '/api/v1/auth/signup' && method === 'POST') {
+  if ((path === '/api/v1/auth/signup' || path === '/api/v1/auth/register') && method === 'POST') {
     try {
       let body;
       try { body = await request.json(); } catch { body = {}; }
@@ -171,8 +171,10 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
 
       // Mettre à jour le secteur d'activité si fourni
       // SOURCE UNIQUE : secteur stocké dans tenants.sector (pas tenants.industry)
-      if (body.industry) {
-        await env.DB.prepare('UPDATE tenants SET sector = ? WHERE id = ?').bind(body.industry, tenantId).run();
+      // Accepte body.sector OU body.industry (rétrocompatibilité)
+      const tenantSector = body.sector || body.industry || null;
+      if (tenantSector) {
+        await env.DB.prepare('UPDATE tenants SET sector = ? WHERE id = ?').bind(tenantSector, tenantId).run();
       }
 
       // Créer les permissions par défaut pour ce tenant
@@ -189,6 +191,56 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
 
       // Créer user admin (avec cgu_accepted_at)
       await env.DB.prepare(`INSERT INTO users (id, tenant_id, email, password_hash, name, role, is_active, cgu_accepted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(userId, tenantId, email.toLowerCase().trim(), passwordHash, name.trim(), 'admin', 1, cgu_accepted ? now : null, now, now).run();
+
+      // ========================================
+      // FIX B1 : Auto-créer voixia_config + prompt sectoriel par défaut
+      // ========================================
+      try {
+        const effectiveSector = tenantSector || 'generaliste';
+        // Chercher template sectoriel ou fallback generaliste
+        const sectorTemplate = await env.DB.prepare(`
+          SELECT system_prompt, llm_provider, llm_model, voice_id
+          FROM ai_sector_templates
+          WHERE secteur = ? OR secteur = 'generaliste'
+          ORDER BY CASE WHEN secteur = ? THEN 1 ELSE 2 END
+          LIMIT 1
+        `).bind(effectiveSector, effectiveSector).first();
+
+        if (sectorTemplate) {
+          // Remplacer les variables dans le template
+          let defaultPrompt = (sectorTemplate.system_prompt || '')
+            .replace(/\{ASSISTANT_NAME\}/g, 'Coccinelle')
+            .replace(/\{COMPANY_NAME\}/g, tenantName);
+
+          // Créer le prompt actif (id est INTEGER AUTOINCREMENT)
+          const promptResult = await env.DB.prepare(`
+            INSERT INTO ai_prompt_versions (tenant_id, secteur, system_prompt, is_active, version, created_at)
+            VALUES (?, ?, ?, 1, 1, ?)
+          `).bind(tenantId, effectiveSector, defaultPrompt, now).run();
+          const promptId = promptResult.meta?.last_row_id;
+
+          if (promptId) {
+            // Créer voixia_config avec le prompt actif
+            await env.DB.prepare(`
+              INSERT INTO voixia_configs (tenant_id, llm_provider, llm_model, voice_id, secteur, active_prompt_id, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              tenantId,
+              sectorTemplate.llm_provider || 'mistral',
+              sectorTemplate.llm_model || 'mistral-small-latest',
+              sectorTemplate.voice_id || 'cgSgspJ2msm6clMCkdW9',
+              effectiveSector,
+              promptId,
+              now
+            ).run();
+
+            logger.info('Auto-created voixia_config + prompt for new tenant', { tenantId, sector: effectiveSector, promptId });
+          }
+        }
+      } catch (voixiaError) {
+        // Non-bloquant : si ça échoue, le tenant peut configurer manuellement
+        logger.warn('Failed to auto-create voixia_config at signup', { error: voixiaError.message });
+      }
 
       // Générer JWT et créer session
       const token = await auth.generateToken({ user_id: userId, tenant_id: tenantId, role: 'admin', email: email.toLowerCase().trim() }, env.JWT_SECRET, '30d');

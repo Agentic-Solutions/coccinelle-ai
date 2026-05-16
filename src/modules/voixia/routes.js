@@ -88,6 +88,11 @@ export async function handleVoixIARoutes(request, env, path, method) {
       return await handleLogCall(request, env);
     }
 
+    // POST /api/v1/voixia/create-task — Créer tâche + affectation intelligente (appelé par agent Python)
+    if (path === '/api/v1/voixia/create-task' && method === 'POST') {
+      return await handleCreateTask(request, env);
+    }
+
     // ═══ Aliases /tools/* pour compatibilité documentée ═══
     if (path === '/api/v1/voixia/tools/availability' && method === 'GET') {
       return await handleCheckAvailability(request, env);
@@ -966,6 +971,7 @@ async function handleResolvePhone(request, env) {
     return successResponse({
       tenant_id: resolved.tenant_id,
       company_name: resolved.company_name,
+      sector: secteur,
       prompt_type: secteur,
       api_key: resolved.api_key,
       llm_provider: llmProvider,
@@ -1403,5 +1409,154 @@ async function handleActivateVersion(request, env, versionId) {
   } catch (error) {
     logger.error('Activate version error', { error: error.message });
     return errorResponse('Erreur lors de l activation', 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// POST /api/v1/voixia/create-task — Créer tâche + affectation intelligente
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleCreateTask(request, env) {
+  const auth = await requireVoixIAAuth(request, env);
+  if (auth.error) return errorResponse(auth.error, auth.status);
+  const tenant_id = auth.tenant_id;
+
+  let body;
+  try { body = await request.json(); } catch { return errorResponse('Body JSON invalide', 400); }
+
+  const { contact_name, contact_phone, task_type_keywords, description, secteur, call_transcript, kb_response, kb_satisfied } = body;
+  if (!description) return errorResponse('description requis', 400);
+
+  try {
+    // 1. Chercher task_type via keywords
+    let taskType = null;
+    if (task_type_keywords) {
+      const words = task_type_keywords.split(/[\s,]+/).filter(w => w.length > 2);
+      if (words.length > 0) {
+        const conditions = words.slice(0, 5).map(() => "keywords LIKE '%' || ? || '%'");
+        // FIX B3 : chercher dans task_types du tenant OU globaux (tenant_id = 'global')
+        let sql, params;
+        if (secteur) {
+          sql = `SELECT * FROM task_types WHERE (tenant_id = ? OR tenant_id = 'global') AND secteur = ? AND (${conditions.join(' OR ')}) ORDER BY CASE WHEN tenant_id = ? THEN 0 ELSE 1 END, CASE priority WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END LIMIT 1`;
+          params = [tenant_id, secteur, ...words.slice(0, 5), tenant_id];
+        } else {
+          sql = `SELECT * FROM task_types WHERE (tenant_id = ? OR tenant_id = 'global') AND (${conditions.join(' OR ')}) ORDER BY CASE WHEN tenant_id = ? THEN 0 ELSE 1 END, CASE priority WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END LIMIT 1`;
+          params = [tenant_id, ...words.slice(0, 5), tenant_id];
+        }
+        taskType = await env.DB.prepare(sql).bind(...params).first();
+      }
+    }
+
+    // 2. Chercher assignee via member_skills (prioritaire) puis assignment_rules (fallback)
+    let assigneeId = null;
+    let assigneeName = null;
+    let assigneePhone = null;
+
+    if (taskType) {
+      // Priorite 1: member_skills
+      const skill = await env.DB.prepare(
+        `SELECT ms.member_id, ca.first_name || ' ' || ca.last_name as assignee_name, ca.phone as assignee_phone
+         FROM member_skills ms
+         JOIN commercial_agents ca ON ca.id = ms.member_id AND ca.is_active = 1
+         WHERE ms.tenant_id = ? AND ms.task_type_id = ? AND ms.skill_type = 'task' AND ms.is_active = 1
+         ORDER BY ms.priority ASC LIMIT 1`
+      ).bind(tenant_id, taskType.id).first();
+
+      if (skill) {
+        assigneeId = skill.member_id;
+        assigneeName = skill.assignee_name;
+        assigneePhone = skill.assignee_phone;
+      } else {
+        // Priorite 2: assignment_rules (retrocompatibilite)
+        const rule = await env.DB.prepare(
+          `SELECT ar.assignee_id, ar.assignee_name, ca.phone as assignee_phone
+           FROM assignment_rules ar
+           LEFT JOIN commercial_agents ca ON ca.id = ar.assignee_id
+           WHERE ar.tenant_id = ? AND ar.task_type_id = ? AND ar.is_active = 1
+           ORDER BY ar.priority ASC LIMIT 1`
+        ).bind(tenant_id, taskType.id).first();
+
+        if (rule) {
+          assigneeId = rule.assignee_id;
+          assigneeName = rule.assignee_name;
+          assigneePhone = rule.assignee_phone;
+        }
+      }
+    }
+
+    // 3. Fallback — chercher par default_assignee_role
+    if (!assigneeId && taskType && taskType.default_assignee_role) {
+      const agent = await env.DB.prepare(
+        `SELECT id, first_name || ' ' || last_name as name, phone
+         FROM commercial_agents
+         WHERE tenant_id = ? AND specialties LIKE '%' || ? || '%' AND is_active = 1
+         LIMIT 1`
+      ).bind(tenant_id, taskType.default_assignee_role).first();
+      if (agent) {
+        assigneeId = agent.id;
+        assigneeName = agent.name;
+        assigneePhone = agent.phone;
+      }
+    }
+
+    // 4. Créer la tâche
+    const taskId = generateId('task');
+    const title = taskType ? `${taskType.name} — ${contact_name || 'Inconnu'}` : (description.slice(0, 80) || 'Nouvelle tâche');
+    const priority = taskType ? taskType.priority : 'normal';
+
+    await env.DB.prepare(
+      `INSERT INTO tasks (id, tenant_id, task_type_id, title, description, priority, assignee_id, assignee_name, contact_name, contact_phone, source, call_transcript, kb_response, kb_satisfied)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voixia', ?, ?, ?)`
+    ).bind(
+      taskId, tenant_id, taskType?.id || null, title, description, priority,
+      assigneeId, assigneeName, contact_name || null, contact_phone || null,
+      call_transcript || null, kb_response || null, kb_satisfied ? 1 : 0
+    ).run();
+
+    // 5. SMS à l'assignee (non-bloquant)
+    let smsSent = false;
+    if (assigneePhone && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_PHONE_NUMBER) {
+      const priorityLabel = priority === 'high' ? 'URGENT' : 'Normale';
+      const smsBody = `Nouvelle tâche [${priorityLabel}] : ${title}\nContact : ${contact_name || 'Inconnu'} — ${contact_phone || 'N/A'}\nVia Coccinelle.ai`;
+      try {
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
+        const formData = new URLSearchParams();
+        formData.append('To', assigneePhone);
+        formData.append('From', env.TWILIO_PHONE_NUMBER);
+        formData.append('Body', smsBody);
+        const twilioResp = await fetch(twilioUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Basic ' + btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`),
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString(),
+        });
+        smsSent = twilioResp.ok;
+      } catch (e) {
+        logger.warn('Task SMS envoi échoué', { error: e.message });
+      }
+    }
+
+    // Audit non-bloquant
+    logAudit(env, {
+      tenant_id, user_id: 'voixia-agent',
+      action: 'voixia.create_task',
+      resource_type: 'task', resource_id: taskId,
+      changes: { task_type: taskType?.name, assignee: assigneeName, priority, sms_sent: smsSent }
+    }).catch(() => {});
+
+    logger.info('VoixIA task created', { taskId, taskType: taskType?.name, assignee: assigneeName, priority });
+
+    return successResponse({
+      task_id: taskId,
+      task_type_name: taskType?.name || null,
+      assignee_name: assigneeName || null,
+      priority,
+      sms_sent: smsSent,
+    });
+  } catch (error) {
+    logger.error('VoixIA create-task error', { error: error.message });
+    return errorResponse('Erreur création tâche', 500);
   }
 }

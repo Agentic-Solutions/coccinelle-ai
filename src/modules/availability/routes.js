@@ -91,20 +91,39 @@ async function handleSetAvailability(request, env) {
     return errorResponse('day_of_week doit etre entre 1 (lundi) et 7 (dimanche)', 400, request);
   }
 
-  // Validate that the agent exists (check agents, commercial_agents, and users tables)
+  // Validate that the agent exists and ensure FK to agents table is satisfied
   try {
     let agentExists = await env.DB.prepare('SELECT id FROM agents WHERE id = ?').bind(targetAgentId).first();
     if (!agentExists) {
-      agentExists = await env.DB.prepare('SELECT id FROM commercial_agents WHERE id = ?').bind(targetAgentId).first();
+      // Check commercial_agents — if found, auto-create agents row to satisfy FK
+      const commAgent = await env.DB.prepare(
+        'SELECT id, first_name, last_name, email, phone FROM commercial_agents WHERE id = ? AND tenant_id = ?'
+      ).bind(targetAgentId, tenant.id).first();
+      if (commAgent) {
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO agents (id, tenant_id, first_name, last_name, email, phone)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        ).bind(commAgent.id, tenant.id, commAgent.first_name || 'Agent', commAgent.last_name || '', commAgent.email || `${commAgent.id}@coccinelle.ai`, commAgent.phone).run();
+        agentExists = commAgent;
+      }
     }
     if (!agentExists) {
-      agentExists = await env.DB.prepare('SELECT id FROM users WHERE id = ? AND tenant_id = ?').bind(targetAgentId, tenant.id).first();
+      // Check users table as last resort — also sync to agents
+      const userAgent = await env.DB.prepare('SELECT id, name, email FROM users WHERE id = ? AND tenant_id = ?').bind(targetAgentId, tenant.id).first();
+      if (userAgent) {
+        const parts = (userAgent.name || 'Agent').split(' ');
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO agents (id, tenant_id, first_name, last_name, email)
+           VALUES (?, ?, ?, ?, ?)`
+        ).bind(userAgent.id, tenant.id, parts[0], parts.slice(1).join(' ') || '', userAgent.email || `${userAgent.id}@coccinelle.ai`).run();
+        agentExists = userAgent;
+      }
     }
     if (!agentExists) {
       return errorResponse('Agent introuvable. Verifiez le agent_id.', 400, request);
     }
   } catch (e) {
-    logger.warn('Agent validation skipped (table may not exist)', { error: e.message });
+    logger.warn('Agent validation error', { error: e.message });
   }
 
   const slotId = auth.generateId('avail');

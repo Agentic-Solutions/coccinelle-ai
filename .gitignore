@@ -16,7 +16,7 @@ dist/
 .dev.vars
 .wrangler/
 
-# Secrets
+# Secrets & Credentials
 *secret*
 *password*
 !coccinelle-saas/app/forgot-password/
@@ -24,6 +24,8 @@ dist/
 *api_key*
 *.pem
 *.key
+.credentials*
+.claude-secrets*
 
 # OS
 .DS_Store

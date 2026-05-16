@@ -409,6 +409,19 @@ export default function PricingPage() {
         </div>
       </section>
 
+      {/* ──────────── LIEN VOIXIA API ──────────── */}
+      <section className="py-10 bg-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-sm text-gray-500">
+            Vous &ecirc;tes d&eacute;veloppeur ou revendeur ?{' '}
+            <Link href="/voixia" className="text-gray-900 font-medium hover:underline inline-flex items-center gap-1">
+              D&eacute;couvrir l&apos;offre VoixIA API
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </p>
+        </div>
+      </section>
+
       {/* ──────────── FAQ ──────────── */}
       <section className="py-20 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">

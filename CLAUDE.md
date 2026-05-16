@@ -265,12 +265,7 @@ Déconnexion
 
 ## CREDENTIALS VOIXIA
 
-- Numéro VoixIA : +33939035760
-- Numéro test Youssef : +33760762153
-- Tenant test : tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy
-- VoixIA API Key : 813f882e34f8b033e398e9a3c0ed38070e98a88e50eeee485ac0e8e06de11cc9
-- LiveKit API Key : devkey
-- LiveKit Secret : voixia-secret-dev-key-2026-secure
+**Voir `.credentials.md` (fichier local, gitignored) pour les cles API et secrets.**
 
 ## COMMANDES ESSENTIELLES VOIXIA
 
@@ -281,10 +276,10 @@ ssh root@51.15.130.204 "systemctl restart voixia"
 # Voir les logs en direct
 ssh root@51.15.130.204 "journalctl -u voixia -f"
 
-# Smoke test resolve-phone
+# Smoke test resolve-phone (remplacer $VOIXIA_API_KEY et $TENANT_ID par les valeurs de .credentials.md)
 curl -s "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/resolve-phone?phone=%2B33760762153" \
-  -H "X-VoixIA-Key: 813f882e34f8b033e398e9a3c0ed38070e98a88e50eeee485ac0e8e06de11cc9" \
-  -H "X-VoixIA-Tenant: tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy"
+  -H "X-VoixIA-Key: $VOIXIA_API_KEY" \
+  -H "X-VoixIA-Tenant: $TENANT_ID"
 ```
 
 ## OBJECTIF PRINCIPAL
@@ -958,11 +953,11 @@ ssh root@51.15.130.204 "journalctl -u voixia -f --no-pager"
 # Restart VoixIA
 ssh root@51.15.130.204 "systemctl restart voixia"
 
-# Test KB POST (appele par agent Python)
+# Test KB POST (remplacer $VOIXIA_API_KEY et $TENANT_ID par les valeurs de .credentials.md)
 curl -s -X POST \
   "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/knowledge" \
-  -H "X-VoixIA-Key: 813f882e34f8b033e398e9a3c0ed38070e98a88e50eeee485ac0e8e06de11cc9" \
-  -H "X-VoixIA-Tenant: tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy" \
+  -H "X-VoixIA-Key: $VOIXIA_API_KEY" \
+  -H "X-VoixIA-Tenant: $TENANT_ID" \
   -H "Content-Type: application/json" \
   -d '{"question":"tarifs"}'
 
@@ -1047,17 +1042,9 @@ npx wrangler d1 execute coccinelle-db --remote --file=migrations/XXXX_nom.sql
 - Frontend : https://coccinelle.ai (custom domain, also accessible via https://coccinelle-saas.pages.dev)
 - Backend API : https://coccinelle-api.youssef-amrouche.workers.dev
 
-## COMPTES DE TEST
+## COMPTES DE TEST & NUMEROS
 
-| Compte | Email | Usage |
-|--------|-------|-------|
-| Admin prod | admin@coccinelle-prod.com | Test général |
-| OAuth test | youssef.amrouche@outlook.fr | Test OAuth |
-
-## NUMÉROS TWILIO
-
-- FR : +33 9 39 03 57 60, +33 9 39 03 57 61
-- US : +1 (336) 568-3422
+**Voir `.credentials.md` (fichier local, gitignored) pour les comptes de test et numeros Twilio.**
 
 ---
 

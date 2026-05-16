@@ -56,6 +56,8 @@ import { handleTeamRoutes } from './modules/team/routes.js';
 import { handleServicesRoutes } from './modules/services/routes.js';
 // Module Settings (parametres utilisateur + entreprise)
 import { handleSettingsRoutes } from './modules/settings/routes.js';
+// Module Tasks (gestion tâches + affectation intelligente)
+import { handleTasksRoutes, handleTaskTypesRoutes, handleAssignmentRulesRoutes } from './modules/tasks/routes.js';
 // Cron SMS Rappel J-1 pour RDV
 import { handleScheduled, sendTomorrowReminders } from './cron/reminders.js';
 
@@ -334,6 +336,20 @@ export default {
       // Calls API (historique appels reels)
       if (path.startsWith('/api/v1/calls')) {
         response = await handleCallsRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Tasks — gestion tâches et affectation intelligente
+      if (path.startsWith('/api/v1/tasks')) {
+        response = await handleTasksRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+      if (path === '/api/v1/task-types' && method === 'GET') {
+        response = await handleTaskTypesRoutes(request, env, ctx, getCorsHeaders(request));
+        if (response) return response;
+      }
+      if (path === '/api/v1/assignment-rules') {
+        response = await handleAssignmentRulesRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
 

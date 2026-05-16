@@ -1,10 +1,26 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Plus, Settings, Pencil, Trash2, ArrowLeft, X, Briefcase } from 'lucide-react';
+import { Users, Plus, Settings, Pencil, Trash2, ArrowLeft, X, Briefcase, Shield, Phone } from 'lucide-react';
 import { buildApiUrl, getAuthHeaders } from '@/lib/config';
 
 // ── Types ────────────────────────────────────────────
+
+interface Skill {
+  id: string;
+  member_id: string;
+  skill_type: 'task' | 'rdv';
+  task_type_id: string | null;
+  service_id: string | null;
+  task_type_name: string | null;
+  service_name: string | null;
+  secteur: string | null;
+  task_priority: string | null;
+  service_duration: number | null;
+  duration_minutes: number | null;
+  priority: number;
+  is_active: number;
+}
 
 interface Member {
   id: string;
@@ -12,9 +28,11 @@ interface Member {
   first_name: string;
   last_name: string;
   email: string | null;
+  phone: string | null;
   role: string;
   color: string;
   slot_count: number;
+  skills: Skill[];
 }
 
 interface Slot {
@@ -39,6 +57,19 @@ interface AllService {
   name: string;
   duration_minutes: number;
   color: string;
+}
+
+interface TaskType {
+  id: string;
+  name: string;
+  secteur: string;
+  priority: string;
+}
+
+interface CatalogService {
+  id: string;
+  name: string;
+  duration_minutes: number;
 }
 
 // ── Constants ────────────────────────────────────────
@@ -76,6 +107,16 @@ function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
 
+function skillBadgeClass(type: string): string {
+  return type === 'task'
+    ? 'bg-gray-100 text-gray-700 border border-gray-200'
+    : 'bg-gray-50 text-gray-600 border border-gray-200';
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 // ── Component ────────────────────────────────────────
 
 export default function TeamsPage() {
@@ -87,6 +128,7 @@ export default function TeamsPage() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
+  const [formPhone, setFormPhone] = useState('');
   const [formRole, setFormRole] = useState('Commercial');
   const [formColor, setFormColor] = useState('#6366f1');
   const [saving, setSaving] = useState(false);
@@ -104,6 +146,17 @@ export default function TeamsPage() {
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [servicesSaving, setServicesSaving] = useState(false);
 
+  // Skills state
+  const [showSkillModal, setShowSkillModal] = useState(false);
+  const [skillMember, setSkillMember] = useState<Member | null>(null);
+  const [skillType, setSkillType] = useState<'task' | 'rdv'>('task');
+  const [skillTaskTypeId, setSkillTaskTypeId] = useState('');
+  const [skillServiceId, setSkillServiceId] = useState('');
+  const [skillPriority, setSkillPriority] = useState(1);
+  const [skillSaving, setSkillSaving] = useState(false);
+  const [catalogTaskTypes, setCatalogTaskTypes] = useState<TaskType[]>([]);
+  const [catalogServices, setCatalogServices] = useState<CatalogService[]>([]);
+
   // Delete confirm
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -111,7 +164,7 @@ export default function TeamsPage() {
 
   const fetchMembers = useCallback(async () => {
     try {
-      const res = await fetch(buildApiUrl('/api/v1/team/members'), { headers: getAuthHeaders() });
+      const res = await fetch(buildApiUrl('/api/v1/team/members-with-skills'), { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         setMembers(data.members || []);
@@ -128,6 +181,7 @@ export default function TeamsPage() {
     setEditingMember(null);
     setFormName('');
     setFormEmail('');
+    setFormPhone('');
     setFormRole('Commercial');
     setFormColor('#6366f1');
     setShowModal(true);
@@ -137,6 +191,7 @@ export default function TeamsPage() {
     setEditingMember(m);
     setFormName(m.name);
     setFormEmail(m.email || '');
+    setFormPhone(m.phone || '');
     setFormRole(m.role || 'Commercial');
     setFormColor(m.color || '#6366f1');
     setShowModal(true);
@@ -146,7 +201,7 @@ export default function TeamsPage() {
     if (!formName.trim()) return;
     setSaving(true);
     try {
-      const body = { name: formName.trim(), email: formEmail.trim() || null, role: formRole, color: formColor };
+      const body = { name: formName.trim(), email: formEmail.trim() || null, phone: formPhone.trim() || null, role: formRole, color: formColor };
       if (editingMember) {
         await fetch(buildApiUrl(`/api/v1/team/members/${editingMember.id}`), {
           method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(body),
@@ -171,6 +226,64 @@ export default function TeamsPage() {
       await fetchMembers();
     } catch { /* silent */ }
   };
+
+  // ── Skills handlers ────────────────────────────────
+
+  const openSkillModal = async (m: Member) => {
+    setSkillMember(m);
+    setSkillType('task');
+    setSkillTaskTypeId('');
+    setSkillServiceId('');
+    setSkillPriority(1);
+    setShowSkillModal(true);
+
+    try {
+      const res = await fetch(buildApiUrl('/api/v1/team/skills-catalog'), { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setCatalogTaskTypes(data.task_types || []);
+        setCatalogServices(data.services || []);
+      }
+    } catch { /* silent */ }
+  };
+
+  const handleAddSkill = async () => {
+    if (!skillMember) return;
+    if (skillType === 'task' && !skillTaskTypeId) return;
+    if (skillType === 'rdv' && !skillServiceId) return;
+    setSkillSaving(true);
+    try {
+      await fetch(buildApiUrl(`/api/v1/team/members/${skillMember.id}/skills`), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          skill_type: skillType,
+          task_type_id: skillType === 'task' ? skillTaskTypeId : null,
+          service_id: skillType === 'rdv' ? skillServiceId : null,
+          priority: skillPriority,
+        }),
+      });
+      setShowSkillModal(false);
+      await fetchMembers();
+    } catch { /* silent */ }
+    finally { setSkillSaving(false); }
+  };
+
+  const handleDeleteSkill = async (memberId: string, skillId: string) => {
+    try {
+      await fetch(buildApiUrl(`/api/v1/team/members/${memberId}/skills/${skillId}`), {
+        method: 'DELETE', headers: getAuthHeaders(),
+      });
+      await fetchMembers();
+    } catch { /* silent */ }
+  };
+
+  // Group task types by sector
+  const taskTypesBySector = catalogTaskTypes.reduce<Record<string, TaskType[]>>((acc, tt) => {
+    if (!acc[tt.secteur]) acc[tt.secteur] = [];
+    acc[tt.secteur].push(tt);
+    return acc;
+  }, {});
 
   // ── Planning handlers ──────────────────────────────
 
@@ -247,7 +360,6 @@ export default function TeamsPage() {
           duration_minutes: 30,
         }),
       });
-      // Refresh slots
       const res = await fetch(buildApiUrl(`/api/v1/team/members/${planningMember.id}/slots`), { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
@@ -260,24 +372,11 @@ export default function TeamsPage() {
 
   const handleClearDaySlots = async (day: number) => {
     if (!planningMember) return;
-    // Delete all slots then re-add remaining days
-    // Simpler: delete all and re-add all except this day
     const remaining = slots.filter(s => s.day_of_week !== day);
     try {
       await fetch(buildApiUrl(`/api/v1/team/members/${planningMember.id}/slots`), {
         method: 'DELETE', headers: getAuthHeaders(),
       });
-      // Re-insert remaining by day groups
-      const byDay = new Map<number, { start: string; end: string }>();
-      for (const s of remaining) {
-        const existing = byDay.get(s.day_of_week);
-        if (!existing || s.start_time < existing.start) {
-          byDay.set(s.day_of_week, { start: s.start_time, end: s.end_time });
-        }
-        const cur = byDay.get(s.day_of_week)!;
-        if (s.end_time > cur.end) cur.end = s.end_time;
-      }
-      // Group consecutive slots per day to find plages
       const dayGroups = new Map<number, Slot[]>();
       for (const s of remaining) {
         if (!dayGroups.has(s.day_of_week)) dayGroups.set(s.day_of_week, []);
@@ -285,7 +384,6 @@ export default function TeamsPage() {
       }
       for (const [d, daySlots] of dayGroups) {
         daySlots.sort((a, b) => a.start_time.localeCompare(b.start_time));
-        // Find contiguous plages
         let plStart = daySlots[0].start_time;
         let plEnd = daySlots[0].end_time;
         for (let i = 1; i < daySlots.length; i++) {
@@ -305,7 +403,6 @@ export default function TeamsPage() {
           body: JSON.stringify({ day_of_week: d, start_time: plStart, end_time: plEnd, duration_minutes: 30 }),
         });
       }
-      // Refresh
       const res = await fetch(buildApiUrl(`/api/v1/team/members/${planningMember.id}/slots`), { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
@@ -315,7 +412,6 @@ export default function TeamsPage() {
   };
 
   const handleSavePlanning = async () => {
-    // Planning is saved slot by slot, show confirmation
     setPlanningMember(null);
     await fetchMembers();
   };
@@ -323,6 +419,7 @@ export default function TeamsPage() {
   // ── PLANNING VIEW ──────────────────────────────────
 
   if (planningMember) {
+    const memberSkills = planningMember.skills || [];
     return (
       <div className="space-y-6">
         {/* Header */}
@@ -346,6 +443,47 @@ export default function TeamsPage() {
                 {planningMember.role}
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Skills section */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-gray-400" />
+                Competences
+              </h3>
+              <button
+                onClick={() => openSkillModal(planningMember)}
+                className="text-sm text-gray-600 hover:text-gray-900 font-medium px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Ajouter
+              </button>
+            </div>
+            {memberSkills.length === 0 ? (
+              <p className="text-sm text-gray-500">Aucune competence assignee. Ajoutez des types de demande ou prestations.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {memberSkills.map(sk => (
+                  <span
+                    key={sk.id}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm ${skillBadgeClass(sk.skill_type)}`}
+                  >
+                    {sk.skill_type === 'task' ? sk.task_type_name : sk.service_name}
+                    {sk.priority > 1 && <span className="text-xs text-gray-400">P{sk.priority}</span>}
+                    <button
+                      onClick={() => handleDeleteSkill(planningMember.id, sk.id)}
+                      className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Retirer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -374,7 +512,6 @@ export default function TeamsPage() {
                           </button>
                         )}
                       </div>
-                      {/* Chips */}
                       <div className="flex flex-wrap gap-1 mb-2">
                         {daySlots.map(s => (
                           <span
@@ -386,7 +523,6 @@ export default function TeamsPage() {
                           </span>
                         ))}
                       </div>
-                      {/* Add plage */}
                       {plageForm?.day === dayNum ? (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1 text-xs">
@@ -436,7 +572,6 @@ export default function TeamsPage() {
               </div>
             </div>
 
-            {/* Summary */}
             <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between">
               <p className="text-sm text-gray-600">
                 {slots.length} {slots.length > 1 ? 'creneaux disponibles' : 'creneau disponible'} cette semaine
@@ -529,6 +664,100 @@ export default function TeamsPage() {
             </div>
           </div>
         )}
+
+        {/* Modal Ajouter Competence (from planning view) */}
+        {showSkillModal && skillMember && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl w-full max-w-md mx-4 shadow-xl">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Ajouter une competence</h3>
+                <button onClick={() => setShowSkillModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <p className="text-sm text-gray-500">Pour <strong>{skillMember.name}</strong></p>
+                {/* Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setSkillType('task'); setSkillServiceId(''); }}
+                      className={`flex-1 py-2 text-sm rounded-lg border transition-colors font-medium ${skillType === 'task' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+                    >
+                      Type de demande
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSkillType('rdv'); setSkillTaskTypeId(''); }}
+                      className={`flex-1 py-2 text-sm rounded-lg border transition-colors font-medium ${skillType === 'rdv' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+                    >
+                      Prestation RDV
+                    </button>
+                  </div>
+                </div>
+                {/* Select */}
+                {skillType === 'task' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Type de demande</label>
+                    <select
+                      value={skillTaskTypeId}
+                      onChange={e => setSkillTaskTypeId(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                    >
+                      <option value="">Choisir...</option>
+                      {Object.entries(taskTypesBySector).map(([sector, types]) => (
+                        <optgroup key={sector} label={capitalize(sector)}>
+                          {types.map(tt => (
+                            <option key={tt.id} value={tt.id}>{tt.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prestation</label>
+                    <select
+                      value={skillServiceId}
+                      onChange={e => setSkillServiceId(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                    >
+                      <option value="">Choisir...</option>
+                      {catalogServices.map(svc => (
+                        <option key={svc.id} value={svc.id}>{svc.name} ({svc.duration_minutes} min)</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {/* Priority */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Priorite</label>
+                  <select
+                    value={skillPriority}
+                    onChange={e => setSkillPriority(Number(e.target.value))}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                  >
+                    <option value={1}>1 - Principal</option>
+                    <option value={2}>2 - Secondaire</option>
+                    <option value={3}>3 - Backup</option>
+                  </select>
+                </div>
+              </div>
+              <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
+                <button onClick={() => setShowSkillModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">Annuler</button>
+                <button
+                  onClick={handleAddSkill}
+                  disabled={skillSaving || (skillType === 'task' ? !skillTaskTypeId : !skillServiceId)}
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {skillSaving ? 'Ajout...' : 'Ajouter'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -541,7 +770,7 @@ export default function TeamsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Equipe</h1>
-          <p className="text-gray-500 text-sm mt-1">Gerez vos interlocuteurs et leurs plannings</p>
+          <p className="text-gray-500 text-sm mt-1">Gerez vos interlocuteurs, plannings et competences</p>
         </div>
         <button
           onClick={openAdd}
@@ -556,7 +785,6 @@ export default function TeamsPage() {
       {loading ? (
         <div className="text-center py-12 text-gray-400">Chargement...</div>
       ) : members.length === 0 ? (
-        /* Empty state */
         <div className="bg-white rounded-xl border border-gray-200 py-16 px-8 text-center">
           <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucun membre dans votre equipe</h3>
@@ -572,87 +800,102 @@ export default function TeamsPage() {
           </button>
         </div>
       ) : (
-        /* Table */
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Membre</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Email</th>
-                  <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Creneaux/sem</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {members.map(m => (
-                  <tr key={m.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                          style={{ backgroundColor: m.color }}
-                        >
-                          {getInitials(m.name)}
-                        </div>
-                        <span className="font-medium text-gray-900 text-sm">{m.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${roleBadgeClass(m.role)}`}>
+        <div className="space-y-4">
+          {members.map(m => (
+            <div key={m.id} className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-start justify-between">
+                {/* Left: avatar + info */}
+                <div className="flex items-start gap-4">
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                    style={{ backgroundColor: m.color }}
+                  >
+                    {getInitials(m.name)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-gray-900">{m.name}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleBadgeClass(m.role)}`}>
                         {m.role}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 hidden sm:table-cell">{m.email || '-'}</td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-600 hidden md:table-cell">{m.slot_count}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openPlanning(m)}
-                          className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Planning"
-                        >
-                          <Settings className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openEdit(m)}
-                          className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Modifier"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        {deletingId === m.id ? (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleDelete(m.id)}
-                              className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                            >
-                              Confirmer
-                            </button>
-                            <button
-                              onClick={() => setDeletingId(null)}
-                              className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
-                            >
-                              Annuler
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeletingId(m.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Supprimer"
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      {m.email && <span>{m.email}</span>}
+                      {m.phone && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {m.phone}
+                        </span>
+                      )}
+                      <span>{m.slot_count || 0} creneaux/sem</span>
+                    </div>
+                    {/* Skills badges */}
+                    {(m.skills || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {m.skills.map(sk => (
+                          <span
+                            key={sk.id}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${skillBadgeClass(sk.skill_type)}`}
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                            {sk.skill_type === 'task' ? sk.task_type_name : sk.service_name}
+                            {sk.priority > 1 && <span className="text-gray-400">P{sk.priority}</span>}
+                          </span>
+                        ))}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </div>
+                </div>
+                {/* Right: actions */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => openSkillModal(m)}
+                    className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Competences"
+                  >
+                    <Shield className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => openPlanning(m)}
+                    className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Planning"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => openEdit(m)}
+                    className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Modifier"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  {deletingId === m.id ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleDelete(m.id)}
+                        className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Confirmer
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(null)}
+                        className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeletingId(m.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -689,6 +932,17 @@ export default function TeamsPage() {
                   value={formEmail}
                   onChange={e => setFormEmail(e.target.value)}
                   placeholder="marie@entreprise.fr"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                />
+              </div>
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telephone</label>
+                <input
+                  type="tel"
+                  value={formPhone}
+                  onChange={e => setFormPhone(e.target.value)}
+                  placeholder="+33612345678"
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
                 />
               </div>
@@ -735,6 +989,100 @@ export default function TeamsPage() {
                 className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajouter Competence (from list view) */}
+      {showSkillModal && skillMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl w-full max-w-md mx-4 shadow-xl">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Ajouter une competence</h3>
+              <button onClick={() => setShowSkillModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-500">Pour <strong>{skillMember.name}</strong></p>
+              {/* Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setSkillType('task'); setSkillServiceId(''); }}
+                    className={`flex-1 py-2 text-sm rounded-lg border transition-colors font-medium ${skillType === 'task' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+                  >
+                    Type de demande
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSkillType('rdv'); setSkillTaskTypeId(''); }}
+                    className={`flex-1 py-2 text-sm rounded-lg border transition-colors font-medium ${skillType === 'rdv' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+                  >
+                    Prestation RDV
+                  </button>
+                </div>
+              </div>
+              {/* Select */}
+              {skillType === 'task' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type de demande</label>
+                  <select
+                    value={skillTaskTypeId}
+                    onChange={e => setSkillTaskTypeId(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                  >
+                    <option value="">Choisir...</option>
+                    {Object.entries(taskTypesBySector).map(([sector, types]) => (
+                      <optgroup key={sector} label={capitalize(sector)}>
+                        {types.map(tt => (
+                          <option key={tt.id} value={tt.id}>{tt.name}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prestation</label>
+                  <select
+                    value={skillServiceId}
+                    onChange={e => setSkillServiceId(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                  >
+                    <option value="">Choisir...</option>
+                    {catalogServices.map(svc => (
+                      <option key={svc.id} value={svc.id}>{svc.name} ({svc.duration_minutes} min)</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* Priority */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priorite</label>
+                <select
+                  value={skillPriority}
+                  onChange={e => setSkillPriority(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm"
+                >
+                  <option value={1}>1 - Principal</option>
+                  <option value={2}>2 - Secondaire</option>
+                  <option value={3}>3 - Backup</option>
+                </select>
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
+              <button onClick={() => setShowSkillModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">Annuler</button>
+              <button
+                onClick={handleAddSkill}
+                disabled={skillSaving || (skillType === 'task' ? !skillTaskTypeId : !skillServiceId)}
+                className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {skillSaving ? 'Ajout...' : 'Ajouter'}
               </button>
             </div>
           </div>

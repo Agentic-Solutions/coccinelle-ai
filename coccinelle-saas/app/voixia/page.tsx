@@ -3,19 +3,25 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Mic, Zap, Globe, Shield, ArrowRight, Check, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const CostSimulator = dynamic(
+  () => import('@/components/voixia/CostSimulator'),
+  { ssr: false }
+);
 
 // ─── Donnees comparatif ──────────────────────────────────────────────────────
 
 const COMPARE_ROWS = [
-  { label: 'Voix FR natives',      voixia: '20',          retell: '~5',         vapi: '~3' },
-  { label: 'Latence',              voixia: '<500ms',      retell: '<800ms',     vapi: '<1s' },
-  { label: 'Telephonie SIP',       voixia: 'Inclus',      retell: 'Supplement', vapi: 'Supplement' },
-  { label: 'CRM integre',          voixia: 'Oui',         retell: 'Non',        vapi: 'Non' },
-  { label: 'Base de connaissances', voixia: 'Inclus',     retell: 'Non',        vapi: 'Basique' },
-  { label: 'Prix / minute',        voixia: '0.08 \u20ac', retell: '~0.12 $',   vapi: '~0.15 $' },
-  { label: 'Hebergement',          voixia: 'EU (France)', retell: 'US',         vapi: 'US' },
-  { label: 'Support francais',     voixia: 'Oui',         retell: 'Non',        vapi: 'Non' },
-  { label: 'RGPD natif',           voixia: 'Oui',         retell: 'Partiel',    vapi: 'Partiel' },
+  { label: 'Voix FR natives',      voixia: '20',          retell: '~5',         fonio: '~10' },
+  { label: 'Latence',              voixia: '<500ms',      retell: '<800ms',     fonio: '<600ms' },
+  { label: 'Telephonie SIP',       voixia: 'Inclus',      retell: 'Supplement', fonio: 'Inclus' },
+  { label: 'CRM integre',          voixia: 'Oui',         retell: 'Non',        fonio: 'Non' },
+  { label: 'Base de connaissances', voixia: 'Inclus',     retell: 'Non',        fonio: 'Basique' },
+  { label: 'Prix / minute',        voixia: '0,10 €',      retell: '~0,15 € *', fonio: '0,15 €' },
+  { label: 'Hebergement',          voixia: 'EU (France)', retell: 'US',         fonio: 'EU' },
+  { label: 'Support francais',     voixia: 'Oui',         retell: 'Non',        fonio: 'Oui' },
+  { label: 'RGPD natif',           voixia: 'Oui',         retell: 'Partiel',    fonio: 'Oui' },
 ];
 
 // ─── Page principale ─────────────────────────────────────────────────────────
@@ -36,6 +42,7 @@ export default function VoixIAPage() {
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-400">
             <a href="#pricing" className="hover:text-white transition-colors">Tarifs</a>
+            <a href="#simulator" className="hover:text-white transition-colors">Simulateur</a>
             <a href="#compare" className="hover:text-white transition-colors">Comparatif</a>
             <a href="#partners" className="hover:text-white transition-colors">Partenaires</a>
             <Link href="/" className="hover:text-white transition-colors">Coccinelle.ai</Link>
@@ -127,8 +134,8 @@ export default function VoixIAPage() {
               </div>
               <ul className="space-y-3 mb-6 text-sm text-gray-400">
                 {[
-                  '0.12 \u20ac/min apres 100 min',
-                  '0.07 \u20ac/SMS',
+                  '0,12 €/min apres 100 min',
+                  '0,07 €/SMS',
                   '2 voix simultanees',
                   '20 voix FR disponibles',
                   'API REST + WebSocket',
@@ -157,14 +164,14 @@ export default function VoixIAPage() {
               <h3 className="text-lg font-semibold mb-1">Pro</h3>
               <p className="text-sm text-gray-500 mb-4">Pour les integrateurs</p>
               <div className="mb-6">
-                <span className="text-3xl font-bold">0.08</span>
-                <span className="text-gray-500 text-sm"> \u20ac/min</span>
+                <span className="text-3xl font-bold">0,08</span>
+                <span className="text-gray-500 text-sm"> €/min</span>
                 <p className="text-xs text-gray-500 mt-1">500 minutes incluses/mois</p>
               </div>
               <ul className="space-y-3 mb-6 text-sm text-gray-400">
                 {[
-                  '0.08 \u20ac/min (tarif volume)',
-                  '0.05 \u20ac/SMS',
+                  '0,08 €/min (tarif volume)',
+                  '0,05 €/SMS',
                   '10 voix simultanees',
                   'Toutes les voix FR',
                   'API + SIP + WebSocket',
@@ -222,6 +229,13 @@ export default function VoixIAPage() {
         </div>
       </section>
 
+      {/* ═══ SIMULATEUR DE COUT ═════════════════════════════════════════════ */}
+      <section id="simulator" className="py-24 bg-gray-950">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <CostSimulator />
+        </div>
+      </section>
+
       {/* ═══ COMPARATIF VoixIA vs Retell vs VAPI ═══════════════════════════ */}
       <section id="compare" className="py-20 bg-gray-900/50 border-y border-gray-800">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -240,7 +254,7 @@ export default function VoixIAPage() {
                     <span className="text-emerald-400 font-bold">VoixIA</span>
                   </th>
                   <th className="py-4 px-4 text-center text-gray-400">Retell</th>
-                  <th className="py-4 px-4 text-center text-gray-400">VAPI</th>
+                  <th className="py-4 px-4 text-center text-gray-400">Fonio</th>
                 </tr>
               </thead>
               <tbody>
@@ -249,11 +263,12 @@ export default function VoixIAPage() {
                     <td className="py-3 pr-4 text-gray-400">{row.label}</td>
                     <td className="py-3 px-4 text-center font-medium text-white">{row.voixia}</td>
                     <td className="py-3 px-4 text-center text-gray-500">{row.retell}</td>
-                    <td className="py-3 px-4 text-center text-gray-500">{row.vapi}</td>
+                    <td className="py-3 px-4 text-center text-gray-500">{row.fonio}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <p className="text-xs text-gray-600 mt-3">* Retell facture en USD. Conversion indicative au taux 1 $ = 0,92 €</p>
           </div>
 
           {/* Mobile */}
@@ -271,12 +286,13 @@ export default function VoixIAPage() {
                     <p className="text-[10px] text-gray-600">Retell</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-gray-400">{row.vapi}</p>
-                    <p className="text-[10px] text-gray-600">VAPI</p>
+                    <p className="text-gray-400">{row.fonio}</p>
+                    <p className="text-[10px] text-gray-600">Fonio</p>
                   </div>
                 </div>
               </div>
             ))}
+            <p className="text-xs text-gray-600 mt-2 px-1">* Retell facture en USD. Conversion indicative au taux 1 $ = 0,92 €</p>
           </div>
         </div>
       </section>
