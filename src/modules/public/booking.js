@@ -9,7 +9,7 @@ import { jsonResponse, errorResponse, successResponse } from '../../utils/respon
 export async function handleGetBookingInfo(request, env, slug) {
   try {
     const tenant = await env.DB.prepare(`
-      SELECT id, company_name, name, industry, phone
+      SELECT id, company_name, name, sector, industry, phone
       FROM tenants
       WHERE slug = ? AND is_active = 1
     `).bind(slug).first();
@@ -34,8 +34,8 @@ export async function handleGetBookingInfo(request, env, slug) {
 
     return successResponse({
       tenant: {
-        name: tenant.company_name || tenant.name,
-        industry: tenant.industry,
+        name: tenant.name || tenant.company_name,
+        industry: tenant.sector || tenant.industry,
         phone: tenant.phone,
         color: '#1a1a1a'
       },
@@ -120,7 +120,10 @@ export async function handleGetBookingSlots(request, env, slug) {
       return successResponse({ date, slots: [] }, 200, request);
     }
 
-    const dayOfWeek = new Date(date + 'T12:00:00Z').getUTCDay();
+    // day_of_week canonique 1-7 (Lundi=1 … Dimanche=7) — cohérent avec availability_slots.
+    // getUTCDay() renvoie 0=Dimanche … 6=Samedi → 0 devient 7.
+    const jsDay = new Date(date + 'T12:00:00Z').getUTCDay();
+    const dayOfWeek = jsDay === 0 ? 7 : jsDay;
     const allSlots = [];
 
     for (const agent of agents) {
@@ -151,7 +154,7 @@ export async function handleGetBookingSlots(request, env, slug) {
 
       // Fallback: horaires par défaut (9h-18h sauf weekend)
       if (!workingHours) {
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Pas de week-end
+        if (dayOfWeek === 6 || dayOfWeek === 7) continue; // Pas de week-end (Sam=6, Dim=7)
         workingHours = { start_time: '09:00', end_time: '18:00' };
       }
 
@@ -235,19 +238,36 @@ export async function handleCreatePublicBooking(request, env, slug) {
       return errorResponse('Entreprise introuvable', 404, request);
     }
 
-    // Vérifier que le créneau est disponible
+    // Durée du RDV (résoudre AVANT le check de chevauchement)
     const targetAgentId = agent_id || null;
-    if (targetAgentId) {
-      const existingAppt = await env.DB.prepare(`
-        SELECT id FROM appointments
-        WHERE agent_id = ?
-        AND scheduled_at = ?
-        AND status NOT IN ('cancelled', 'no_show')
-      `).bind(targetAgentId, datetime).first();
+    let durationMinutes = 30;
+    let typeName = null;
+    if (type_id) {
+      try {
+        const appointmentType = await env.DB.prepare(
+          'SELECT duration_minutes, name FROM appointment_types WHERE id = ? AND tenant_id = ?'
+        ).bind(type_id, tenant.id).first();
+        if (appointmentType) {
+          durationMinutes = appointmentType.duration_minutes || 30;
+          typeName = appointmentType.name;
+        }
+      } catch { /* table peut ne pas exister */ }
+    }
 
-      if (existingAppt) {
+    // Vérifier que le créneau ne chevauche pas un RDV existant (BUG #014)
+    try {
+      const conflict = await env.DB.prepare(`
+        SELECT COUNT(*) as n FROM appointments
+        WHERE tenant_id = ?
+          AND status IN ('scheduled', 'confirmed', 'pending')
+          AND datetime(scheduled_at) < datetime(?, '+' || ? || ' minutes')
+          AND datetime(scheduled_at, '+' || COALESCE(duration_minutes, 60) || ' minutes') > datetime(?)
+      `).bind(tenant.id, datetime, durationMinutes, datetime).first();
+      if (conflict && conflict.n > 0) {
         return errorResponse('Ce créneau n\'est plus disponible', 409, request);
       }
+    } catch (checkErr) {
+      logger.warn('Public booking conflict check failed', { error: checkErr.message });
     }
 
     // Dedup prospect : chercher par phone ou email
@@ -284,19 +304,6 @@ export async function handleCreatePublicBooking(request, env, slug) {
       `).bind(first_name, last_name, email || null, prospectId).run();
     }
 
-    // Durée du RDV
-    let durationMinutes = 30;
-    let typeName = null;
-    if (type_id) {
-      const appointmentType = await env.DB.prepare(
-        'SELECT duration_minutes, name FROM appointment_types WHERE id = ? AND tenant_id = ?'
-      ).bind(type_id, tenant.id).first();
-      if (appointmentType) {
-        durationMinutes = appointmentType.duration_minutes || 30;
-        typeName = appointmentType.name;
-      }
-    }
-
     // Créer le RDV
     const appointmentId = `appt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const managementToken = `token_${Date.now()}_${Math.random().toString(36).substr(2, 16)}`;
@@ -304,20 +311,20 @@ export async function handleCreatePublicBooking(request, env, slug) {
     try {
       await env.DB.prepare(`
         INSERT INTO appointments (
-          id, tenant_id, prospect_id, agent_id, appointment_type_id,
-          scheduled_at, duration_minutes, status, notes,
-          booking_source, management_token, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, 'booking_page', ?, ?)
+          id, tenant_id, prospect_id, agent_id, service_id, type,
+          scheduled_at, duration_minutes, management_token, status, notes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
       `).bind(
         appointmentId,
         tenant.id,
         prospectId,
         targetAgentId,
-        type_id || null,
+        null,
+        typeName || 'booking',
         datetime,
         durationMinutes,
-        notes || null,
         managementToken,
+        notes || null,
         now
       ).run();
     } catch (insertError) {
@@ -326,19 +333,19 @@ export async function handleCreatePublicBooking(request, env, slug) {
       try {
         await env.DB.prepare(`
           INSERT INTO appointments (
-            id, tenant_id, prospect_id, agent_id,
-            scheduled_at, duration_minutes, status, notes,
-            management_token, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?)
+            id, tenant_id, prospect_id, agent_id, type,
+            scheduled_at, duration_minutes, management_token, status, notes, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
         `).bind(
           appointmentId,
           tenant.id,
           prospectId,
           targetAgentId,
+          typeName || 'booking',
           datetime,
           durationMinutes,
-          notes || null,
           managementToken,
+          notes || null,
           now
         ).run();
       } catch (fallbackError) {
@@ -372,6 +379,17 @@ function generateTimeSlots(startTime, endTime, existingAppointments, slotDuratio
   const [startHour, startMin] = startTime.split(':').map(Number);
   const [endHour, endMin] = endTime.split(':').map(Number);
 
+  // Pré-calculer les plages occupées en minutes depuis minuit (BUG #014)
+  const bookedRanges = existingAppointments.filter(a => a.scheduled_at).map(appt => {
+    const timePart = appt.scheduled_at.includes('T')
+      ? appt.scheduled_at.split('T')[1].substring(0, 5)
+      : '';
+    const [h, m] = timePart.split(':').map(Number);
+    const apptStart = (h || 0) * 60 + (m || 0);
+    const apptEnd = apptStart + (appt.duration_minutes || 60);
+    return { apptStart, apptEnd };
+  });
+
   let currentMinutes = startHour * 60 + startMin;
   const endMinutes = endHour * 60 + endMin;
 
@@ -380,13 +398,11 @@ function generateTimeSlots(startTime, endTime, existingAppointments, slotDuratio
     const minutes = (currentMinutes % 60).toString().padStart(2, '0');
     const timeSlot = `${hours}:${minutes}`;
 
-    const isOccupied = existingAppointments.some(appt => {
-      if (!appt.scheduled_at) return false;
-      const apptTime = appt.scheduled_at.includes('T')
-        ? appt.scheduled_at.split('T')[1].substring(0, 5)
-        : '';
-      return apptTime === timeSlot;
-    });
+    // BUG #014 : chevauchement de plage [slotStart, slotEnd[ vs [apptStart, apptEnd[
+    const slotEnd = currentMinutes + slotDuration;
+    const isOccupied = bookedRanges.some(r =>
+      currentMinutes < r.apptEnd && r.apptStart < slotEnd
+    );
 
     if (!isOccupied) {
       slots.push(timeSlot);

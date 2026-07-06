@@ -166,13 +166,15 @@ async function handleGetAvailability(request, env, path, url) {
     const allSlots = [];
 
     for (const agent of agents.results) {
-      // Récupérer les horaires de travail de l'agent pour ce jour
-      const dayOfWeek = new Date(date).getDay();
+      // Récupérer les horaires de travail de l'agent pour ce jour.
+      // day_of_week canonique 1-7 (Lundi=1 … Dimanche=7) ; getDay() = 0=Dimanche → 7.
+      const jsDay = new Date(date).getDay();
+      const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
       const workingHours = await env.DB.prepare(`
         SELECT start_time, end_time
         FROM availability_slots
-        WHERE agent_id = ? AND day_of_week = ? AND is_active = 1
+        WHERE agent_id = ? AND day_of_week = ? AND is_available = 1
       `).bind(agent.id, dayOfWeek).first();
 
       if (!workingHours) continue;
@@ -546,6 +548,15 @@ function generateTimeSlots(startTime, endTime, existingAppointments, slotDuratio
   const [startHour, startMin] = startTime.split(':').map(Number);
   const [endHour, endMin] = endTime.split(':').map(Number);
 
+  // Pré-calculer les plages occupées en minutes depuis minuit (BUG #014)
+  const bookedRanges = existingAppointments.map(appt => {
+    const timePart = appt.scheduled_at.split('T')[1] || '';
+    const [h, m] = timePart.substring(0, 5).split(':').map(Number);
+    const apptStart = (h || 0) * 60 + (m || 0);
+    const apptEnd = apptStart + (appt.duration_minutes || 60);
+    return { apptStart, apptEnd };
+  });
+
   let currentMinutes = startHour * 60 + startMin;
   const endMinutes = endHour * 60 + endMin;
 
@@ -554,11 +565,11 @@ function generateTimeSlots(startTime, endTime, existingAppointments, slotDuratio
     const minutes = (currentMinutes % 60).toString().padStart(2, '0');
     const timeSlot = `${hours}:${minutes}`;
 
-    // Vérifier si ce créneau n'est pas déjà pris
-    const isOccupied = existingAppointments.some(appt => {
-      const apptTime = appt.scheduled_at.split('T')[1].substring(0, 5);
-      return apptTime === timeSlot;
-    });
+    // BUG #014 : chevauchement de plage [slotStart, slotEnd[ vs [apptStart, apptEnd[
+    const slotEnd = currentMinutes + slotDuration;
+    const isOccupied = bookedRanges.some(r =>
+      currentMinutes < r.apptEnd && r.apptStart < slotEnd
+    );
 
     if (!isOccupied) {
       slots.push(timeSlot);

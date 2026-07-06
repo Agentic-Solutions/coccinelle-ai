@@ -2,6 +2,7 @@
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { logger } from '../../utils/logger.js';
 import * as auth from '../auth/helpers.js';
+import { syncSlotsToHoraires } from '../shared/horaires-slots.js';
 
 export async function handleAvailabilityRoutes(request, env, ctx, corsHeaders) {
   const url = new URL(request.url);
@@ -176,6 +177,10 @@ async function handleSetAvailability(request, env) {
       return errorResponse('Impossible de creer le creneau: ' + fallbackError.message, 500, request);
     }
   }
+
+  // SSOT horaires (reverse) : si on vient d'éditer l'agent société par défaut,
+  // régénérer le cache tenants.horaires pour garder Paramètres cohérent. No-op sinon.
+  await syncSlotsToHoraires(env, tenant.id, targetAgentId);
 
   return successResponse({ slot: slotData }, 201, request);
 }

@@ -1,6 +1,7 @@
 // src/modules/settings/routes.js - Parametres utilisateur et entreprise
 import { requireAuth, hashPassword, verifyPassword, isStrongPassword } from '../auth/helpers.js';
 import { logger } from '../../utils/logger.js';
+import { syncHorairesToSlots } from '../shared/horaires-slots.js';
 
 /**
  * Gere toutes les routes /api/v1/settings
@@ -26,12 +27,21 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
 
       const { user, tenant } = authResult;
 
-      // Recuperer preferences de notification
-      const notifPrefs = await env.DB.prepare(`
-        SELECT email_after_call, sms_reminder_j1, weekly_summary, quota_alerts
-        FROM notification_preferences
-        WHERE user_id = ? AND tenant_id = ?
-      `).bind(user.id, tenant.id).first();
+      // Recuperer preferences de notification.
+      // Isolé dans son propre try/catch : une lecture de notifications qui échoue
+      // (table absente, etc.) ne doit JAMAIS faire échouer tout le GET /settings
+      // et re-blanchir la page Paramètres (cf. migration 0070).
+      let notifPrefs = null;
+      try {
+        notifPrefs = await env.DB.prepare(`
+          SELECT email_after_call, sms_reminder_j1, weekly_summary, quota_alerts
+          FROM notification_preferences
+          WHERE user_id = ? AND tenant_id = ?
+        `).bind(user.id, tenant.id).first();
+      } catch (notifError) {
+        logger.error('Get settings — notification_preferences lookup failed', { error: notifError.message });
+        // notifPrefs reste null → repli sur les défauts ci-dessous
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -48,7 +58,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
           address: tenant.address || '',
           phone: tenant.phone || '',
           email_pro: tenant.email_pro || '',
-          horaires: tenant.horaires ? JSON.parse(tenant.horaires) : null,
+          horaires: (() => { try { return tenant.horaires ? JSON.parse(tenant.horaires) : null; } catch { return null; } })(),
         },
         notifications: notifPrefs || {
           email_after_call: 1,
@@ -231,6 +241,9 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       if (name !== undefined) {
         updates.push('name = ?');
         values.push(name.trim());
+        // Chantier #2 : garder company_name synchronisé avec name (source unique tenants.name)
+        updates.push('company_name = ?');
+        values.push(name.trim());
       }
       if (sector !== undefined) {
         updates.push('sector = ?');
@@ -270,6 +283,12 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
         UPDATE tenants SET ${updates.join(', ')}
         WHERE id = ?
       `).bind(...values).run();
+
+      // SSOT horaires : si les horaires société ont été modifiés, les projeter dans
+      // availability_slots (agent société par défaut = maître). Non bloquant.
+      if (horaires !== undefined) {
+        await syncHorairesToSlots(env, tenant.id, horaires);
+      }
 
       return new Response(JSON.stringify({
         success: true,

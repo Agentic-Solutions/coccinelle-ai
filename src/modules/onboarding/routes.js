@@ -17,6 +17,7 @@
 
 import { requireAuth } from '../auth/helpers.js';
 import { logger } from '../../utils/logger.js';
+import { syncHorairesToSlots } from '../shared/horaires-slots.js';
 
 /**
  * Génère un ID unique
@@ -1100,6 +1101,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
               await env.DB.prepare(
                 `UPDATE tenants SET
                   name = COALESCE(?, name),
+                  company_name = COALESCE(?, company_name),
                   sector = COALESCE(?, sector),
                   phone = COALESCE(?, phone),
                   email_pro = COALESCE(?, email_pro),
@@ -1108,12 +1110,19 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                 WHERE id = ?`
               ).bind(
                 companyName,
+                companyName,
                 data.sector || null,
                 data.phone || null,
                 emailPro,
-                data.horaires || null,
+                data.horaires ? (typeof data.horaires === 'string' ? data.horaires : JSON.stringify(data.horaires)) : null,
                 tenantId
               ).run();
+
+              // SSOT horaires : projeter les horaires société dans availability_slots
+              // (agent société par défaut = maître lu par VoixIA/booking). Non bloquant.
+              if (data.horaires) {
+                await syncHorairesToSlots(env, tenantId, data.horaires);
+              }
             }
             break;
 
@@ -1204,6 +1213,11 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                 tenantId,
                 `Notre adresse est : ${adresse.trim()}. Nous sommes situes a ${adresse.trim()}.`
               ).run();
+
+              // Chantier #1B : adresse structurée dans tenants.address (source unique + pré-remplit Paramètres)
+              await env.DB.prepare(
+                `UPDATE tenants SET address = ?, updated_at = datetime('now') WHERE id = ?`
+              ).bind(adresse.trim(), tenantId).run();
             }
 
             if (services && services.trim()) {
