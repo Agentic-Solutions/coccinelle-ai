@@ -5,7 +5,6 @@ import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { rateLimitResponse } from '../../utils/rate-limiter.js';
 import { handleGetBookingInfo, handleGetBookingSlots, handleCreatePublicBooking } from './booking.js';
-import { listPrestations } from '../shared/prestations.js';
 
 export async function handlePublicRoutes(request, env, path, method) {
   const url = new URL(request.url);
@@ -218,13 +217,28 @@ async function handleGetAvailability(request, env, path, url) {
   }
 }
 
-// Récupérer les prestations du tenant (source unique : products type='service',
-// fallback services pendant la transition — helper listPrestations).
+// Récupérer services/prestations du tenant
 async function handleGetServices(request, env, path) {
   try {
     const tenantId = path.split('/')[4];
-    const services = await listPrestations(env, tenantId);
-    return successResponse({ services });
+
+    const services = await env.DB.prepare(`
+      SELECT
+        id,
+        name,
+        description,
+        duration_minutes,
+        price,
+        currency
+      FROM services
+      WHERE tenant_id = ? AND is_active = 1
+      ORDER BY display_order ASC, name ASC
+    `).bind(tenantId).all();
+
+    return successResponse({
+      services: services.results || []
+    });
+
   } catch (error) {
     logger.error('Error fetching services', { error: error.message });
     return errorResponse('Failed to fetch services');

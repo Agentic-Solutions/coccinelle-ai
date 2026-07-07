@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "postbuild": "bash scripts/fix-spa-404.sh",
     "start": "next start",
     "lint": "eslint",
     "sonar": "sonar-scanner",

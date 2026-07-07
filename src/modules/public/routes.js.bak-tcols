@@ -5,7 +5,6 @@ import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { rateLimitResponse } from '../../utils/rate-limiter.js';
 import { handleGetBookingInfo, handleGetBookingSlots, handleCreatePublicBooking } from './booking.js';
-import { listPrestations } from '../shared/prestations.js';
 
 export async function handlePublicRoutes(request, env, path, method) {
   const url = new URL(request.url);
@@ -167,15 +166,13 @@ async function handleGetAvailability(request, env, path, url) {
     const allSlots = [];
 
     for (const agent of agents.results) {
-      // Récupérer les horaires de travail de l'agent pour ce jour.
-      // day_of_week canonique 1-7 (Lundi=1 … Dimanche=7) ; getDay() = 0=Dimanche → 7.
-      const jsDay = new Date(date).getDay();
-      const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+      // Récupérer les horaires de travail de l'agent pour ce jour
+      const dayOfWeek = new Date(date).getDay();
 
       const workingHours = await env.DB.prepare(`
         SELECT start_time, end_time
         FROM availability_slots
-        WHERE agent_id = ? AND day_of_week = ? AND is_available = 1
+        WHERE agent_id = ? AND day_of_week = ? AND is_active = 1
       `).bind(agent.id, dayOfWeek).first();
 
       if (!workingHours) continue;
@@ -218,13 +215,28 @@ async function handleGetAvailability(request, env, path, url) {
   }
 }
 
-// Récupérer les prestations du tenant (source unique : products type='service',
-// fallback services pendant la transition — helper listPrestations).
+// Récupérer services/prestations du tenant
 async function handleGetServices(request, env, path) {
   try {
     const tenantId = path.split('/')[4];
-    const services = await listPrestations(env, tenantId);
-    return successResponse({ services });
+
+    const services = await env.DB.prepare(`
+      SELECT
+        id,
+        name,
+        description,
+        duration_minutes,
+        price,
+        currency
+      FROM services
+      WHERE tenant_id = ? AND is_active = 1
+      ORDER BY display_order ASC, name ASC
+    `).bind(tenantId).all();
+
+    return successResponse({
+      services: services.results || []
+    });
+
   } catch (error) {
     logger.error('Error fetching services', { error: error.message });
     return errorResponse('Failed to fetch services');

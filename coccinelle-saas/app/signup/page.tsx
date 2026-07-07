@@ -13,7 +13,6 @@ export default function SignupPage() {
     email: '',
     password: '',
   });
-  const [cguAccepted, setCguAccepted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -30,16 +29,12 @@ export default function SignupPage() {
     setLoading(true);
 
     // Validation
-    const newErrors = [];
+    const newErrors: string[] = [];
     if (!formData.name) newErrors.push('Votre nom est requis');
     if (!formData.email) newErrors.push('L\'email est requis');
     if (!formData.password || formData.password.length < 8) {
       newErrors.push('Le mot de passe doit contenir au moins 8 caractères');
     }
-    if (!cguAccepted) {
-      newErrors.push('Vous devez accepter les Conditions Generales d\'Utilisation');
-    }
-
     if (newErrors.length > 0) {
       setErrors(newErrors);
       setLoading(false);
@@ -57,7 +52,7 @@ export default function SignupPage() {
             name: formData.name,
             email: formData.email,
             password: formData.password,
-            cgu_accepted: cguAccepted
+            cgu_accepted: true
           })
         }
       );
@@ -203,6 +198,16 @@ export default function SignupPage() {
             >
               {loading ? 'Création du compte...' : 'Créer mon compte'}
             </button>
+            <p className="mt-3 text-xs text-center text-gray-500">
+              En vous inscrivant, vous acceptez nos{' '}
+              <Link href="/legal/cgu" target="_blank" className="text-gray-700 hover:text-black underline">
+                Conditions Générales
+              </Link>{' '}
+              et notre{' '}
+              <Link href="/legal/politique-confidentialite" target="_blank" className="text-gray-700 hover:text-black underline">
+                Politique de confidentialité
+              </Link>.
+            </p>
           </div>
 
           {/* Social OAuth Options */}
@@ -258,26 +263,6 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <div className="flex items-start gap-3">
-            <input
-              id="cgu"
-              type="checkbox"
-              checked={cguAccepted}
-              onChange={(e) => setCguAccepted(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-black focus:ring-black"
-            />
-            <label htmlFor="cgu" className="text-xs text-gray-500">
-              J&apos;accepte les{' '}
-              <Link href="/legal/cgu" target="_blank" className="text-gray-700 hover:text-black underline">
-                Conditions Generales d&apos;Utilisation
-              </Link>{' '}
-              et la{' '}
-              <Link href="/legal/politique-confidentialite" target="_blank" className="text-gray-700 hover:text-black underline">
-                Politique de Confidentialite
-              </Link>{' '}
-              *
-            </label>
-          </div>
         </form>
       </div>
     </div>

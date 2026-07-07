@@ -1,14 +1,23 @@
 'use client';
 
-import { Search, Bell } from 'lucide-react';
+import { Search } from 'lucide-react';
 import DashboardSidebar from '../../components/DashboardSidebar';
 import NotificationBell from '../../components/NotificationBell';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, loading } = useAuth();
+
+  const userName = user?.name || '';
+  const userRole = user?.role || '';
+  const initials = userName
+    ? userName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+    : '';
+
   return (
     <div className="flex h-screen overflow-hidden bg-white">
       <DashboardSidebar />
@@ -28,12 +37,25 @@ export default function DashboardLayout({
           <div className="flex items-center gap-3">
             <NotificationBell />
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-sm font-medium">
-                U
-              </div>
+              {loading ? (
+                <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center text-white text-sm font-medium">
+                  {initials || 'U'}
+                </div>
+              )}
               <div className="hidden sm:block">
-                <div className="text-sm font-medium text-gray-900">Utilisateur</div>
-                <div className="text-xs text-gray-500">Admin</div>
+                {loading ? (
+                  <>
+                    <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-3 w-12 bg-gray-100 rounded animate-pulse mt-1" />
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm font-medium text-gray-900">{userName}</div>
+                    <div className="text-xs text-gray-500 capitalize">{userRole}</div>
+                  </>
+                )}
               </div>
             </div>
           </div>

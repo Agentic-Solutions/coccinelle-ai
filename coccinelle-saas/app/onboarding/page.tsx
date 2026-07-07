@@ -6,6 +6,7 @@ import { buildApiUrl, getAuthHeaders } from '@/lib/config';
 import { SECTORS } from '@/lib/sectors';
 import { VOICE_OPTIONS, type VoiceOption } from '@/lib/voices';
 import { getSectorPrompt } from '@/lib/prompts';
+import { DEFAULT_HORAIRES, DAY_LABELS, HEURES, horairesToText, parseHoraires, type Horaires } from '@/lib/horaires';
 import StepperProgress from '@/components/onboarding/StepperProgress';
 // KB handlers (crawl/upload) conserves pour usage dashboard, plus utilises dans l'onboarding simplifie
 
@@ -28,46 +29,18 @@ const SECTOR_ICONS: Record<string, React.ReactNode> = {
   autre: <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>,
 };
 
-// ─── Horaires constants ──────────────────────────────────────
-const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-const HEURES: string[] = [];
-for (let h = 0; h < 24; h++) {
-  HEURES.push(`${String(h).padStart(2, '0')}:00`);
-  HEURES.push(`${String(h).padStart(2, '0')}:30`);
-}
+// ─── Indicatifs pays (item 3) ────────────────────────────────
+const COUNTRIES = [
+  { code: 'FR', flag: '🇫🇷', dial: '+33' },
+  { code: 'BE', flag: '🇧🇪', dial: '+32' },
+  { code: 'CH', flag: '🇨🇭', dial: '+41' },
+  { code: 'LU', flag: '🇱🇺', dial: '+352' },
+];
 
-function horairesToText(days: boolean[], plages: { debut: string; fin: string }[]): string {
-  // Group consecutive days
-  const selectedIndices = days.map((d, i) => d ? i : -1).filter(i => i >= 0);
-  if (selectedIndices.length === 0) return '';
-
-  const groups: number[][] = [];
-  let current: number[] = [selectedIndices[0]];
-  for (let i = 1; i < selectedIndices.length; i++) {
-    if (selectedIndices[i] === selectedIndices[i - 1] + 1) {
-      current.push(selectedIndices[i]);
-    } else {
-      groups.push(current);
-      current = [selectedIndices[i]];
-    }
-  }
-  groups.push(current);
-
-  const daysPart = groups
-    .map(g => g.length === 1 ? JOURS[g[0]] : `${JOURS[g[0]]}-${JOURS[g[g.length - 1]]}`)
-    .join(', ');
-
-  const formatH = (t: string) => {
-    const [h, m] = t.split(':');
-    return m === '00' ? `${parseInt(h)}h` : `${parseInt(h)}h${m}`;
-  };
-
-  const plagesPart = plages
-    .filter(p => p.debut && p.fin)
-    .map(p => `${formatH(p.debut)}-${formatH(p.fin)}`)
-    .join(' et ');
-
-  return plagesPart ? `${daysPart} ${plagesPart}` : daysPart;
+// Reconstitue un E.164 (+33612345678) depuis indicatif + numéro national.
+function buildE164(dial: string, national: string): string {
+  const digits = national.replace(/\D/g, '').replace(/^0+/, '');
+  return digits ? `${dial}${digits}` : '';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -85,12 +58,11 @@ export default function OnboardingPage() {
   const [companyName, setCompanyName] = useState('');
   const [sector, setSector] = useState('');
   const [phone, setPhone] = useState('');
-  // Horaires — jours + plages
-  const [selectedDays, setSelectedDays] = useState<boolean[]>([true, true, true, true, true, false, false]);
-  const [plages, setPlages] = useState<{ debut: string; fin: string }[]>([
-    { debut: '09:00', fin: '12:00' },
-    { debut: '14:00', fin: '18:00' },
-  ]);
+  // Téléphone — indicatif pays + numéro national (item 3)
+  const [dialCode, setDialCode] = useState('+33');
+  const [phoneNational, setPhoneNational] = useState('');
+  // Horaires par jour (source unique : lib/horaires)
+  const [horaires, setHoraires] = useState<Horaires>(DEFAULT_HORAIRES);
   // Phone verification
   const [phoneCode, setPhoneCode] = useState('');
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
@@ -134,7 +106,14 @@ export default function OnboardingPage() {
           }
           setCompanyName(data.tenant?.name || '');
           setSector(data.tenant?.sector || '');
-          setPhone(data.tenant?.phone || '');
+          const existingPhone = data.tenant?.phone || '';
+          setPhone(existingPhone);
+          if (existingPhone) {
+            const c = COUNTRIES.find(co => existingPhone.startsWith(co.dial)) || COUNTRIES[0];
+            setDialCode(c.dial);
+            setPhoneNational(existingPhone.slice(c.dial.length));
+          }
+          if (data.tenant?.horaires) setHoraires(parseHoraires(data.tenant.horaires));
           setPhoneVerified(data.user?.phone_verified === 1);
           const resumeStep = data.session?.current_step || 0;
           setCurrentStep(Math.min(resumeStep, TOTAL_STEPS - 1));
@@ -198,10 +177,8 @@ export default function OnboardingPage() {
 
   // ── Phone verification ───────────────────────────────────────
   const handleSendPhoneCode = async () => {
-    if (!phone.trim()) return;
-    let normalizedPhone = phone.trim().replace(/\s+/g, '');
-    if (normalizedPhone.startsWith('0')) normalizedPhone = '+33' + normalizedPhone.substring(1);
-    if (!normalizedPhone.startsWith('+')) normalizedPhone = '+' + normalizedPhone;
+    const normalizedPhone = buildE164(dialCode, phoneNational);
+    if (!normalizedPhone) return;
 
     setPhoneSending(true);
     setPhoneMsg('');
@@ -272,6 +249,14 @@ export default function OnboardingPage() {
     }
   };
 
+  // Item 4 — auto-submit : vérifie dès que les 6 chiffres sont saisis
+  useEffect(() => {
+    if (phoneCodeSent && !phoneVerified && !phoneVerifying && phoneCode.length === 6) {
+      handleVerifyPhoneCode();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phoneCode, phoneCodeSent, phoneVerified]);
+
   // ── Voice preview ────────────────────────────────────────────
   const handlePlayVoice = async (voice: VoiceOption) => {
     if (playingVoiceId === voice.id) {
@@ -318,12 +303,12 @@ export default function OnboardingPage() {
       return;
     }
     setError('');
-    const horairesText = horairesToText(selectedDays, plages);
+    const e164 = buildE164(dialCode, phoneNational);
     await saveStep('business', {
       company_name: companyName.trim(),
       sector,
-      phone: phone.trim() || undefined,
-      horaires: horairesText || undefined,
+      phone: e164 || undefined,
+      horaires,
     });
     markCompleted(0);
     setCurrentStep(1);
@@ -341,7 +326,7 @@ export default function OnboardingPage() {
       systemPrompt = systemPrompt
         .replace(/\{NOM_AGENT\}/g, finalAgentName)
         .replace(/\{NOM_ENTREPRISE\}/g, companyName.trim())
-        .replace(/\{HORAIRES\}/g, horairesToText(selectedDays, plages) || 'sur rendez-vous')
+        .replace(/\{HORAIRES\}/g, horairesToText(horaires) || 'sur rendez-vous')
         .replace(/\{TELEPHONE\}/g, phone.trim() || '');
     }
 
@@ -472,86 +457,76 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                {/* Horaires — jours + plages */}
+                {/* Horaires par jour (item 2) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Horaires d&apos;ouverture
                   </label>
-                  {/* Jours */}
-                  <div className="flex gap-1.5 mb-3">
-                    {JOURS.map((jour, i) => (
-                      <button
-                        key={jour}
-                        type="button"
-                        onClick={() => setSelectedDays(prev => { const n = [...prev]; n[i] = !n[i]; return n; })}
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                          selectedDays[i]
-                            ? 'bg-gray-900 text-white'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
-                        }`}
-                      >
-                        {jour}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Plages horaires */}
-                  <div className="space-y-2">
-                    {plages.map((plage, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <span className="text-gray-500">De</span>
-                        <select
-                          value={plage.debut}
-                          onChange={e => setPlages(prev => { const n = [...prev]; n[i] = { ...n[i], debut: e.target.value }; return n; })}
-                          className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                        >
-                          {HEURES.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                        <span className="text-gray-500">à</span>
-                        <select
-                          value={plage.fin}
-                          onChange={e => setPlages(prev => { const n = [...prev]; n[i] = { ...n[i], fin: e.target.value }; return n; })}
-                          className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                        >
-                          {HEURES.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                        {plages.length > 1 && (
+                  <div className="space-y-1.5">
+                    {DAY_LABELS.map(({ key, label }) => {
+                      const d = horaires[key];
+                      return (
+                        <div key={key} className="flex items-center gap-2 text-sm">
+                          <span className="w-20 text-gray-700">{label}</span>
                           <button
                             type="button"
-                            onClick={() => setPlages(prev => prev.filter((_, j) => j !== i))}
-                            className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                            onClick={() => setHoraires(prev => ({ ...prev, [key]: { ...prev[key], ouvert: !prev[key].ouvert } }))}
+                            className={`w-20 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              d.ouvert ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
                           >
-                            x
+                            {d.ouvert ? 'Ouvert' : 'Fermé'}
                           </button>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setPlages(prev => [...prev, { debut: '09:00', fin: '18:00' }])}
-                      className="text-sm text-gray-600 hover:text-gray-900 font-medium"
-                    >
-                      + Ajouter une plage
-                    </button>
+                          {d.ouvert ? (
+                            <>
+                              <select
+                                value={d.debut}
+                                onChange={e => setHoraires(prev => ({ ...prev, [key]: { ...prev[key], debut: e.target.value } }))}
+                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
+                              >
+                                {HEURES.map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              <span className="text-gray-400">–</span>
+                              <select
+                                value={d.fin}
+                                onChange={e => setHoraires(prev => ({ ...prev, [key]: { ...prev[key], fin: e.target.value } }))}
+                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
+                              >
+                                {HEURES.map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-400">Fermé</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {/* Preview text */}
-                  {horairesToText(selectedDays, plages) && (
-                    <p className="mt-2 text-xs text-gray-500">
-                      {horairesToText(selectedDays, plages)}
-                    </p>
+                  {horairesToText(horaires) && (
+                    <p className="mt-2 text-xs text-gray-500">{horairesToText(horaires)}</p>
                   )}
                 </div>
 
-                {/* Téléphone avec vérification */}
+                {/* Téléphone avec indicatif (item 3) + vérification */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Téléphone professionnel
                   </label>
                   <div className="flex gap-2">
+                    <select
+                      value={dialCode}
+                      onChange={e => { setDialCode(e.target.value); setPhone(buildE164(e.target.value, phoneNational)); setPhoneVerified(false); setPhoneCodeSent(false); }}
+                      disabled={phoneVerified}
+                      className="px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none disabled:bg-gray-50 text-sm"
+                      aria-label="Indicatif pays"
+                    >
+                      {COUNTRIES.map(c => <option key={c.code} value={c.dial}>{c.flag} {c.dial}</option>)}
+                    </select>
                     <input
                       type="tel"
-                      value={phone}
-                      onChange={e => { setPhone(e.target.value); setPhoneVerified(false); setPhoneCodeSent(false); }}
-                      placeholder="+33 6 12 34 56 78"
+                      value={phoneNational}
+                      onChange={e => { setPhoneNational(e.target.value); setPhone(buildE164(dialCode, e.target.value)); setPhoneVerified(false); setPhoneCodeSent(false); }}
+                      placeholder="06 12 34 56 78"
                       disabled={phoneVerified}
                       className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none disabled:bg-gray-50"
                     />
@@ -566,7 +541,7 @@ export default function OnboardingPage() {
                       <button
                         type="button"
                         onClick={handleSendPhoneCode}
-                        disabled={phoneSending || !phone.trim()}
+                        disabled={phoneSending || !phoneNational.trim()}
                         className="px-4 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
                       >
                         {phoneSending ? 'Envoi...' : phoneCodeSent ? 'Renvoyer' : 'Vérifier'}
@@ -598,6 +573,17 @@ export default function OnboardingPage() {
                         {phoneVerifying ? '...' : 'OK'}
                       </button>
                     </div>
+                  )}
+
+                  {/* Item 5 — vérification passable */}
+                  {!phoneVerified && (
+                    <button
+                      type="button"
+                      onClick={handleStep0Next}
+                      className="mt-2 text-xs text-gray-400 hover:text-gray-600 underline"
+                    >
+                      Passer, je vérifierai plus tard
+                    </button>
                   )}
                 </div>
 
@@ -901,18 +887,6 @@ export default function OnboardingPage() {
                     </p>
                   </div>
                 </div>
-
-                {kbTotalDocs > 0 && (
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Base de connaissances</p>
-                      <p className="text-xs text-gray-500">{kbTotalDocs} document{kbTotalDocs > 1 ? 's' : ''}</p>
-                    </div>
-                  </div>
-                )}
 
                 {phone && (
                   <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">

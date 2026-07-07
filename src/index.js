@@ -58,6 +58,8 @@ import { handleServicesRoutes } from './modules/services/routes.js';
 import { handleSettingsRoutes } from './modules/settings/routes.js';
 // Module Tasks (gestion tâches + affectation intelligente)
 import { handleTasksRoutes, handleTaskTypesRoutes, handleAssignmentRulesRoutes } from './modules/tasks/routes.js';
+// Module Demo — reset compte démo Maze
+import { handleDemoRoutes } from './modules/demo/routes.js';
 // Cron SMS Rappel J-1 pour RDV
 import { handleScheduled, sendTomorrowReminders } from './cron/reminders.js';
 
@@ -82,6 +84,12 @@ export default {
       // Routes publiques (sans auth) - à traiter en premier
       if (path.startsWith('/api/v1/public/')) {
         response = await handlePublicRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Route demo reset (auth par X-Demo-Reset-Key)
+      if (path === '/api/v1/demo/reset') {
+        response = await handleDemoRoutes(request, env, path, method);
         if (response) return response;
       }
 

@@ -1,0 +1,60 @@
+[
+  {
+    "results": [
+      {
+        "id": "kb_maze_001",
+        "title": "Que faire en cas de fuite d eau",
+        "is_active": 1,
+        "status": "indexed"
+      },
+      {
+        "id": "kb_maze_002",
+        "title": "Quand a lieu l assemblee generale",
+        "is_active": 1,
+        "status": "indexed"
+      },
+      {
+        "id": "kb_maze_003",
+        "title": "Comment sont calculees les charges",
+        "is_active": 1,
+        "status": "indexed"
+      },
+      {
+        "id": "kb_maze_004",
+        "title": "Comment signaler un sinistre",
+        "is_active": 1,
+        "status": "indexed"
+      },
+      {
+        "id": "kb_maze_005",
+        "title": "Quels travaux sont prevus",
+        "is_active": 1,
+        "status": "indexed"
+      },
+      {
+        "id": "doc_manual_1779104033221_wuy1z",
+        "title": "Horaires",
+        "is_active": 1,
+        "status": "completed"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "CDG",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.2726
+      },
+      "duration": 0.2726,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 5984256,
+      "rows_read": 7,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]

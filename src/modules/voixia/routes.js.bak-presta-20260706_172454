@@ -8,7 +8,6 @@ import { successResponse, errorResponse } from '../../utils/response.js';
 import { generateId, logAudit } from '../auth/helpers.js';
 import { requireVoixIAAuth } from './auth.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
-import { findPrestationByName, findPrestationDurationById } from '../shared/prestations.js';
 
 /**
  * Handler principal pour les routes /api/v1/voixia/*
@@ -164,14 +163,18 @@ async function handleCreateAppointment(request, env) {
     return errorResponse('Impossible de créer le prospect', 500);
   }
 
-  // 2. Trouver la prestation (products type='service', fallback services) + sa durée
+  // 2. Trouver le service_id et sa durée si un nom de service est fourni
   let serviceId = null;
   let serviceDurationMinutes = null;
   if (service) {
-    const prestation = await findPrestationByName(env, tenant_id, service);
-    if (prestation) {
-      serviceId = prestation.id;
-      serviceDurationMinutes = prestation.duration_minutes;
+    try {
+      const serviceRow = await env.DB.prepare(
+        'SELECT id, duration_minutes FROM services WHERE tenant_id = ? AND name LIKE ? LIMIT 1'
+      ).bind(tenant_id, `%${service}%`).first();
+      serviceId = serviceRow?.id || null;
+      serviceDurationMinutes = serviceRow?.duration_minutes || null;
+    } catch {
+      // La table services peut ne pas exister — on continue sans
     }
   }
 
@@ -303,18 +306,28 @@ async function handleCheckAvailability(request, env) {
   let agentCustomDurations = {}; // agent_id → custom_duration_minutes
 
   if (!resolvedServiceId && service) {
-    // Résoudre la prestation par nom (products type='service', fallback services)
-    const prestation = await findPrestationByName(env, tenant_id, service);
-    if (prestation) {
-      resolvedServiceId = prestation.id;
-      serviceDuration = prestation.duration_minutes;
+    // Résoudre par nom de service
+    try {
+      const likePattern = '%' + service.toLowerCase() + '%';
+      const svcResult = await env.DB.prepare(
+        "SELECT id, duration_minutes FROM services WHERE tenant_id = ? AND is_active = 1 AND LOWER(name) LIKE ? LIMIT 1"
+      ).bind(tenant_id, likePattern).first();
+      if (svcResult) {
+        resolvedServiceId = svcResult.id;
+        serviceDuration = svcResult.duration_minutes;
+      }
+    } catch (err) {
+      logger.error('VoixIA — service name resolution error', { error: err.message, service });
     }
   }
 
   if (resolvedServiceId) {
-    // Récupérer la durée de la prestation si pas encore fait
+    // Récupérer la durée du service si pas encore fait
     if (!serviceDuration) {
-      serviceDuration = await findPrestationDurationById(env, tenant_id, resolvedServiceId);
+      try {
+        const svcRow = await env.DB.prepare(`SELECT duration_minutes FROM services WHERE id = ? AND tenant_id = ?`).bind(resolvedServiceId, tenant_id).first();
+        if (svcRow) serviceDuration = svcRow.duration_minutes;
+      } catch { /* fallback 30min */ }
     }
 
     // Récupérer les agents assignés à cette prestation
@@ -985,7 +998,6 @@ async function handleResolvePhone(request, env) {
       LEFT JOIN ai_prompt_versions apv ON vc.active_prompt_id = apv.id
       WHERE (m.phone_number = ? OR m.phone_number = ?)
         AND m.is_active = 1
-        AND m.channel_type = 'voice'
       LIMIT 1
     `).bind(phone, normalizedPhone).first();
 

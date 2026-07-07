@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Package, Plus, Search, MapPin, Euro, ShoppingBag, UtensilsCrossed, Briefcase, Home, Tag, Car, Book, Smartphone, Music, Heart, ShoppingCart, Laptop, Users } from 'lucide-react';
+import { Package, Plus, Search, MapPin, ShoppingBag, UtensilsCrossed, Briefcase, Home, Tag, Car, Book, Smartphone, Music, Heart, ShoppingCart, Laptop, Users } from 'lucide-react';
 import { useTenant } from '@/hooks/useTenant';
 
 interface Product {
@@ -13,6 +13,7 @@ interface Product {
   price: number;
   price_currency: string;
   description: string;
+  short_description?: string;
   status: string;
   available: number;
   has_variants: number;
@@ -276,9 +277,16 @@ export default function KnowledgeProductsPage() {
                   <div className="p-4">
                     <Link href={`/dashboard/products/${product.id}`} className="font-semibold text-gray-900 text-lg mb-2 hover:text-gray-600 block">{product.title}</Link>
                     {product.description && <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>}
-                    <div className="mb-4 flex items-center gap-2">
-                      <Euro className="w-5 h-5 text-gray-700" />
-                      <span className="text-2xl font-bold text-gray-900">{formatPrice(product.price, product.price_currency)}</span>
+                    <div className="mb-4">
+                      {product.price && product.price > 0 ? (
+                        <span className="text-2xl font-bold text-gray-900">
+                          {formatPrice(product.price, product.price_currency)}
+                        </span>
+                      ) : (
+                        <span className="text-lg font-medium text-gray-600 italic">
+                          {product.short_description || 'Sur demande'}
+                        </span>
+                      )}
                     </div>
                     {product.tags && product.tags.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-4">

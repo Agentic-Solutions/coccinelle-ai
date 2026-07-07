@@ -43,7 +43,6 @@ const navigation: NavGroup[] = [
     label: 'Communication',
     items: [
       { name: 'Numéros', href: '/dashboard/channels/numbers', icon: Hash },
-      { name: 'Agents IA', href: '/dashboard/agents/configuration', icon: Bot },
       { name: 'SMS', href: '/dashboard/channels/sms', icon: MessageSquare },
       { name: 'WhatsApp', href: '/dashboard/channels/whatsapp', icon: MessageCircle },
       { name: 'Email', href: '/dashboard/channels/email', icon: Mail },
@@ -71,6 +70,7 @@ const navigation: NavGroup[] = [
   {
     label: 'Configuration',
     items: [
+      { name: 'Agents IA', href: '/dashboard/agents/configuration', icon: Bot },
       { name: 'Séquences', href: '/dashboard/agents/nodes', icon: GitBranch },
       { name: 'IVR / SVI', href: '/dashboard/channels/ivr', icon: ListTree },
       { name: "Files d'attente", href: '/dashboard/channels/queues', icon: Users2 },

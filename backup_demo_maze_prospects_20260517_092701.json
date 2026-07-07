@@ -1,0 +1,193 @@
+[
+  {
+    "results": [
+      {
+        "id": "prospect_maze_001",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Jean",
+        "last_name": "Moreau",
+        "phone": "+33612900001",
+        "email": "jean.moreau@email.fr",
+        "status": "qualified",
+        "created_at": "2026-05-10T09:15:00Z",
+        "source": "assistant",
+        "interaction_count": 3,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_maze_002",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Carole",
+        "last_name": "Petit",
+        "phone": "+33612900002",
+        "email": "carole.petit@email.fr",
+        "status": "new",
+        "created_at": "2026-05-12T14:30:00Z",
+        "source": "assistant",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_maze_003",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Marc",
+        "last_name": "Fontaine",
+        "phone": "+33612900003",
+        "email": "marc.fontaine@email.fr",
+        "status": "qualified",
+        "created_at": "2026-05-08T11:00:00Z",
+        "source": "assistant",
+        "interaction_count": 2,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_maze_004",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Nathalie",
+        "last_name": "Roux",
+        "phone": "+33612900004",
+        "email": "nathalie.roux@email.fr",
+        "status": "new",
+        "created_at": "2026-05-14T16:45:00Z",
+        "source": "assistant",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_1778909665407_2luu18usg",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": "Overlap",
+        "phone": "+33600000000",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:34:25.407Z",
+        "source": "voixia_appel",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_1778909666220_mnveyxtvp",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": "NoOverlap",
+        "phone": "+33600000001",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:34:26.220Z",
+        "source": "voixia_appel",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_1778909677524_gfgins2y4",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": null,
+        "phone": "+33600000099",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:34:37.524Z",
+        "source": "voixia_appel",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_1778909686127_a61umo16b",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": "OK",
+        "phone": "+33600000098",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:34:46.127Z",
+        "source": "voixia_appel",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_1778909750205_v14s9ot45",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": "Overlap",
+        "phone": "+33600000010",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:35:50.205Z",
+        "source": "voixia_appel",
+        "interaction_count": 2,
+        "updated_at": "2026-05-16 05:40:03"
+      },
+      {
+        "id": "prospect_1778909751001_88o30kr4p",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": "NonOverlap",
+        "phone": "+33600000011",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:35:51.001Z",
+        "source": "voixia_appel",
+        "interaction_count": 2,
+        "updated_at": "2026-05-16 05:40:04"
+      },
+      {
+        "id": "prospect_1778909751837_k3lrza3ul",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": "Public",
+        "phone": "+33600000013",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:35:51.837Z",
+        "source": "booking_page",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_1778909766742_fmpfheer0",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": null,
+        "phone": "+33600000020",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:36:06.742Z",
+        "source": "voixia_appel",
+        "interaction_count": 1,
+        "updated_at": null
+      },
+      {
+        "id": "prospect_1778910005413_4ntgi9ha4",
+        "tenant_id": "tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk",
+        "first_name": "Test",
+        "last_name": "Chain",
+        "phone": "+33600000012",
+        "email": null,
+        "status": "new",
+        "created_at": "2026-05-16T05:40:05.413Z",
+        "source": "voixia_appel",
+        "interaction_count": 1,
+        "updated_at": null
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "CDG",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.7289
+      },
+      "duration": 0.7289,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 5828608,
+      "rows_read": 14,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]

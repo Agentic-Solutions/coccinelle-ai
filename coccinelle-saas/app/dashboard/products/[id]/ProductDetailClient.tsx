@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Package, MapPin, Tag, Calendar, Edit, Briefcase } from 'lucide-react';
 import Link from 'next/link';
 import { useTenant } from '@/hooks/useTenant';
@@ -34,12 +34,16 @@ interface Product {
 
 export default function ProductDetailClient() {
   const router = useRouter();
-  const params = useParams();
-  const productId = params?.id as string;
+  const [productId, setProductId] = useState<string | null>(null);
   const { tenantId, loading: tenantLoading } = useTenant();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const segments = window.location.pathname.split('/');
+    setProductId(segments[segments.length - 1]);
+  }, []);
 
   useEffect(() => {
     if (!tenantLoading && productId) {

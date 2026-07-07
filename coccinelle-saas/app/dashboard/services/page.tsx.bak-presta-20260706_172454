@@ -74,27 +74,12 @@ export default function ServicesPage() {
 
   // ── Fetch ──────────────────────────────────────────
 
-  // Source unique : prestations = products avec type='service'. On mappe la forme
-  // products (title/attributes.color) vers la forme Service attendue par l'UI.
   const fetchServices = useCallback(async () => {
     try {
-      const res = await fetch(buildApiUrl('/api/v1/products?type=service'), { headers: getAuthHeaders() });
+      const res = await fetch(buildApiUrl('/api/v1/services'), { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
-        const mapped: Service[] = (data.products || []).map((p: {
-          id: string; title: string; description: string | null; duration_minutes: number | null;
-          price: number | null; attributes?: { color?: string }; category: string | null; agent_count?: number;
-        }) => ({
-          id: p.id,
-          name: p.title,
-          description: p.description,
-          duration_minutes: p.duration_minutes ?? 30,
-          price: p.price,
-          color: p.attributes?.color || '#6366f1',
-          category: p.category,
-          agent_count: p.agent_count ?? 0,
-        }));
-        setServices(mapped);
+        setServices(data.services || []);
       }
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -128,22 +113,19 @@ export default function ServicesPage() {
     if (!formName.trim()) return;
     setSaving(true);
     try {
-      // Écrit une prestation = product type='service' (category 'services', couleur en attributes).
       const body = {
-        title: formName.trim(),
-        type: 'service',
-        category: 'services',
+        name: formName.trim(),
         description: formDescription.trim() || null,
         duration_minutes: formDuration,
         price: formPrice ? Number(formPrice) : null,
-        attributes: { color: formColor },
+        color: formColor,
       };
       if (editingService) {
-        await fetch(buildApiUrl(`/api/v1/products/${editingService.id}`), {
+        await fetch(buildApiUrl(`/api/v1/services/${editingService.id}`), {
           method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(body),
         });
       } else {
-        await fetch(buildApiUrl('/api/v1/products'), {
+        await fetch(buildApiUrl('/api/v1/services'), {
           method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(body),
         });
       }
@@ -155,7 +137,7 @@ export default function ServicesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(buildApiUrl(`/api/v1/products/${id}`), {
+      await fetch(buildApiUrl(`/api/v1/services/${id}`), {
         method: 'DELETE', headers: getAuthHeaders(),
       });
       setDeletingId(null);

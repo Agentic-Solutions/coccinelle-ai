@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Clock, TrendingUp, CheckCircle, Loader2 } from 'lucide-react';
+import { Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Clock, TrendingUp, CheckCircle, Loader2, FileText } from 'lucide-react';
+import Link from 'next/link';
 import { buildApiUrl, getAuthHeaders } from '@/lib/config';
 
 interface CallStats {
@@ -211,6 +212,14 @@ export default function AnalyticsCallsPage() {
                         <span className="text-xs">
                           {new Date(call.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
                         </span>
+                        <Link
+                          href={`/dashboard/analytics/transcripts?call_id=${call.id}`}
+                          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-900 transition-colors"
+                          title="Voir la transcription"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Transcription</span>
+                        </Link>
                       </div>
                     </div>
                   ))}

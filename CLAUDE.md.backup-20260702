@@ -1,0 +1,1044 @@
+# CLAUDE.md — Coccinelle.ai
+# Dernière mise à jour : 22 mai 2026
+
+# 🐞 COCCINELLE.AI - Instructions Projet pour Claude Code
+
+## QUI EST LE DÉVELOPPEUR
+
+**Youssef Amrouche** - Fondateur d'Agentic Solutions SASU
+- Expert métier (25+ ans en relation client/call center)
+- Valide chaque étape avant de passer à la suivante
+
+## LE PROJET
+
+**Coccinelle.ai** = Premier CRM français avec IA vocale native pour TPE/PME.
+- Agent vocal IA "Sara" qui répond au téléphone 24/7
+- CRM omnicanal (téléphone, SMS, WhatsApp, email)
+- Prise de RDV automatique, qualification prospects
+- Base de connaissances RAG (crawl site → FAQ auto)
+- Multi-tenant avec RBAC (10 permissions configurables)
+
+## SOURCE UNIQUE DE VÉRITÉ (règle absolue depuis 30/03/2026, renforcé 02/04/2026)
+
+| Donnée | Source unique | Colonne |
+|--------|-------------|---------|
+| Nom entreprise | `tenants.name` | `tenants.company_name` ignoré |
+| Secteur métier | `tenants.sector` | `voixia_configs.secteur` ignoré, `tenants.industry` ignoré |
+| Prénom agent | Extrait du `system_prompt` | "Tu es **Fati**, assistant vocal de..." |
+| Prompt actif | `ai_prompt_versions.is_active=1` | 1 seul par tenant |
+| Config LLM/voix | `voixia_configs` | llm_provider, llm_model, voice_id, transfer_number, transfer_enabled |
+| Liste des voix | `lib/voices.ts` | VOICE_OPTIONS (source unique, 20 voix FR France) |
+| Prompts sectoriels | `lib/prompts.ts` | SECTOR_PROMPTS (13 secteurs, nodes, quick_scenarios) |
+| Templates DB | `ai_sector_templates` | Migration 0055, peuplé depuis lib/prompts.ts |
+| Tél personnel | `users.phone` | Vérifié via `users.phone_verified` |
+| Tél pro (Twilio) | `tenants.phone` | Numéro Twilio/renvoi d'appel |
+| Onboarding état | `tenants.onboarding_completed` | 0/1, DB uniquement |
+| Onboarding session | `onboarding_sessions` | current_step, status — JAMAIS localStorage |
+
+**Flux voice_id (corrigé 30/03/2026) :**
+```
+Dashboard sélection voix → handleSavePrompt() envoie voice_id
+  → POST /ai/prompts (crée prompt) → POST /ai/prompts/activate/:id (body: voice_id, llm_*)
+  → voixia_configs.voice_id mis à jour
+  → resolve-phone retourne voice_id
+  → Agent Python utilise voice_id pour ElevenLabs TTS
+```
+
+**Flux onboarding (refonte 02/04/2026) :**
+```
+8 étapes : Secteur → Entreprise → Vérification tél → Connaissances → Produits → Canaux → Assistant → Résumé
+  → POST /api/v1/onboarding/step (step=sector|business|knowledge|products|channels|assistant|complete)
+  → GET /api/v1/onboarding/state (retourne tenant + user + session depuis DB)
+  → POST /api/v1/onboarding/send-verification (SMS code 6 chiffres via Twilio)
+  → POST /api/v1/onboarding/verify-phone (vérifie code, users.phone_verified=1)
+  → JAMAIS de localStorage pour données utilisateur (uniquement auth_token + session_id)
+  → Dashboard pages pré-remplies depuis /api/v1/auth/me (pas localStorage)
+```
+
+**Colonnes users ajoutées (migration 02/04/2026) :**
+- `users.phone` TEXT — numéro personnel E.164
+- `users.phone_verified` INTEGER DEFAULT 0
+- `users.phone_verification_code` TEXT — code 6 chiffres temporaire
+- `users.phone_verification_expires` TEXT — expiration ISO 8601
+
+**Règles :**
+- `resolve-phone` lit `t.name AS company_name, t.sector` depuis tenants (JOIN)
+- `/me` retourne `tenant.sector` (pas industry), `user.phone`, `user.phone_verified`, `tenant.onboarding_completed`
+- Signup écrit `body.industry` → `tenants.sector`
+- Profile écrit `industry` → `tenants.sector` via COALESCE
+- Frontend remplace `{ASSISTANT_NAME}` et `{COMPANY_NAME}` AVANT envoi à l'API
+- VoixIA greeting = texte littéral via `session.say()` (pas `generate_reply`)
+- Activate endpoint accepte body optionnel `{ voice_id, llm_provider, llm_model }` pour mettre à jour voixia_configs
+- `POST /api/v1/ai/voice-preview` = preview audio ElevenLabs (requiert `ELEVENLABS_API_KEY` en secret Workers)
+- `lib/voices.ts` = source unique des voix disponibles (importé par `voixia/page.tsx`)
+- `lib/prompts.ts` = source unique des prompts sectoriels (13 secteurs, nodes vocaux, quick_scenarios)
+- JAMAIS de `PROMPT_TEMPLATES` local dans les composants — toujours `getSectorPrompt()` depuis `lib/prompts.ts`
+- Voix disponibles (20 voix françaises de France, vérifié 31/03/2026) :
+  - Filtres ElevenLabs : `language=fr`, `use_cases=conversational`, `accent=standard`
+  - **Féminines (10)** : Jeanne (pro), Jade (support), Audia (amicale), Anna (douce), Laura (conversationnelle), Lucie (service client), Isabelle (mature), Sarah (conversationnelle), Victoria (jeune), Léa (éducative)
+  - **Masculines (10)** : Nicolas (pro), Benjamin (chaleureux), Laurent (rassurant), Marco (agent IA), Vincent (décontracté), Julien (réaliste), Antoine (expressif), Clément (calme), Greg (parisien), Steve (doux)
+  - Pour rafraîchir : consulter `https://elevenlabs.io/app/voice-library?required_languages=fr&use_cases=conversational&accent=standard`
+
+**Flux prompts sectoriels (corrigé 31/03/2026) :**
+```
+Sélection secteur dans VoixIA → getSectorPrompt(secteur) → lib/prompts.ts
+  → system_prompt riche (identité + style + déroulement) → textarea
+  → handleSavePrompt() → POST /ai/prompts → POST /ai/prompts/activate/:id
+  → ai_prompt_versions.system_prompt = prompt enrichi
+```
+
+**Flux séquences omnicanal (corrigé 31/03/2026) :**
+```
+Sélection secteur dans Séquences → getSectorPrompt(secteur).nodes → lib/prompts.ts
+  → nodes vocaux (accueil, qualification, prise_rdv, fin) depuis lib/prompts.ts
+  → SMS/Email depuis SECTOR_CONTENT local (spécifique séquence)
+  → Canvas visuel avec 10 nodes : call→condition→call→call→sms→email→end + branche NON
+```
+
+**Simulation IA (ajouté 31/03/2026) :**
+```
+Bouton "Simuler" → modale chat → quick_scenarios depuis getSectorPrompt().quick_scenarios
+  → POST /api/v1/ai/simulate (body: system_prompt, messages, llm_provider)
+  → Backend appelle Anthropic Claude ou Mistral → reply affiché dans la modale
+```
+
+## RÈGLES ABSOLUES VOIXIA
+
+1. `session.say(texte_littéral)` — `generate_reply()` INTERDIT
+2. Greeting = phrase courte littérale : "Bonjour, {COMPANY_NAME} !"
+3. Le "+" dans les numéros → encodé "%2B" dans les URLs
+4. UN SEUL prompt `is_active=1` par tenant
+5. `system_prompt` sauvegardé en DB ne contient JAMAIS de variables `{}`
+6. Le `system_prompt` DOIT contenir : "appelle TOUJOURS search_knowledge avant de répondre à toute question sur les services ou tarifs" — sans cette instruction l'agent ne call pas le tool
+7. JAMAIS de documents crawlés d'un autre site dans la KB — vérifier source_type avant démo
+8. Tools vocaux : JAMAIS de prefixe technique dans le retour ("Reponse trouvee", "Resultats trouves", etc.) — le retour est lu a voix haute par le TTS
+9. Retour tool vocal : max 300 chars, phrases naturelles, pas de markdown, pas de symboles (euros pas EUR, etc.), coupe a la derniere phrase complete
+10. Recherche KB textuelle : TOUJOURS splitter la question en mots significatifs et chercher avec OR (LIKE '%mot1%' OR LIKE '%mot2%'). JAMAIS de LIKE '%phrase entière%' car les mots ne sont pas adjacents dans le contenu
+11. system_prompt DOIT contenir : "ne dis JAMAIS je consulte, je verifie, un instant, je recherche" — sinon le LLM annonce sa demarche avant de donner la reponse
+12. TTS _nettoyer_pour_tts() : 48+ remplacements en 12 categories — temporel (24h/24, 7j/7), monetaire (euros/mois), pourcent, connecteurs (&, +), abreviations (min, max, rdv, tel), sigles (PME, SLA, CRM, SMS), sigles fiscaux (HT→hors taxes, TTC→toutes taxes comprises, TVA→T V A, regex \b), ordinaux (1er, 2eme), ponctuation, markdown, espaces, troncature 300 chars
+13. Documents KB ecrits en langage vocal pur : phrases courtes max 15 mots, pas de symboles, pas d'abreviations, pas de sigles, pas de markdown. Reecrits le 05/04/2026
+
+## FICHIERS PYTHON VOIXIA (NE PAS CASSER)
+
+| Fichier | Rôle | Règle absolue |
+|---------|------|---------------|
+| tenant.py | Résolution tenant | phone encodé %2B dans URL |
+| main.py | Orchestration appel | session.say() jamais generate_reply() |
+| pipeline.py | Agent LLM + tools | system_prompt depuis resolve-phone |
+| tools.py | Tools LiveKit | 7 tools connectés aux modules Coccinelle |
+| llm_factory.py | Factory LLM | provider + model dynamiques |
+| prompts.py | Greetings | Textes LITTÉRAUX courts |
+
+## TOOLS VOIXIA (connectés aux modules Coccinelle)
+
+| Tool | Endpoint principal | Alias /tools/ | Module |
+|------|-------------------|---------------|--------|
+| check_availability | GET /api/v1/voixia/appointments/availability | GET /tools/availability | Rendez-vous |
+| book_appointment | POST /api/v1/voixia/appointments | POST /tools/book-appointment | Rendez-vous |
+| search_knowledge | POST /api/v1/voixia/knowledge | GET /tools/knowledge | Base de connaissances |
+| search_products | GET /api/v1/voixia/products | GET /tools/products | Produits |
+| create_prospect | POST /api/v1/voixia/prospects | POST /tools/prospect | Prospects/CRM |
+| send_sms | POST /api/v1/voixia/sms | POST /tools/sms | Canaux/SMS |
+| transfer_to_human | POST /api/v1/voixia/transfer | POST /tools/transfer | Équipes |
+
+**Note :** Les deux schémas de paths fonctionnent. L'agent Python utilise les paths principaux.
+**Vérifié 01/04/2026 :** `check_availability` retourne des créneaux RÉELS depuis `availability_slots` + `appointments`.
+**Vérifié 04/04/2026 :** `POST /api/v1/voixia/knowledge` retourne `answer` (priorité source_type='text', tronqué 500 chars) + `found` + `results`. Même logique que GET /tools/knowledge.
+
+## PALETTE DE NODES (éditeur de séquences)
+
+11 types de nodes disponibles, organisés en 4 catégories :
+
+| Catégorie | Types | Description |
+|-----------|-------|-------------|
+| CONVERSATION | call, sms, email | Canaux de communication |
+| LOGIQUE | condition, delay | Branchement et temporisation |
+| ACTIONS | rdv, knowledge, products, prospect, transfer | Appel automatique aux outils VoixIA |
+| FIN | end | Terminaison de séquence |
+
+Chaque node `call` a un champ `script` (texte exact que l'agent vocal prononcera).
+Chaque node action affiche l'outil connecté (ex: `check_availability + book_appointment`).
+Source : `src/components/SequenceEditor.tsx` → `NODE_PALETTE` + `NODE_TYPES`.
+Accessible via : `/dashboard/agents/nodes` (importe `SequenceEditor` depuis `@/components/SequenceEditor`).
+
+## SITEMAP DÉFINITIF (refonte Fonio 02/04/2026, MàJ sitemap 02/04/2026)
+
+Composant sidebar : `components/DashboardSidebar.tsx`
+**Style Fonio — sidebar classique, 6 groupes avec accordéons :**
+- w-[260px] collapsible → w-[68px], transition 300ms
+- bg-white, border-r border-gray-200
+- Palette : blanc/noir/gris uniquement (brand-600 → gray-900)
+- Item actif : bg-gray-100 text-gray-900 font-medium
+- Icône active : text-gray-900, inactive : text-gray-400
+- Labels groupes : cliquables, accordéon ChevronDown/ChevronRight
+- Groupe auto-ouvert si route active dedans, fermés sinon
+- Bouton "Nouvel appel" : bg-gray-900 text-white
+- Logo : CoccinelleIcon 18px blanc sur fond gray-900 rounded-lg
+- Bas : Paramètres + Déconnexion
+- Mobile : overlay + sidebar 260px
+
+**Règles UI (corrigé 02/04/2026) :**
+- Emoji 🐞 BANNI de toute l'interface — utiliser CoccinelleIcon partout
+- "Sara" BANNI — utiliser "Assistant" ou nom dynamique depuis le prompt
+- Termes techniques BANNIS dans l'UI : RAG, Crawl, crawler, embedding, vector, chunks
+  - RAG → "Recherche intelligente" ou "Tester la recherche"
+  - Crawl → "Importer depuis un site"
+  - Auto-Builder → "Construction automatique"
+  - Knowledge Base → "Base de connaissances"
+
+**Page Paramètres** `app/dashboard/settings/page.tsx` :
+- 3 colonnes style Fonio : Organisation / Facturation / Technique
+- Cartes : Général, Équipe, Abonnement, Intégrations, Webhooks
+- Section "Paramètres généraux" : fuseau horaire, langue
+- Zone dangereuse : suppression compte avec double confirmation
+- Palette : blanc/noir/gris uniquement
+
+**Topbar** dans `app/dashboard/layout.tsx` :
+- h-14, border-b, bg-white
+- Recherche (input gray-50) + NotificationBell + avatar
+
+**Dashboard** `app/dashboard/page.tsx` :
+- Connecte a GET /api/v1/calls/stats + GET /api/v1/calls?limit=5 (donnees reelles)
+- Metriques : total appels, entrants, duree moyenne, taux de reponse
+- Appels recents : 5 derniers appels avec avatars initiales
+- Palette : blanc/noir/gris + exceptions vert/rouge pour variations
+
+```
+Principal
+  ├─ Dashboard /dashboard
+  ├─ Appels /analytics/calls
+  └─ Contacts /crm/prospects
+Communication
+  ├─ Numéros /channels/numbers
+  ├─ Agents IA /agents/configuration
+  ├─ SMS /channels/sms
+  ├─ WhatsApp /channels/whatsapp
+  ├─ Email /channels/email
+  ├─ Messagerie vocale /channels/voicemail
+  └─ Notifications proactives /proactive
+Intelligence
+  ├─ Base de connaissances /knowledge
+  ├─ FAQ /knowledge/faq
+  └─ Produits & Services /knowledge/products
+Agenda
+  ├─ Rendez-vous /appointments
+  └─ Disponibilités /availability
+Configuration
+  ├─ Scripts /agents/scripts
+  ├─ Séquences /agents/nodes
+  ├─ IVR / SVI /channels/ivr
+  └─ Files d'attente /channels/queues
+Rapports
+  ├─ Analytics /analytics
+  ├─ Transcripts /analytics/transcripts
+  └─ Export /analytics/export
+───────────────────────────────────
+Paramètres /settings
+Déconnexion
+```
+
+**Pages placeholder (02/04/2026) :**
+- `/dashboard/channels/numbers` — Gestion des numéros de téléphone
+- `/dashboard/channels/voicemail` — Messagerie vocale (prochainement)
+- `/dashboard/channels/ivr` — IVR / SVI (prochainement)
+- `/dashboard/channels/queues` — Files d'attente (prochainement)
+
+**Config Agent** `app/dashboard/agents/configuration/page.tsx` :
+- 4 onglets : Identité / Voix / Comportement / Avancé
+- Identité : prénom agent, entreprise, secteur, description
+- Voix : sélecteur ElevenLabs avec preview audio, filtre genre
+- Comportement : tonalité (pro/amical/formel), transfert humain, prompt système, historique
+- Avancé : modèle LLM, numéro de téléphone, type agent, statistiques
+
+**Contacts** `app/dashboard/crm/prospects/page.tsx` :
+- Renommé "Prospects" → "Contacts" dans toute l'interface
+- source: 'sara' → 'assistant' dans les données mock et dropdown
+
+**Redirections actives :**
+- `/dashboard/voixia` → `/dashboard/agents/configuration`
+- `/dashboard/voixia/sequence` → `/dashboard/agents/nodes`
+- `/dashboard/sara` → `/dashboard/agents/configuration`
+- `/dashboard/sara-analytics` → `/dashboard/analytics`
+- `/dashboard/products` → `/dashboard/knowledge/products`
+- `/dashboard/prospects` → `/dashboard/crm/prospects`
+
+**R01 respecté :** build webpack (pas turbopack) depuis 02/04/2026
+
+**Sauvegarde pré-refonte :** `dashboard_backup_20260331_180501` (racine projet, hors build)
+
+## CREDENTIALS VOIXIA
+
+**Voir `.credentials.md` (fichier local, gitignored) pour les cles API et secrets.**
+
+## COMMANDES ESSENTIELLES VOIXIA
+
+```bash
+# Redémarrer l'agent
+ssh root@51.15.130.204 "systemctl restart voixia"
+
+# Voir les logs en direct
+ssh root@51.15.130.204 "journalctl -u voixia -f"
+
+# Smoke test resolve-phone (remplacer $VOIXIA_API_KEY et $TENANT_ID par les valeurs de .credentials.md)
+curl -s "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/resolve-phone?phone=%2B33760762153" \
+  -H "X-VoixIA-Key: $VOIXIA_API_KEY" \
+  -H "X-VoixIA-Tenant: $TENANT_ID"
+```
+
+## OBJECTIF PRINCIPAL
+
+**Optimiser et rendre 100% opérationnel l'existant.** Ne pas recréer, ne pas repartir de zéro. Améliorer ce qui existe :
+- Corriger tous les bugs
+- Compléter les features incomplètes
+- Optimiser les performances (requêtes D1, latence API, bundle frontend)
+- Nettoyer le code (dead code, imports inutiles, console.log oubliés)
+- Améliorer la qualité (error handling, validation, edge cases)
+- Améliorer l'UX (responsive, accessibilité, micro-interactions)
+
+## STACK TECHNIQUE
+
+| Composant | Technologie |
+|-----------|-------------|
+| Frontend | Next.js 15 + TypeScript + Tailwind CSS |
+| Backend | Cloudflare Workers (JavaScript) |
+| Database | Cloudflare D1 (SQLite) |
+| Vector DB | Cloudflare Vectorize |
+| Storage | Cloudflare R2 |
+| Auth | JWT + bcrypt |
+| Téléphonie | Twilio + Retell.ai |
+| Voix IA | ElevenLabs (custom "Sara") |
+| LLM | GPT-4o-mini / Claude |
+| Email | Gmail OAuth, Outlook OAuth, Yahoo OAuth |
+| WhatsApp | Meta Cloud API |
+| SMS | Twilio |
+
+## STRUCTURE DU PROJET
+
+```
+coccinelle-ai/
+├── CLAUDE.md                       # CE FICHIER
+├── src/
+│   ├── index.js                    # Point d'entrée Workers
+│   ├── modules/
+│   │   ├── auth/                   # Authentification JWT
+│   │   ├── products/               # Produits/Services
+│   │   ├── appointments/           # Rendez-vous
+│   │   ├── knowledge/              # Base de connaissances RAG
+│   │   ├── prospects/              # Prospects/CRM
+│   │   ├── teams/                  # Équipes
+│   │   ├── permissions/            # RBAC (10 permissions)
+│   │   ├── omnichannel/            # Conversations unifiées
+│   │   ├── email/                  # Service email
+│   │   ├── oauth/                  # OAuth multi-provider
+│   │   │   ├── routes.js
+│   │   │   ├── google.js
+│   │   │   ├── outlook.js
+│   │   │   └── yahoo.js
+│   │   ├── proactive/              # Communication proactive (SMS/appels sortants)
+│   │   ├── retell/                 # Agent vocal Sara
+│   │   └── twilio/                 # SMS/Téléphone
+│   └── utils/
+│       └── cors.js
+├── migrations/                     # Migrations D1
+├── wrangler.toml                   # Config Cloudflare
+└── coccinelle-saas/                # Frontend Next.js
+    ├── app/
+    │   ├── page.tsx                # Landing page
+    │   ├── login/                  # Connexion
+    │   ├── signup/                 # Inscription
+    │   ├── onboarding/             # Onboarding 8 étapes (API-first, 0 localStorage)
+    │   └── dashboard/
+    │       ├── page.tsx            # Home + KPIs
+    │       ├── agents/             # ✅ Module Agents (remplace VoixIA)
+    │       │   ├── page.tsx        # Liste agents
+    │       │   ├── configuration/  # Config agent (voix, LLM, prompt)
+    │       │   ├── scripts/        # Scripts d'appel par secteur
+    │       │   ├── nodes/          # Éditeur séquences (ex voixia/sequence)
+    │       │   └── test/           # Test vocal en direct
+    │       ├── knowledge/          # ✅ Connaissances enrichi
+    │       │   ├── page.tsx        # Base de connaissances + crawl
+    │       │   ├── faq/            # FAQ pour agent vocal
+    │       │   ├── products/       # Produits & Services
+    │       │   └── docs/           # Upload documents
+    │       ├── channels/           # ✅ Canaux
+    │       │   ├── email/
+    │       │   ├── sms/
+    │       │   ├── whatsapp/
+    │       │   └── phone/
+    │       ├── analytics/          # ✅ Analytics (Ce que l'agent a ACCOMPLI)
+    │       │   ├── page.tsx        # KPIs vue d'ensemble
+    │       │   ├── calls/          # Métriques appels
+    │       │   ├── messages/       # Métriques SMS/WhatsApp/Email
+    │       │   ├── transcripts/    # Transcriptions complètes
+    │       │   ├── performance/    # Score global, satisfaction
+    │       │   └── export/         # Export CSV multi-type
+    │       ├── appointments/       # ✅ Rendez-vous
+    │       ├── crm/                # ✅ CRM/Prospects
+    │       ├── customers/          # ✅ Clients
+    │       ├── proactive/           # ✅ Notifications proactives (SMS/appel)
+    │       ├── billing/            # 70% → à compléter
+    │       ├── settings/           # 30% → à compléter
+    │       ├── voixia/             # ⚡ Redirige → /agents/configuration
+    │       │   └── sequence/       # ⚡ Redirige → /agents/nodes
+    │       ├── sara/               # ⚡ Redirige → /agents/configuration
+    │       ├── sara-analytics/     # ⚡ Redirige → /analytics
+    │       ├── prospects/          # ⚡ Redirige → /crm/prospects
+    │       └── products/           # ⚡ Redirige → /knowledge/products
+    ├── components/
+    │   └── DashboardSidebar.tsx    # Sidebar hiérarchique avec dividers
+    └── src/components/
+        └── SequenceEditor.tsx      # Éditeur séquences partagé
+```
+
+## BUGS CONNUS À CORRIGER
+
+| Bug | Détail | Priorité |
+|-----|--------|----------|
+| ~~Tools VoixIA~~ | ~~check_availability retourne créneaux fictifs~~ **CORRIGÉ 01/04** — retourne créneaux réels | ✅ Corrigé |
+| SMS end-to-end | Twilio configuré mais non testé avec l'agent vocal | 🟠 Moyenne |
+| ~~Email~~ | ~~Resend non configuré~~ **CORRIGÉ 02/04** — 6 routes /api/v1/email/*, page 4 sections | ✅ Corrigé |
+| ~~KB search~~ | ~~cherchait dans knowledge_chunks (0 chunks)~~ **CORRIGÉ 02/04** — fallback knowledge_documents + fix kd.url→kd.source_url + priorité source_type='text' avant 'crawl' + answer tronquée 500 chars | ✅ Corrigé |
+| ~~Transfer humain~~ | ~~pas de logique callback~~ **CORRIGÉ 02/04** — transfer_enabled=0 → propose rappel + create_prospect + SMS. Config Agent onglet Comportement : toggle ON → champ numéro visible, toggle OFF → agent propose rappel | ✅ Corrigé |
+| ~~Port 8081 zombie~~ | ~~process Python bloque le port au restart~~ **CORRIGÉ 02/04** — ExecStartPre fuser -k dans systemd | ✅ Corrigé |
+| ~~Données démo KB~~ | ~~Pas de KB pour demo~~ **CORRIGÉ 02/04** — 4 docs insérés (présentation, tarifs, horaires, FAQ) | ✅ Corrigé |
+| ~~Prompt ecommerce~~ | ~~system_prompt actif = Léa/boutique en ligne (ecommerce)~~ **CORRIGÉ 02/04** — Fati/Agentic Solutions agents IA (ia_voix) | ✅ Corrigé |
+| ~~KB polluée Nestenn~~ | ~~6 docs crawlés Nestenn immobilier parasitaient la KB~~ **CORRIGÉ 02/04** — supprimés, seuls 4 docs Agentic Solutions restent | ✅ Corrigé |
+| ~~Prefixe vocal KB~~ | ~~`tools/knowledge.py` retourne "Reponse trouvee : ..."~~ **CORRIGE 04/04** — prefixe supprime, retourne contenu direct + nettoyage TTS (_nettoyer_pour_tts) | ✅ Corrige |
+| ~~Format answer TTS~~ | ~~contenu trop long/mal formate pour TTS~~ **CORRIGE 04/04** — tronque a 300 chars, coupe a la derniere phrase, supprime markdown, symboles remplaces | ✅ Corrige |
+| ~~KB found=False appel~~ | ~~Recherche KB LIKE '%phrase entiere%' ne matchait pas les phrases naturelles du LLM~~ **CORRIGE 05/04** — split question en mots significatifs + recherche OR sur chaque mot (3 niveaux : chunks, documents, FAQ) | ✅ Corrige |
+| ~~Agent dit "je consulte"~~ | ~~system_prompt sans instruction silencieuse~~ **CORRIGE 07/04** — prompt reecrit Fati + OUTIL SILENCIEUX | ✅ Corrige |
+| ~~Appels non comptabilises~~ | ~~dashboard mock, pas de log-call~~ **CORRIGE 07/04** — POST /voixia/log-call + dashboard connecte API | ✅ Corrige |
+| ~~Config non prise en compte~~ | ~~resolve-phone verifie : 0 cache, lecture DB directe~~ **CORRIGE 07/04** | ✅ Corrige |
+| ~~log-call HTTP 400~~ | ~~caller_phone vide car attributs SIP vides~~ **CORRIGE 12/04** — fallback participant.identity (sip_+33... → +33...) | ✅ Corrige |
+| ~~transcript=0 chars~~ | ~~agent.chat_ctx vide apres disconnect~~ **CORRIGE 12/04** — _extract_transcript essaie session.chat_ctx en priorite | ✅ Corrige |
+| ~~Analytics/calls vide~~ | ~~page lisait /api/v1/analytics/sara (omni_conversations vide)~~ **CORRIGE 12/04** — reecrit avec /api/v1/calls/stats + /api/v1/calls | ✅ Corrige |
+| ~~generateId sans prefix~~ | ~~generateId() sans argument → call_id=undefined_xxx~~ **CORRIGE 12/04** — generateId('call') et generateId('cs') | ✅ Corrige |
+| ~~HT lu HT vocalement~~ | ~~_nettoyer_pour_tts() sans remplacement HT/TTC/TVA~~ **CORRIGE 12/04** — regex \bHT\b→hors taxes, \bTTC\b→toutes taxes comprises, \bTVA\b→T V A | ✅ Corrige |
+| ~~Agent dit devis personnalise~~ | ~~KB doc_002 contenait "sur devis"~~ **CORRIGE 12/04** — KB reecrit "sur mesure" + system_prompt MOTS INTERDITS | ✅ Corrige |
+| ~~Proactive trigger 401~~ | ~~Frontend envoyait X-VoixIA-Key + X-VoixIA-Tenant vide~~ **CORRIGE 12/04** — frontend utilise authHeaders() (JWT), requireVoixIAAuth supporte deja JWT | ✅ Corrige |
+| ~~Dedup phone mismatch~~ | ~~findOrCreateProspect faisait match exact phone=? → +33 et 0 non reconcilies~~ **CORRIGE 12/04** — phoneVariants() genere toutes variantes FR, recherche IN (...) | ✅ Corrige |
+| ~~prospect_id null calls~~ | ~~log-call ignorait le resultat de findOrCreateProspect~~ **CORRIGE 12/04** — UPDATE calls SET prospect_id apres dedup | ✅ Corrige |
+| ~~Transcript temps reel~~ | ~~chat_ctx vide apres disconnect → transcript=0~~ **CORRIGE 24/04** — event conversation_item_added capture Client/Assistant en temps reel, fallback _extract_transcript | ✅ Corrige |
+| ~~undefined_ call IDs~~ | ~~1 call avec prefix undefined_ en DB~~ **CORRIGE 24/04** — INSERT new + UPDATE FKs + DELETE old (FK constraint imposait cette approche) | ✅ Corrige |
+| ~~Page transcripts placeholder~~ | ~~lisait /analytics/sara, affichait placeholder~~ **CORRIGE 24/04** — reecrite avec GET /calls/transcripts, bulles Client/Assistant, responsive | ✅ Corrige |
+| ~~SEO manquant~~ | ~~Pas de sitemap.xml ni robots.txt~~ **CORRIGE 24/04** — public/sitemap.xml (3 URLs) + public/robots.txt | ✅ Corrige |
+| ~~BUG #006 — Pas d'indicateur abo~~ | ~~Aucune indication d'abonnement dans l'UI~~ **CORRIGE 25/04** — Badge sidebar (plan + jours trial + pastille statut) + banniere dashboard (trial/expire/actif) + lien /billing | ✅ Corrige |
+| ~~BUG #007 — Double checkout~~ | ~~Re-clic "essai gratuit" relancait checkout~~ **CORRIGE 25/04** — Guard backend : si abo actif → redirect Customer Portal (409 sinon) | ✅ Corrige |
+| ~~BUG #008 — 3DS inutile~~ | ~~SMS 3D Secure bloquait le paiement~~ **CORRIGE 25/04** — payment_method_types=card + request_three_d_secure=automatic | ✅ Corrige |
+| ~~Double-booking RDV~~ | ~~agent_id=null vs agent_coccinelle_001 dans bookedTimes~~ **CORRIGE 16/05** — re-check atomique avant INSERT (VoixIA+dashboard) + statut pending bloquant + INDEX UNIQUE partiel migration 0066 EXECUTEE + index verifie | ✅ Corrige |
+| ~~Chevauchement RDV~~ | ~~re-check comparait scheduled_at exact, pas [debut, debut+duree]~~ **CORRIGE 16/05** — overlap SQL avec datetime() normalisé (T→espace), 6 locations (voixia/routes, appointments/routes, public/booking, public/routes × generateTimeSlots), durée body>service>60, 7/7 tests | ✅ Corrige |
+| Outlook OAuth | Secrets Azure non configurés | 🟡 Moyenne |
+| Yahoo OAuth | Client ID incorrect | 🟡 Moyenne |
+| Gmail OAuth | Bug #2 corrigé V34, test inbox jamais fait | 🟡 Moyenne |
+| ~~Cles Meta exposees historique Git~~ | Repo public, secrets dans wrangler.toml | **CORRIGE 16/05** — migres vers wrangler secrets, historique reecrit |
+| ~~voixia_config absente signup~~ | Nouveau tenant sans config VoixIA | **CORRIGE 16/05 (B1)** — auto-creation prompt sectoriel au signup |
+| ~~task_types vides par tenant~~ | Nouveau tenant sans task_types | **CORRIGE 16/05 (B3)** — task_types globaux (tenant_id='global') |
+| ~~FK availability_slots~~ | INSERT echoue si agent_id pas dans agents | **CORRIGE 16/05 (B2)** — auto-creation row agents depuis commercial_agents |
+| ~~sector=None resolve-phone~~ | Champ sector manquant dans reponse | **CORRIGE 16/05 (B5)** — sector ajoute dans JSON |
+| ~~/auth/register 404~~ | Route /register non reconnue | **CORRIGE 16/05 (B4)** — alias ajoute pour /auth/signup |
+| Panel Maze peu de profils FR | Panel US/UK majoritaire | Utiliser Testapic pour profils FR |
+| Meta Developer app | Statut inconnu | Verifier sur developers.facebook.com |
+
+## FEATURES INCOMPLÈTES
+
+| Feature | Actuel | Cible | Ce qui manque |
+|---------|--------|-------|---------------|
+| ~~Tools VoixIA~~ | ~~0%~~ 100% | 100% | ✅ 7/7 tools connectés + aliases /tools/* (01/04/2026) |
+| ~~Script demo~~ | ~~0%~~ 100% | 100% | ✅ DEMO_NUBBO_20AVRIL.md — 15 min, 6 sections, plans B (12/04/2026) |
+| ~~Données démo~~ | ~~0%~~ 100% | 100% | ✅ 15 prospects + 25 appels + 8 RDV + logs insérés (11/04/2026) |
+| ~~Refresh token~~ | ~~0%~~ 100% | 100% | ✅ JWT 30 jours + refresh endpoint (09/05/2026) |
+| hook useTenant() | 0% | 100% | Hook unifié Phase 2 audit |
+| Analytics | 80% | 100% | Graphiques avancés, export, filtres |
+| Billing | 70% | 100% | Intégration Stripe, historique factures |
+| Settings | 30% | 100% | Profil, notifications, préférences, sécurité |
+| Prospects | 70% | 100% | Filtres, scoring, export, actions bulk |
+
+## OPTIMISATIONS À FAIRE
+
+### Backend
+- Ajouter des index D1 sur les colonnes fréquemment requêtées
+- Optimiser les requêtes N+1 (joins au lieu de requêtes multiples)
+- Ajouter du rate limiting sur les endpoints publics
+- Améliorer l'error handling (messages clairs, codes HTTP corrects)
+- Ajouter de la validation des inputs (zod ou similaire)
+- Nettoyer les console.log de debug
+- Ajouter des try/catch cohérents partout
+
+### Frontend
+- Supprimer le dead code et imports inutiles
+- Optimiser le bundle size (lazy loading, dynamic imports)
+- Ajouter des états loading/error/empty cohérents sur toutes les pages
+- Améliorer le responsive (mobile-first, les clients sont sur téléphone)
+- Ajouter de la validation côté client sur tous les formulaires
+- Cohérence du design system (couleurs, typo, espacement)
+
+### Sécurité
+- Sécuriser les endpoints prospects (marqués "À SÉCURISER" dans le PRD)
+- Vérifier l'isolation des données par tenant
+- Ajouter des audit logs manquants
+- Vérifier les CORS en production
+
+## CANAUX DE COMMUNICATION
+
+| Canal | Envoi | Réception | Status |
+|-------|-------|-----------|--------|
+| 📞 Téléphone | ✅ VoixIA (LiveKit) | ✅ Webhook | 🟡 95% |
+| 💬 SMS | ✅ Twilio | ✅ Webhook | ✅ 100% |
+| 📱 WhatsApp | ✅ Meta API | ✅ Webhook | 🟡 95% |
+| 📧 Gmail | ✅ Gmail API | ✅ Cloudflare | 🟡 95% |
+| 📧 Outlook | ✅ Backend | ❌ | 🔴 60% |
+| 📧 Yahoo | ✅ Backend | ❌ | 🔴 60% |
+
+## SYSTÈME EMAIL DÉFINITIF (corrigé 02/04/2026)
+
+| Élément | Détail |
+|---------|--------|
+| Provider envoi | Resend |
+| Clé API | `RESEND_API_KEY` (secret Workers ✅) |
+| From | `env.RESEND_FROM_EMAIL` = `"Sara <sara@coccinelle.ai>"` |
+| Routes backend | `/api/v1/email/*` (PAS `/api/v1/channels/email/*`) |
+| Module backend | `src/modules/email/routes.js` |
+| sendResendEmail | `src/modules/channels/routes.js:883` (channels) + `src/modules/voixia/orchestrator.js:508` (post-appel) |
+| Tables | `channel_configurations` (config), `channel_messages_log` (logs), `email_processed` (OAuth) |
+
+**Routes email :**
+```
+GET  /api/v1/email/status    → statut connexion OAuth
+GET  /api/v1/email/config    → config expéditeur Resend (from_name, from_email, reply_to, signature)
+PUT  /api/v1/email/config    → sauvegarder config
+POST /api/v1/email/test      → envoyer email de test via Resend
+POST /api/v1/email/send      → envoyer email (OAuth provider)
+GET  /api/v1/email/logs      → 20 derniers emails envoyés
+GET  /api/v1/email/inbox     → inbox OAuth
+GET  /api/v1/email/stats     → stats emails traités
+POST /api/v1/email/auto-reply → réponse auto Sara
+POST /api/v1/email/mark-read  → marquer lu
+```
+
+**Page frontend :** `app/dashboard/channels/email/page.tsx` — 4 sections :
+1. Statut canal (badge actif/inactif, toggle, statut Resend)
+2. Configuration expéditeur (nom, email, reply-to, signature → PUT /email/config)
+3. Test d'envoi (input + bouton → POST /email/test)
+4. Historique (tableau 20 derniers → GET /email/logs)
+
+## ORCHESTRATEUR OMNICANAL (cree 02/04/2026)
+
+| Element | Detail |
+|---------|--------|
+| Fichier backend | `src/modules/omnicanal/orchestrator.js` |
+| Routes API | `src/modules/omnicanal/routes.js` |
+| Fonctions export | `handleOmniEvent`, `onCallEnded`, `onSmsReceived`, `onWhatsAppReceived` |
+| Tables DB | `omni_rules`, `omni_rule_executions` |
+| Routes | `/api/v1/omnicanal/*` |
+
+**5 scenarios pre-configures :**
+1. Appel → SMS confirmation (delay 30s)
+2. Appel → Email recapitulatif (delay 60s)
+3. SMS recu → Reponse IA (Claude Haiku)
+4. WhatsApp recu → Creer prospect CRM
+5. Appel → Creer prospect CRM
+
+**Routes :**
+```
+GET    /api/v1/omnicanal/rules        → lister les regles du tenant (auth JWT)
+POST   /api/v1/omnicanal/rules        → creer une regle (auth JWT)
+PUT    /api/v1/omnicanal/rules/:id    → modifier (activer/desactiver/editer) (auth JWT)
+DELETE /api/v1/omnicanal/rules/:id    → supprimer (auth JWT)
+GET    /api/v1/omnicanal/executions   → 50 derniers logs (auth JWT)
+POST   /api/v1/omnicanal/test         → simuler un evenement (auth JWT)
+POST   /api/v1/omnicanal/event        → evenement externe (auth VoixIA : X-VoixIA-Key + X-VoixIA-Tenant)
+```
+
+**Page frontend :** `app/dashboard/agents/nodes/page.tsx` — 3 onglets :
+1. Regles automatiques (5 scenarios + liste regles + creation)
+2. Editeur de sequences (SequenceEditor existant)
+3. Historique des executions
+
+**Webhooks connectes (02/04/2026) :**
+| Webhook | Fichier | Fonction declenchee |
+|---------|---------|---------------------|
+| Twilio SMS | `src/modules/twilio/routes.js` (handleIncomingSMS) | `onSmsReceived()` |
+| Meta WhatsApp | `src/modules/omnichannel/webhooks/meta-whatsapp.js` (handleMetaWhatsAppWebhook) | `onWhatsAppReceived()` |
+| VoixIA fin d'appel | `POST /api/v1/omnicanal/event` (auth X-VoixIA-Key) | `handleOmniEvent()` |
+
+**Test verifie :** POST /api/v1/omnicanal/event avec auth VoixIA → 3 regles executees (SMS Twilio envoye, prospect CRM cree)
+
+**Connexion agent Python VoixIA :**
+```python
+# Dans pipeline.py ou main.py, apres session.disconnect() :
+import httpx
+httpx.post("https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/omnicanal/event",
+  headers={"X-VoixIA-Key": VOIXIA_API_KEY, "X-VoixIA-Tenant": tenant_id},
+  json={"event_type": "call_ended", "channel": "voice",
+        "contact": {"phone": caller_phone, "name": caller_name},
+        "data": {"duration": call_duration, "summary": call_summary}})
+```
+
+## COMMUNICATION PROACTIVE (cree 07/04/2026)
+
+| Element | Detail |
+|---------|--------|
+| Tables DB | `proactive_templates`, `proactive_logs`, `proactive_settings` |
+| Module backend | `src/modules/proactive/routes.js` |
+| Endpoint trigger | `POST /api/v1/proactive/trigger` (auth X-VoixIA-Key) |
+| Canal actuel | SMS Twilio (Phase 1), appel sortant (Phase 2) |
+| Templates | 6 templates (garage x2, notaire x2, veterinaire, comptable) |
+| Dashboard | `/dashboard/proactive` (4 sections : config, envoi, templates, historique) |
+| Sidebar | sous Communication, icone Bell |
+| Phase 2 | Appels vocaux sortants via LiveKit SIP outbound |
+
+**Routes :**
+```
+POST /api/v1/proactive/trigger    → declenchement notification (auth X-VoixIA-Key)
+GET  /api/v1/proactive/logs       → historique 50 derniers (auth JWT)
+GET  /api/v1/proactive/templates  → templates actifs du tenant (auth JWT)
+GET  /api/v1/proactive/settings   → config du tenant (auth JWT)
+PUT  /api/v1/proactive/settings   → modifier config (auth JWT)
+```
+
+**Tables D1 :**
+- `proactive_templates` : id, tenant_id, sector, trigger_type, message_sms, message_vocal, is_active
+- `proactive_logs` : id, tenant_id, client_phone, client_name, trigger_type, sector, channel, status, message_sent, result, sent_at
+- `proactive_settings` : tenant_id (PK), is_active, hours_start, hours_end, preferred_channel
+
+**Templates inseres (tenant test) :**
+1. garage / pret → "Bonjour {client_name}, votre vehicule est pret..."
+2. garage / revision → "Bonjour {client_name}, votre revision annuelle approche..."
+3. notaire / signature → "Bonjour {client_name}, votre acte est pret..."
+4. notaire / relance → "Bonjour {client_name}, nous attendons vos documents..."
+5. veterinaire / rappel_vaccin → "Bonjour {client_name}, le rappel de vaccination..."
+6. comptable / echeance → "Bonjour {client_name}, echeance fiscale..."
+
+**Phase 2 — Appels vocaux sortants :**
+- LiveKit SIP outbound : l'agent Python initie l'appel
+- Delivre le message vocal (template message_vocal)
+- Propose transfert vers un humain si besoin
+- Log dans proactive_logs avec channel='voice'
+
+**Appel depuis logiciel metier :**
+```bash
+curl -X POST "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/proactive/trigger" \
+  -H "X-VoixIA-Key: CLE_API" \
+  -H "X-VoixIA-Tenant: TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"client_phone":"+33612345678","client_name":"Marie Martin","trigger_type":"pret","sector":"garage"}'
+```
+
+## ENDPOINT LOG-CALL (cree 07/04/2026)
+
+| Element | Detail |
+|---------|--------|
+| Endpoint | `POST /api/v1/voixia/log-call` (auth X-VoixIA-Key) |
+| Tables alimentees | `calls`, `ai_interaction_logs`, `call_summaries` |
+| Dedup | `findOrCreateProspect()` appele automatiquement + prospect_id lie au call (12/04) |
+| Dashboard | `app/dashboard/page.tsx` connecte a GET /api/v1/calls/stats + GET /api/v1/calls?limit=5 |
+
+**Body attendu :**
+```json
+{
+  "caller_phone": "+33612345678",
+  "duration_seconds": 180,
+  "status": "completed",
+  "direction": "inbound",
+  "transcript": "...",
+  "summary": "Le client a demande les tarifs..."
+}
+```
+
+**Connexion agent Python VoixIA (FAIT 11/04/2026) :**
+- `pipeline.py` : fonction `log_call_to_api()` (httpx POST, timeout 5s, silencieux)
+- `main.py` : `ctx.add_shutdown_callback(_on_shutdown)` appele en fin de session
+- Extrait : caller_phone (participant.identity sip_+33... → +33...), duration (perf_counter), transcript (session.chat_ctx prioritaire)
+- Summary = 200 premiers chars du transcript
+
+## TABLES D1 CRITIQUES (ajoutees Sprints 6-7)
+
+| Table | Role |
+|-------|------|
+| `task_types` | Types de taches par secteur (globaux tenant_id='global' + tenant-specific) |
+| `tasks` | Taches creees par VoixIA ou manuellement |
+| `assignment_rules` | Regles d'affectation (legacy, priorite 2) |
+| `member_skills` | Competences membres unifiees RDV+Taches (priorite 1 affectation) |
+| `waitlist` | Inscriptions Fondateurs (2 places/secteur) |
+| `proactive_templates` | Templates notifications proactives (6 par defaut) |
+| `proactive_logs` | Historique envois proactifs |
+| `proactive_settings` | Config proactive par tenant |
+| `omni_rules` | Regles automatisation omnicanal |
+| `omni_rule_executions` | Logs executions regles omnicanal |
+
+**Migrations recentes :**
+- 0062 : tasks + task_types + assignment_rules
+- 0063 : demo data tasks (syndic)
+- 0064 : member_skills
+- 0065 : demo data member_skills
+- 0066 : INDEX UNIQUE partiel appointments (anti double-booking BUG #009) — execute 16/05
+
+## TODO AVANT LANCEMENT
+
+### TERMINE
+- [x] Dashboard zero mockData
+- [x] JWT 30 jours + refresh token
+- [x] Onboarding 4 etapes + propagation auto
+- [x] Plan Pro trial 14 jours par defaut
+- [x] Pages SEO secteurs (/secteurs/immobilier...)
+- [x] Simulateur /voixia (prix variable par config)
+- [x] Formulaire Fondateurs /fondateurs (2 places/secteur, offre dynamique)
+- [x] LP secteurs Priorite 1 (syndic, notaire, medecin, avocat)
+- [x] Promesses secteurs validees
+- [x] Animation hero demo modale (scenario syndic)
+- [x] Message fondateur (citation Youssef)
+- [x] Affectation taches par membre (Sprint 6)
+- [x] Interface equipe unifiee RDV+Taches
+- [x] Table member_skills unifiee
+- [x] Page /dashboard/tasks
+- [x] Page /dashboard/teams
+- [x] Tool VoixIA create_task (KB-first)
+- [x] 11 task_types globaux (4 secteurs)
+- [x] Audit securite + push GitHub propre
+- [x] 5 bugs E2E corriges (FK, auto-config, etc.)
+- [x] 180 routes auditees (0 orpheline)
+- [x] Zero "Fati" dans les pages publiques
+
+### EN COURS / A FAIRE
+- [ ] Regenerer cles Meta (META_APP_SECRET, META_WHATSAPP_ACCESS_TOKEN) — URGENT
+- [ ] Verifier app Meta Developer pour WhatsApp
+- [ ] Sprint 8 : SEO + Google Ads par secteur
+- [ ] Campagne Dripify Priorite 1 (notaires, syndics, avocats, medecins)
+- [ ] LP secteurs Priorite 2 (immobilier, automobile, restaurant...)
+- [ ] WhatsApp V2 integration complete
+- [ ] Telnyx backup Twilio
+- [ ] Audit suppression ancienne DB US East
+- [ ] Configurer STRIPE_PRICE_ESSENTIEL, STRIPE_PRICE_PRO, STRIPE_PRICE_BUSINESS en secrets Workers
+- [ ] Synchroniser billing_plans DB avec vrais prix (essentiel=7900, pro=19900)
+- [x] BUG #009 : Double-booking RDV — re-check atomique + pending + migration 0066
+- [ ] BUG #013 : localStorage onboarding_session_id (mineur)
+- [x] BUG #014 : chevauchement de plages horaires RDV — overlap SQL datetime() normalisé, 6 locations corrigées, 7/7 tests PASS
+
+### TESTS UTILISATEURS
+- [ ] Maze (UX generale) — 5 testeurs panel
+  URL depart : https://coccinelle.ai/demo
+  9 taches configurees (voir guide)
+  Profil : Business Owner 35-55 ans EU
+  Budget : ~75 EUR
+- [ ] Testapic (pertinence metier FR) — 5 testeurs
+  URL depart : https://coccinelle.ai/demo
+  8 taches syndic FR configurees (voir guide)
+  Profil : Gerant PME France 35-55 ans
+  Budget : ~75 EUR
+- [ ] Analyser resultats + corriger friction
+  Seuils : >70% succes, <2min/tache, NPS>7
+
+## ETAT AU 22 MAI 2026
+
+### BUG #014 — Chevauchement de plages horaires RDV (CORRIGE 16/05/2026)
+
+**Cause racine :** Les re-checks anti-doublon comparaient `scheduled_at` exact (=), pas les plages temporelles `[debut, debut+duree[`. Un RDV de 60min a 14h ne bloquait pas un RDV a 14h30.
+
+**Cause secondaire :** SQLite `datetime()` retourne `2026-12-28 15:00:00` (espace) mais `scheduled_at` est stocke `2026-12-28T14:00:00` (T). La comparaison string `T` > espace faussait le resultat.
+
+**Fix — 6 locations corrigees :**
+1. `voixia/routes.js` handleCreateAppointment — overlap SQL avec `datetime()` normalise
+2. `voixia/routes.js` handleCheckAvailability — ranges [startMin, endMin[ au lieu de Set
+3. `appointments/routes.js` — meme overlap SQL + fallback INSERT avec type+duration
+4. `public/booking.js` handleCreatePublicBooking — overlap check ajoute + INSERT avec type
+5. `public/booking.js` generateTimeSlots — plages bookedRanges au lieu de match exact
+6. `public/routes.js` generateTimeSlots — meme correction
+
+**Regle duree :** body.duration_minutes > service.duration_minutes > DEFAULT 60
+
+**SQL overlap normalise :**
+```sql
+datetime(scheduled_at) < datetime(?, '+' || ? || ' minutes')
+AND datetime(scheduled_at, '+' || COALESCE(duration_minutes, 60) || ' minutes') > datetime(?)
+```
+
+**Tests 7/7 PASS :**
+| Test | Attendu | Resultat |
+|------|---------|----------|
+| T1 Dashboard overlap 14h30∈[14h-15h[ | 409 | PASS |
+| T2 Dashboard boundary 15h00 | 201 | PASS |
+| T3 VoixIA overlap 14h15 | conflict=true | PASS |
+| T4 VoixIA non-overlap 18h00 | created | PASS |
+| T5 Chain overlap 18h30∈[18h-18h45[ | conflict=true | PASS |
+| T6 Public booking overlap 14h30 | 409 | PASS |
+| T7 Availability agent_maze_001 no 14h slots | filtered | PASS |
+
+### SPRINT 8 (18-22/05/2026) — TEST MAZE + FRICTIONS UX + BUGS
+
+**Test utilisateur Maze realise (5 testeurs, panel FR, 75 EUR) :**
+- NPS 6.8/10 (sous le seuil de 7 mais honnete pour une V1)
+- Durees globalement < 2 min (sauf Base de connaissances a 147s)
+- 4 verbatims negatifs / 1 positif — tous sur la clarte navigation, zero sur la technique
+- 3 frictions graves identifiees et corrigees dans la foulee
+- Compte demo : demo.maze@coccinelle.ai, tenant tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk (secteur syndic)
+
+**6 bugs/frictions corriges et deployes :**
+
+| # | Bug / Friction | Cause | Fix |
+|---|----|----|----|
+| B14 | Architecture 404 (Pages dynamiques) | out/404.html intercepte toutes URLs non matchees | Script postbuild fix-spa-404.sh copie placeholder _/index.html en 404.html dans /dashboard/products/, /crm/prospects/, /customers/, /rdv/, /booking/ |
+| B15 | Fiches detail "introuvable" | useParams() retourne "_" suite au fix 404 | Remplace useParams par window.location.pathname dans 4 fichiers : RdvDetailClient, ProductDetailClient, ProspectDetailClient, CustomerDetailClient |
+| B16 | Boutons Prendre/Resoudre taches silencieux | CORS preflight bloque PATCH | src/config/cors.js : ajout PATCH dans Access-Control-Allow-Methods (2 occurrences) — debloque tous les PATCH de l'app |
+| B17 | Creation RDV echoue ("erreur de creation") — 3/3 testeurs Maze | Frontend envoie appointment_date + appointment_time, backend attend scheduled_at | rdv/page.tsx : combine les 2 champs en scheduled_at ISO avant POST |
+| B18 | Consulter un appel non decouvrable — friction n1 Maze | Pages Appels et Transcripts totalement deconnectees | Bouton "Transcription" sur chaque ligne d'appel + deep-link ?call_id=xxx vers Transcripts avec auto-selection. 3 fichiers : analytics/calls/page.tsx, analytics/transcripts/page.tsx, dashboard/page.tsx |
+| B19 | Envoyer SMS ad hoc impossible — friction n3 Maze | Backend POST /sms/send fonctionnel mais aucune UI ne l'appelle | Modale SMS sur fiches Contact + Client (boutons "Envoyer message" branches), section "Envoyer un SMS" sur channels/sms/page.tsx. Pattern useToast pour succes/erreur |
+
+**KB syndic chargee :**
+- 11 documents (kb_syndic_001..011) inseres via SQL direct (is_active=1, status='indexed' — reproduit le pattern des 5 docs kb_maze existants qui fonctionnent)
+- Verifie via POST /api/v1/voixia/knowledge → found=true sur "charges" et "rendez-vous"
+- Methode SQL direct retenue apres verification : l'API d'insertion ne genere pas de chunks et la recherche KB lit content directement (fallback niveau 2)
+
+**Faux bug demasque — lecon importante :**
+- L'API POST /api/v1/knowledge/documents ne fixe pas is_active explicitement → conclusion hative "bug : docs invisibles"
+- Verification : la colonne is_active a DEFAULT 1 → SQLite met 1 automatiquement. 54/54 docs en base ont is_active=1, zero casse
+- Regle : toujours verifier le DEFAULT d'une colonne avant de conclure qu'un champ manquant casse quelque chose
+
+**Diagnostic SMS "Failed to fetch" (22/05/2026) :**
+- CORS depuis prod (https://coccinelle.ai) : OPTIONS et POST retournent tous deux `access-control-allow-origin: https://coccinelle.ai` — pas de mismatch
+- Twilio fonctionne : POST /api/v1/sms/send avec JWT valide + vrai numero → HTTP 200, SMS envoye (message_sid confirme)
+- Secrets Twilio : TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN en wrangler secrets, TWILIO_PHONE_NUMBER en vars (+33939035760)
+- Code backend : sendTwilioSMS() robuste, tous les throws catches, pas de crash possible
+- Verdict : "Failed to fetch" vu par l'utilisateur = test depuis URL preview (CORS mismatch) OU extension navigateur OU reseau instable. Pas un bug code.
+- Fix hygienique identifie (non applique) : passer `request` aux helpers successResponse/errorResponse dans twilio/routes.js pour supporter les origins non-prod
+
+**Backlog reporte (par priorite decroissante) :**
+- Ranger "Agent IA" dans Configuration (les 5 testeurs le cherchent dans Configuration, pas dans Communication)
+- Confusion KB <-> Disponibilites <-> Prompt (libelles a clarifier)
+- Verifier transcripts d'appel reel (necessite un appel telephonique au +33939035760 — a faire au retour de Bali)
+- Fix CORS hygienique src/modules/twilio/routes.js : passer request en 3e arg a successResponse/errorResponse dans handleSendSMS et 3 autres handlers (ne se manifeste que depuis URLs preview, pas prod)
+- Feedback UI clics echoues : code prepare mais non deploye (4 pages : tasks, agents/config, teams, services)
+
+**Verite honnete :**
+- Produit fonctionne ("bien pour une premiere version" — verbatim P1) mais necessite encore un test utilisateur avant lancement marketing
+- Refaire un test Maze 5 testeurs apres ces fixes pour mesurer le delta NPS et confirmer que les frictions sont vraiment resolues cote utilisateur
+- WhatsApp + OAuth email Outlook/Yahoo restent non fonctionnels (backlog Sprint 7 toujours valable)
+
+### SPRINT 7 (16/05/2026) — AUDIT SECURITE + E2E BUGS + PUSH GITHUB
+
+**Audit securite complet :**
+- 3 Meta secrets retires de wrangler.toml [vars] → migres vers `wrangler secret put`
+- Credentials CLAUDE.md deplaces vers `.credentials.md` (gitignored)
+- `backup_20260402_123806.sql` supprime de l'historique (Google OAuth tokens)
+- 65 fichiers `dashboard_backup_*` retires du tracking
+- `.gitignore` enrichi (.credentials*, *_backup_*/, backup_*.sql)
+- **180 routes API auditees** : ~130 JWT, ~22 VoixIA Key, ~20 publiques, 0 orpheline
+- 23 commits pushes sur GitHub (historique reecrit propre)
+
+**5 bugs E2E corriges (B1-B5) :**
+| Bug | Fix |
+|-----|-----|
+| B1 : voixia_config absente au signup | Auto-creation prompt sectoriel + voixia_config (fallback generaliste) |
+| B2 : FK availability_slots → agents | Auto-creation row agents depuis commercial_agents ou users |
+| B3 : task_types vides nouveau tenant | 11 task_types globaux (tenant_id='global') pour 4 secteurs |
+| B4 : /auth/register → 404 | Alias ajoute pour /auth/signup |
+| B5 : sector=None resolve-phone | Champ sector ajoute dans reponse JSON |
+
+**Smoke tests 7/7 PASS :**
+| Test | Resultat |
+|------|----------|
+| T1 Auth empty body | 400 PASS |
+| T2 VAPI disabled | 404 PASS |
+| T3 resolve-phone sector | ia_voix PASS |
+| T4 Sitemap URLs | 14 PASS |
+| T5 Billing plans public | 200 PASS |
+| T6 /auth/register alias | 400 PASS |
+| T7 No Meta secrets in vars | comments only PASS |
+
+### SPRINT 6 (14/05/2026) — TASKS + SKILLS + SECTORS
+
+**Module tasks :**
+- `src/modules/tasks/routes.js` : CRUD tasks, stats, task-types, assignment-rules
+- `POST /api/v1/voixia/create-task` : creation tache depuis agent vocal (KB-first)
+- Affectation : member_skills (priorite 1) → assignment_rules (priorite 2) → specialties (priorite 3)
+- 11 task_types globaux : syndic(4), notaire(3), medecin(2), avocat(2)
+
+**Module member_skills :**
+- 4 endpoints : members-with-skills, skills CRUD, skills-catalog
+- Table `member_skills` (migration 0064)
+- Frontend : badges skills sur page /dashboard/teams
+
+**Pages secteurs :**
+- 4 LP secteurs : /secteurs/syndic, /secteurs/notaire, /secteurs/medecin, /secteurs/avocat
+- `SectorPageLayout.tsx` : composant reutilisable (hero, scenarios, pain points, features, CTA)
+- Page /fondateurs : formulaire waitlist (2 places Fondateur/secteur)
+- Worker `formulaire-validation` : D1 separate pour sondage + waitlist
+
+**Frontend :**
+- Landing refonte (Fati → Coccinelle)
+- DemoModal + HeroAnimation + VoixiaSimulator + CostSimulator
+- Page /dashboard/tasks
+- Page /dashboard/teams avec skills
+
+### SPRINTS 4-5 (09-14/05/2026) — ANALYTICS + AUTH + SETTINGS
+
+- JWT 30 jours + refresh token
+- Analytics insights dashboard
+- Settings backend (6 routes /api/v1/settings/*)
+- 6 pages SEO secteurs (immobilier, automobile, restaurant, beaute, dentiste, comptable)
+- Mock data cleanup
+
+### HISTORIQUE BUGS RESOLUS (compact)
+
+**16/05** : #009 double-booking RDV (re-check atomique avant INSERT VoixIA+dashboard, pending bloquant, 4 doublons nettoyes, migration 0066 INDEX UNIQUE partiel)
+**26/04** : #010 resolve-phone latence (1 mega JOIN), #011 knowledge latence (Promise.allSettled), #012-#018 (9 bugs audit)
+**25/04** : #006 indicateur abo sidebar, #007 double checkout guard, #008 3DS automatique
+**24/04** : Transcript temps reel, undefined_ call IDs, SEO sitemap/robots
+**12/04** : log-call caller/transcript extraction, analytics/calls rewrite, HT/TTC TTS, devis LLM, dedup phone, proactive auth JWT
+**07/04** : system_prompt OUTIL SILENCIEUX, POST log-call, resolve-phone 0 cache, dashboard API
+**04-05/04** : Prefixe vocal KB, format TTS 300 chars, KB word-split, KB langage vocal pur
+
+### REGLES TTS ABSOLUES (ajoutees 06/04/2026)
+- `_nettoyer_pour_tts()` dans `/opt/voixia/agent/tools/knowledge.py`
+- 45+ remplacements en 11 categories (temporel, monetaire, pourcent, connecteurs, abreviations, sigles, ordinaux, ponctuation, markdown, espaces, troncature)
+- Tests unitaires : 15/15
+- KB documents ecrits en langage vocal pur (pas de symboles)
+- LLM NE DIT JAMAIS de prefixe technique
+- Recherche SQL : word-split par mot (pas phrase entiere)
+
+### SOURCE UNIQUE DE VERITE (verifie 07/04/2026)
+- `tenants.name` = "Agentic solutions"
+- `tenants.sector` = "ia_voix"
+- `voixia_configs.secteur` = "ia_voix"
+- `ai_prompt_versions` id=21, secteur=ia_voix, is_active=1
+- Prompt actif : "Tu es Fati, assistante vocale IA d Agentic Solutions..." + section OUTIL SILENCIEUX
+- KB : 4 documents Agentic Solutions (source_type=text, langage vocal pur)
+- KB : 0 documents Nestenn (supprimes 02/04)
+
+### FICHIERS CRITIQUES PYTHON VOIXIA (serveur 51.15.130.204)
+| Fichier | Role | Etat |
+|---------|------|------|
+| `/opt/voixia/agent/tools/knowledge.py` | Tool search_knowledge + _nettoyer_pour_tts | OK — word-split, TTS 300 chars, 15/15 tests |
+| `/opt/voixia/agent/pipeline.py` | Agent LLM + 8 @function_tool | OK — tools passes a AgentSession |
+| `/opt/voixia/agent/main.py` | Entrypoint + greeting + session | OK |
+| `/opt/voixia/agent/tenant.py` | resolve-phone client | OK |
+| `/opt/voixia/agent/llm_factory.py` | Factory LLM (lk_openai.LLM) | OK — Claude + Mistral |
+| `/opt/voixia/agent/config.py` | Config providers | OK — mistral + claude |
+| `/opt/voixia/agent/prompts.py` | Greetings + prompts fallback | OK |
+| `/opt/voixia/agent/tools/transfer.py` | Transfer humain + callback | OK |
+| `/opt/voixia/.env` | Variables d'env | OK (EnvironmentFile dans systemd) |
+
+### COMMANDES ESSENTIELLES (mise a jour 16/05/2026)
+```bash
+# Logs en direct
+ssh root@51.15.130.204 "journalctl -u voixia -f --no-pager"
+
+# Restart VoixIA
+ssh root@51.15.130.204 "systemctl restart voixia"
+
+# Test KB POST (remplacer $VOIXIA_API_KEY et $TENANT_ID par les valeurs de .credentials.md)
+curl -s -X POST \
+  "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/knowledge" \
+  -H "X-VoixIA-Key: $VOIXIA_API_KEY" \
+  -H "X-VoixIA-Tenant: $TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"tarifs"}'
+
+# Test create-task (remplacer $VOIXIA_API_KEY et $TENANT_ID)
+# → Attendu : assignee_name = "Marie Dupont" (skill sinistre)
+curl -s -X POST \
+  "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/create-task" \
+  -H "X-VoixIA-Key: $VOIXIA_API_KEY" \
+  -H "X-VoixIA-Tenant: $TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"contact_name":"Test","contact_phone":"+33760762153","task_type_keywords":"sinistre fuite","description":"Test","secteur":"syndic"}'
+
+# Deploiement complet
+cd ~/Projects/saas/coccinelle-ai && nvm use 22 && npx wrangler@latest deploy
+ssh root@51.15.130.204 "systemctl restart voixia"
+cd coccinelle-saas && npm run build && npx wrangler pages deploy out --project-name coccinelle-saas --commit-dirty=true
+```
+
+### COMMANDES DIAGNOSTIC BUGS (ajoutees 06/04/2026)
+```bash
+# Bug 1 — Voir system_prompt actif
+wrangler d1 execute coccinelle-db --remote --command "
+SELECT SUBSTR(system_prompt, 1, 500) as prompt
+FROM ai_prompt_versions
+WHERE tenant_id = 'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+AND is_active = 1;"
+
+# Bug 2 — Verifier logs appels
+wrangler d1 execute coccinelle-db --remote --command "
+SELECT COUNT(*) as total FROM ai_interaction_logs
+WHERE tenant_id = 'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy';"
+```
+
+## FICHIERS INTERDITS À MODIFIER SANS OK DE YOUSSEF
+
+- `wrangler.toml`
+- `.env`, `.env.local`
+- Migrations existantes dans `/migrations/`
+- Configs agent Retell (Agent ID: agent_0c566a48e70125020d07aed643)
+
+## MÉTHODE DE TRAVAIL — AGENTIC OS
+
+### Principe orchestrateur
+- 1 seul terminal Claude Code = 1 seul orchestrateur
+- Jamais 2 terminaux sur le même projet simultanément
+- Structure : ORCHESTRATEUR → Agent 1..N → Validation → Documentation
+- Chaque agent valide avant de passer la main
+- Si test échoue → STOP, corriger, retester
+- Mettre à jour CLAUDE.md après chaque mission
+
+### Bootstrap obligatoire
+Claude Code lit automatiquement au démarrage :
+1. CLAUDE.md (règles spécifiques Coccinelle — priorité absolue)
+2. MASTER-PROMPT-V5.md (lien symbolique → ~/Projects/infra/agentic-os/)
+   → 37 règles techniques universelles Agentic OS
+   → Contexte fondateur Youssef / Agentic Solutions
+
+### Ordre de déploiement obligatoire
+1. Backend → wrangler deploy
+2. Agent VoixIA → systemctl restart voixia (si Python modifié)
+3. Frontend → npm run build && wrangler pages deploy
+
+### Source unique de vérité
+
+| Donnée | Source | Ne jamais utiliser |
+|--------|--------|--------------------|
+| company_name | tenants.name | tenants.company_name |
+| secteur | tenants.sector | voixia_configs.secteur |
+| prénom agent | system_prompt (regex) | users.first_name |
+| prompt actif | ai_prompt_versions.is_active=1 | — |
+| voix | voixia_configs.voice_id | — |
+| liste voix | lib/voices.ts | — |
+| prompts secteurs | lib/prompts.ts | PROMPT_TEMPLATES local |
+
+## COMMANDES DE DÉPLOIEMENT (NE PAS EXÉCUTER SANS OK)
+
+```bash
+# Backend
+npx wrangler deploy
+
+# Frontend
+cd coccinelle-saas
+npm run build && npx wrangler pages deploy out --project-name coccinelle-saas --commit-dirty=true
+
+# Migration D1
+npx wrangler d1 execute coccinelle-db --remote --file=migrations/XXXX_nom.sql
+```
+
+## URLs PRODUCTION
+
+- Frontend : https://coccinelle.ai (custom domain, also accessible via https://coccinelle-saas.pages.dev)
+- Backend API : https://coccinelle-api.youssef-amrouche.workers.dev
+
+## COMPTES DE TEST & NUMEROS
+
+**Voir `.credentials.md` (fichier local, gitignored) pour les comptes de test et numeros Twilio.**
+
+### Compte demo Maze (cree 16/05/2026)
+- Email : demo.maze@coccinelle.ai
+- Password : DemoMaze2026!
+- Tenant : tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk
+- Company : Syndic Horizon (secteur syndic)
+- URL entree : https://coccinelle.ai/demo (auto-login + redirect /dashboard)
+- Donnees : 3 membres (Marie/Pierre/Sophie), 6 skills, 5 taches, 5 appels, 4 prospects, 5 KB FAQ, 3 RDV, 3 services, disponibilites Lun-Ven 9h-18h
+
+---
+
+## RÈGLES GLOBALES AGENTIC OS
+
+Lis également MASTER-PROMPT-V5.md à la racine de ce projet.
+Il contient les 37 règles techniques absolues qui s'appliquent à tous les projets.
+En cas de conflit, ce CLAUDE.md (règles spécifiques Coccinelle) a priorité.

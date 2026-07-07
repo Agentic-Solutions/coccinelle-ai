@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Clock, User, MapPin, FileText, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import Logo from '@/components/Logo';
@@ -27,22 +27,27 @@ interface Appointment {
 }
 
 export default function RdvDetailPage() {
-  const params = useParams();
   const router = useRouter();
   const toast = useToast();
+  const [rdvId, setRdvId] = useState<string | null>(null);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    fetchAppointment();
-  }, [params.id]);
+    const segments = window.location.pathname.split('/');
+    setRdvId(segments[segments.length - 1]);
+  }, []);
+
+  useEffect(() => {
+    if (rdvId) fetchAppointment();
+  }, [rdvId]);
 
   const fetchAppointment = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`${API_URL}/api/v1/appointments/${params.id}`, {
+      const res = await fetch(`${API_URL}/api/v1/appointments/${rdvId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();

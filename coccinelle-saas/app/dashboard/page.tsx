@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Phone, PhoneIncoming, Clock, TrendingUp,
   PhoneOutgoing, PhoneMissed, ArrowUp, ArrowDown, Loader2,
-  CreditCard, AlertCircle
+  CreditCard, AlertCircle, FileText
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -91,6 +91,7 @@ export default function DashboardPage() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [sub, setSub] = useState<SubInfo | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState<number | null>(null);
 
   useEffect(() => {
     const token = typeof window !== 'undefined'
@@ -107,7 +108,8 @@ export default function DashboardPage() {
       fetch(`${API_URL}/api/v1/calls/stats`, { headers }).then(r => r.json()).catch(() => null),
       fetch(`${API_URL}/api/v1/calls?limit=5`, { headers }).then(r => r.json()).catch(() => null),
       fetch(`${API_URL}/api/v1/billing/subscription`, { headers }).then(r => r.json()).catch(() => null),
-    ]).then(([statsRes, callsRes, subRes]) => {
+      fetch(`${API_URL}/api/v1/auth/me`, { headers }).then(r => r.json()).catch(() => null),
+    ]).then(([statsRes, callsRes, subRes, meRes]) => {
       if (statsRes?.stats) setStats(statsRes.stats);
       if (callsRes?.calls) setCalls(callsRes.calls);
       if (subRes?.success && subRes.subscription) {
@@ -115,6 +117,7 @@ export default function DashboardPage() {
       } else {
         setSub({ plan: 'trial', status: 'trialing', trial_days_remaining: 0 });
       }
+      if (meRes?.user) setPhoneVerified(meRes.user.phone_verified ?? 0);
       setLoading(false);
     });
   }, []);
@@ -198,6 +201,21 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Rappel vérification téléphone (item 5) */}
+      {phoneVerified === 0 && (
+        <Link href="/dashboard/settings" className="block">
+          <div className="flex items-center justify-between p-4 bg-gray-100 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-3">
+              <Phone className="w-5 h-5 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">
+                Vérifiez votre numéro de téléphone pour sécuriser votre compte
+              </span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">Vérifier &rarr;</span>
+          </div>
+        </Link>
+      )}
+
       {/* Metriques */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => {
@@ -271,6 +289,16 @@ export default function DashboardPage() {
                   <div className="text-xs text-gray-400 w-24 text-right flex-shrink-0 hidden sm:block">
                     {formatTimeAgo(call.created_at)}
                   </div>
+
+                  {/* Transcription */}
+                  <Link
+                    href={`/dashboard/analytics/transcripts?call_id=${call.id}`}
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-900 transition-colors flex-shrink-0"
+                    title="Voir la transcription"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Transcription</span>
+                  </Link>
                 </div>
               );
             })}

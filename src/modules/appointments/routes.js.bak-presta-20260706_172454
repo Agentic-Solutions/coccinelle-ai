@@ -6,7 +6,6 @@ import * as auth from '../auth/helpers.js';
 import { getVisibleAgents, canViewAgent } from '../../utils/teams.js';
 import { hasPermission } from '../../utils/permissions.js';
 import { createNotification } from '../../utils/notifications.js';
-import { findPrestationDurationById } from '../shared/prestations.js';
 
 export async function handleAppointmentsRoutes(request, env, path, method) {
   try {
@@ -234,12 +233,15 @@ async function handleCreateAppointment(request, env) {
     }
   }
 
-  // Résoudre la durée du nouveau RDV : body > prestation > défaut 60
-  // (prestation = products type='service', fallback services — helper unifié)
+  // Résoudre la durée du nouveau RDV : body > service > défaut 60
   let newDuration = body.duration_minutes || 60;
   if (!body.duration_minutes && service_id) {
-    const prestaDuration = await findPrestationDurationById(env, tenant.id, service_id);
-    if (prestaDuration) newDuration = prestaDuration;
+    try {
+      const svcRow = await env.DB.prepare(
+        'SELECT duration_minutes FROM services WHERE id = ? AND tenant_id = ?'
+      ).bind(service_id, tenant.id).first();
+      if (svcRow?.duration_minutes) newDuration = svcRow.duration_minutes;
+    } catch { /* défaut 60 */ }
   }
 
   // Re-check atomique avant INSERT (BUG #009 + #014 — anti chevauchement)

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FileText, Search, Phone, Clock, ArrowLeft, Loader2, User, Bot } from 'lucide-react';
 import { buildApiUrl, getAuthHeaders } from '@/lib/config';
 
@@ -54,6 +55,15 @@ function formatTime(dateStr: string): string {
 }
 
 export default function AnalyticsTranscriptsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 text-gray-400 animate-spin" /></div>}>
+      <TranscriptsContent />
+    </Suspense>
+  );
+}
+
+function TranscriptsContent() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
@@ -74,9 +84,15 @@ export default function AnalyticsTranscriptsPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setTranscripts(data.transcripts || []);
-      if (data.transcripts?.length > 0) {
-        setSelectedId(data.transcripts[0].id);
+      const list: TranscriptEntry[] = data.transcripts || [];
+      setTranscripts(list);
+
+      const callIdParam = searchParams.get('call_id');
+      if (callIdParam && list.some(t => t.id === callIdParam)) {
+        setSelectedId(callIdParam);
+        setMobileDetail(true);
+      } else if (list.length > 0) {
+        setSelectedId(list[0].id);
       }
     } catch (e) {
       setError('Impossible de charger les transcriptions');

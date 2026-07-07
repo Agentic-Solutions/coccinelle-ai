@@ -87,17 +87,9 @@ async function listProducts(request, env, tenantId) {
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
     const agentId = url.searchParams.get('agent_id');
-    const productType = url.searchParams.get('type'); // 'service' pour la vue Prestations
     const status = url.searchParams.get('status') || 'active';
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const offset = parseInt(url.searchParams.get('offset') || '0');
-
-    // Vue Prestations (type=service) : joindre le nb d'agents assignés (parité UX).
-    // Sous-requête limitée à cette vue pour ne pas la faire tourner sur les gros catalogues.
-    const agentCountExpr = productType === 'service'
-      ? `, (SELECT COUNT(*) FROM commercial_agent_services cas
-             WHERE cas.service_id = products.id AND cas.is_active = 1) AS agent_count`
-      : '';
 
     let query = `
       SELECT
@@ -107,8 +99,7 @@ async function listProducts(request, env, tenantId) {
         stock_quantity, stock_status, available,
         attributes, images, videos, location,
         keywords, tags, has_variants, variants,
-        duration_minutes, appointment_type_id,
-        status, published_at, created_at, updated_at${agentCountExpr}
+        status, published_at, created_at, updated_at
       FROM products
       WHERE tenant_id = ? AND status = ?
     `;
@@ -119,12 +110,6 @@ async function listProducts(request, env, tenantId) {
     if (category) {
       query += ' AND category = ?';
       params.push(category);
-    }
-
-    // Filtrer par type (produit vs prestation)
-    if (productType) {
-      query += ' AND type = ?';
-      params.push(productType);
     }
 
     // Filtrer par agent (NULL = tous, sinon spécifique)
@@ -148,11 +133,6 @@ async function listProducts(request, env, tenantId) {
     if (category) {
       countQuery += ' AND category = ?';
       countParams.push(category);
-    }
-
-    if (productType) {
-      countQuery += ' AND type = ?';
-      countParams.push(productType);
     }
 
     if (agentId) {
@@ -239,7 +219,6 @@ async function createProduct(request, env, tenantId, userId) {
         stock_quantity, stock_status, available,
         attributes, images, videos, location,
         keywords, tags, has_variants, variants,
-        duration_minutes, appointment_type_id,
         status, published_at, created_by, created_at, updated_at
       ) VALUES (
         ?, ?, ?, ?, ?,
@@ -248,7 +227,6 @@ async function createProduct(request, env, tenantId, userId) {
         ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?, ?,
-        ?, ?,
         ?, ?, ?, datetime('now'), datetime('now')
       )
     `).bind(
@@ -276,8 +254,6 @@ async function createProduct(request, env, tenantId, userId) {
       JSON.stringify(body.tags || []),
       body.has_variants || 0,
       JSON.stringify(body.variants || []),
-      body.duration_minutes != null ? body.duration_minutes : null,
-      body.appointment_type_id || null,
       body.status || 'active',
       body.published_at || null,
       userId
@@ -374,8 +350,6 @@ async function updateProduct(request, env, tenantId, userId, productId) {
         tags = ?,
         has_variants = ?,
         variants = ?,
-        duration_minutes = ?,
-        appointment_type_id = ?,
         status = ?,
         published_at = ?,
         updated_by = ?,
@@ -404,8 +378,6 @@ async function updateProduct(request, env, tenantId, userId, productId) {
       body.tags !== undefined ? JSON.stringify(body.tags) : (existing.tags || '[]'),
       body.has_variants !== undefined ? body.has_variants : (existing.has_variants || 0),
       body.variants !== undefined ? JSON.stringify(body.variants) : (existing.variants || '[]'),
-      body.duration_minutes !== undefined ? body.duration_minutes : (existing.duration_minutes ?? null),
-      body.appointment_type_id !== undefined ? body.appointment_type_id : (existing.appointment_type_id ?? null),
       body.status !== undefined ? body.status : (existing.status || 'active'),
       body.published_at !== undefined ? body.published_at : existing.published_at,
       userId,

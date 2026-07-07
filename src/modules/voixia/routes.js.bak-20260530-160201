@@ -8,7 +8,6 @@ import { successResponse, errorResponse } from '../../utils/response.js';
 import { generateId, logAudit } from '../auth/helpers.js';
 import { requireVoixIAAuth } from './auth.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
-import { findPrestationByName, findPrestationDurationById } from '../shared/prestations.js';
 
 /**
  * Handler principal pour les routes /api/v1/voixia/*
@@ -164,14 +163,18 @@ async function handleCreateAppointment(request, env) {
     return errorResponse('Impossible de créer le prospect', 500);
   }
 
-  // 2. Trouver la prestation (products type='service', fallback services) + sa durée
+  // 2. Trouver le service_id et sa durée si un nom de service est fourni
   let serviceId = null;
   let serviceDurationMinutes = null;
   if (service) {
-    const prestation = await findPrestationByName(env, tenant_id, service);
-    if (prestation) {
-      serviceId = prestation.id;
-      serviceDurationMinutes = prestation.duration_minutes;
+    try {
+      const serviceRow = await env.DB.prepare(
+        'SELECT id, duration_minutes FROM services WHERE tenant_id = ? AND name LIKE ? LIMIT 1'
+      ).bind(tenant_id, `%${service}%`).first();
+      serviceId = serviceRow?.id || null;
+      serviceDurationMinutes = serviceRow?.duration_minutes || null;
+    } catch {
+      // La table services peut ne pas exister — on continue sans
     }
   }
 
@@ -303,18 +306,28 @@ async function handleCheckAvailability(request, env) {
   let agentCustomDurations = {}; // agent_id → custom_duration_minutes
 
   if (!resolvedServiceId && service) {
-    // Résoudre la prestation par nom (products type='service', fallback services)
-    const prestation = await findPrestationByName(env, tenant_id, service);
-    if (prestation) {
-      resolvedServiceId = prestation.id;
-      serviceDuration = prestation.duration_minutes;
+    // Résoudre par nom de service
+    try {
+      const likePattern = '%' + service.toLowerCase() + '%';
+      const svcResult = await env.DB.prepare(
+        "SELECT id, duration_minutes FROM services WHERE tenant_id = ? AND is_active = 1 AND LOWER(name) LIKE ? LIMIT 1"
+      ).bind(tenant_id, likePattern).first();
+      if (svcResult) {
+        resolvedServiceId = svcResult.id;
+        serviceDuration = svcResult.duration_minutes;
+      }
+    } catch (err) {
+      logger.error('VoixIA — service name resolution error', { error: err.message, service });
     }
   }
 
   if (resolvedServiceId) {
-    // Récupérer la durée de la prestation si pas encore fait
+    // Récupérer la durée du service si pas encore fait
     if (!serviceDuration) {
-      serviceDuration = await findPrestationDurationById(env, tenant_id, resolvedServiceId);
+      try {
+        const svcRow = await env.DB.prepare(`SELECT duration_minutes FROM services WHERE id = ? AND tenant_id = ?`).bind(resolvedServiceId, tenant_id).first();
+        if (svcRow) serviceDuration = svcRow.duration_minutes;
+      } catch { /* fallback 30min */ }
     }
 
     // Récupérer les agents assignés à cette prestation
@@ -716,21 +729,6 @@ async function handleSearchKnowledge(request, env) {
 
   if (!question) return errorResponse('question ou query est requis', 400);
 
-  // ── LightRAG (prioritaire, timeout 3s) ──
-  const lightragEnabled = env.LIGHTRAG_ENABLED !== 'false' && env.LIGHTRAG_URL && env.LIGHTRAG_API_KEY;
-  if (lightragEnabled) {
-    try {
-      const lrResult = await _searchKnowledgeLightRAG(env, question);
-      if (lrResult) {
-        console.log(`[KB] provenance=lightrag tenant=${tenant_id}`);
-        return successResponse(lrResult);
-      }
-    } catch (err) {
-      console.log(`[KB] lightrag_failed tenant=${tenant_id} err=${err.message}`);
-    }
-  }
-
-  // ── Fallback : recherche locale (vectorielle + LIKE) ──
   // ── OPTIMISE BUG #011 : preparer la recherche textuelle en parallele de l'embedding ──
   // Splitter la question en mots significatifs (>= 3 caracteres) pour recherche OR
   const stopWords = new Set(['les', 'des', 'une', 'est', 'que', 'qui', 'dans', 'pour', 'sur', 'par', 'avec', 'son', 'ses', 'vos', 'nos', 'aux', 'ont', 'sont', 'quels', 'quel', 'quelle', 'quelles', 'comment', 'vous']);
@@ -815,7 +813,6 @@ async function handleSearchKnowledge(request, env) {
   const bestResult = textPriorityResults.length > 0 ? textPriorityResults[0] : results[0];
   const answer = bestResult?.content?.substring(0, 500) || null;
 
-  console.log(`[KB] provenance=fallback_like tenant=${tenant_id}`);
   return successResponse({
     results,
     count: results.length,
@@ -826,37 +823,6 @@ async function handleSearchKnowledge(request, env) {
       ? `${results.length} résultat(s) trouvé(s)`
       : 'Aucun résultat trouvé dans la base de connaissances'
   });
-}
-
-/**
- * Recherche knowledge via LightRAG (RAG externe Mistral).
- * Timeout 3s, retourne null si reponse vide/inutilisable.
- */
-async function _searchKnowledgeLightRAG(env, question) {
-  const res = await fetch(`${env.LIGHTRAG_URL}/query`, {
-    method: 'POST',
-    headers: {
-      'X-API-Key': env.LIGHTRAG_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query: question, mode: 'hybrid' }),
-    signal: AbortSignal.timeout(3000),
-  });
-  if (!res.ok) throw new Error(`LightRAG HTTP ${res.status}`);
-  const data = await res.json();
-  let answer = (data.response || '').trim();
-  if (answer.length < 10) return null;
-  // Nettoyer prefixes generiques du LLM
-  answer = answer.replace(/^(Based on the (available )?knowledge[^.]*\.\s*)/i, '');
-  if (answer.length > 500) answer = answer.substring(0, 500);
-  return {
-    answer,
-    found: true,
-    results: [{ source: 'lightrag', content: answer }],
-    count: 1,
-    search_type: 'lightrag',
-    message: '1 résultat(s) trouvé(s)',
-  };
 }
 
 /**
@@ -985,7 +951,6 @@ async function handleResolvePhone(request, env) {
       LEFT JOIN ai_prompt_versions apv ON vc.active_prompt_id = apv.id
       WHERE (m.phone_number = ? OR m.phone_number = ?)
         AND m.is_active = 1
-        AND m.channel_type = 'voice'
       LIMIT 1
     `).bind(phone, normalizedPhone).first();
 

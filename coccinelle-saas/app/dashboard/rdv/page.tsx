@@ -242,13 +242,19 @@ export default function RdvPage() {
     
     try {
       const token = localStorage.getItem('auth_token');
+      const payload = {
+        prospect_id: newAppointment.prospect_id,
+        agent_id: newAppointment.agent_id,
+        scheduled_at: `${newAppointment.appointment_date}T${newAppointment.appointment_time}:00`,
+        notes: newAppointment.notes,
+      };
       const response = await fetch(`${API_URL}/api/v1/appointments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(newAppointment)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {

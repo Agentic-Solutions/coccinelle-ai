@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Info, Send } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { useToast } from '../../../../hooks/useToast';
 import ActionToastContainer from '../../../../src/components/ActionToast';
@@ -32,6 +32,9 @@ function SMSConfigContent() {
   const [testing, setTesting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [testNumber, setTestNumber] = useState('');
+  const [adHocTo, setAdHocTo] = useState('');
+  const [adHocMessage, setAdHocMessage] = useState('');
+  const [adHocSending, setAdHocSending] = useState(false);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -156,6 +159,32 @@ function SMSConfigContent() {
     }
   };
 
+  const handleAdHocSend = async () => {
+    if (!adHocTo.trim() || !adHocMessage.trim()) return;
+    setAdHocSending(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_URL}/api/v1/sms/send`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: adHocTo, message: adHocMessage }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`SMS envoye a ${adHocTo}`);
+        setAdHocTo('');
+        setAdHocMessage('');
+      } else {
+        setError(data.error || 'Erreur lors de l\'envoi du SMS');
+      }
+    } catch (e: any) {
+      setError('Erreur lors de l\'envoi: ' + e.message);
+    } finally {
+      setAdHocSending(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <ActionToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
@@ -234,6 +263,55 @@ function SMSConfigContent() {
             </label>
           </div>
         </div>
+
+        {config.enabled && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Send className="w-5 h-5 text-gray-700" />
+              <h3 className="font-bold text-gray-900">Envoyer un SMS</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Envoyez un message a un contact</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Destinataire</label>
+                <input
+                  type="tel"
+                  value={adHocTo}
+                  onChange={(e) => setAdHocTo(e.target.value)}
+                  placeholder="+33612345678"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <textarea
+                  value={adHocMessage}
+                  onChange={(e) => setAdHocMessage(e.target.value)}
+                  placeholder="Votre message..."
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg resize-none"
+                />
+                <p className={`text-xs text-right mt-1 ${adHocMessage.length > 160 ? 'text-red-600' : 'text-gray-400'}`}>
+                  {adHocMessage.length} / 160
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleAdHocSend}
+                  disabled={adHocSending || !adHocTo.trim() || !adHocMessage.trim()}
+                  className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {adHocSending ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  Envoyer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
