@@ -44,6 +44,8 @@ import { handleExportRoutes } from './modules/export/routes.js';
 // Module VoixIA — endpoints dédiés pour l'agent vocal IA (auth par clé API)
 import { handleVoixIARoutes } from './modules/voixia/routes.js';
 import { handleAIRoutes } from './modules/voixia/ai-prompts.js';
+// Module Revendeur — portail self-service VoixIA.io (agents = tenants enfants)
+import { handleResellerRoutes } from './modules/reseller/routes.js';
 // VoixIA Orchestrateur Omnicanal (voice, sms, email, whatsapp)
 import { handleOrchestrateRoutes } from './modules/voixia/orchestrator.js';
 // Module Omnicanal — regles automatiques et sequences
@@ -105,6 +107,12 @@ export default {
 
       if (path.startsWith('/api/v1/ai')) {
         response = await handleAIRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Portail revendeur VoixIA.io (agents = tenants enfants, auth JWT)
+      if (path.startsWith('/api/v1/reseller') || path === '/api/v1/tenant/api-key') {
+        response = await handleResellerRoutes(request, env, path, method, getCorsHeaders(request));
         if (response) return response;
       }
 

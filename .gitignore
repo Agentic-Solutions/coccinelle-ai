@@ -57,3 +57,7 @@ _archives/
 .netlify
 MANIFESTE_TODO_v3_7_4.md
 ÉTAT_ACTUEL_COCCINELLE_AI.md
+
+# Backups datés (R36) + artefacts de test
+*.backup-*
+.playwright-mcp/

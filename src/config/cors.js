@@ -11,17 +11,26 @@ const allowedOrigins = [
   'https://coccinelle.ai',
   'https://app.coccinelle.ai',
   'https://coccinelle-saas.vercel.app',
-  'https://coccinelle-saas.pages.dev'
+  'https://coccinelle-saas.pages.dev',
+  // Portail revendeur VoixIA.io (frontend séparé, client du même backend)
+  'https://voixia.io',
+  'https://www.voixia.io',
+  'https://voixia-portal.pages.dev'
 ];
 
 // Pattern pour les previews Cloudflare Pages (ex: c6531d27.coccinelle-saas.pages.dev)
 const cloudflarePreviewPattern = /^https:\/\/[a-z0-9]+\.coccinelle-saas\.pages\.dev$/;
+// Previews Cloudflare Pages du portail VoixIA (ex: ab12cd34.voixia-portal.pages.dev)
+const voixiaPreviewPattern = /^https:\/\/[a-z0-9]+\.voixia-portal\.pages\.dev$/;
 
 export function getCorsHeaders(request) {
   const origin = request.headers.get('Origin') || '';
 
-  // Vérifier si l'origine est dans la liste OU correspond au pattern Cloudflare Pages
-  const isAllowed = allowedOrigins.includes(origin) || cloudflarePreviewPattern.test(origin);
+  // Vérifier si l'origine est dans la liste OU correspond à un pattern de preview Pages
+  const isAllowed =
+    allowedOrigins.includes(origin) ||
+    cloudflarePreviewPattern.test(origin) ||
+    voixiaPreviewPattern.test(origin);
   const allowedOrigin = isAllowed ? origin : 'https://coccinelle.ai';
 
   return {
