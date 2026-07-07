@@ -352,5 +352,102 @@ export async function handleResellerRoutes(request, env, path, method, corsHeade
     }
   }
 
+  // ==================================================================
+  // J4 — CONSOMMATION (minutes d'appel agrégées sur les agents)
+  // ==================================================================
+
+  // ------------------------------------------------------------------
+  // GET /api/v1/reseller/usage?month=YYYY-MM — conso du mois
+  // ------------------------------------------------------------------
+  if (path === '/api/v1/reseller/usage' && method === 'GET') {
+    const authResult = await auth.requireAuth(request, env);
+    if (authResult.error) return json({ success: false, error: authResult.error }, authResult.status, corsHeaders);
+
+    try {
+      const parentId = authResult.tenant.id;
+      const url = new URL(request.url);
+
+      // Mois cible : ?month=YYYY-MM, sinon mois courant (UTC).
+      const now = new Date();
+      let year = now.getUTCFullYear();
+      let month = now.getUTCMonth() + 1; // 1-12
+      const requested = url.searchParams.get('month');
+      const m = requested && /^\d{4}-\d{2}$/.test(requested) ? requested : null;
+      if (m) {
+        year = parseInt(m.slice(0, 4), 10);
+        month = parseInt(m.slice(5, 7), 10);
+      }
+      const pad = (n) => String(n).padStart(2, '0');
+      const monthLabel = `${year}-${pad(month)}`;
+      // Bornes lexicographiques (calls.created_at = 'YYYY-MM-DD HH:MM:SS').
+      const start = `${monthLabel}-01 00:00:00`;
+      const nextYear = month === 12 ? year + 1 : year;
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const end = `${nextYear}-${pad(nextMonth)}-01 00:00:00`;
+
+      // Agrégat par agent (tenants enfants du revendeur).
+      const perAgentRes = await env.DB.prepare(`
+        SELECT c.tenant_id, t.name AS agent_name,
+               COUNT(*) AS calls,
+               COALESCE(SUM(c.duration), 0) AS seconds
+        FROM calls c
+        JOIN tenants t ON t.id = c.tenant_id
+        WHERE t.parent_tenant_id = ?
+          AND c.created_at >= ? AND c.created_at < ?
+        GROUP BY c.tenant_id, t.name
+        ORDER BY seconds DESC
+      `).bind(parentId, start, end).all();
+
+      // Série journalière (minutes par jour).
+      const dailyRes = await env.DB.prepare(`
+        SELECT substr(c.created_at, 1, 10) AS day,
+               COALESCE(SUM(c.duration), 0) AS seconds
+        FROM calls c
+        JOIN tenants t ON t.id = c.tenant_id
+        WHERE t.parent_tenant_id = ?
+          AND c.created_at >= ? AND c.created_at < ?
+        GROUP BY day
+        ORDER BY day ASC
+      `).bind(parentId, start, end).all();
+
+      const round1 = (x) => Math.round(x * 10) / 10;
+      const perAgentRows = perAgentRes.results || [];
+      let totalCalls = 0;
+      let totalSeconds = 0;
+      const perAgent = perAgentRows.map((r) => {
+        totalCalls += r.calls;
+        totalSeconds += r.seconds;
+        return {
+          tenant_id: r.tenant_id,
+          agent_name: r.agent_name,
+          calls: r.calls,
+          minutes: round1(r.seconds / 60),
+        };
+      });
+      const totalMinutes = round1(totalSeconds / 60);
+
+      const daily = (dailyRes.results || []).map((r) => ({
+        date: r.day,
+        minutes: round1(r.seconds / 60),
+      }));
+
+      return json({
+        success: true,
+        period: { month: monthLabel, start, end },
+        total: {
+          calls: totalCalls,
+          minutes: totalMinutes,
+          seconds: totalSeconds,
+          estimated_cost_eur: Math.round(totalMinutes * 0.10 * 100) / 100, // 0,10 €/min (estimation)
+        },
+        per_agent: perAgent,
+        daily,
+      }, 200, corsHeaders);
+    } catch (error) {
+      logger.error('Reseller usage error', { error: error.message, stack: error.stack });
+      return json({ success: false, error: 'Erreur lors du chargement de la consommation' }, 500, corsHeaders);
+    }
+  }
+
   return null;
 }
