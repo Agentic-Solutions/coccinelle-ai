@@ -203,5 +203,154 @@ export async function handleResellerRoutes(request, env, path, method, corsHeade
     }
   }
 
+  // ==================================================================
+  // J3 — NUMÉROS (pool manuel → attribution à un agent)
+  // ==================================================================
+
+  // ------------------------------------------------------------------
+  // GET /api/v1/reseller/numbers — pool dispo + numéros de MES agents
+  // ------------------------------------------------------------------
+  if (path === '/api/v1/reseller/numbers' && method === 'GET') {
+    const authResult = await auth.requireAuth(request, env);
+    if (authResult.error) return json({ success: false, error: authResult.error }, authResult.status, corsHeaders);
+
+    try {
+      const parentId = authResult.tenant.id;
+      // Numéros disponibles (pool global partagé)
+      const available = await env.DB.prepare(`
+        SELECT phone_number, label, country
+        FROM number_pool
+        WHERE status = 'available'
+        ORDER BY created_at ASC, phone_number ASC
+      `).all();
+      // Numéros déjà attribués à MES agents (tenants enfants)
+      const assigned = await env.DB.prepare(`
+        SELECT np.phone_number, np.label, np.assigned_tenant_id, t.name AS agent_name
+        FROM number_pool np
+        JOIN tenants t ON t.id = np.assigned_tenant_id
+        WHERE np.status = 'assigned' AND t.parent_tenant_id = ?
+        ORDER BY np.assigned_at DESC
+      `).bind(parentId).all();
+
+      return json({
+        success: true,
+        available: available.results || [],
+        assigned: assigned.results || [],
+      }, 200, corsHeaders);
+    } catch (error) {
+      logger.error('Reseller list numbers error', { error: error.message });
+      return json({ success: false, error: 'Erreur lors du chargement des numéros' }, 500, corsHeaders);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // POST /api/v1/reseller/agents/:id/number — attribue un numéro
+  // DELETE /api/v1/reseller/agents/:id/number — libère le numéro
+  // ------------------------------------------------------------------
+  const numberMatch = path.match(/^\/api\/v1\/reseller\/agents\/([^/]+)\/number$/);
+  if (numberMatch && (method === 'POST' || method === 'DELETE')) {
+    const authResult = await auth.requireAuth(request, env);
+    if (authResult.error) return json({ success: false, error: authResult.error }, authResult.status, corsHeaders);
+
+    const parentId = authResult.tenant.id;
+    const agentId = decodeURIComponent(numberMatch[1]);
+
+    // L'agent doit être un tenant enfant du revendeur authentifié.
+    const agent = await env.DB.prepare(
+      'SELECT id, name FROM tenants WHERE id = ? AND parent_tenant_id = ?'
+    ).bind(agentId, parentId).first();
+    if (!agent) {
+      return json({ success: false, error: 'Agent introuvable' }, 404, corsHeaders);
+    }
+
+    const now = new Date().toISOString();
+
+    // ---- Attribution ----
+    if (method === 'POST') {
+      try {
+        let body;
+        try { body = await request.json(); } catch { body = {}; }
+        const requestedNumber = (body.phone_number || '').trim();
+
+        // Numéro déjà attribué à cet agent ?
+        const existing = await env.DB.prepare(
+          "SELECT phone_number FROM omni_phone_mappings WHERE tenant_id = ? AND channel_type = 'voice' AND is_active = 1"
+        ).bind(agentId).first();
+        if (existing) {
+          return json({ success: false, error: 'Cet agent a déjà un numéro attribué' }, 409, corsHeaders);
+        }
+
+        // Choisir le numéro : celui demandé (s'il est dispo) sinon le 1er dispo.
+        let poolRow;
+        if (requestedNumber) {
+          poolRow = await env.DB.prepare(
+            "SELECT id, phone_number FROM number_pool WHERE phone_number = ? AND status = 'available'"
+          ).bind(requestedNumber).first();
+          if (!poolRow) {
+            return json({ success: false, error: "Ce numéro n'est pas disponible" }, 409, corsHeaders);
+          }
+        } else {
+          poolRow = await env.DB.prepare(
+            "SELECT id, phone_number FROM number_pool WHERE status = 'available' ORDER BY created_at ASC, phone_number ASC LIMIT 1"
+          ).first();
+          if (!poolRow) {
+            return json({ success: false, error: 'Aucun numéro disponible dans le pool' }, 409, corsHeaders);
+          }
+        }
+
+        // Réserver le numéro (garde anti-course : ne prend que s'il est encore 'available').
+        const reserve = await env.DB.prepare(
+          "UPDATE number_pool SET status = 'assigned', assigned_tenant_id = ?, assigned_at = ? WHERE phone_number = ? AND status = 'available'"
+        ).bind(agentId, now, poolRow.phone_number).run();
+        if (!reserve.meta || reserve.meta.changes !== 1) {
+          return json({ success: false, error: 'Ce numéro vient d\'être pris, réessayez' }, 409, corsHeaders);
+        }
+
+        // Créer/activer la ligne omni_phone_mappings voice (ce qui rend l'agent joignable).
+        const mappingId = auth.generateId('map');
+        await env.DB.prepare(`
+          INSERT INTO omni_phone_mappings (id, phone_number, tenant_id, channel_type, is_active, created_at, updated_at)
+          VALUES (?, ?, ?, 'voice', 1, ?, ?)
+          ON CONFLICT(phone_number) DO UPDATE SET
+            tenant_id = excluded.tenant_id,
+            channel_type = 'voice',
+            is_active = 1,
+            updated_at = excluded.updated_at
+        `).bind(mappingId, poolRow.phone_number, agentId, now, now).run();
+
+        logger.info('Reseller number assigned', { parentId, agentId, phone: poolRow.phone_number });
+        return json({ success: true, phone_number: poolRow.phone_number, agent_id: agentId }, 200, corsHeaders);
+      } catch (error) {
+        logger.error('Reseller assign number error', { error: error.message, stack: error.stack });
+        return json({ success: false, error: "Erreur lors de l'attribution du numéro" }, 500, corsHeaders);
+      }
+    }
+
+    // ---- Libération ----
+    if (method === 'DELETE') {
+      try {
+        const mapping = await env.DB.prepare(
+          "SELECT phone_number FROM omni_phone_mappings WHERE tenant_id = ? AND channel_type = 'voice' AND is_active = 1"
+        ).bind(agentId).first();
+        if (!mapping) {
+          return json({ success: false, error: 'Aucun numéro attribué à cet agent' }, 404, corsHeaders);
+        }
+        // Retirer le routage puis rendre le numéro au pool.
+        await env.DB.prepare(
+          "DELETE FROM omni_phone_mappings WHERE tenant_id = ? AND phone_number = ? AND channel_type = 'voice'"
+        ).bind(agentId, mapping.phone_number).run();
+        await env.DB.prepare(
+          "UPDATE number_pool SET status = 'available', assigned_tenant_id = NULL, assigned_at = NULL WHERE phone_number = ?"
+        ).bind(mapping.phone_number).run();
+
+        logger.info('Reseller number released', { parentId, agentId, phone: mapping.phone_number });
+        return json({ success: true, released: mapping.phone_number }, 200, corsHeaders);
+      } catch (error) {
+        logger.error('Reseller release number error', { error: error.message, stack: error.stack });
+        return json({ success: false, error: 'Erreur lors de la libération du numéro' }, 500, corsHeaders);
+      }
+    }
+  }
+
   return null;
 }

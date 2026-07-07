@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Bot, Plus, Phone, Loader2, Mic } from "lucide-react";
+import { Bot, Plus, Phone, Loader2, Mic, X } from "lucide-react";
 import { PortalShell } from "@/components/PortalShell";
+import { NumberModal } from "@/components/NumberModal";
 import { apiFetch } from "@/lib/api";
 import { VOICE_OPTIONS } from "@/lib/voices";
 import { SECTORS } from "@/lib/sectors";
@@ -31,17 +32,29 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalAgent, setModalAgent] = useState<Agent | null>(null);
+  const [releasing, setReleasing] = useState<string | null>(null);
+
+  const fetchAgents = useCallback(async () => {
+    const { ok, data } = await apiFetch<{ success: boolean; agents: Agent[]; error?: string }>(
+      "/api/v1/reseller/agents"
+    );
+    if (ok && data.success) setAgents(data.agents || []);
+    else setError(data.error || "Chargement impossible.");
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    (async () => {
-      const { ok, data } = await apiFetch<{ success: boolean; agents: Agent[]; error?: string }>(
-        "/api/v1/reseller/agents"
-      );
-      if (ok && data.success) setAgents(data.agents || []);
-      else setError(data.error || "Chargement impossible.");
-      setLoading(false);
-    })();
-  }, []);
+    fetchAgents();
+  }, [fetchAgents]);
+
+  async function releaseNumber(agent: Agent) {
+    if (!confirm(`Retirer le numéro ${agent.phone_number} de ${agent.name} ?`)) return;
+    setReleasing(agent.id);
+    await apiFetch(`/api/v1/reseller/agents/${encodeURIComponent(agent.id)}/number`, { method: "DELETE" });
+    setReleasing(null);
+    fetchAgents();
+  }
 
   return (
     <PortalShell active="/agents">
@@ -105,19 +118,56 @@ export default function AgentsPage() {
                   {a.status === "active" ? "Actif" : a.status || "Actif"}
                 </span>
               </div>
-              <div className="space-y-1.5 text-sm" style={{ color: "var(--muted)" }}>
+
+              <div className="mb-3 space-y-1.5 text-sm" style={{ color: "var(--muted)" }}>
                 <div className="flex items-center gap-2">
                   <Mic size={14} style={{ color: "var(--muted-3)" }} />
                   {voiceLabel(a.voice_id)}
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone size={14} style={{ color: "var(--muted-3)" }} />
-                  {a.phone_number || "Aucun numéro attribué"}
+                  {a.phone_number ? (
+                    <span className="vx-mono" style={{ color: "var(--text)" }}>{a.phone_number}</span>
+                  ) : (
+                    <span style={{ color: "var(--muted-3)" }}>Aucun numéro attribué</span>
+                  )}
                 </div>
               </div>
+
+              {a.phone_number ? (
+                <button
+                  onClick={() => releaseNumber(a)}
+                  disabled={releasing === a.id}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium"
+                  style={{ color: "var(--muted-2)" }}
+                >
+                  {releasing === a.id ? <Loader2 className="animate-spin" size={13} /> : <X size={13} />}
+                  Retirer le numéro
+                </button>
+              ) : (
+                <button
+                  onClick={() => setModalAgent(a)}
+                  className="vx-btn-secondary px-3 py-1.5 text-xs"
+                >
+                  <Phone size={14} />
+                  Attribuer un numéro
+                </button>
+              )}
             </div>
           ))}
         </div>
+      )}
+
+      {modalAgent && (
+        <NumberModal
+          agentId={modalAgent.id}
+          agentName={modalAgent.name}
+          onClose={() => setModalAgent(null)}
+          onAssigned={() => {
+            setModalAgent(null);
+            fetchAgents();
+          }}
+        />
       )}
     </PortalShell>
   );
