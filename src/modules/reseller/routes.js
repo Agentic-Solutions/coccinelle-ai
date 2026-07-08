@@ -26,6 +26,122 @@ function json(body, status, corsHeaders) {
   });
 }
 
+// --- Achat self-service Twilio : helpers ---------------------------------
+
+// Auth + base API Twilio PAR RÉGION (les régions Twilio sont isolées : un
+// credential us1 échoue en 401 sur un endpoint IE1, et réciproquement).
+// - region 'us1' : inventaire global (AvailablePhoneNumbers) → api.twilio.com + Auth Token us1.
+// - region 'ie1' : achat + trunk (data residency RGPD) → api.dublin.ie1.twilio.com
+//                  + API Key IE1 (TWILIO_IE1_KEY_SID/SECRET) ou Auth Token IE1 (TWILIO_IE1_AUTH_TOKEN).
+// L'Account SID reste dans l'URL ; le FQDN régional DOIT inclure l'edge (dublin.ie1).
+function twilioAuth(env, region) {
+  const sid = env.TWILIO_ACCOUNT_SID;
+  if (!sid) return null;
+  if (region === 'ie1') {
+    const base = (env.TWILIO_API_BASE || 'https://api.dublin.ie1.twilio.com').replace(/\/$/, '');
+    if (env.TWILIO_IE1_KEY_SID && env.TWILIO_IE1_KEY_SECRET) {
+      return { sid, base, header: 'Basic ' + btoa(`${env.TWILIO_IE1_KEY_SID}:${env.TWILIO_IE1_KEY_SECRET}`) };
+    }
+    if (env.TWILIO_IE1_AUTH_TOKEN) {
+      return { sid, base, header: 'Basic ' + btoa(`${sid}:${env.TWILIO_IE1_AUTH_TOKEN}`) };
+    }
+    return null;
+  }
+  // us1 (défaut)
+  if (!env.TWILIO_AUTH_TOKEN) return null;
+  return { sid, base: 'https://api.twilio.com', header: 'Basic ' + btoa(`${sid}:${env.TWILIO_AUTH_TOKEN}`) };
+}
+
+// Seuls les comptes listés dans RESELLER_ADMIN_EMAILS peuvent acheter
+// (l'achat débite le compte Twilio ; pas de facturation Stripe encore).
+// Défaut = personne (fail-safe) tant que la variable n'est pas configurée.
+function isPurchaseAdmin(authResult, env) {
+  const allow = (env.RESELLER_ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const email = (authResult.user?.email || '').toLowerCase();
+  return allow.length > 0 && allow.includes(email);
+}
+
+// --- LiveKit : ajout d'un numéro à l'allowlist du trunk entrant (Option B) --
+
+function b64url(bytes) {
+  let s = typeof bytes === 'string' ? btoa(bytes) : btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  return s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Jeton d'admin LiveKit (JWT HS256, grant sip.admin) signé côté Worker.
+async function livekitToken(apiKey, apiSecret) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = b64url(JSON.stringify({
+    iss: apiKey, sub: 'voixia-purchase', nbf: now - 5, exp: now + 60,
+    sip: { admin: true },
+  }));
+  const data = `${header}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(apiSecret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  return `${data}.${b64url(sig)}`;
+}
+
+// Lecture read-only du trunk entrant LiveKit (santé + numéros).
+// Retourne { ok, trunk, url, token, error }.
+async function livekitList(env) {
+  const url = (env.LIVEKIT_API_URL || '').replace(/\/$/, '');
+  const key = env.LIVEKIT_API_KEY;
+  const secret = env.LIVEKIT_API_SECRET;
+  const trunkId = env.LIVEKIT_SIP_TRUNK_ID;
+  if (!url || !key || !secret || !trunkId) return { ok: false, error: 'LiveKit non configuré' };
+  try {
+    const token = await livekitToken(key, secret);
+    const listRes = await fetch(`${url}/twirp/livekit.SIP/ListSIPInboundTrunk`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    if (!listRes.ok) {
+      const b = await listRes.text().catch(() => '');
+      return { ok: false, error: `LiveKit list ${listRes.status} ${b.slice(0, 120)}` };
+    }
+    const list = await listRes.json();
+    // Le Twirp LiveKit renvoie en snake_case (sip_trunk_id).
+    const trunk = (list.items || []).find((t) => t.sip_trunk_id === trunkId);
+    if (!trunk) return { ok: false, error: 'Trunk LiveKit introuvable' };
+    return { ok: true, trunk, url, token };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Ajoute (idempotent) un numéro au champ Numbers du trunk entrant LiveKit,
+// pour que resolve-phone puisse router les appels vers cet agent.
+// Retourne { ok, already?, error? }.
+async function livekitEnsureNumber(env, phone) {
+  const l = await livekitList(env);
+  if (!l.ok) return { ok: false, error: l.error };
+  const numbers = l.trunk.numbers || [];
+  if (numbers.includes(phone)) return { ok: true, already: true };
+  try {
+    // Update partiel via ListUpdate (add) : ne touche PAS les autres champs du trunk.
+    const upRes = await fetch(`${l.url}/twirp/livekit.SIP/UpdateSIPInboundTrunk`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${l.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sip_trunk_id: env.LIVEKIT_SIP_TRUNK_ID, update: { numbers: { add: [phone] } } }),
+    });
+    if (!upRes.ok) {
+      const b = await upRes.text().catch(() => '');
+      return { ok: false, error: `LiveKit update ${upRes.status} ${b.slice(0, 120)}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 // Slug lisible + suffixe unique (dérivé du tenant_id, déjà unique) pour
 // respecter l'index UNIQUE tenants.slug.
 function makeSlug(name, tenantId) {
@@ -446,6 +562,250 @@ export async function handleResellerRoutes(request, env, path, method, corsHeade
     } catch (error) {
       logger.error('Reseller usage error', { error: error.message, stack: error.stack });
       return json({ success: false, error: 'Erreur lors du chargement de la consommation' }, 500, corsHeaders);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // GET /api/v1/reseller/pool-numbers — liste des numéros du pool.
+  // Auth = clé VoixIA (X-VoixIA-Key). Consommé par le script de sync
+  // LiveKit sur le serveur VoixIA (server-pull : réconcilie trunk.Numbers).
+  // ------------------------------------------------------------------
+  if (path === '/api/v1/reseller/pool-numbers' && method === 'GET') {
+    const key = request.headers.get('X-VoixIA-Key') || '';
+    if (!env.VOIXIA_API_KEY || key !== env.VOIXIA_API_KEY) {
+      return json({ success: false, error: 'unauthorized' }, 401, corsHeaders);
+    }
+    try {
+      const { results } = await env.DB.prepare('SELECT phone_number FROM number_pool').all();
+      return json({ success: true, numbers: (results || []).map((r) => r.phone_number) }, 200, corsHeaders);
+    } catch (error) {
+      logger.error('pool-numbers error', { error: error.message });
+      return json({ success: false, error: 'Erreur' }, 500, corsHeaders);
+    }
+  }
+
+  // ==================================================================
+  // ACHAT SELF-SERVICE DE NUMÉROS TWILIO (admin only)
+  // ==================================================================
+
+  // ------------------------------------------------------------------
+  // GET /api/v1/reseller/numbers/search?country=FR&contains=&area=&type=
+  // Cherche des numéros disponibles à l'achat (voix), avec prix mensuel.
+  // ------------------------------------------------------------------
+  if (path === '/api/v1/reseller/numbers/search' && method === 'GET') {
+    const authResult = await auth.requireAuth(request, env);
+    if (authResult.error) return json({ success: false, error: authResult.error }, authResult.status, corsHeaders);
+    if (!isPurchaseAdmin(authResult, env)) {
+      return json({ success: false, error: "Réservé à l'administrateur" }, 403, corsHeaders);
+    }
+    // Recherche = inventaire GLOBAL (us1).
+    const tw = twilioAuth(env, 'us1');
+    if (!tw) return json({ success: false, error: 'Téléphonie non configurée' }, 500, corsHeaders);
+
+    try {
+      const url = new URL(request.url);
+      const country = (url.searchParams.get('country') || 'FR').toUpperCase().slice(0, 2);
+      const type = (url.searchParams.get('type') || 'Local').replace(/[^A-Za-z]/g, '') || 'Local';
+      const contains = url.searchParams.get('contains') || '';
+      const area = url.searchParams.get('area') || '';
+      const limit = Math.min(parseInt(url.searchParams.get('limit') || '10', 10) || 10, 30);
+
+      const q = new URLSearchParams({ VoiceEnabled: 'true', PageSize: String(limit) });
+      if (contains) q.set('Contains', contains);
+      if (area) q.set('AreaCode', area);
+
+      const twUrl = `${tw.base}/2010-04-01/Accounts/${tw.sid}/AvailablePhoneNumbers/${country}/${type}.json?${q.toString()}`;
+      const res = await fetch(twUrl, { headers: { Authorization: tw.header } });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        logger.warn('Number search failed', { status: res.status, body: body.slice(0, 300) });
+        return json({ success: false, error: 'Recherche indisponible pour le moment' }, 502, corsHeaders);
+      }
+      const data = await res.json();
+
+      // Prix mensuel du pays (best-effort, non bloquant).
+      let monthlyPrice = null;
+      let currency = 'EUR';
+      try {
+        const priceRes = await fetch(`https://pricing.twilio.com/v1/PhoneNumbers/Countries/${country}`, {
+          headers: { Authorization: tw.header },
+        });
+        if (priceRes.ok) {
+          const pd = await priceRes.json();
+          currency = pd.price_unit || 'EUR';
+          const match = (pd.phone_number_prices || []).find(
+            (p) => (p.number_type || '').toLowerCase() === type.toLowerCase()
+          ) || (pd.phone_number_prices || [])[0];
+          if (match) monthlyPrice = parseFloat(match.current_price ?? match.base_price);
+        }
+      } catch { /* prix optionnel */ }
+
+      const available = (data.available_phone_numbers || []).map((n) => ({
+        phone_number: n.phone_number,
+        friendly_name: n.friendly_name,
+        locality: n.locality || null,
+        region: n.region || null,
+        monthly_price: monthlyPrice,
+        currency,
+        capabilities: n.capabilities || {},
+      }));
+
+      return json({ success: true, country, type, available }, 200, corsHeaders);
+    } catch (error) {
+      logger.error('Reseller number search error', { error: error.message });
+      return json({ success: false, error: 'Erreur lors de la recherche' }, 500, corsHeaders);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // GET /api/v1/reseller/numbers/livekit-status — santé LiveKit (read-only)
+  // Vérifie que le backend joint LiveKit + renvoie les numéros du trunk.
+  // ------------------------------------------------------------------
+  if (path === '/api/v1/reseller/numbers/livekit-status' && method === 'GET') {
+    const authResult = await auth.requireAuth(request, env);
+    if (authResult.error) return json({ success: false, error: authResult.error }, authResult.status, corsHeaders);
+    if (!isPurchaseAdmin(authResult, env)) {
+      return json({ success: false, error: "Réservé à l'administrateur" }, 403, corsHeaders);
+    }
+    const l = await livekitList(env);
+    if (!l.ok) return json({ success: true, reachable: false, error: l.error }, 200, corsHeaders);
+    return json({
+      success: true,
+      reachable: true,
+      trunk_id: l.trunk.sip_trunk_id,
+      numbers: l.trunk.numbers || [],
+    }, 200, corsHeaders);
+  }
+
+  // ------------------------------------------------------------------
+  // POST /api/v1/reseller/numbers/purchase  { phone_number }
+  // Flux régional (RGPD) : 1) achat us1 → 2) région du numéro en ie1 →
+  // 3) attache au trunk IE1 VoixIA-EU → pool. Routage LiveKit assuré par le
+  // cron server-pull (~1 min).
+  // ------------------------------------------------------------------
+  if (path === '/api/v1/reseller/numbers/purchase' && method === 'POST') {
+    const authResult = await auth.requireAuth(request, env);
+    if (authResult.error) return json({ success: false, error: authResult.error }, authResult.status, corsHeaders);
+    if (!isPurchaseAdmin(authResult, env)) {
+      return json({ success: false, error: "Réservé à l'administrateur" }, 403, corsHeaders);
+    }
+    const twUs1 = twilioAuth(env, 'us1');
+    const twIe1 = twilioAuth(env, 'ie1');
+    if (!twUs1 || !twIe1) return json({ success: false, error: 'Téléphonie non configurée' }, 500, corsHeaders);
+    if (!env.TWILIO_TRUNK_SID) {
+      return json({ success: false, error: 'Configuration téléphonie incomplète' }, 500, corsHeaders);
+    }
+
+    try {
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
+      const phone = (body.phone_number || '').trim();
+      if (!/^\+\d{6,15}$/.test(phone)) {
+        return json({ success: false, error: 'Numéro invalide (format E.164 attendu)' }, 400, corsHeaders);
+      }
+
+      // Déjà dans le pool ?
+      const dup = await env.DB.prepare('SELECT phone_number FROM number_pool WHERE phone_number = ?').bind(phone).first();
+      if (dup) return json({ success: false, error: 'Numéro déjà dans le pool' }, 409, corsHeaders);
+
+      // ÉTAPE 1 — ACHAT en us1 (la création de numéro est une opération GLOBALE ;
+      // l'endpoint ie1 renvoie 405). + bundle/adresse réglementaires FR.
+      const buyForm = new URLSearchParams({ PhoneNumber: phone });
+      if (env.TWILIO_FR_BUNDLE_SID) buyForm.set('BundleSid', env.TWILIO_FR_BUNDLE_SID);
+      if (env.TWILIO_FR_ADDRESS_SID) buyForm.set('AddressSid', env.TWILIO_FR_ADDRESS_SID);
+      const buyRes = await fetch(`${twUs1.base}/2010-04-01/Accounts/${twUs1.sid}/IncomingPhoneNumbers.json`, {
+        method: 'POST',
+        headers: { Authorization: twUs1.header, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: buyForm.toString(),
+      });
+      const buyBody = await buyRes.json().catch(() => ({}));
+      if (!buyRes.ok) {
+        logger.warn('Purchase step buy(us1) failed', { phone, status: buyRes.status, code: buyBody.code, message: buyBody.message });
+        return json({
+          success: false,
+          error: "Achat impossible pour ce numéro. Réessayez ou choisissez-en un autre.",
+        }, 502, corsHeaders);
+      }
+      const twilioSid = buyBody.sid;
+
+      // ÉTAPE 2 — Région IE1 (data residency RGPD) : traite les appels entrants en IE1.
+      let regOk = false; let regDbg = null;
+      try {
+        const regRes = await fetch(`https://routes.dublin.ie1.twilio.com/v2/PhoneNumbers/${encodeURIComponent(phone)}`, {
+          method: 'POST',
+          headers: { Authorization: twIe1.header, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'VoiceRegion=ie1',
+        });
+        regOk = regRes.ok;
+        if (!regOk) { const rb = await regRes.json().catch(() => ({})); regDbg = { status: regRes.status, message: rb.message || null }; logger.warn('Purchase step region(ie1) failed', { phone, twilioSid, ...regDbg }); }
+      } catch (e) { regDbg = { error: e.message }; }
+
+      // ÉTAPE 3 — Attache au trunk IE1 (VoixIA-EU).
+      let attOk = false; let attDbg = null;
+      try {
+        const attRes = await fetch(`https://trunking.dublin.ie1.twilio.com/v1/Trunks/${env.TWILIO_TRUNK_SID}/PhoneNumbers`, {
+          method: 'POST',
+          headers: { Authorization: twIe1.header, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `PhoneNumberSid=${encodeURIComponent(twilioSid)}`,
+        });
+        const attBody = await attRes.json().catch(() => ({}));
+        attOk = attRes.ok;
+        if (!attOk) { attDbg = { status: attRes.status, code: attBody.code || null, message: attBody.message || null }; logger.warn('Purchase step attach(ie1 trunk) failed', { phone, twilioSid, ...attDbg }); }
+      } catch (e) { attDbg = { error: e.message }; }
+      // Le routage LiveKit (trunk.Numbers) est assuré par le cron server-pull (~1 min).
+
+      // 2) Prix mensuel (best-effort).
+      let monthlyPrice = null;
+      let currency = 'EUR';
+      try {
+        const country = (phone.startsWith('+33') ? 'FR' : (buyBody.iso_country || 'FR'));
+        // Pricing = API globale (us1).
+        const priceRes = await fetch(`https://pricing.twilio.com/v1/PhoneNumbers/Countries/${country}`, {
+          headers: { Authorization: twUs1.header },
+        });
+        if (priceRes.ok) {
+          const pd = await priceRes.json();
+          currency = pd.price_unit || 'EUR';
+          const match = (pd.phone_number_prices || []).find((p) => (p.number_type || '').toLowerCase() === 'local')
+            || (pd.phone_number_prices || [])[0];
+          if (match) monthlyPrice = parseFloat(match.current_price ?? match.base_price);
+        }
+      } catch { /* optionnel */ }
+
+      // 3) Insertion au pool (disponible).
+      const now = new Date().toISOString();
+      const poolId = auth.generateId('pool');
+      try {
+        await env.DB.prepare(`
+          INSERT INTO number_pool (id, phone_number, label, country, twilio_sid, status, monthly_price, currency, purchased_at, purchased_by, created_at)
+          VALUES (?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?)
+        `).bind(poolId, phone, body.label || null, phone.startsWith('+33') ? 'FR' : null, twilioSid, monthlyPrice, currency, now, authResult.tenant.id, now).run();
+      } catch (dbErr) {
+        // Numéro acheté + attaché mais échec DB : on le signale pour rattrapage manuel (pas de perte d'argent silencieuse).
+        logger.error('Purchase pool insert failed (number bought, attached, NOT in pool)', { phone, twilioSid, error: dbErr.message });
+        return json({
+          success: false,
+          error: "Numéro acheté et attaché au trunk, mais échec d'enregistrement au pool. Contactez le support avec ce SID.",
+          twilio_sid: twilioSid,
+          phone_number: phone,
+        }, 500, corsHeaders);
+      }
+
+      logger.info('Reseller number purchased', { phone, twilioSid, by: authResult.user?.email, regOk, attOk });
+      return json({
+        success: true,
+        phone_number: phone,
+        twilio_sid: twilioSid,
+        monthly_price: monthlyPrice,
+        currency,
+        status: 'available',
+        note: attOk
+          ? 'Numéro acheté et attaché. Routage actif d’ici ~1 minute.'
+          : 'Numéro acheté. Finalisation de la mise en route en cours.',
+      }, 201, corsHeaders);
+    } catch (error) {
+      logger.error('Reseller purchase error', { error: error.message, stack: error.stack });
+      return json({ success: false, error: "Erreur lors de l'achat" }, 500, corsHeaders);
     }
   }
 
