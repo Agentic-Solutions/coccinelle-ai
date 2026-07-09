@@ -135,6 +135,22 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       const now = new Date().toISOString();
 
       // ========================================
+      // AUTO-GUÉRISON : un signup partiel précédent (tenant créé, étape suivante
+      // en erreur) laisse un tenant ORPHELIN. Comme tenant_id est déterministe
+      // depuis l'email et que l'email n'a PAS de user (contrôle ci-dessus), tout
+      // tenant portant cet id est un résidu à nettoyer — sinon l'INSERT ci-dessous
+      // collisionne sur la clé primaire et brique définitivement ce mail (500).
+      // ========================================
+      const orphanTenant = await env.DB.prepare('SELECT id FROM tenants WHERE id = ?').bind(tenantId).first();
+      if (orphanTenant) {
+        logger.warn('Signup: nettoyage d\'un tenant orphelin avant recréation', { tenantId });
+        for (const t of ['ai_prompt_versions', 'voixia_configs', 'product_categories', 'subscriptions', 'sessions', 'audit_logs', 'tenant_role_permissions', 'users']) {
+          try { await env.DB.prepare(`DELETE FROM ${t} WHERE tenant_id = ?`).bind(tenantId).run(); } catch (e) { logger.warn('orphan cleanup skip', { table: t, error: e.message }); }
+        }
+        try { await env.DB.prepare('DELETE FROM tenants WHERE id = ?').bind(tenantId).run(); } catch (e) { logger.warn('orphan tenant delete skip', { error: e.message }); }
+      }
+
+      // ========================================
       // NOUVEAU : Générer un slug unique
       // ========================================
       const tenantName = company_name?.trim() || name.trim();
