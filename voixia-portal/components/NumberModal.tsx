@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2, Phone, Check } from "lucide-react";
+import Link from "next/link";
+import { X, Loader2, Phone, Check, ShieldAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface PoolNumber {
@@ -27,6 +28,7 @@ export function NumberModal({
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -47,13 +49,15 @@ export function NumberModal({
     if (!selected) return;
     setAssigning(true);
     setError(null);
-    const { ok, data } = await apiFetch<{ success: boolean; error?: string }>(
+    setBlocked(false);
+    const { ok, data } = await apiFetch<{ success: boolean; error?: string; code?: string }>(
       `/api/v1/reseller/agents/${encodeURIComponent(agentId)}/number`,
       { method: "POST", body: JSON.stringify({ phone_number: selected }) }
     );
     if (ok && data.success) {
       onAssigned();
     } else {
+      if (data.code === "compliance_required") setBlocked(true);
       setError(data.error || "Attribution impossible.");
       setAssigning(false);
     }
@@ -80,11 +84,21 @@ export function NumberModal({
           Choisissez un numéro pour <span style={{ color: "var(--text)", fontWeight: 600 }}>{agentName}</span>.
         </p>
 
-        {error && (
+        {blocked ? (
+          <div className="mb-4 rounded-[10px] px-4 py-3 text-sm" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>
+            <div className="mb-1.5 flex items-center gap-2 font-medium">
+              <ShieldAlert size={16} /> Vérification d'identité requise
+            </div>
+            <p className="mb-2" style={{ color: "var(--muted-2)" }}>{error}</p>
+            <Link href="/compliance" className="font-medium underline" style={{ color: "var(--accent-text)" }}>
+              Compléter le dossier de conformité →
+            </Link>
+          </div>
+        ) : error ? (
           <div className="mb-4 rounded-[10px] px-3 py-2 text-sm" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626" }}>
             {error}
           </div>
-        )}
+        ) : null}
 
         {loading ? (
           <div className="flex justify-center py-10">

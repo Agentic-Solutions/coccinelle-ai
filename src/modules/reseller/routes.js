@@ -388,6 +388,24 @@ export async function handleResellerRoutes(request, env, path, method, corsHeade
         try { body = await request.json(); } catch { body = {}; }
         const requestedNumber = (body.phone_number || '').trim();
 
+        // GARDE-FOU CONFORMITÉ — un numéro géographique FR ne peut être attribué
+        // qu'à un client dont le Regulatory Bundle Twilio est APPROUVÉ (identité
+        // + adresse + pièce dirigeant validées). Exception : le revendeur maître
+        // (admin) reste sur son bundle démo → numéros de démonstration intacts.
+        if (!isPurchaseAdmin(authResult, env)) {
+          const comp = await env.DB.prepare(
+            'SELECT bundle_status FROM client_compliance WHERE tenant_id = ?'
+          ).bind(agentId).first();
+          if (!comp || comp.bundle_status !== 'approved') {
+            return json({
+              success: false,
+              error: 'Vérification d\'identité requise avant l\'attribution d\'un numéro. Complétez le dossier de conformité (SIRET, Kbis, pièce d\'identité) ; l\'attribution sera débloquée après validation (1 à 3 jours).',
+              code: 'compliance_required',
+              bundle_status: comp?.bundle_status || 'none',
+            }, 403, corsHeaders);
+          }
+        }
+
         // Numéro déjà attribué à cet agent ?
         const existing = await env.DB.prepare(
           "SELECT phone_number FROM omni_phone_mappings WHERE tenant_id = ? AND channel_type = 'voice' AND is_active = 1"

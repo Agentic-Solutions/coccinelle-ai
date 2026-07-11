@@ -10,6 +10,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { reconcilePendingBundles } from '../modules/compliance/routes.js';
 
 /**
  * Point d'entree du cron trigger Cloudflare Workers.
@@ -21,6 +22,12 @@ export async function handleScheduled(event, env, ctx) {
     logger.info('Cron reminder completed', { sent: result.sent, errors: result.errors });
   } catch (error) {
     logger.error('Cron reminder failed', { error: error.message, stack: error.stack });
+  }
+  // Conformité : réconcilie les bundles Twilio en revue (débloque l'attribution).
+  try {
+    await reconcilePendingBundles(env);
+  } catch (error) {
+    logger.error('Cron bundle reconcile failed', { error: error.message, stack: error.stack });
   }
 }
 

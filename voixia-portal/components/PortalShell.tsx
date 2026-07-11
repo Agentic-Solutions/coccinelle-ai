@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bot, KeyRound, LogOut, Loader2, Gauge, Phone } from "lucide-react";
+import { Bot, KeyRound, LogOut, Loader2, Gauge, Phone, ShieldCheck } from "lucide-react";
 import { Brand } from "./Brand";
 import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 const NAV = [
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/numbers", label: "Numéros", icon: Phone },
+  { href: "/compliance", label: "Conformité", icon: ShieldCheck },
   { href: "/usage", label: "Consommation", icon: Gauge },
   { href: "/settings/api-key", label: "Clé API", icon: KeyRound },
 ];

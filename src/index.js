@@ -46,6 +46,7 @@ import { handleVoixIARoutes } from './modules/voixia/routes.js';
 import { handleAIRoutes } from './modules/voixia/ai-prompts.js';
 // Module Revendeur — portail self-service VoixIA.io (agents = tenants enfants)
 import { handleResellerRoutes } from './modules/reseller/routes.js';
+import { handleComplianceRoutes } from './modules/compliance/routes.js';
 // VoixIA Orchestrateur Omnicanal (voice, sms, email, whatsapp)
 import { handleOrchestrateRoutes } from './modules/voixia/orchestrator.js';
 // Module Omnicanal — regles automatiques et sequences
@@ -64,6 +65,8 @@ import { handleTasksRoutes, handleTaskTypesRoutes, handleAssignmentRulesRoutes }
 import { handleDemoRoutes } from './modules/demo/routes.js';
 // Cron SMS Rappel J-1 pour RDV
 import { handleScheduled, sendTomorrowReminders } from './cron/reminders.js';
+// Module Post-Call — extraction structurée d'un appel entrant (garagiste) via Claude
+import { handlePostCallRoutes } from './modules/postcall/routes.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -82,6 +85,12 @@ export default {
       if (corsResponse) return corsResponse;
 
       let response;
+
+      // Extraction post-appel (garagiste) — POST /api/post-call, sans JWT
+      if (path === '/api/post-call') {
+        response = await handlePostCallRoutes(request, env, path, method);
+        if (response) return response;
+      }
 
       // Routes publiques (sans auth) - à traiter en premier
       if (path.startsWith('/api/v1/public/')) {
@@ -113,6 +122,12 @@ export default {
       // Portail revendeur VoixIA.io (agents = tenants enfants, auth JWT)
       if (path.startsWith('/api/v1/reseller') || path === '/api/v1/tenant/api-key') {
         response = await handleResellerRoutes(request, env, path, method, getCorsHeaders(request));
+        if (response) return response;
+      }
+
+      // Conformité revente de numéros (bundle Twilio par client final, auth JWT)
+      if (path.startsWith('/api/v1/compliance')) {
+        response = await handleComplianceRoutes(request, env, path, method, getCorsHeaders(request));
         if (response) return response;
       }
 
