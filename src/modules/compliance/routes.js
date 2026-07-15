@@ -35,6 +35,17 @@ function json(body, status, corsHeaders) {
   });
 }
 
+// Compte revendeur maître (démo) : bypass conformité (même logique que le
+// garde-fou d'attribution dans reseller/routes.js). Défaut = personne.
+function isPurchaseAdmin(authResult, env) {
+  const allow = (env.RESELLER_ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const email = (authResult.user?.email || '').toLowerCase();
+  return allow.length > 0 && allow.includes(email);
+}
+
 // --- Auth Twilio us1 (global) : Bundles + EndUsers + SupportingDocuments ----
 function twNumbers(env) {
   const sid = env.TWILIO_ACCOUNT_SID;
@@ -150,11 +161,15 @@ export async function handleComplianceRoutes(request, env, path, method, corsHea
       const docs = await env.DB.prepare(
         'SELECT id, doc_type, filename, status, twilio_document_sid, created_at FROM compliance_documents WHERE tenant_id = ? ORDER BY created_at DESC'
       ).bind(agentId).all();
+      // can_assign : anticipe l'UX (le garde-fou serveur reste la source de
+      // vérité). Vrai si bundle approuvé OU compte admin (bypass démo).
+      const canAssign = isPurchaseAdmin(authResult, env) || owned.comp?.bundle_status === 'approved';
       return json({
         success: true,
         agent: owned.agent,
         compliance: owned.comp || null,
         documents: docs.results || [],
+        can_assign: canAssign,
       }, 200, corsHeaders);
     }
 
