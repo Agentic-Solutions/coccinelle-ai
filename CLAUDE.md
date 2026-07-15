@@ -430,6 +430,17 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 - **B1–B5** E2E : voixia_config auto au signup, FK availability_slots, task_types globaux,
   alias /register, sector dans resolve-phone.
 - KB : préfixe vocal supprimé, TTS 300 chars, word-split OR, HT/TTC/TVA, dedup phone.
+- **Conformité — motif de rejet Twilio (15/07/26)** : `refreshBundleStatus()` ne stockait que
+  `bundle_status` → sur rejet Twilio post-soumission, `rejection_reason` restait NULL (email + portail
+  sans motif). Fix (`compliance/routes.js`) : nouvelle `fetchBundleRejectionReason()` lit le motif
+  exact en cascade (`failure_reason` du bundle → pièces jointes rejetées `SupportingDocuments RD…` /
+  `EndUser IT…` via ItemAssignments → fallback dernière Evaluation), **préfixe par la pièce** (`docLabel`)
+  + **tronque 300 car.**, écrit `bundle_status` + `rejection_reason` en une passe (NULL nettoyé sinon,
+  motif de soumission préservé si rien de récupérable). `refreshBundleStatus` retourne `{status,
+  rejection_reason}` (2 appelants adaptés) ; endpoint `bundle-status` renvoie le motif. Portail
+  (`voixia-portal` `ComplianceForm.tsx`) : bloc « Refusé + Motif : … » mis à jour au clic « Actualiser ».
+  Email `notify.js` inchangé (lisait déjà `rejection_reason`). Aucune migration (colonne existe, 0076).
+  À valider au 1er vrai rejet (format des `failure_reason` Twilio).
 
 **SQL overlap normalisé (anti-chevauchement) :**
 ```sql

@@ -340,8 +340,12 @@ export async function handleComplianceRoutes(request, env, path, method, corsHea
     }
     const tw = twNumbers(env);
     if (!tw) return json({ success: false, error: 'Service indisponible' }, 500, corsHeaders);
-    const status = await refreshBundleStatus(env, tw, agentId, owned.comp.twilio_bundle_sid);
-    return json({ success: true, bundle_status: status }, 200, corsHeaders);
+    const res = await refreshBundleStatus(env, tw, agentId, owned.comp.twilio_bundle_sid);
+    return json({
+      success: true,
+      bundle_status: res?.status || owned.comp.bundle_status || 'draft',
+      rejection_reason: res?.rejection_reason ?? null,
+    }, 200, corsHeaders);
   }
 
   // ------------------------------------------------------------------
@@ -518,19 +522,120 @@ function mapBundleStatus(twilioStatus) {
   }
 }
 
+// Libellé FR de la pièce concernée à partir de sa description Twilio (le
+// friendly_name est préfixé par le doc_type au dépôt ; sinon on lit le
+// document_type dans les Attributes). Sert à préfixer le motif de rejet.
+function docLabel(docData) {
+  const fn = String(docData?.friendly_name || '').toLowerCase();
+  if (fn.startsWith('cin')) return "Pièce d'identité";
+  if (fn.startsWith('kbis')) return 'Extrait Kbis';
+  let attrs = {};
+  try {
+    attrs = typeof docData?.attributes === 'string'
+      ? JSON.parse(docData.attributes)
+      : (docData?.attributes || {});
+  } catch { /* attributs illisibles → libellé générique */ }
+  switch (attrs.document_type) {
+    case 'Identity Document': return "Pièce d'identité";
+    case 'Business Registration': return 'Extrait Kbis';
+    case 'Address Proof': return "Justificatif d'adresse";
+    default: return 'Pièce justificative';
+  }
+}
+
+// Récupère le motif de rejet EXACT renvoyé par Twilio pour un bundle refusé.
+// Source en cascade (comme demandé : « failure_reason du bundle ou des
+// documents ») :
+//   1. failure_reason au niveau du bundle (rarement peuplé, mais prioritaire) ;
+//   2. failure_reason des pièces jointes rejetées (SupportingDocuments / EndUser)
+//      via les ItemAssignments — source réelle des motifs de revue Twilio ;
+//   3. fallback : éléments non conformes de la dernière évaluation.
+// Retourne une chaîne FR lisible, préfixée par la pièce, tronquée à 300 car.,
+// ou null si aucun motif n'est récupérable. Best-effort : ne jette jamais.
+async function fetchBundleRejectionReason(tw, bundleSid, bundleData) {
+  const parts = [];
+
+  // 1. Motif au niveau du bundle.
+  if (bundleData?.failure_reason) parts.push(String(bundleData.failure_reason).trim());
+
+  // 2. Pièces jointes rejetées.
+  try {
+    const ia = await twGet(tw, `${tw.base}/v2/RegulatoryCompliance/Bundles/${bundleSid}/ItemAssignments?PageSize=50`);
+    for (const it of (ia.data?.results || [])) {
+      const objectSid = it.object_sid || '';
+      if (objectSid.startsWith('RD')) {
+        const doc = await twGet(tw, `${tw.base}/v2/RegulatoryCompliance/SupportingDocuments/${objectSid}`);
+        if (doc.data?.failure_reason && doc.data?.status === 'twilio-rejected') {
+          parts.push(`${docLabel(doc.data)} : ${String(doc.data.failure_reason).trim()}`);
+        }
+      } else if (objectSid.startsWith('IT')) {
+        const eu = await twGet(tw, `${tw.base}/v2/RegulatoryCompliance/EndUsers/${objectSid}`);
+        if (eu.data?.failure_reason) {
+          parts.push(`Identité entreprise : ${String(eu.data.failure_reason).trim()}`);
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn('Bundle rejection reason: item read failed', { bundleSid, error: e.message });
+  }
+
+  // 3. Fallback : dernière évaluation.
+  if (parts.length === 0) {
+    try {
+      const ev = await twGet(tw, `${tw.base}/v2/RegulatoryCompliance/Bundles/${bundleSid}/Evaluations?PageSize=1`);
+      const fails = (ev.data?.results?.[0]?.results || [])
+        .filter((r) => r.passed === false)
+        .map((r) => r.failure_reason || r.friendly_name || r.requirement_friendly_name)
+        .filter(Boolean);
+      if (fails.length) parts.push(`Éléments non conformes : ${fails.join(', ')}`);
+    } catch (e) {
+      logger.warn('Bundle rejection reason: evaluation read failed', { bundleSid, error: e.message });
+    }
+  }
+
+  if (parts.length === 0) return null;
+  const reason = parts.join(' · ');
+  return reason.length > 300 ? reason.slice(0, 299).trimEnd() + '…' : reason;
+}
+
+// Rafraîchit le statut d'un bundle depuis Twilio et, sur rejet, lit + stocke le
+// motif exact. Retourne { status, rejection_reason } (ou null si l'appel échoue).
 async function refreshBundleStatus(env, tw, agentId, bundleSid) {
   const r = await twGet(tw, `${tw.base}/v2/RegulatoryCompliance/Bundles/${bundleSid}`);
   if (!r.ok) return null;
   const status = mapBundleStatus(r.data?.status);
   const now = new Date().toISOString();
-  // Statut déjà notifié ? (anti-doublon avant mise à jour)
-  const prev = await env.DB.prepare('SELECT notified_bundle_status FROM client_compliance WHERE tenant_id = ?')
+
+  // Motif de rejet : lu depuis Twilio uniquement quand le bundle est refusé.
+  let rejectionReason = null;
+  if (status === 'rejected') {
+    try {
+      rejectionReason = await fetchBundleRejectionReason(tw, bundleSid, r.data);
+    } catch (e) {
+      logger.warn('Bundle rejection reason fetch failed', { agentId, error: e.message });
+    }
+  }
+
+  // Statut déjà notifié ? (anti-doublon avant mise à jour) + motif déjà en base.
+  const prev = await env.DB.prepare('SELECT notified_bundle_status, rejection_reason FROM client_compliance WHERE tenant_id = ?')
     .bind(agentId).first();
-  await env.DB.prepare('UPDATE client_compliance SET bundle_status = ?, updated_at = ? WHERE tenant_id = ?')
-    .bind(status, now, agentId).run();
+
+  // Écrit statut + motif en une passe. Cas particulier : rejet sans motif
+  // récupérable → on préserve un éventuel motif déjà en base (posé à la
+  // soumission) plutôt que de l'écraser par NULL. Dans tous les autres cas
+  // (approved/pending-review/draft) rejection_reason est remis à NULL (nettoyage).
+  if (status === 'rejected' && rejectionReason == null) {
+    rejectionReason = prev?.rejection_reason ?? null; // reflète la vérité en base
+    await env.DB.prepare('UPDATE client_compliance SET bundle_status = ?, updated_at = ? WHERE tenant_id = ?')
+      .bind(status, now, agentId).run();
+  } else {
+    await env.DB.prepare('UPDATE client_compliance SET bundle_status = ?, rejection_reason = ?, updated_at = ? WHERE tenant_id = ?')
+      .bind(status, rejectionReason, now, agentId).run();
+  }
 
   // Notification email au revendeur sur transition vers approved/rejected,
-  // une seule fois (best-effort — ne bloque jamais la réconciliation).
+  // une seule fois (best-effort — ne bloque jamais la réconciliation). L'email
+  // relit rejection_reason en base : le motif ci-dessus y est déjà écrit.
   if ((status === 'approved' || status === 'rejected') && prev?.notified_bundle_status !== status) {
     try {
       const sent = await notifyBundleStatus(env, agentId, status);
@@ -542,7 +647,7 @@ async function refreshBundleStatus(env, tw, agentId, bundleSid) {
       logger.warn('Bundle notify dispatch failed', { agentId, status, error: e.message });
     }
   }
-  return status;
+  return { status, rejection_reason: rejectionReason };
 }
 
 // ============================================================================
@@ -562,7 +667,7 @@ export async function reconcilePendingBundles(env) {
     try {
       const before = r.bundle_status;
       const after = await refreshBundleStatus(env, tw, r.tenant_id, r.twilio_bundle_sid);
-      if (after && after !== before) updated++;
+      if (after?.status && after.status !== before) updated++;
     } catch (e) {
       logger.warn('Bundle reconcile failed', { tenant: r.tenant_id, error: e.message });
     }

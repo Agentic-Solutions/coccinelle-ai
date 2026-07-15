@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Search, Check, Upload, FileText, ShieldCheck, RefreshCw } from "lucide-react";
+import { Loader2, Search, Check, Upload, FileText, ShieldCheck, ShieldX, RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { ComplianceBadge } from "@/components/ComplianceBadge";
 
@@ -198,11 +198,11 @@ export function ComplianceForm({
 
   async function refreshStatus() {
     setRefreshing(true);
-    const { ok, data } = await apiFetch<{ success: boolean; bundle_status?: string }>(
+    const { ok, data } = await apiFetch<{ success: boolean; bundle_status?: string; rejection_reason?: string | null }>(
       `/api/v1/compliance/${encodeURIComponent(id)}/bundle-status`
     );
     if (ok && data.success && detail) {
-      setDetail({ ...detail, bundle_status: data.bundle_status });
+      setDetail({ ...detail, bundle_status: data.bundle_status, rejection_reason: data.rejection_reason ?? null });
       onChanged?.();
     }
     setRefreshing(false);
@@ -343,8 +343,15 @@ export function ComplianceForm({
           </div>
         ) : (
           <>
-            {detail?.rejection_reason && (
-              <p className="mb-2 text-xs" style={{ color: "#dc2626" }}>{detail.rejection_reason}</p>
+            {bundleStatus === "rejected" && (
+              <div className="mb-3 flex items-start gap-2 rounded-[10px] px-3 py-2.5 text-sm" style={{ background: "rgba(220,38,38,0.10)", color: "#dc2626" }}>
+                <ShieldX size={16} className="mt-0.5 shrink-0" />
+                <span>
+                  Dossier refusé.
+                  {detail?.rejection_reason ? <><br /><span className="font-medium">Motif :</span> {detail.rejection_reason}</> : null}
+                  <br />Corrigez les informations ou pièces concernées, puis relancez la vérification.
+                </span>
+              </div>
             )}
             <button onClick={submitBundle} disabled={!canSubmit || submitting} className="vx-btn-primary w-full px-4 py-2.5 text-sm">
               {submitting ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
