@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { X, Loader2, Phone, Check, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { X, Loader2, Phone, Check, ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { ComplianceForm } from "@/components/ComplianceForm";
 
 interface PoolNumber {
   phone_number: string;
@@ -12,6 +12,9 @@ interface PoolNumber {
 }
 
 // Modale d'attribution d'un numéro du pool à un agent.
+// Proactif : on lit d'abord l'état de conformité (can_assign). Si le dossier
+// est approuvé (ou compte admin) → sélecteur direct. Sinon → dossier inline
+// (mêmes 3 étapes que /compliance), sans rebond vers une autre page.
 export function NumberModal({
   agentId,
   agentName,
@@ -23,33 +26,47 @@ export function NumberModal({
   onClose: () => void;
   onAssigned: () => void;
 }) {
+  const [checking, setChecking] = useState(true);
+  const [canAssign, setCanAssign] = useState(false);
   const [numbers, setNumbers] = useState<PoolNumber[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [blocked, setBlocked] = useState(false);
+
+  const loadNumbers = useCallback(async () => {
+    const { ok, data } = await apiFetch<{ success: boolean; available: PoolNumber[]; error?: string }>(
+      "/api/v1/reseller/numbers"
+    );
+    if (ok && data.success) {
+      setNumbers(data.available || []);
+      setSelected(data.available?.[0]?.phone_number || null);
+    } else {
+      setError(data.error || "Chargement impossible.");
+    }
+    setLoading(false);
+  }, []);
+
+  // À l'ouverture (et sur changement du dossier), on détermine can_assign.
+  const checkCompliance = useCallback(async () => {
+    const { ok, data } = await apiFetch<{ success: boolean; can_assign?: boolean }>(
+      `/api/v1/compliance/${encodeURIComponent(agentId)}`
+    );
+    const assignable = !!(ok && data.success && data.can_assign);
+    setCanAssign(assignable);
+    setChecking(false);
+    if (assignable && numbers.length === 0) loadNumbers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId, loadNumbers]);
 
   useEffect(() => {
-    (async () => {
-      const { ok, data } = await apiFetch<{ success: boolean; available: PoolNumber[]; error?: string }>(
-        "/api/v1/reseller/numbers"
-      );
-      if (ok && data.success) {
-        setNumbers(data.available || []);
-        setSelected(data.available?.[0]?.phone_number || null);
-      } else {
-        setError(data.error || "Chargement impossible.");
-      }
-      setLoading(false);
-    })();
-  }, []);
+    checkCompliance();
+  }, [checkCompliance]);
 
   async function assign() {
     if (!selected) return;
     setAssigning(true);
     setError(null);
-    setBlocked(false);
     const { ok, data } = await apiFetch<{ success: boolean; error?: string; code?: string }>(
       `/api/v1/reseller/agents/${encodeURIComponent(agentId)}/number`,
       { method: "POST", body: JSON.stringify({ phone_number: selected }) }
@@ -57,7 +74,8 @@ export function NumberModal({
     if (ok && data.success) {
       onAssigned();
     } else {
-      if (data.code === "compliance_required") setBlocked(true);
+      // Filet de sécurité : si l'état a changé entre-temps, bascule vers le dossier.
+      if (data.code === "compliance_required") setCanAssign(false);
       setError(data.error || "Attribution impossible.");
       setAssigning(false);
     }
@@ -70,7 +88,7 @@ export function NumberModal({
       onClick={onClose}
     >
       <div
-        className="vx-card w-full max-w-md p-6"
+        className="vx-card max-h-[90vh] w-full max-w-md overflow-y-auto p-6"
         style={{ background: "var(--surface)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -81,77 +99,88 @@ export function NumberModal({
           </button>
         </div>
         <p className="mb-5 text-sm" style={{ color: "var(--muted-2)" }}>
-          Choisissez un numéro pour <span style={{ color: "var(--text)", fontWeight: 600 }}>{agentName}</span>.
+          {checking || canAssign ? (
+            <>Choisissez un numéro pour <span style={{ color: "var(--text)", fontWeight: 600 }}>{agentName}</span>.</>
+          ) : (
+            <>Vérification d'identité requise pour <span style={{ color: "var(--text)", fontWeight: 600 }}>{agentName}</span> avant d'attribuer un numéro.</>
+          )}
         </p>
 
-        {blocked ? (
-          <div className="mb-4 rounded-[10px] px-4 py-3 text-sm" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>
-            <div className="mb-1.5 flex items-center gap-2 font-medium">
-              <ShieldAlert size={16} /> Vérification d'identité requise
-            </div>
-            <p className="mb-2" style={{ color: "var(--muted-2)" }}>{error}</p>
-            <Link href="/compliance" className="font-medium underline" style={{ color: "var(--accent-text)" }}>
-              Compléter le dossier de conformité →
-            </Link>
-          </div>
-        ) : error ? (
-          <div className="mb-4 rounded-[10px] px-3 py-2 text-sm" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626" }}>
-            {error}
-          </div>
-        ) : null}
-
-        {loading ? (
+        {checking ? (
           <div className="flex justify-center py-10">
             <Loader2 className="animate-spin" size={24} style={{ color: "var(--accent)" }} />
           </div>
-        ) : numbers.length === 0 ? (
-          <div
-            className="rounded-[10px] px-4 py-6 text-center text-sm"
-            style={{ background: "var(--bg-alt)", color: "var(--muted-2)" }}
-          >
-            Aucun numéro disponible dans le pool.
-            <br />
-            Contactez l'administrateur.
-          </div>
+        ) : !canAssign ? (
+          // Dossier de conformité inline (3 étapes). L'attribution se débloque
+          // une fois le bundle approuvé (revue 1-3 j).
+          <ComplianceForm agentId={agentId} displayName={agentName} onChanged={checkCompliance} />
         ) : (
-          <div className="mb-5 space-y-2">
-            {numbers.map((n) => {
-              const isSel = selected === n.phone_number;
-              return (
-                <button
-                  key={n.phone_number}
-                  onClick={() => setSelected(n.phone_number)}
-                  className="flex w-full items-center justify-between rounded-[10px] px-4 py-3 text-left transition"
-                  style={{
-                    border: isSel ? "1.5px solid var(--accent)" : "1px solid var(--border-2)",
-                    background: isSel ? "var(--accent-soft)" : "var(--surface)",
-                  }}
-                >
-                  <span className="flex items-center gap-3">
-                    <Phone size={16} style={{ color: isSel ? "var(--accent-text)" : "var(--muted-3)" }} />
-                    <span className="vx-mono text-sm" style={{ color: "var(--text)" }}>{n.phone_number}</span>
-                    {n.label && <span className="text-xs" style={{ color: "var(--muted-3)" }}>{n.label}</span>}
-                  </span>
-                  {isSel && <Check size={16} style={{ color: "var(--accent-text)" }} />}
-                </button>
-              );
-            })}
-          </div>
-        )}
+          <>
+            <div className="mb-4 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium" style={{ color: "var(--ok)", background: "rgba(22,163,74,0.10)" }}>
+              <ShieldCheck size={13} />
+              Conformité validée
+            </div>
 
-        <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="vx-btn-secondary px-4 py-2.5 text-sm">
-            Annuler
-          </button>
-          <button
-            onClick={assign}
-            disabled={assigning || !selected || numbers.length === 0}
-            className="vx-btn-primary px-5 py-2.5 text-sm"
-          >
-            {assigning && <Loader2 className="animate-spin" size={16} />}
-            Attribuer
-          </button>
-        </div>
+            {error && (
+              <div className="mb-4 rounded-[10px] px-3 py-2 text-sm" style={{ background: "rgba(220,38,38,0.08)", color: "#dc2626" }}>
+                {error}
+              </div>
+            )}
+
+            {loading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="animate-spin" size={24} style={{ color: "var(--accent)" }} />
+              </div>
+            ) : numbers.length === 0 ? (
+              <div
+                className="rounded-[10px] px-4 py-6 text-center text-sm"
+                style={{ background: "var(--bg-alt)", color: "var(--muted-2)" }}
+              >
+                Aucun numéro disponible dans le pool.
+                <br />
+                Contactez l'administrateur.
+              </div>
+            ) : (
+              <div className="mb-5 space-y-2">
+                {numbers.map((n) => {
+                  const isSel = selected === n.phone_number;
+                  return (
+                    <button
+                      key={n.phone_number}
+                      onClick={() => setSelected(n.phone_number)}
+                      className="flex w-full items-center justify-between rounded-[10px] px-4 py-3 text-left transition"
+                      style={{
+                        border: isSel ? "1.5px solid var(--accent)" : "1px solid var(--border-2)",
+                        background: isSel ? "var(--accent-soft)" : "var(--surface)",
+                      }}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Phone size={16} style={{ color: isSel ? "var(--accent-text)" : "var(--muted-3)" }} />
+                        <span className="vx-mono text-sm" style={{ color: "var(--text)" }}>{n.phone_number}</span>
+                        {n.label && <span className="text-xs" style={{ color: "var(--muted-3)" }}>{n.label}</span>}
+                      </span>
+                      {isSel && <Check size={16} style={{ color: "var(--accent-text)" }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button onClick={onClose} className="vx-btn-secondary px-4 py-2.5 text-sm">
+                Annuler
+              </button>
+              <button
+                onClick={assign}
+                disabled={assigning || !selected || numbers.length === 0}
+                className="vx-btn-primary px-5 py-2.5 text-sm"
+              >
+                {assigning && <Loader2 className="animate-spin" size={16} />}
+                Attribuer
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
