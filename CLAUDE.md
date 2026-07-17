@@ -610,9 +610,10 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
    exigence produit), jamais poussée à Twilio (sinon WARN « Document type not found »).
 6. **Les valeurs du document doivent matcher EXACTEMENT celles du End-User** (`business_name`,
    `business_registration_number`) — sinon échec 22217. D'où les variables partagées dans le code.
-7. **`business_website` est de facto obligatoire** (échec 22215 s'il manque) alors que notre garde ne
-   l'exige pas : le champ est marqué « facultatif » au portail mais Twilio refusera l'Evaluation.
-   ⚠️ Trap connu pour les TPE sans site — décision produit en attente (cf. § j 17/07).
+7. **`business_website` est obligatoire** (échec 22215 s'il manque). Décision produit du 17/07 : exigé
+   par notre garde (`/:id/bundle`) + `canSubmit`, **avant** l'appel Twilio → message explicite plutôt
+   qu'un motif de rejet opaque. TPE sans site : on suggère une page pro publique (fiche Google, réseau
+   social). Le champ reste `NULL`-able en base (0081) : seule la soumission l'exige.
 8. **Address créée AVANT les documents** : son SID (`address_sids`) est requis par le groupe adresse.
 
 ## RÈGLES GLOBALES AGENTIC OS

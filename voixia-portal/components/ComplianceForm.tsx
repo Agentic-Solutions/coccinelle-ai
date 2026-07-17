@@ -246,7 +246,8 @@ export function ComplianceForm({
   const repComplete = !!(repFirstName && repLastName && /^\S+@\S+\.\S+$/.test(repEmail) && phoneOk && repJob);
   const bundleStatus = detail?.bundle_status || "draft";
   const locked = bundleStatus === "pending-review" || bundleStatus === "approved";
-  const canSubmit = inseeStatus === "verified" && repComplete && hasDoc("kbis") && hasDoc("cin") && !locked;
+  // Site web exigé par l'opérateur FR (Regulation Twilio) — cf. § o de CLAUDE.md.
+  const canSubmit = inseeStatus === "verified" && repComplete && !!website.trim() && hasDoc("kbis") && hasDoc("cin") && !locked;
 
   if (loading) {
     return (
@@ -316,8 +317,14 @@ export function ComplianceForm({
           onChange={(e) => setWebsite(e.target.value)}
           disabled={locked}
           className="vx-input mt-2"
-          placeholder="Site web (facultatif) — ex. https://exemple.fr"
+          placeholder="Site web de l'entreprise — ex. https://exemple.fr"
         />
+        {!locked && !website.trim() && (
+          <p className="mt-1 text-xs" style={{ color: "var(--muted-3)" }}>
+            Exigé par l'opérateur français pour vérifier l'activité. Pas de site vitrine ? Indiquez une
+            page professionnelle publique (fiche Google, page réseau social de l'entreprise).
+          </p>
+        )}
         {!locked && (
           <button onClick={saveIdentity} disabled={saving} className="vx-btn-secondary mt-3 px-4 py-2 text-sm">
             {saving ? <Loader2 className="animate-spin" size={15} /> : <Check size={15} />}
@@ -429,7 +436,8 @@ export function ComplianceForm({
             </button>
             {!canSubmit && (
               <p className="mt-2 text-xs" style={{ color: "var(--muted-3)" }}>
-                Requis : SIRET vérifié, représentant légal complet, extrait Kbis et pièce d'identité du dirigeant.
+                Requis : SIRET vérifié, site web de l'entreprise, représentant légal complet, extrait Kbis
+                et pièce d'identité du dirigeant.
               </p>
             )}
           </>
