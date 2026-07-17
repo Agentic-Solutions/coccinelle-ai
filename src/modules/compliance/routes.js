@@ -399,6 +399,12 @@ export async function handleComplianceRoutes(request, env, path, method, corsHea
     if (!comp.address_line || !comp.postal_code || !comp.city) {
       return json({ success: false, error: "Adresse française complète requise (voie, code postal, ville)" }, 400, corsHeaders);
     }
+    // Site web : exigé par la Regulation FR de Twilio (échec 22215 sinon). On
+    // bloque ici plutôt que de laisser l'Evaluation échouer, pour donner un
+    // message compréhensible plutôt qu'un motif de rejet opaque.
+    if (!comp.business_website) {
+      return json({ success: false, error: "Site web de l'entreprise requis : l'opérateur français l'exige pour vérifier l'activité. À défaut de site vitrine, indiquez une page professionnelle publique (fiche Google, page réseau social de l'entreprise)." }, 400, corsHeaders);
+    }
 
     const tw = twNumbers(env);
     if (!tw) return json({ success: false, error: 'Service de conformité indisponible' }, 500, corsHeaders);
