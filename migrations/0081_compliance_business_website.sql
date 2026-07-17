@@ -1,0 +1,23 @@
+-- 0081_compliance_business_website.sql
+-- Chantier Conformité — alignement sur les Regulations FR réelles de Twilio.
+-- Additif, non destructif.
+--
+-- CONTEXTE (diagnostic du 17/07/2026, log des requirements de la Regulation FR
+-- local/business) : la Regulation n'expose qu'UN SEUL End-User, de type
+-- `business`, dont les champs sont :
+--   business_name, business_registration_number, business_website,
+--   first_name, last_name, email
+-- → le représentant légal N'EST PAS un End-User séparé : ses nom/prénom/email
+--   sont portés par le End-User business (d'où l'inutilité de
+--   client_compliance.twilio_rep_enduser_sid, conservée mais non utilisée).
+-- → business_website est un champ attendu. Beaucoup de TPE n'en ont pas : il
+--   reste OPTIONNEL chez nous et n'est simplement pas transmis si vide.
+--
+-- Par ailleurs `supporting_document` compte DEUX groupes acceptant le même type
+-- `commercial_registrar_excerpt` avec des champs différents :
+--   groupe A : {business_name, business_registration_number}  (nom du représentant)
+--   groupe B : {address_sids}                                  (adresse française)
+-- → une même pièce Kbis produit DEUX SupportingDocuments Twilio. On stocke donc
+--   un SID par groupe (JSON) en plus du SID historique.
+ALTER TABLE client_compliance   ADD COLUMN business_website     TEXT;  -- optionnel (https://…)
+ALTER TABLE compliance_documents ADD COLUMN twilio_document_sids TEXT;  -- JSON {groupIndex: "RD…"}

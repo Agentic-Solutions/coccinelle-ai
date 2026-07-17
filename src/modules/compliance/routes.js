@@ -35,6 +35,45 @@ function json(body, status, corsHeaders) {
   });
 }
 
+// Fonctions acceptées par Twilio pour l'Authorized Representative (enum figé
+// côté Twilio ; le portail affiche des libellés FR mappés sur ces valeurs).
+const REP_JOB_POSITIONS = ['Director', 'GM', 'VP', 'CEO', 'CFO', 'General Counsel', 'Other'];
+
+// requirements.supporting_document est un tableau de GROUPES ; chaque groupe est
+// une exigence distincte à satisfaire, et liste les documents alternatifs qui la
+// satisfont. Ne PAS aplatir : en FR, deux groupes acceptent le même type
+// `commercial_registrar_excerpt` avec des champs différents (nom du représentant
+// d'un côté, address_sids de l'autre) → un Kbis doit produire DEUX documents.
+// Retourne : [ { index, docs: [{ type, fields[], name }] }, … ]
+function extractDocGroups(requirements) {
+  return (requirements?.supporting_document || []).map((group, index) => {
+    const docs = [];
+    for (const req of (Array.isArray(group) ? group : [group])) {
+      for (const acc of (req?.accepted_documents || [])) {
+        if (acc?.type) docs.push({ type: acc.type, fields: acc.fields || [], name: acc.name || req.name || '' });
+      }
+    }
+    return { index, docs };
+  }).filter((g) => g.docs.length > 0);
+}
+
+// Parmi les documents acceptés d'un groupe, trouve celui que l'une de nos pièces
+// peut satisfaire. Retourne { doc, docType } ou null (groupe non couvert par nos
+// pièces → on ne pousse rien, l'Evaluation le signalera).
+function pickDocForGroup(group, ourDocTypes) {
+  const rx = {
+    kbis: /business|registration|commercial|kbis|excerpt|register/i,
+    address_proof: /address|utility|tax|rental|deed|receipt/i,
+  };
+  // Le Kbis d'abord : en FR il couvre les deux groupes (registre + adresse).
+  for (const docType of ['kbis', 'address_proof']) {
+    if (!ourDocTypes.includes(docType)) continue;
+    const hit = group.docs.find((d) => rx[docType].test(d.type) || rx[docType].test(d.name));
+    if (hit) return { doc: hit, docType };
+  }
+  return null;
+}
+
 // Compte revendeur maître (démo) : bypass conformité (même logique que le
 // garde-fou d'attribution dans reseller/routes.js). Défaut = personne.
 function isPurchaseAdmin(authResult, env) {
@@ -76,6 +115,11 @@ async function twGet(tw, url) {
   const res = await fetch(url, { headers: { Authorization: tw.header } });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };
+}
+
+async function twDelete(tw, url) {
+  const res = await fetch(url, { method: 'DELETE', headers: { Authorization: tw.header } });
+  return { ok: res.ok, status: res.status };
 }
 
 // Récupère la ligne compliance d'un agent, en vérifiant que l'agent appartient
@@ -186,22 +230,50 @@ export async function handleComplianceRoutes(request, env, path, method, corsHea
     const postalCode = (b.postal_code || ins.postal_code || '').trim();
     const city = (b.city || ins.city || '').trim();
 
+    // Représentant légal (Authorized Representative) — normalisé + validé.
+    const repFirstName = String(b.rep_first_name || '').trim().slice(0, 100);
+    const repLastName = String(b.rep_last_name || '').trim().slice(0, 100);
+    const repEmail = String(b.rep_email || '').trim().slice(0, 200);
+    const repPhone = String(b.rep_phone || '').trim().replace(/[\s.\-()]/g, '').slice(0, 20);
+    const repJob = REP_JOB_POSITIONS.includes(b.rep_job_position) ? b.rep_job_position : '';
+    // Site web : optionnel (beaucoup de TPE n'en ont pas). Normalisé en URL
+    // absolue — Twilio refuse un « exemple.fr » nu.
+    let website = String(b.business_website || '').trim().slice(0, 200);
+    if (website && !/^https?:\/\//i.test(website)) website = `https://${website}`;
+    if (website && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(website)) {
+      return json({ success: false, error: 'Site web invalide (ex. https://exemple.fr)' }, 400, corsHeaders);
+    }
+    // Validations souples : on n'exige pas le représentant au POST identité (saisie
+    // progressive), mais si un champ est fourni on refuse un format manifestement faux.
+    if (repEmail && !/^\S+@\S+\.\S+$/.test(repEmail)) {
+      return json({ success: false, error: "Email du représentant invalide" }, 400, corsHeaders);
+    }
+    if (repPhone && !/^\+[1-9]\d{1,14}$/.test(repPhone)) {
+      return json({ success: false, error: "Téléphone du représentant invalide (format international, ex. +33612345678)" }, 400, corsHeaders);
+    }
+
     const existing = owned.comp;
     if (existing) {
       await env.DB.prepare(`
         UPDATE client_compliance SET
           siret = ?, company_name = ?, insee_status = ?, insee_checked_at = ?,
-          address_line = ?, postal_code = ?, city = ?, updated_at = ?
+          address_line = ?, postal_code = ?, city = ?, business_website = ?,
+          rep_first_name = ?, rep_last_name = ?, rep_email = ?, rep_phone = ?, rep_job_position = ?,
+          updated_at = ?
         WHERE tenant_id = ?
-      `).bind(siret, companyName, ins.status, now, addressLine, postalCode, city, now, agentId).run();
+      `).bind(siret, companyName, ins.status, now, addressLine, postalCode, city, website,
+              repFirstName, repLastName, repEmail, repPhone, repJob, now, agentId).run();
     } else {
       await env.DB.prepare(`
         INSERT INTO client_compliance
           (id, tenant_id, siret, company_name, insee_status, insee_checked_at,
-           address_line, postal_code, city, country, bundle_status, kyc_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'FR', 'draft', 'none', ?, ?)
+           address_line, postal_code, city, country, bundle_status, kyc_status,
+           business_website, rep_first_name, rep_last_name, rep_email, rep_phone, rep_job_position,
+           created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'FR', 'draft', 'none', ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(auth.generateId('comp'), agentId, siret, companyName, ins.status, now,
-              addressLine, postalCode, city, now, now).run();
+              addressLine, postalCode, city, website,
+              repFirstName, repLastName, repEmail, repPhone, repJob, now, now).run();
     }
 
     return json({
@@ -211,6 +283,12 @@ export async function handleComplianceRoutes(request, env, path, method, corsHea
       address_line: addressLine,
       postal_code: postalCode,
       city,
+      rep_first_name: repFirstName,
+      rep_last_name: repLastName,
+      rep_email: repEmail,
+      rep_phone: repPhone,
+      rep_job_position: repJob,
+      business_website: website,
     }, 200, corsHeaders);
   }
 
@@ -312,6 +390,15 @@ export async function handleComplianceRoutes(request, env, path, method, corsHea
     if (!hasKbis || !hasCin) {
       return json({ success: false, error: 'Documents requis : extrait Kbis et pièce d\'identité du dirigeant' }, 400, corsHeaders);
     }
+    // Représentant légal complet requis (Authorized Representative Twilio).
+    if (!comp.rep_first_name || !comp.rep_last_name || !comp.rep_email || !comp.rep_phone
+        || !REP_JOB_POSITIONS.includes(comp.rep_job_position)) {
+      return json({ success: false, error: 'Renseignez le représentant légal (prénom, nom, email, téléphone, fonction) avant de lancer la vérification' }, 400, corsHeaders);
+    }
+    // L'adresse FR est indispensable (le document Kbis y sera rattaché côté Twilio).
+    if (!comp.address_line || !comp.postal_code || !comp.city) {
+      return json({ success: false, error: "Adresse française complète requise (voie, code postal, ville)" }, 400, corsHeaders);
+    }
 
     const tw = twNumbers(env);
     if (!tw) return json({ success: false, error: 'Service de conformité indisponible' }, 500, corsHeaders);
@@ -376,23 +463,41 @@ export async function handleComplianceRoutes(request, env, path, method, corsHea
 // Lot B — Construction du bundle Twilio
 // ============================================================================
 // Flux (numbers.twilio.com/v2/RegulatoryCompliance, creds us1) :
-//   1. GET Regulations (FR/local/business) → RegulationSid
+//   1. GET Regulations (FR/local/business) → RegulationSid + requirements
 //   2. POST Bundle (RegulationSid, FriendlyName, Email)
-//   3. POST EndUser business (business_name + siret dans Attributes)
-//   4. POST Address (api.twilio.com/2010-04-01/.../Addresses.json)
-//   5. POST SupportingDocument (multipart, 1 par pièce) depuis R2
-//   6. POST ItemAssignments (EndUser + Address + chaque Document) sur le bundle
-//   7. POST Evaluation → si compliant, POST Bundle Status=pending-review
+//   3. POST Address (api.twilio.com/2010-04-01/.../Addresses.json) — AVANT les
+//      documents : son SID est requis pour rattacher le Kbis à l'adresse FR.
+//   4. POST EndUser Type=business — société ET représentant légal : la
+//      Regulation FR n'expose qu'un seul End-User, qui porte business_name,
+//      business_registration_number, business_website (optionnel) et
+//      first_name/last_name/email du dirigeant.
+//   5. Nettoyage de l'End-User 'individual' des dossiers antérieurs (obsolète)
+//   6. POST SupportingDocument (multipart) depuis R2 — UN par groupe d'exigence
+//      de la Regulation, pas un par pièce : en FR le même Kbis satisfait deux
+//      groupes (registre montrant le nom du représentant + registre montrant
+//      l'adresse française), avec des attributs différents. La CIN n'a aucun
+//      type FR : conservée en R2 (KYC interne), non poussée à Twilio.
+//   7. POST ItemAssignments (Address + EndUser + Documents) sur le bundle
+//   8. POST Evaluation → si compliant, POST Bundle Status=pending-review
+//
+// La construction est pilotée par `regulation.requirements` (End-User et groupes
+// de documents EXACTS attendus par la Regulation FR), donc résiliente aux
+// évolutions Twilio. Les attributs sont repoussés à chaque build (y compris sur
+// des objets existants) : un dossier rejeté puis corrigé ne doit jamais rejouer
+// les valeurs d'une tentative précédente. L'Evaluation (étape 8) reste le filet :
+// tout écart remonte dans rejection_reason (lot du 15/07).
 async function buildAndSubmitBundle(env, tw, agentId, comp, agent, docs) {
   const now = new Date().toISOString();
   let bundleSid = comp.twilio_bundle_sid;
   const friendly = `VoixIA ${comp.company_name || agent.name} ${comp.siret}`.slice(0, 60);
   const email = env.RESELLER_ADMIN_EMAILS?.split(',')[0]?.trim() || 'contact@voixia.io';
 
-  // 1. Regulation FR / local / business
+  // 1. Regulation FR / local / business (+ requirements pour le typage exact)
   const regRes = await twGet(tw, `${tw.base}/v2/RegulatoryCompliance/Regulations?IsoCountry=FR&NumberType=local&EndUserType=business&PageSize=1`);
-  const regulationSid = regRes.data?.results?.[0]?.sid;
+  const regulation = regRes.data?.results?.[0];
+  const regulationSid = regulation?.sid;
   if (!regulationSid) throw new Error('Réglementation FR introuvable côté opérateur');
+  const requirements = regulation.requirements || {};
 
   // 2. Bundle (créé une seule fois)
   if (!bundleSid) {
@@ -406,28 +511,7 @@ async function buildAndSubmitBundle(env, tw, agentId, comp, agent, docs) {
 
   const assignments = [];
 
-  // 3. EndUser business
-  let endUserSid = comp.twilio_enduser_sid;
-  if (!endUserSid) {
-    const euAttrs = {
-      business_name: comp.company_name || agent.name,
-      business_registration_number: comp.siret,
-      business_registration_identifier: 'SIRET',
-    };
-    const euf = new URLSearchParams({
-      FriendlyName: friendly,
-      Type: 'business',
-      Attributes: JSON.stringify(euAttrs),
-    });
-    const eur = await twPost(tw, `${tw.base}/v2/RegulatoryCompliance/EndUsers`, euf, false);
-    if (!eur.ok || !eur.data?.sid) throw new Error(eur.data?.message || "Création de l'identité impossible");
-    endUserSid = eur.data.sid;
-    await env.DB.prepare('UPDATE client_compliance SET twilio_enduser_sid = ?, updated_at = ? WHERE tenant_id = ?')
-      .bind(endUserSid, now, agentId).run();
-  }
-  assignments.push(endUserSid);
-
-  // 4. Address (objet Twilio classique sur api.twilio.com)
+  // 3. Address (créée AVANT les documents : le Kbis y sera rattaché via address_sids)
   let addressSid = comp.twilio_address_sid;
   if (!addressSid && comp.address_line) {
     const af = new URLSearchParams({
@@ -448,25 +532,120 @@ async function buildAndSubmitBundle(env, tw, agentId, comp, agent, docs) {
   }
   if (addressSid) assignments.push(addressSid);
 
-  // 5. SupportingDocuments (1 par pièce, upload depuis R2)
-  for (const d of docs) {
-    if (d.twilio_document_sid) { assignments.push(d.twilio_document_sid); continue; }
-    const obj = await env.AUDIO_BUCKET.get(d.r2_key);
-    if (!obj) continue;
-    const bytes = await obj.arrayBuffer();
-    const fd = new FormData();
-    const typeName = d.doc_type === 'cin' ? 'Identity Document' : (d.doc_type === 'kbis' ? 'Business Registration' : 'Address Proof');
-    fd.append('FriendlyName', `${d.doc_type}-${agentId}`.slice(0, 60));
-    fd.append('Type', 'supporting_document');
-    fd.append('Attributes', JSON.stringify({ document_type: typeName }));
-    fd.append('File', new Blob([bytes], { type: d.content_type || 'application/octet-stream' }), d.filename || 'document');
-    const sr = await twPost(tw, `${tw.base}/v2/RegulatoryCompliance/SupportingDocuments`, fd, true);
-    if (sr.ok && sr.data?.sid) {
-      await env.DB.prepare("UPDATE compliance_documents SET twilio_document_sid = ?, status = 'attached' WHERE id = ?")
-        .bind(sr.data.sid, d.id).run();
-      assignments.push(sr.data.sid);
+  // La Regulation FR n'expose qu'UN SEUL End-User, de type 'business' : il porte
+  // à la fois l'identité de la société ET celle du représentant légal
+  // (first_name / last_name / email). Il n'y a pas d'End-User représentant
+  // séparé — un End-User 'individual' ne serait rattaché à aucun requirement.
+  // Valeurs société centralisées : le Kbis DOIT les répéter à l'identique
+  // (l'Evaluation compare et rejette au moindre écart — code 22217).
+  const businessName = comp.company_name || agent.name;
+  const businessNumber = comp.siret;
+
+  // 4. EndUser business (société + représentant légal)
+  const euAttrs = {
+    business_name: businessName,
+    business_registration_number: businessNumber,
+    first_name: comp.rep_first_name,
+    last_name: comp.rep_last_name,
+    email: comp.rep_email,
+  };
+  // Optionnel : beaucoup de TPE n'ont pas de site. Champ omis plutôt que vide.
+  if (comp.business_website) euAttrs.business_website = comp.business_website;
+
+  // Les attributs sont (re)poussés à CHAQUE build, y compris sur un End-User
+  // existant : un dossier rejeté puis corrigé doit repartir avec les bonnes
+  // valeurs, jamais celles figées lors d'une tentative précédente.
+  let endUserSid = comp.twilio_enduser_sid;
+  const euf = new URLSearchParams({ FriendlyName: friendly, Attributes: JSON.stringify(euAttrs) });
+  if (!endUserSid) euf.set('Type', 'business'); // Type immuable : à la création seulement
+  const euUrl = endUserSid
+    ? `${tw.base}/v2/RegulatoryCompliance/EndUsers/${endUserSid}`
+    : `${tw.base}/v2/RegulatoryCompliance/EndUsers`;
+  const eur = await twPost(tw, euUrl, euf, false);
+  if (!eur.ok || !eur.data?.sid) throw new Error(eur.data?.message || "Création de l'identité société impossible");
+  if (!endUserSid) {
+    endUserSid = eur.data.sid;
+    await env.DB.prepare('UPDATE client_compliance SET twilio_enduser_sid = ?, updated_at = ? WHERE tenant_id = ?')
+      .bind(endUserSid, now, agentId).run();
+  }
+  assignments.push(endUserSid);
+
+  // 5. Nettoyage : les dossiers construits avant le 17/07/2026 portent un
+  // End-User 'individual' (représentant) qui n'est rattaché à aucun requirement
+  // FR. On le désassigne du bundle pour ne pas polluer l'Evaluation.
+  if (comp.twilio_rep_enduser_sid) {
+    try {
+      const ia = await twGet(tw, `${tw.base}/v2/RegulatoryCompliance/Bundles/${bundleSid}/ItemAssignments?PageSize=50`);
+      const orphan = (ia.data?.results || []).find((i) => i.object_sid === comp.twilio_rep_enduser_sid);
+      if (orphan?.sid) {
+        await twDelete(tw, `${tw.base}/v2/RegulatoryCompliance/Bundles/${bundleSid}/ItemAssignments/${orphan.sid}`);
+      }
+      await env.DB.prepare('UPDATE client_compliance SET twilio_rep_enduser_sid = NULL WHERE tenant_id = ?')
+        .bind(agentId).run();
+    } catch (e) {
+      logger.warn('Orphan rep end-user cleanup failed', { agentId, error: e.message });
+    }
+  }
+
+  // 6. SupportingDocuments — UN par groupe d'exigence de la Regulation (et non
+  // un par pièce uploadée) : en FR le même Kbis satisfait deux groupes avec des
+  // attributs différents. La CIN, elle, n'a aucun type dans la Regulation FR :
+  // elle reste en R2 pour notre KYC interne et n'est pas poussée à Twilio.
+  const docGroups = extractDocGroups(requirements);
+  const byType = {};
+  for (const d of docs) if (!byType[d.doc_type]) byType[d.doc_type] = d;
+  const ourDocTypes = Object.keys(byType);
+
+  for (const group of docGroups) {
+    const pick = pickDocForGroup(group, ourDocTypes);
+    if (!pick) {
+      logger.warn('Regulation document group not covered', { agentId, group: group.index, accepted: group.docs.map((d) => d.type) });
+      continue;
+    }
+    const d = byType[pick.docType];
+    const fields = pick.doc.fields;
+
+    // Attributs : strictement les champs attendus par ce groupe.
+    const attrs = {};
+    if (fields.includes('address_sids') && addressSid) attrs.address_sids = [addressSid];
+    if (fields.includes('business_name')) attrs.business_name = businessName;
+    if (fields.includes('business_registration_number')) attrs.business_registration_number = businessNumber;
+    if (fields.includes('first_name')) attrs.first_name = comp.rep_first_name;
+    if (fields.includes('last_name')) attrs.last_name = comp.rep_last_name;
+
+    // Un SID par groupe (le même fichier vit en deux SupportingDocuments).
+    let sids = {};
+    try { sids = JSON.parse(d.twilio_document_sids || '{}'); } catch { sids = {}; }
+    // Reprise des dossiers antérieurs : le SID historique est celui du 1er groupe.
+    if (!sids[group.index] && group.index === 0 && d.twilio_document_sid) sids[0] = d.twilio_document_sid;
+    const existingSid = sids[group.index];
+
+    let sr;
+    if (existingSid) {
+      // Document déjà uploadé : on ne renvoie que les attributs (mêmes raisons
+      // qu'au point 4 — un dossier corrigé ne doit pas rejouer d'anciennes valeurs).
+      const uf = new URLSearchParams({ Attributes: JSON.stringify(attrs) });
+      sr = await twPost(tw, `${tw.base}/v2/RegulatoryCompliance/SupportingDocuments/${existingSid}`, uf, false);
     } else {
-      logger.warn('SupportingDocument upload failed', { agentId, doc: d.doc_type, message: sr.data?.message });
+      const obj = await env.AUDIO_BUCKET.get(d.r2_key);
+      if (!obj) { logger.warn('Compliance document missing in R2', { agentId, doc: d.doc_type }); continue; }
+      const bytes = await obj.arrayBuffer();
+      const fd = new FormData();
+      fd.append('FriendlyName', `${d.doc_type}-${group.index}-${agentId}`.slice(0, 60));
+      fd.append('Type', pick.doc.type);
+      fd.append('Attributes', JSON.stringify(attrs));
+      fd.append('File', new Blob([bytes], { type: d.content_type || 'application/octet-stream' }), d.filename || 'document');
+      sr = await twPost(tw, `${tw.base}/v2/RegulatoryCompliance/SupportingDocuments`, fd, true);
+    }
+
+    const sid = sr.ok ? (sr.data?.sid || existingSid) : null;
+    if (sid) {
+      sids[group.index] = sid;
+      await env.DB.prepare("UPDATE compliance_documents SET twilio_document_sids = ?, twilio_document_sid = COALESCE(twilio_document_sid, ?), status = 'attached' WHERE id = ?")
+        .bind(JSON.stringify(sids), sid, d.id).run();
+      assignments.push(sid);
+    } else {
+      logger.warn('SupportingDocument upload failed', { agentId, doc: d.doc_type, type: pick.doc.type, group: group.index, message: sr.data?.message });
     }
   }
 

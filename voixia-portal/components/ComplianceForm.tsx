@@ -20,6 +20,12 @@ interface Detail {
   city?: string | null;
   bundle_status?: string | null;
   rejection_reason?: string | null;
+  rep_first_name?: string | null;
+  rep_last_name?: string | null;
+  rep_email?: string | null;
+  rep_phone?: string | null;
+  rep_job_position?: string | null;
+  business_website?: string | null;
 }
 
 const DOC_LABELS: Record<string, string> = {
@@ -27,6 +33,17 @@ const DOC_LABELS: Record<string, string> = {
   cin: "Pièce d'identité du dirigeant",
   address_proof: "Justificatif d'adresse",
 };
+
+// Fonctions du représentant légal : libellé FR → valeur enum Twilio.
+const JOB_POSITIONS: { value: string; label: string }[] = [
+  { value: "Director", label: "Gérant / Directeur" },
+  { value: "CEO", label: "Président (PDG)" },
+  { value: "CFO", label: "Directeur financier" },
+  { value: "GM", label: "Directeur général" },
+  { value: "VP", label: "Vice-président" },
+  { value: "General Counsel", label: "Directeur juridique" },
+  { value: "Other", label: "Autre" },
+];
 
 // Corps réutilisable du dossier de conformité (3 étapes : identité → pièces →
 // validation). Utilisé par la modale /compliance ET inline dans NumberModal.
@@ -54,7 +71,15 @@ export function ComplianceForm({
   const [addressLine, setAddressLine] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
+  const [website, setWebsite] = useState("");
   const [inseeStatus, setInseeStatus] = useState<string | null>(null);
+
+  // Représentant légal (Authorized Representative Twilio).
+  const [repFirstName, setRepFirstName] = useState("");
+  const [repLastName, setRepLastName] = useState("");
+  const [repEmail, setRepEmail] = useState("");
+  const [repPhone, setRepPhone] = useState("");
+  const [repJob, setRepJob] = useState("");
 
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,7 +104,13 @@ export function ComplianceForm({
         setAddressLine(c.address_line || "");
         setPostalCode(c.postal_code || "");
         setCity(c.city || "");
+        setWebsite(c.business_website || "");
         setInseeStatus(c.insee_status || null);
+        setRepFirstName(c.rep_first_name || "");
+        setRepLastName(c.rep_last_name || "");
+        setRepEmail(c.rep_email || "");
+        setRepPhone(c.rep_phone || "");
+        setRepJob(c.rep_job_position || "");
       }
     } else setError(data.error || "Chargement impossible.");
     setLoading(false);
@@ -128,7 +159,9 @@ export function ComplianceForm({
         method: "POST",
         body: JSON.stringify({
           siret, company_name: companyName, address_line: addressLine,
-          postal_code: postalCode, city,
+          postal_code: postalCode, city, business_website: website,
+          rep_first_name: repFirstName, rep_last_name: repLastName,
+          rep_email: repEmail, rep_phone: repPhone, rep_job_position: repJob,
         }),
       }
     );
@@ -209,9 +242,11 @@ export function ComplianceForm({
   }
 
   const hasDoc = (t: string) => docs.some((d) => d.doc_type === t);
+  const phoneOk = /^\+[1-9]\d{1,14}$/.test(repPhone.replace(/[\s.\-()]/g, ""));
+  const repComplete = !!(repFirstName && repLastName && /^\S+@\S+\.\S+$/.test(repEmail) && phoneOk && repJob);
   const bundleStatus = detail?.bundle_status || "draft";
   const locked = bundleStatus === "pending-review" || bundleStatus === "approved";
-  const canSubmit = inseeStatus === "verified" && hasDoc("kbis") && hasDoc("cin") && !locked;
+  const canSubmit = inseeStatus === "verified" && repComplete && hasDoc("kbis") && hasDoc("cin") && !locked;
 
   if (loading) {
     return (
@@ -276,6 +311,13 @@ export function ComplianceForm({
           <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} disabled={locked} className="vx-input" placeholder="Code postal" />
           <input value={city} onChange={(e) => setCity(e.target.value)} disabled={locked} className="vx-input" placeholder="Ville" />
         </div>
+        <input
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          disabled={locked}
+          className="vx-input mt-2"
+          placeholder="Site web (facultatif) — ex. https://exemple.fr"
+        />
         {!locked && (
           <button onClick={saveIdentity} disabled={saving} className="vx-btn-secondary mt-3 px-4 py-2 text-sm">
             {saving ? <Loader2 className="animate-spin" size={15} /> : <Check size={15} />}
@@ -288,9 +330,37 @@ export function ComplianceForm({
         </p>
       </section>
 
-      {/* Étape 2 — Pièces */}
+      {/* Étape 2 — Représentant légal */}
       <section>
-        <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text)" }}>2. Pièces justificatives</h3>
+        <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text)" }}>2. Représentant légal</h3>
+        <p className="mb-3 text-xs" style={{ color: "var(--muted-3)" }}>
+          Le dirigeant habilité (mentionné sur le Kbis). Requis par l'opérateur pour valider le dossier.
+        </p>
+        <div className="flex gap-2">
+          <input value={repFirstName} onChange={(e) => setRepFirstName(e.target.value)} disabled={locked} className="vx-input" placeholder="Prénom" />
+          <input value={repLastName} onChange={(e) => setRepLastName(e.target.value)} disabled={locked} className="vx-input" placeholder="Nom" />
+        </div>
+        <input value={repEmail} onChange={(e) => setRepEmail(e.target.value)} disabled={locked} className="vx-input mt-2" placeholder="Email" inputMode="email" />
+        <div className="mt-2 flex gap-2">
+          <input value={repPhone} onChange={(e) => setRepPhone(e.target.value)} disabled={locked} className="vx-input" placeholder="Téléphone (+33…)" inputMode="tel" />
+          <select value={repJob} onChange={(e) => setRepJob(e.target.value)} disabled={locked} className="vx-input">
+            <option value="">Fonction…</option>
+            {JOB_POSITIONS.map((j) => (
+              <option key={j.value} value={j.value}>{j.label}</option>
+            ))}
+          </select>
+        </div>
+        {!locked && (
+          <button onClick={saveIdentity} disabled={saving} className="vx-btn-secondary mt-3 px-4 py-2 text-sm">
+            {saving ? <Loader2 className="animate-spin" size={15} /> : <Check size={15} />}
+            Enregistrer le représentant
+          </button>
+        )}
+      </section>
+
+      {/* Étape 3 — Pièces */}
+      <section>
+        <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text)" }}>3. Pièces justificatives</h3>
         <p className="mb-3 text-xs" style={{ color: "var(--muted-3)" }}>PDF, JPEG ou PNG — 10 Mo max. Données hébergées en UE.</p>
         {(["kbis", "cin"] as const).map((t) => (
           <div key={t} className="mb-2 flex items-center justify-between rounded-[10px] px-3 py-2.5" style={{ border: "1px solid var(--border-2)" }}>
@@ -328,7 +398,7 @@ export function ComplianceForm({
 
       {/* Étape 3 — Soumission / statut */}
       <section>
-        <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text)" }}>3. Validation</h3>
+        <h3 className="mb-2 text-sm font-semibold" style={{ color: "var(--text)" }}>4. Validation</h3>
         {bundleStatus === "approved" ? (
           <div className="flex items-center gap-2 rounded-[10px] px-3 py-2.5 text-sm" style={{ background: "rgba(22,163,74,0.10)", color: "var(--ok)" }}>
             <ShieldCheck size={16} /> Dossier approuvé — vous pouvez attribuer un numéro à cet agent.
@@ -359,7 +429,7 @@ export function ComplianceForm({
             </button>
             {!canSubmit && (
               <p className="mt-2 text-xs" style={{ color: "var(--muted-3)" }}>
-                Requis : SIRET vérifié, extrait Kbis et pièce d'identité du dirigeant.
+                Requis : SIRET vérifié, représentant légal complet, extrait Kbis et pièce d'identité du dirigeant.
               </p>
             )}
           </>

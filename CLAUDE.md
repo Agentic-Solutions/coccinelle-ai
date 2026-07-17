@@ -441,6 +441,20 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
   (`voixia-portal` `ComplianceForm.tsx`) : bloc « Refusé + Motif : … » mis à jour au clic « Actualiser ».
   Email `notify.js` inchangé (lisait déjà `rejection_reason`). Aucune migration (colonne existe, 0076).
   À valider au 1er vrai rejet (format des `failure_reason` Twilio).
+- **Conformité — bundle FR accepté par Twilio (17/07/26)** : le bundle était rejeté (« Authorized
+  Representative », « Excerpt … showing French address »). Diagnostic par log temporaire des
+  `regulation.requirements` FR (impossible en local : le token us1 `TWILIO_AUTH_TOKEN` est un secret
+  Workers, seul le Worker déployé peut lire l'API). **3 hypothèses fausses corrigées** — voir les
+  invariants Regulation FR en § o. Fix (`compliance/routes.js`) : End-User `business` unique portant
+  société + représentant ; End-User `individual` supprimé (+ désassignation auto de l'orphelin des
+  dossiers antérieurs via ItemAssignments) ; `extractDocGroups()`/`pickDocForGroup()` remplacent
+  `extractAcceptedDocTypes()`/`matchDocType()` (l'aplatissement des groupes perdait l'exigence
+  « registre montrant le nom du représentant ») → **1 SupportingDocument par groupe** ; CIN non poussée
+  (aucun type FR) ; **attributs repoussés à chaque build** (`POST EndUsers/{sid}`, `POST
+  SupportingDocuments/{sid}`) → un dossier rejeté puis corrigé ne rejoue plus d'anciennes valeurs
+  (supprime le besoin de reset manuel des SID). Migration **0081** (`business_website`,
+  `twilio_document_sids` JSON). Portail : champ Site web. **Validé E2E 17/07** : Evaluation
+  `compliant` → bundle soumis → `pending-review`, badge « En revue ». Reste : approbation Twilio finale.
 
 **SQL overlap normalisé (anti-chevauchement) :**
 ```sql
@@ -573,6 +587,33 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
   (essai 14 j : 60 min + 20 SMS), 342 visiteurs/7j, diagnostic funnel onboarding (8/145).
 
 ---
+
+## o) INVARIANTS REGULATION TWILIO FR (conformité — appris à la dure)
+
+> Relevés le 17/07/2026 sur la Regulation FR `IsoCountry=FR&NumberType=local&EndUserType=business`
+> (log des `requirements` depuis le Worker déployé). **Ne pas ré-inférer ces règles : les vérifier.**
+> Le token us1 (`TWILIO_AUTH_TOKEN`) étant un secret Workers, l'API n'est PAS interrogeable en local
+> (401) — seul le Worker déployé peut lire les `requirements`, d'où la méthode par log temporaire.
+
+1. **Un seul End-User, de type `business`.** Il porte société ET représentant légal :
+   `business_name`, `business_registration_number`, `business_website`, `first_name`, `last_name`,
+   `email`. Il n'existe **PAS** d'End-User représentant séparé.
+2. **`Type` de l'API End-Users n'accepte QUE `individual` | `business`.** Les noms de requirement
+   (`business_information`, `authorized_representative_1`…) ne sont pas des Types valides.
+3. **N'envoyer QUE les champs listés dans `fields`.** Tout extra → « Attribute(s) not mapped to
+   object » (ex. `job_position`, `business_title`, `business_registration_identifier`).
+4. **`supporting_document` est un tableau de GROUPES d'exigences**, pas une liste plate. En FR, deux
+   groupes acceptent le **même type** `commercial_registrar_excerpt` avec des `fields` différents :
+   `{business_name, business_registration_number}` et `{address_sids}` → **le même Kbis doit être
+   poussé DEUX fois**, en deux SupportingDocuments. Aplatir les groupes = exigence perdue.
+5. **La CIN n'a aucun type de document dans la Regulation FR.** Conservée en R2 (KYC interne + notre
+   exigence produit), jamais poussée à Twilio (sinon WARN « Document type not found »).
+6. **Les valeurs du document doivent matcher EXACTEMENT celles du End-User** (`business_name`,
+   `business_registration_number`) — sinon échec 22217. D'où les variables partagées dans le code.
+7. **`business_website` est de facto obligatoire** (échec 22215 s'il manque) alors que notre garde ne
+   l'exige pas : le champ est marqué « facultatif » au portail mais Twilio refusera l'Evaluation.
+   ⚠️ Trap connu pour les TPE sans site — décision produit en attente (cf. § j 17/07).
+8. **Address créée AVANT les documents** : son SID (`address_sids`) est requis par le groupe adresse.
 
 ## RÈGLES GLOBALES AGENTIC OS
 
