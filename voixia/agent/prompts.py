@@ -1,130 +1,255 @@
 """
-VoixIA — Prompts systeme en francais pour l'assistant vocal.
+Systeme de prompts pour l'assistant vocal VoixIA.
 
-Tous les prompts sont rediges en francais, avec un ton professionnel
-et chaleureux adapte au contexte d'un CRM pour TPE/PME.
+Ce module centralise tous les prompts systeme et messages d'accueil.
+Le prompt actif est selectionne via la variable PROMPT_TYPE dans le .env.
+
+Types disponibles :
+- generaliste : assistant vocal polyvalent en francais
+- immobilier  : specialise Coccinelle.ai (CRM, visites, produits)
+- rdv         : focalise sur la prise de rendez-vous
+- sav         : service apres-vente et reclamations
 """
 
-# ==============================================================================
-# Prompt systeme principal
-# ==============================================================================
+import logging
+import re
+import unicodedata
 
-SYSTEM_PROMPT: str = """Tu es l'assistant vocal intelligent de l'entreprise, propulse par Coccinelle.ai.
-Tu parles exclusivement en francais, avec un ton professionnel, chaleureux et naturel.
+logger = logging.getLogger("voixia.prompts")
 
-## Ton role
+# =============================================================================
+# Prompts systeme — un par cas d'usage
+# =============================================================================
 
-Tu es le premier point de contact telephonique de l'entreprise. Tu accueilles les appelants,
-identifies leur besoin et les aides du mieux possible.
-
-## Regles de conversation
-
-1. **Accueil** : Commence toujours par te presenter brievement et demander comment tu peux aider.
-2. **Ecoute active** : Laisse l'interlocuteur s'exprimer. Ne l'interromps pas.
-3. **Identification du besoin** : Determine rapidement s'il s'agit de :
-   - Une prise de rendez-vous
-   - Une demande de renseignement (services, tarifs, horaires)
-   - Une reclamation ou un probleme
-   - Autre chose
-4. **Reponses concises** : Tes reponses doivent etre courtes et claires.
-   Pas plus de 2-3 phrases a la fois. C'est une conversation telephonique,
-   pas un email. Evite les listes a puces ou le formatage complexe.
-5. **Proposition proactive** : Si le besoin s'y prete, propose un rendez-vous
-   ou l'envoi d'informations par SMS.
-6. **Confirmation** : Repete toujours les informations importantes pour confirmation
-   (date, heure, numero de telephone, nom).
-
-## Utilisation des outils
-
-Tu disposes d'outils pour effectuer des actions concretes pendant l'appel.
-Utilise-les quand c'est pertinent :
-
-- **Prise de rendez-vous** : Quand le client souhaite prendre RDV, verifie d'abord
-  les disponibilites avec `check_availability`, puis confirme avec `book_appointment`.
-- **Recherche catalogue** : Quand le client pose une question sur les services ou tarifs,
-  utilise `search_products` pour trouver l'information.
-- **Base de connaissances** : Pour des questions specifiques sur l'entreprise,
-  utilise `search_knowledge` pour trouver la reponse.
-- **Envoi de SMS** : Quand le client demande une confirmation ou un recapitulatif,
-  utilise `send_sms` pour envoyer un SMS.
-- **Creation de prospect** : Si c'est un nouveau contact, utilise `create_prospect`
-  pour l'enregistrer dans le CRM.
-
-## Gestion des situations difficiles
-
-- **Client mecontent** : Reste calme et empathique. Reconnais le probleme.
-  Propose une solution ou un transfert vers un responsable humain.
-- **Question hors scope** : Indique poliment que tu ne peux pas repondre a cette
-  question et propose de transferer vers un collegue humain.
-- **Incomprehension** : Si tu ne comprends pas, demande poliment de repeter.
-  Ne fais jamais semblant d'avoir compris.
-- **Silence prolonge** : Si l'appelant ne repond pas apres quelques secondes,
-  relance doucement la conversation.
-
-## Ce que tu ne dois JAMAIS faire
-
-- Inventer des informations (tarifs, horaires, disponibilites)
-- Donner des conseils medicaux, juridiques ou financiers
-- Partager des donnees personnelles d'autres clients
-- Utiliser un langage familier, de l'argot ou du tutoiement
-- Faire des promesses que l'entreprise ne peut pas tenir
-"""
-
-# ==============================================================================
-# Message d'accueil initial
-# ==============================================================================
-
-GREETING: str = (
-    "Bonjour ! Bienvenue chez nous. "
-    "Je suis l'assistant vocal de l'entreprise. "
-    "Comment puis-je vous aider aujourd'hui ?"
+# ---------------------------------------------------------------------------
+# Generaliste — Assistant vocal polyvalent en francais
+# ---------------------------------------------------------------------------
+prompt_generaliste: str = (
+    "Tu es un assistant vocal intelligent qui repond en francais.\n\n"
+    "Regles de comportement :\n"
+    "1. Reponds toujours en francais, de maniere naturelle et chaleureuse.\n"
+    "2. Sois concis : 2 a 3 phrases maximum par reponse (lecture a voix haute).\n"
+    "3. Adapte ton ton au contexte : professionnel mais accessible.\n"
+    "4. Si tu ne connais pas la reponse, dis-le honnêtement.\n"
+    "5. Propose de l'aide proactivement quand c'est pertinent.\n"
+    "6. Utilise les outils disponibles quand c'est necessaire.\n"
 )
 
-# ==============================================================================
-# Message de transfert vers un humain
-# ==============================================================================
-
-TRANSFER_MESSAGE: str = (
-    "Je vais vous mettre en relation avec un de mes collegues "
-    "qui pourra mieux vous accompagner. "
-    "Veuillez patienter un instant, s'il vous plait."
+# ---------------------------------------------------------------------------
+# Immobilier — Specialise Coccinelle.ai (CRM, visites, produits)
+# ---------------------------------------------------------------------------
+prompt_immobilier: str = (
+    "Tu es l'assistant vocal intelligent de Coccinelle.ai, specialise dans "
+    "l'immobilier et la gestion de la relation client (CRM).\n\n"
+    "Regles de comportement :\n"
+    "1. Accueille chaleureusement l'appelant en francais.\n"
+    "2. Identifie rapidement le besoin de l'appelant.\n"
+    "3. Identifie rapidement le besoin : prise de rendez-vous, "
+    "renseignement sur un bien, estimation, ou reclamation.\n"
+    "4. Si l'appelant cherche un bien, utilise l'outil de recherche produits "
+    "pour lui proposer des biens correspondants.\n"
+    "5. Propose un creneau de rendez-vous pour une visite si pertinent.\n"
+    "6. Propose une confirmation par SMS ou e-mail.\n"
+    "7. Cree un prospect dans le CRM si c'est un nouveau contact.\n"
+    "8. Adopte un ton professionnel, naturel et concis.\n"
+    "9. Tes reponses doivent etre courtes (2 a 3 phrases) car elles "
+    "sont destinees a etre lues a voix haute.\n"
+    "10. Utilise les outils disponibles (CRM, rendez-vous, SMS, produits, "
+    "base de connaissances) quand c'est necessaire.\n"
 )
 
-# ==============================================================================
-# Message de fin d'appel
-# ==============================================================================
-
-GOODBYE_MESSAGE: str = (
-    "Merci pour votre appel. "
-    "N'hesitez pas a nous rappeler si vous avez d'autres questions. "
-    "Bonne journee !"
+# ---------------------------------------------------------------------------
+# RDV — Focalise sur la prise de rendez-vous
+# ---------------------------------------------------------------------------
+prompt_rdv: str = (
+    "Tu es un assistant vocal specialise dans la prise de rendez-vous. "
+    "Tu travailles pour l'entreprise de l'appelant.\n\n"
+    "Regles de comportement :\n"
+    "1. Ton objectif principal est de fixer un rendez-vous.\n"
+    "2. Demande le nom, le service souhaite et la date preferee.\n"
+    "3. Verifie la disponibilite avec l'outil check_availability.\n"
+    "4. Propose les creneaux disponibles les plus proches.\n"
+    "5. Confirme le rendez-vous avec l'outil book_appointment.\n"
+    "6. Propose une confirmation par SMS.\n"
+    "7. Sois direct et efficace : ne t'egare pas dans des sujets annexes.\n"
+    "8. Tes reponses doivent etre courtes (2 a 3 phrases).\n"
 )
 
-# ==============================================================================
-# Message d'erreur technique
-# ==============================================================================
-
-ERROR_MESSAGE: str = (
-    "Je suis desole, je rencontre un petit probleme technique. "
-    "Pourriez-vous repeter votre demande, s'il vous plait ?"
+# ---------------------------------------------------------------------------
+# SAV — Service apres-vente et reclamations
+# ---------------------------------------------------------------------------
+prompt_sav: str = (
+    "Tu es un assistant vocal specialise dans le service apres-vente. "
+    "Tu geres les reclamations et les demandes de suivi.\n\n"
+    "Regles de comportement :\n"
+    "1. Accueille l'appelant avec empathie et professionnalisme.\n"
+    "2. Ecoute attentivement le probleme decrit par l'appelant.\n"
+    "3. Pose des questions precises pour comprendre la situation.\n"
+    "4. Recherche dans la base de connaissances des solutions connues.\n"
+    "5. Si le probleme ne peut pas etre resolu immediatement, "
+    "propose de creer un ticket ou de rappeler le client.\n"
+    "6. Note les informations du client dans le CRM (prospect).\n"
+    "7. Reste calme et rassurant, meme face a un client mecontent.\n"
+    "8. Tes reponses doivent etre courtes (2 a 3 phrases).\n"
 )
 
-# ==============================================================================
-# Message quand l'utilisateur est silencieux trop longtemps
-# ==============================================================================
 
-SILENCE_PROMPT: str = (
-    "Etes-vous toujours en ligne ? "
-    "N'hesitez pas si vous avez une question."
-)
+# =============================================================================
+# Instructions d'accueil par defaut (sans tenant)
+#
+# Ces textes sont passes en tant qu'INSTRUCTIONS au LLM via
+# session.generate_reply(instructions=...). Ils doivent etre rediges
+# a l'imperatif pour indiquer au LLM QUOI DIRE, pas du texte a lire.
+# =============================================================================
 
-# ==============================================================================
-# Instructions pour la generation de la premiere reponse (greeting)
-# ==============================================================================
+GREETINGS: dict[str, str] = {
+    "generaliste": "Bonjour ! Comment puis-je vous aider ?",
+    "immobilier": "Bonjour ! Comment puis-je vous aider pour votre projet immobilier ?",
+    "rdv": "Bonjour ! Comment puis-je vous aider ?",
+    "sav": "Bonjour ! Comment puis-je vous aider ?",
+    "automobile": "Bonjour ! Comment puis-je vous aider ?",
+    "sante": "Bonjour ! Comment puis-je vous aider ?",
+    "restaurant": "Bonjour ! Comment puis-je vous aider ?",
+    "beaute": "Bonjour ! Comment puis-je vous aider ?",
+    "fitness": "Bonjour ! Comment puis-je vous aider ?",
+    "education": "Bonjour ! Comment puis-je vous aider ?",
+    "ecommerce": "Bonjour ! Comment puis-je vous aider ?",
+    "artisan": "Bonjour ! Comment puis-je vous aider ?",
+    "juridique": "Bonjour ! Comment puis-je vous aider ?",
+    "autre": "Bonjour ! Comment puis-je vous aider ?",
+}
 
-GREETING_INSTRUCTIONS: str = (
-    "Accueille chaleureusement l'appelant en francais. "
-    "Presente-toi brievement comme l'assistant vocal de l'entreprise "
-    "et demande comment tu peux aider. "
-    "Sois concis : 2 phrases maximum."
-)
+# Description du secteur par prompt_type, utilisee dans le greeting dynamique
+SECTOR_HINTS: dict[str, str] = {
+    "generaliste": "",
+    "immobilier": " pour son projet immobilier",
+    "rdv": " et pour quel service il souhaite prendre rendez-vous",
+    "sav": " concernant son probleme ou sa reclamation",
+    "automobile": " pour son projet automobile",
+    "sante": " pour sa demande de sante",
+    "restaurant": " pour sa reservation ou sa demande",
+}
+
+
+# =============================================================================
+# Dictionnaire des prompts — acces par cle
+# =============================================================================
+
+PROMPTS: dict[str, str] = {
+    "generaliste": prompt_generaliste,
+    "immobilier": prompt_immobilier,
+    "rdv": prompt_rdv,
+    "sav": prompt_sav,
+}
+
+
+def get_prompt(prompt_type: str) -> str:
+    """
+    Retourne le prompt systeme correspondant au type demande.
+
+    Args:
+        prompt_type: type de prompt ("generaliste", "immobilier", "rdv", "sav").
+
+    Returns:
+        Le prompt systeme sous forme de chaine de caracteres.
+
+    Raises:
+        ValueError: si le type de prompt n'est pas reconnu.
+    """
+    if prompt_type not in PROMPTS:
+        logger.warning(
+            "Type de prompt inconnu : '%s' — fallback sur 'generaliste'",
+            prompt_type,
+        )
+        return PROMPTS["generaliste"]
+    return PROMPTS[prompt_type]
+
+
+# =============================================================================
+# Formatage du nom d'entreprise pour le greeting (prefixe metier par secteur)
+# =============================================================================
+
+# Prefixe d'etablissement par secteur (13 secteurs de lib/prompts.ts).
+# "" = pas de prefixe metier -> fallback neutre « l'entreprise ... ».
+SECTOR_ESTABLISHMENT: dict[str, str] = {
+    "immobilier":  "Agence",
+    "sante":       "Cabinet médical",
+    "dentiste":    "Cabinet dentaire",
+    "restaurant":  "Restaurant",
+    "automobile":  "Garage",
+    "beaute":      "Salon",
+    "fitness":     "Salle de sport",
+    "ecommerce":   "Boutique",
+    "juridique":   "Cabinet",            # avocat/conseil ; notaire (Etude) indistinguable du secteur
+    "education":   "Centre de formation",
+    "artisan":     "",                   # neutre (« Entreprise Dupont » sonne mal)
+    "generaliste": "",
+    "autre":       "",
+}
+
+# Si le nom contient deja un mot d'etablissement, on ne prefixe pas
+# (eviter « Garage Garage Dupont »). Match par mot entier, sans accents.
+_ESTABLISHMENT_WORDS: set[str] = {
+    "garage", "cabinet", "etude", "agence", "salon", "restaurant", "resto",
+    "boutique", "entreprise", "societe", "centre", "ecole", "clinique",
+    "salle", "club", "atelier", "institut", "pharmacie", "hotel", "studio",
+    "brasserie", "maison", "sarl", "sas", "eurl", "notaire", "notarial", "office",
+}
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def format_company_for_greeting(company_name: str, sector: str | None) -> str:
+    """
+    Formate le nom pour le greeting vocal : prefixe metier selon le secteur,
+    sauf si le nom contient deja un type d'etablissement. Fallback neutre.
+
+    Ex. (automobile, "AMROUCHE")      -> "Garage AMROUCHE"
+        (automobile, "Garage Dupont") -> "Garage Dupont" (inchange)
+        (generaliste, "AMROUCHE")     -> "l'entreprise AMROUCHE"
+    """
+    name = (company_name or "").strip()
+    if not name:
+        return name
+
+    words = set(re.findall(r"[a-z]+", _strip_accents(name).lower()))
+    if words & _ESTABLISHMENT_WORDS:
+        return name  # deja un type d'etablissement -> pas de double prefixe
+
+    prefix = SECTOR_ESTABLISHMENT.get(sector or "", "")
+    if prefix:
+        return f"{prefix} {name}"
+    # Tête de phrase (« … , bonjour ! ») -> capitale, sans article.
+    return f"Entreprise {name}"
+
+
+def get_greeting(
+    prompt_type: str,
+    company_name: str | None = None,
+    assistant_name: str | None = None,
+) -> str:
+    """
+    Retourne l'instruction d'accueil dynamique.
+
+    Le greeting est une COURTE phrase d'accueil. Il ne doit PAS demander
+    a l'agent de se presenter (le system_prompt gere la personnalite).
+    Cela evite la double presentation (greeting + system_prompt).
+
+    Args:
+        prompt_type: type de prompt ("generaliste", "immobilier", etc.).
+        company_name: nom de l'entreprise resolu via le tenant (optionnel).
+        assistant_name: prenom de l'assistant extrait du system_prompt (optionnel).
+
+    Returns:
+        L'instruction d'accueil sous forme de chaine de caracteres.
+    """
+    if not company_name:
+        return GREETINGS.get(prompt_type, GREETINGS["generaliste"])
+
+    company_display = format_company_for_greeting(company_name, prompt_type)
+    return f"{company_display}, bonjour ! Comment puis-je vous aider ?"

@@ -947,9 +947,62 @@ async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * GET /api/v1/voixia/resolve-phone?phone=+33...
+ * Le numero appele est-il le numero d'essai partage (QW8) ?
+ * Compare en E.164 normalise (avec ou sans +, espaces ignores).
+ * TRIAL_PHONE_NUMBER non defini → false : la branche d'essai reste inerte.
+ */
+function isTrialNumber(phone, env) {
+  const trial = env.TRIAL_PHONE_NUMBER;
+  if (!trial) return false;
+  const norm = (v) => String(v).replace(/[\s.-]/g, '').replace(/^\+/, '');
+  return norm(phone) === norm(trial);
+}
+
+/**
+ * Resout le tenant d'un appelant en essai via son numero personnel verifie.
+ * Retourne la MEME forme que la requete de mapping nominale (+ via_caller: true),
+ * pour que la suite de handleResolvePhone (fallback template, reponse) soit commune.
+ *
+ * Seule exigence : users.phone_verified = 1 — le magic moment est conditionne a la verif
+ * SMS, et a rien d'autre. Volontairement PAS de onboarding_completed = 1 : le numero est
+ * affiche a l'ecran final, avant le clic qui marque l'onboarding termine ; l'exiger
+ * rendrait l'appel impossible au moment precis ou on l'invite a appeler.
+ * Un tenant sans prompt actif (parcours abandonne avant l'etape Agent) remonte quand meme :
+ * l'aval retombe sur le template sectoriel, avec le bon nom d'entreprise.
+ */
+async function resolveTrialTenantByCaller(env, caller) {
+  const normalizedCaller = String(caller).replace(/^\+/, '');
+  const row = await env.DB.prepare(`
+    SELECT
+      t.id AS tenant_id, NULL AS phone_number, 1 AS is_active,
+      t.name AS company_name, t.sector, t.api_key,
+      vc.llm_provider, vc.llm_model, vc.voice_id,
+      vc.active_prompt_id, vc.secteur AS vc_secteur,
+      apv.system_prompt, apv.version AS prompt_version
+    FROM users u
+    INNER JOIN tenants t ON t.id = u.tenant_id
+    LEFT JOIN voixia_configs vc ON vc.tenant_id = t.id
+    LEFT JOIN ai_prompt_versions apv ON vc.active_prompt_id = apv.id
+    WHERE (u.phone = ? OR u.phone = ?)
+      AND u.phone_verified = 1
+    ORDER BY t.created_at DESC
+    LIMIT 1
+  `).bind(caller, normalizedCaller).first();
+
+  if (!row) return null;
+  return { ...row, via_caller: true };
+}
+
+/**
+ * GET /api/v1/voixia/resolve-phone?phone=+33...&caller=+33...
  * Résout un numéro de téléphone entrant vers le tenant associé et son prompt_type.
  * Utilisé par l'agent vocal pour adapter son comportement au secteur du client.
+ *
+ * `phone`  = numéro APPELÉ (résolution nominale via omni_phone_mappings).
+ * `caller` = numéro APPELANT, optionnel. Utilisé UNIQUEMENT quand le numéro appelé est
+ *            le numéro d'essai partagé (QW8 « magic moment ») : un nouvel inscrit n'a
+ *            pas encore de numéro provisionné, on résout donc son tenant via son propre
+ *            numéro vérifié. Absent/inconnu → comportement d'origine inchangé.
  */
 async function handleResolvePhone(request, env) {
   // Authentification VoixIA (clé API)
@@ -961,6 +1014,7 @@ async function handleResolvePhone(request, env) {
   // Extraction du paramètre phone
   const url = new URL(request.url);
   const phone = url.searchParams.get('phone');
+  const caller = url.searchParams.get('caller');
 
   if (!phone) {
     return errorResponse('Le parametre phone est requis (ex: ?phone=+33939035761)', 400);
@@ -972,7 +1026,7 @@ async function handleResolvePhone(request, env) {
   try {
     // ── OPTIMISE BUG #010 : 1 seule requete JOIN au lieu de 3 sequentielles ──
     // Fusionne : omni_phone_mappings + tenants + voixia_configs + ai_prompt_versions
-    const resolved = await env.DB.prepare(`
+    let resolved = await env.DB.prepare(`
       SELECT
         m.tenant_id, m.phone_number, m.is_active,
         t.name AS company_name, t.sector, t.api_key,
@@ -989,13 +1043,23 @@ async function handleResolvePhone(request, env) {
       LIMIT 1
     `).bind(phone, normalizedPhone).first();
 
+    // ── QW8 : numero d'essai partage → resolution par l'APPELANT ──
+    // Un inscrit en essai n'a aucun numero provisionne (bundle Regulation FR requis pour
+    // acheter un local FR). Il appelle donc le numero d'essai commun : on identifie son
+    // tenant via son propre numero, verifie par SMS a l'etape 0 de l'onboarding.
+    // Departage : le tenant le PLUS RECENT pour ce numero (un testeur multi-comptes veut
+    // le compte qu'il vient de creer). Rendu identique a la branche nominale.
+    if (!resolved && caller && isTrialNumber(phone, env)) {
+      resolved = await resolveTrialTenantByCaller(env, caller);
+    }
+
     // Audit non-bloquant (fire-and-forget) — ne retarde pas la reponse
     logAudit(env, {
       tenant_id,
       user_id: 'voixia-agent',
       action: 'voixia.resolve_phone',
       resource_type: 'phone_mapping',
-      changes: { phone: phone, found: !!resolved }
+      changes: { phone: phone, found: !!resolved, via_caller: !!resolved?.via_caller }
     }).catch(() => {});
 
     // Numero non trouve — retour par defaut avec template generaliste
