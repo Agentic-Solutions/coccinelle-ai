@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { buildApiUrl, getAuthHeaders } from '@/lib/config';
+import { buildApiUrl, getAuthHeaders, TRIAL_PHONE_NUMBER } from '@/lib/config';
 import { SECTORS } from '@/lib/sectors';
 import { VOICE_OPTIONS, type VoiceOption } from '@/lib/voices';
 import { getSectorPrompt } from '@/lib/prompts';
@@ -11,6 +11,10 @@ import StepperProgress from '@/components/onboarding/StepperProgress';
 // KB handlers (crawl/upload) conserves pour usage dashboard, plus utilises dans l'onboarding simplifie
 
 const TOTAL_STEPS = 4;
+
+// Index UI → nom d'étape backend (doit rester aligné sur StepperProgress.STEP_LABELS
+// et sur le stepMap de src/modules/onboarding/routes.js)
+const STEP_NAMES = ['business', 'assistant', 'knowledge', 'complete'] as const;
 
 // ─── Sector icons (inline SVGs) ────────────────────────────────
 const SECTOR_ICONS: Record<string, React.ReactNode> = {
@@ -174,6 +178,25 @@ export default function OnboardingPage() {
       // Continue even if save fails
     }
   }, []);
+
+  // ── Instrumentation (QW3) ────────────────────────────────────
+  // L'événement 'saved' est écrit côté backend par /onboarding/step. Ici on émet ce que
+  // le backend ne peut pas voir : l'étape ATTEINTE puis abandonnée, et le « Passer ».
+  // Fire-and-forget : la mesure ne doit jamais retarder ni casser le parcours.
+  const trackEvent = useCallback((stepName: string, event: 'entered' | 'skipped', stepIndex: number) => {
+    fetch(buildApiUrl('/api/v1/onboarding/event'), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ step: stepName, event, step_index: stepIndex }),
+      keepalive: true,
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const stepName = STEP_NAMES[currentStep];
+    if (stepName) trackEvent(stepName, 'entered', currentStep);
+  }, [currentStep, loading, trackEvent]);
 
   // ── Phone verification ───────────────────────────────────────
   const handleSendPhoneCode = async () => {
@@ -362,6 +385,7 @@ export default function OnboardingPage() {
   };
 
   const handleStep2Skip = () => {
+    trackEvent('knowledge', 'skipped', 2);
     setCurrentStep(3);
   };
 
@@ -900,6 +924,44 @@ export default function OnboardingPage() {
                   </div>
                 )}
               </div>
+
+              {/* ── Magic moment : appeler son assistant maintenant ── */}
+              {phoneVerified ? (
+                <div className="max-w-md mx-auto mb-8 border-2 border-gray-900 rounded-xl p-6">
+                  <p className="text-sm font-semibold text-gray-900 mb-1">
+                    Appelez votre assistant maintenant
+                  </p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Depuis votre téléphone vérifié ({phone}), composez ce numéro : {agentName || 'votre assistant'} décroche.
+                  </p>
+                  <a
+                    href={`tel:${TRIAL_PHONE_NUMBER.replace(/\s/g, '')}`}
+                    className="block w-full px-6 py-4 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-lg transition-colors text-xl tracking-wide"
+                  >
+                    {TRIAL_PHONE_NUMBER}
+                  </a>
+                  <p className="text-xs text-gray-400 mt-3">
+                    Votre assistant vous reconnaît grâce à votre numéro vérifié.
+                  </p>
+                </div>
+              ) : (
+                <div className="max-w-md mx-auto mb-8 border border-gray-200 rounded-xl p-5 text-left">
+                  <p className="text-sm font-semibold text-gray-900 mb-1">
+                    Testez votre assistant par téléphone
+                  </p>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Vérifiez votre numéro : c&apos;est ce qui permet à votre assistant de vous
+                    reconnaître quand vous appelez.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(0)}
+                    className="text-sm font-medium text-gray-900 underline underline-offset-2 hover:text-gray-600 transition-colors"
+                  >
+                    Vérifier mon numéro
+                  </button>
+                </div>
+              )}
 
               <button
                 type="button"

@@ -1,5 +1,5 @@
 # CLAUDE.md — Coccinelle.ai
-# Dernière mise à jour : 7 juillet 2026
+# Dernière mise à jour : 18 juillet 2026
 # (remplace intégralement la version du 22 mai 2026 ; backup : CLAUDE.md.backup-20260702)
 
 > Ce fichier est la source de vérité opérationnelle du projet.
@@ -198,9 +198,16 @@ module `src/modules/email/routes.js`. Page `channels/email/page.tsx` (4 sections
 
 ### Résolution d'appel
 
+> **Numéro d'essai `+33939035761` (QW8, 17/07/26)** : un inscrit n'a pas de numéro provisionné
+> (bundle Regulation FR requis). Il appelle le numéro d'essai partagé et `resolve-phone` identifie
+> son tenant via le param `caller` (son propre numéro, `users.phone_verified=1` — seule condition).
+> Départage : tenant le plus récent (`users.phone` n'est pas unique). Var `TRIAL_PHONE_NUMBER`
+> (wrangler.toml + `lib/config.ts` — garder alignés). Ne JAMAIS recycler `+33939035760` (ligne
+> réelle Coccinelle.ai) en numéro d'essai.
+
 ```
 Appel entrant Twilio/SIP → agent Python LiveKit (51.15.130.204)
-  → tenant.py appelle GET /api/v1/voixia/resolve-phone?phone=%2B33... (le + encodé %2B)
+  → tenant.py appelle GET /api/v1/voixia/resolve-phone?phone=%2B33...&caller=%2B33... (+ encodé %2B)
   → réponse : company_name (tenants.name), sector (tenants.sector),
               system_prompt (ai_prompt_versions.is_active=1), voice_id, llm_provider, llm_model
   → main.py : greeting LITTÉRAL via session.say() (JAMAIS generate_reply())
@@ -226,15 +233,26 @@ Sélection secteur → getSectorPrompt(secteur) depuis lib/prompts.ts (JAMAIS de
   → frontend remplace {ASSISTANT_NAME} et {COMPANY_NAME} AVANT envoi (0 variable {} en DB)
 ```
 
-### Onboarding (8 étapes, API-first, 0 localStorage utilisateur)
+### Onboarding (4 étapes, API-first, 0 localStorage utilisateur)
 
 ```
-Secteur → Entreprise → Vérif tél (SMS 6 chiffres) → Connaissances → Produits → Canaux → Assistant → Résumé
+Entreprise (nom, secteur, horaires, tél + vérif SMS) → Agent (nom, voix)
+  → Connaissances (adresse, services, tarifs, Q&A — bouton « Passer ») → Terminé
   → POST /api/v1/onboarding/step   → GET /api/v1/onboarding/state (depuis DB)
   → onboarding_sessions.current_step (JAMAIS localStorage sauf auth_token + session_id)
   → tenants.onboarding_completed = 0/1
 ```
-> ⚠️ **Funnel cassé** : 8/145 complétions, 0 depuis 25 jours. Priorité #1 (voir État § b).
+> ⚠️ **4 étapes, PAS 8** — simplifié le 9/05/2026 (commit `82d83ea`). `TOTAL_STEPS = 4` dans
+> `coccinelle-saas/app/onboarding/page.tsx`. Les étapes Produits/Canaux/Secteur n'existent plus.
+> Le backend garde des `case` morts (`sector`, `verification`, `channels`) — inoffensifs.
+>
+> **Instrumentation (17/07/26, migr. 0082)** : `onboarding_events` (append-only) mesure
+> entered/saved/skipped/error par étape. ⚠️ Ne pas confondre avec `onboarding_analytics`
+> (table morte, jamais écrite, schéma figé sur l'ère 6 étapes).
+>
+> **Le 5,5 % (8/145) est un cumul historique** incluant les 25 j de panne (500 + crash JS,
+> corrigés le 3/07). Le taux réel post-fix n'est pas encore mesuré : ne pas amputer le parcours
+> sur la foi de ce chiffre — c'est à ça que sert `onboarding_events`.
 
 ### Tools VoixIA (7 + create_task = 8)
 
@@ -359,7 +377,10 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 
 ### VoixIA / agent vocal
 1. `session.say(texte_littéral)` — `generate_reply()` INTERDIT.
-2. Greeting = phrase courte littérale : « Bonjour, {COMPANY_NAME} ! ».
+2. Greeting = phrase courte littérale, nom d'abord : « {Préfixe secteur} {NOM}, bonjour ! Comment
+   puis-je vous aider ? » (ex. « Garage Dupont, bonjour ! »). Construit par
+   `format_company_for_greeting()` dans `prompts.py` (préfixe métier par secteur + garde
+   anti-double-préfixe + fallback « Entreprise {nom} »). Voir [[greeting-sector-prefix]].
 3. Le « + » des numéros → encodé `%2B` dans les URLs.
 4. UN SEUL `is_active=1` par tenant ; `system_prompt` en DB sans variable `{}`.
 5. `system_prompt` DOIT contenir : « appelle TOUJOURS search_knowledge avant de répondre
@@ -455,6 +476,26 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
   (supprime le besoin de reset manuel des SID). Migration **0081** (`business_website`,
   `twilio_document_sids` JSON). Portail : champ Site web. **Validé E2E 17/07** : Evaluation
   `compliant` → bundle soumis → `pending-review`, badge « En revue ». Reste : approbation Twilio finale.
+- **Onboarding QW2/QW3 + magic moment QW8 — E2E validé 18/07/26** : lot anti-abandon onboarding.
+  **QW2** : `case 'products'` mort retiré (`onboarding/routes.js`). **QW3** : instrumentation par
+  étape — table `onboarding_events` (migr. **0082**, append-only entered/saved/skipped/error),
+  écrite non-bloquante par `/onboarding/step` (saved/error) + beacon `/onboarding/event`
+  (entered/skipped). ⚠️ Ne pas confondre avec `onboarding_analytics` (morte). **QW8 (magic moment)** :
+  un inscrit en essai appelle le **numéro d'essai partagé `+33939035761`** et son propre agent
+  décroche, identifié par son numéro vérifié (param `caller` de resolve-phone, seule condition
+  `phone_verified=1`, départage `created_at DESC`). A nécessité de réparer 4 couches (voir mémoire
+  [[trial-number-magic-moment]]) : (1) **routage Twilio** — 3 couches trunk `VoixIA-EU` + liste
+  blanche LiveKit `ST_t32snCUn7y2f` + **`voice_region=ie1`** (couche oubliée → « pas disponible »,
+  zéro log ; endpoints régionaux `*.dublin.ie1.twilio.com` + `TWILIO_IE1_AUTH_TOKEN`, voir § o) ;
+  (2) **timeout `resolve_tenant`** — httpx 5s affamé par l'event loop pendant le setup média →
+  retry 2× + `httpx.Timeout(15, connect=5)` (`voixia/agent/tenant.py`) ; (3) **greeting coupé** au
+  décrochage — `await asyncio.sleep(0.8)` (`GREETING_MEDIA_WARMUP_S`) entre `session.start()` et
+  `session.say()` (`main.py`), média SIP sortant pas encore stabilisé ; (4) **greeting préfixe
+  secteur inversé** — `« Garage Dupont, bonjour ! Comment puis-je vous aider ? »` via
+  `format_company_for_greeting()` (`prompts.py`), garde anti-double-préfixe, fallback neutre
+  « Entreprise {nom} ». Fichiers Python de l'agent versionnés dans `voixia/agent/` (étaient périmés
+  mars). **Résolution VoixIA `resolve-phone` : branche `caller` = numéro d'essai uniquement**
+  (`isTrialNumber`), le lookup nominal reste prioritaire.
 
 **SQL overlap normalisé (anti-chevauchement) :**
 ```sql

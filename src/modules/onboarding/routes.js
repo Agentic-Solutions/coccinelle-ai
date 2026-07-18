@@ -20,6 +20,35 @@ import { logger } from '../../utils/logger.js';
 import { syncHorairesToSlots } from '../shared/horaires-slots.js';
 
 /**
+ * Journalise un événement d'onboarding (table onboarding_events, migration 0082).
+ *
+ * Ne JAMAIS laisser échouer l'onboarding à cause de la mesure : toute erreur d'écriture
+ * est avalée et seulement loguée. C'est l'inverse du piège de juin, où l'étape mesurée
+ * cassait le parcours.
+ */
+async function logOnboardingEvent(env, { tenantId, userId, step, stepIndex, event, errorMessage }) {
+  if (!tenantId || !step || !event) return;
+  try {
+    const id = `onbe_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    await env.DB.prepare(
+      `INSERT INTO onboarding_events
+         (id, tenant_id, user_id, step, step_index, event, error_message, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).bind(
+      id,
+      tenantId,
+      userId || null,
+      step,
+      Number.isInteger(stepIndex) ? stepIndex : null,
+      event,
+      errorMessage ? String(errorMessage).slice(0, 300) : null
+    ).run();
+  } catch (error) {
+    logger.warn('logOnboardingEvent echec (non bloquant)', { error: error.message, step, event });
+  }
+}
+
+/**
  * Génère un ID unique
  */
 function generateId(prefix) {
@@ -1062,7 +1091,10 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
     // POST /api/v1/onboarding/step
     // Sauvegarde une étape d'onboarding
     // ========================================
-    if (path === '/api/v1/onboarding/step' && method === 'POST') {
+    // POST /api/v1/onboarding/event — Instrumentation par étape (QW3)
+    // Étapes ATTEINTES ('entered') et volontairement passées ('skipped') : le backend ne
+    // les voit pas via /step (une étape abandonnée n'émet jamais de save), d'où ce beacon.
+    if (path === '/api/v1/onboarding/event' && method === 'POST') {
       const authResult = await requireAuth(request, env);
       if (authResult.error) {
         return new Response(JSON.stringify({ success: false, error: authResult.error }), {
@@ -1073,6 +1105,42 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
 
       try {
         const body = await request.json();
+        const { step, event, step_index } = body;
+        if (!step || !event) {
+          return new Response(JSON.stringify({ success: false, error: 'step et event requis' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        await logOnboardingEvent(env, {
+          tenantId: authResult.tenant.id,
+          userId: authResult.user.id,
+          step,
+          stepIndex: step_index,
+          event,
+        });
+      } catch (error) {
+        // Jamais bloquant : l'instrumentation ne doit pas casser l'onboarding qu'elle mesure
+        logger.warn('Onboarding event non enregistre', { error: error.message });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (path === '/api/v1/onboarding/step' && method === 'POST') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      let body = null;
+      try {
+        body = await request.json();
         const { step, data } = body;
         const tenantId = authResult.tenant.id;
         const userId = authResult.user.id;
@@ -1264,11 +1332,6 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
             break;
           }
 
-          case 'products':
-            // Cette étape utilise ses propres endpoints API
-            // On enregistre juste la progression
-            break;
-
           case 'complete': {
             // Correction 5 : onboarding terminé → Plan Pro trial 14 jours
             await env.DB.prepare(
@@ -1314,7 +1377,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
         }
 
         // Mettre à jour la progression dans onboarding_sessions
-        const stepMap = { business: 1, assistant: 2, knowledge: 3, complete: 4, sector: 1, verification: 1, products: 3, channels: 3 };
+        const stepMap = { business: 1, assistant: 2, knowledge: 3, complete: 4, sector: 1, verification: 1, channels: 3 };
         const stepNum = stepMap[step] || 0;
         try {
           await env.DB.prepare(
@@ -1322,12 +1385,23 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
           ).bind(stepNum, tenantId).run();
         } catch { /* session may not exist */ }
 
+        await logOnboardingEvent(env, { tenantId, userId, step, event: 'saved' });
+
         return new Response(JSON.stringify({ success: true, step }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       } catch (error) {
         logger.error('Onboarding step error', { error: error.message });
+        // Une étape qui echoue est precisement ce qu'on cherche a mesurer (cf. les 500 de
+        // juin qui ont gele le funnel 25 jours sans laisser de trace exploitable).
+        await logOnboardingEvent(env, {
+          tenantId: authResult.tenant?.id,
+          userId: authResult.user?.id,
+          step: body?.step,
+          event: 'error',
+          errorMessage: error.message,
+        });
         return new Response(JSON.stringify({ success: false, error: 'Erreur sauvegarde étape' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

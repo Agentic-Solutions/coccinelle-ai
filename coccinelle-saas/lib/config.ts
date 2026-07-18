@@ -2,6 +2,14 @@
  * Configuration centralisée de l'application
  */
 
+/**
+ * Numéro d'essai partagé — SOURCE UNIQUE côté frontend.
+ * Un inscrit en essai n'a pas encore de numéro provisionné : il appelle celui-ci et
+ * resolve-phone identifie son tenant via son propre numéro vérifié (param `caller`).
+ * Doit rester identique à TRIAL_PHONE_NUMBER dans wrangler.toml ([vars]).
+ */
+export const TRIAL_PHONE_NUMBER = '+33 9 39 03 57 61';
+
 // Détecter si on utilise l'API locale ou externe
 const useLocalAPI = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 
