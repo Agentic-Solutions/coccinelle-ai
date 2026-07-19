@@ -588,9 +588,10 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
       purge D1, front neutralisé). Détail en § p) point 11.
 - [x] ~~**Révoquer les secrets Meta/WhatsApp**~~ : **fait le 19/07/2026** (app secret réinitialisé
       0 h de grâce + tokens utilisateur système « Coccinelle API » révoqués). Risque GitHub public clos.
-- [ ] **WhatsApp Lot 2 — débloquer la soumission Meta** (prérequis relevés le 19/07, voir § p) point 14) :
-      icône 1024×1024, URL politique de confidentialité, **URL de suppression des données (à créer)**,
-      catégorie de l'app. Puis vérification métier SASU + App Review Tech Provider.
+- [ ] **WhatsApp Lot 2 — débloquer la soumission Meta** (voir § p) point 14). Les 2 URL légales sont
+      livrées ; restent **icône 1024×1024** et **catégorie de l'app** (console Meta, action Youssef).
+      Puis vérification métier SASU + App Review Tech Provider → **4 à 8 semaines d'attente**, c'est
+      le chemin critique du projet WhatsApp.
 - [ ] **WhatsApp Lot 2 — prérequis Meta** : vérification métier SASU + App Review Tech Provider
       (8 h de Youssef, déclenche **4–8 semaines d'attente** ⇒ à lancer dès que l'app Meta est
       accessible). Ne détourne pas l'effort du funnel — c'est de l'attente, pas du dev.
@@ -641,6 +642,13 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Sprint WhatsApp V2 — lots 0 et 1 (19/07/2026)** — Analyse : V1 n'a jamais servi (9 messages de
+  test, 0 client réel). Décision full redo via **Twilio BSP**, pricing acté (Coccinelle 49 €/mois
+  forfait, VoixIA conso 0,10/0,04 €). **Lot 0** : faille webhook fermée (aucune vérif de signature +
+  fallback tenant arbitraire), secrets Meta révoqués, purge D1. **Lot 1** : −2 330 lignes, 7 fichiers
+  supprimés dont l'OAuth V1 qui stockait `meta_access_token` en clair. **Page RGPD** de suppression
+  des données livrée (prérequis App Review). Plan complet : `WHATSAPP_V2_PLAN.md`.
 
 - **Sprint 8 (18–22/05)** — Test Maze (NPS 6,8) + 6 frictions corrigées (B14–B19) + KB syndic (11 docs).
 - **Sprint 7 (16/05)** — Audit sécurité (secrets → wrangler, historique réécrit, 180 routes) + 5 bugs E2E (B1–B5).
@@ -770,7 +778,8 @@ les deux avec des secrets vivants : `META_WHATSAPP_ACCESS_TOKEN` **et** `WHATSAP
     - **suppression** du fallback tenant : un `phone_number_id` inconnu doit être **rejeté**, jamais
       deviné (`SELECT id FROM tenants WHERE status='active' LIMIT 1` ⇒ à ne jamais réintroduire) ;
     - `META_WEBHOOK_VERIFY_TOKEN` sans valeur littérale de repli dans le code.
-13. **Lot 1 (démolition V1) — code fait le 19/07/2026.** 13 fichiers, **+17 / −2 330**. Supprimés :
+13. **Lot 1 (démolition V1) — DÉPLOYÉ le 19/07/2026** (backend + frontend, recette OK : 401 sur les
+    3 routes omnichannel restaurées, page RGPD en ligne). 13 fichiers, **+17 / −2 330**. Supprimés :
     les 2 webhooks (`meta-whatsapp.js`, `whatsapp.js`), **`controllers/whatsapp-oauth.js`** (non prévu
     au cadrage — l'Embedded Signup V1 qui écrivait `meta_access_token` **en clair**), le kill switch
     du Lot 0, et les 3 modules morts frontend (`whatsappService/Client.ts`, `whatsappTemplates.ts`).
@@ -782,11 +791,15 @@ les deux avec des secrets vivants : `META_WHATSAPP_ACCESS_TOKEN` **et** `WHATSAP
     (`email/send`, `inbox/conversations`, `conversations`, alias `agent-config`) coincées entre le bloc
     OAuth et `phone-mappings`. Rattrapé par un **diff d'inventaire des routes avant/après** — contrôle
     à refaire systématiquement sur tout lot de suppression touchant un routeur partagé.
-14. **Prérequis de soumission Meta relevés le 19/07/2026 — statut app : « Non publiée » (Development).**
-    Manquent pour soumettre : **icône 1024×1024**, **URL politique de confidentialité**
-    (→ `https://coccinelle.ai/confidentialite` existe déjà), **URL de suppression des données**
-    (⚠️ **à créer**, aucune page équivalente aujourd'hui), **catégorie de l'app**. Ces 4 éléments
-    bloquent le démarrage réel du Lot 2 (vérification métier + App Review Tech Provider).
+14. **Prérequis de soumission Meta — statut app : « Non publiée » (Development).** État au 19/07/2026 :
+    - ✅ **URL politique de confidentialité** : `https://coccinelle.ai/legal/politique-confidentialite`
+      (⚠️ **la canonique**, pas `/confidentialite` qui est une page orpheline désormais redirigée).
+    - ✅ **URL de suppression des données** : `https://coccinelle.ai/legal/suppression-donnees`
+      (créée et déployée le 19/07 — 2 parcours : responsable de traitement pour nos clients,
+      sous-traitant art. 28 + relais 72 h ouvrées pour les clients finaux).
+    - ⬜ **Icône 1024×1024** — action Youssef, console Meta.
+    - ⬜ **Catégorie de l'app** — action Youssef, console Meta.
+    Ces 2 derniers éléments bloquent le démarrage réel du Lot 2 (vérification métier + App Review).
 15. ❌ **Ne PAS planifier sur** l'affirmation tierce très relayée « nouveau cadre d'identifiants DMA
     obligatoire avant juin 2026 » : contredite par l'absence de toute mention dans l'annonce Meta et
     le changelog développeur.
