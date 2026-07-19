@@ -309,6 +309,12 @@ export default function PolitiqueConfidentialitePage() {
           <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
             <p className="mb-2">Une piece d&apos;identite pourra etre demandee pour verifier votre identite.</p>
             <p className="mb-2">Le delai de reponse est extensible a 3 mois en cas de demande complexe ou de volume important.</p>
+            <p className="mb-2">
+              Pour le droit a l&apos;effacement, la procedure detaillee figure sur la page{' '}
+              <Link href="/legal/suppression-donnees" className="text-gray-900 underline">
+                Suppression des donnees
+              </Link>.
+            </p>
             <p>
               <strong className="text-gray-900">Reclamation CNIL :</strong>{' '}
               <a href="https://www.cnil.fr" className="text-gray-900 underline" target="_blank" rel="noopener noreferrer">www.cnil.fr</a>

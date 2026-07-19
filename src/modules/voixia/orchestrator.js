@@ -9,7 +9,6 @@ import { errorResponse, successResponse } from '../../utils/response.js';
 import { requireVoixIAAuth } from './auth.js';
 import { generateId, logAudit } from '../auth/helpers.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
-import { isWhatsAppEnabled } from '../shared/whatsapp-killswitch.js';
 
 // ── Canaux supportes ──
 const CANAUX = ['voice', 'sms', 'email', 'whatsapp'];
@@ -98,13 +97,8 @@ async function handleOrchestrate(request, env) {
         result = await handleEmail(env, tenantId, from, to, content, context, prospect, metadata);
         break;
       case 'whatsapp':
-        // Gelé (Lot 0, voir WHATSAPP_V2_PLAN.md) — 4e chemin d'envoi, sinon /orchestrate
-        // resterait capable de pousser un message via Meta avec un token révoqué.
-        if (!isWhatsAppEnabled(env)) {
-          result = { success: false, error: 'Canal WhatsApp indisponible' };
-          break;
-        }
-        result = await handleWhatsApp(env, tenantId, from, content, context, prospect);
+        // Canal supprimé au Lot 1 ; la V2 (Twilio BSP) le réintroduira.
+        result = { success: false, error: 'Canal WhatsApp indisponible' };
         break;
     }
 
@@ -454,19 +448,8 @@ async function handleEmail(env, tenantId, from, to, content, context, prospect, 
   return { response, sent };
 }
 
-/**
- * Canal WHATSAPP — Generer reponse LLM + envoyer via Meta API
- */
-async function handleWhatsApp(env, tenantId, from, content, context, prospect) {
-  const response = await generateLLMResponse(env, context.system_prompt, content, 'whatsapp', context);
-
-  const sent = await sendWhatsApp(env, tenantId, from, response);
-
-  return { response, sent };
-}
-
 // ═══════════════════════════════════════════════════════════════
-// ENVOI MESSAGES (Twilio, Resend, Meta)
+// ENVOI MESSAGES (Twilio, Resend)
 // ═══════════════════════════════════════════════════════════════
 
 async function sendTwilioSMS(env, to, body) {
@@ -551,59 +534,7 @@ async function sendResendEmail(env, to, subject, htmlBody) {
   }
 }
 
-async function sendWhatsApp(env, tenantId, to, message) {
-  const accessToken = env.META_WHATSAPP_ACCESS_TOKEN;
-
-  if (!accessToken) {
-    logger.error('META_WHATSAPP_ACCESS_TOKEN manquant');
-    return false;
-  }
-
-  try {
-    // Trouver le phoneNumberId du tenant
-    const mapping = await env.DB.prepare(`
-      SELECT meta_phone_number_id FROM omni_phone_mappings
-      WHERE tenant_id = ? AND channel_type = 'whatsapp' AND is_active = 1
-      LIMIT 1
-    `).bind(tenantId).first();
-
-    const phoneNumberId = mapping?.meta_phone_number_id || env.META_PHONE_NUMBER_ID;
-    if (!phoneNumberId) {
-      logger.error('Pas de phoneNumberId WhatsApp pour ce tenant', { tenantId });
-      return false;
-    }
-
-    const response = await fetch(
-      `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to,
-          type: 'text',
-          text: { body: message }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const err = await response.text();
-      logger.error('Meta WhatsApp error', { status: response.status, error: err });
-      return false;
-    }
-
-    const data = await response.json();
-    logger.info('WhatsApp sent via orchestrator', { messageId: data.messages?.[0]?.id, to });
-    return true;
-  } catch (error) {
-    logger.error('sendWhatsApp error', { error: error.message });
-    return false;
-  }
-}
+// sendWhatsApp() supprimé au Lot 1 (3e des 5 chemins d'envoi V1).
 
 // ═══════════════════════════════════════════════════════════════
 // LOGGING INTERACTIONS
