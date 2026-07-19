@@ -2,7 +2,6 @@
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
-import { isWhatsAppEnabled, whatsappDisabledResponse } from '../shared/whatsapp-killswitch.js';
 
 export async function handleChannelsRoutes(request, env, path, method) {
   try {
@@ -15,20 +14,13 @@ export async function handleChannelsRoutes(request, env, path, method) {
     const tenantId = tenant.id;
     const userId = user.id;
 
-    // WhatsApp gelé (Lot 0, voir WHATSAPP_V2_PLAN.md) — une seule barrière plutôt que
-    // 5 regex à modifier : neutralise GET/PUT/enable/disable/test du canal whatsapp.
-    // Laisse passer /api/v1/channels (liste) : le canal doit rester visible en « Bientôt ».
-    if (/^\/api\/v1\/channels\/whatsapp(\/|$)/.test(path) && !isWhatsAppEnabled(env)) {
-      return whatsappDisabledResponse();
-    }
-
     // GET /api/v1/channels - Liste tous les canaux avec leur statut
     if (path === '/api/v1/channels' && method === 'GET') {
       return await listChannels(env, tenantId);
     }
 
     // GET /api/v1/channels/:type - Récupère la config d'un canal
-    const channelMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email|whatsapp)$/);
+    const channelMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email)$/);
     if (channelMatch && method === 'GET') {
       return await getChannelConfig(env, tenantId, channelMatch[1]);
     }
@@ -39,19 +31,19 @@ export async function handleChannelsRoutes(request, env, path, method) {
     }
 
     // POST /api/v1/channels/:type/enable - Active un canal
-    const enableMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email|whatsapp)\/enable$/);
+    const enableMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email)\/enable$/);
     if (enableMatch && method === 'POST') {
       return await enableChannel(env, tenantId, enableMatch[1]);
     }
 
     // POST /api/v1/channels/:type/disable - Désactive un canal
-    const disableMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email|whatsapp)\/disable$/);
+    const disableMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email)\/disable$/);
     if (disableMatch && method === 'POST') {
       return await disableChannel(env, tenantId, disableMatch[1]);
     }
 
     // POST /api/v1/channels/:type/test - Teste un canal
-    const testMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email|whatsapp)\/test$/);
+    const testMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email)\/test$/);
     if (testMatch && method === 'POST') {
       return await testChannel(request, env, tenantId, testMatch[1]);
     }
@@ -400,8 +392,6 @@ async function testChannel(request, env, tenantId, channelType) {
       return await testSmsChannel(env, tenantId, body);
     case 'email':
       return await testEmailChannel(env, tenantId, body);
-    case 'whatsapp':
-      return await testWhatsappChannel(env, tenantId, body);
     default:
       return errorResponse('Type de canal inconnu', 400);
   }
@@ -555,83 +545,7 @@ async function testEmailChannel(env, tenantId, body) {
   }
 }
 
-// Test canal WhatsApp via Meta Business API
-async function testWhatsappChannel(env, tenantId, body) {
-  const { toNumber } = body;
-
-  if (!toNumber) {
-    return errorResponse('Numéro WhatsApp de destination requis', 400);
-  }
-
-  // Récupérer la config WhatsApp du tenant
-  const config = await env.DB.prepare(`
-    SELECT config_encrypted FROM channel_configurations
-    WHERE tenant_id = ? AND channel_type = 'whatsapp'
-  `).bind(tenantId).first();
-
-  if (!config?.config_encrypted) {
-    return errorResponse('WhatsApp non configuré. Veuillez d\'abord configurer le canal.', 400);
-  }
-
-  let secretConfig;
-  try {
-    secretConfig = JSON.parse(config.config_encrypted);
-  } catch {
-    return errorResponse('Configuration WhatsApp invalide', 400);
-  }
-
-  const accessToken = secretConfig?.accessToken || env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = secretConfig?.phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID;
-
-  if (!accessToken || !phoneNumberId) {
-    return errorResponse('Token ou Phone Number ID manquant dans la configuration', 400);
-  }
-
-  // Formater le numéro (enlever les espaces et le +)
-  const formattedNumber = toNumber.replace(/[\s+\-()]/g, '');
-
-  try {
-    // Envoyer un message template via Meta WhatsApp Business API
-    const response = await fetch(
-      `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: formattedNumber,
-          type: 'template',
-          template: {
-            name: 'hello_world',
-            language: { code: 'en_US' }
-          }
-        })
-      }
-    );
-
-    const result = await response.json();
-
-    if (result.error) {
-      logger.error('WhatsApp API error', { error: result.error, tenantId });
-      return errorResponse(`Erreur WhatsApp: ${result.error.message}`, 400);
-    }
-
-    // Logger le message
-    await logChannelMessage(env, tenantId, 'whatsapp', formattedNumber, 'test', 'Message WhatsApp de test', result.messages?.[0]?.id);
-
-    return successResponse({
-      success: true,
-      message: 'Message WhatsApp envoyé',
-      messageId: result.messages?.[0]?.id
-    });
-  } catch (error) {
-    logger.error('WhatsApp test failed', { error: error.message, tenantId });
-    return errorResponse('Erreur lors de l\'envoi WhatsApp: ' + error.message, 500);
-  }
-}
+// testWhatsappChannel() supprimé au Lot 1 (4e des 5 chemins d'envoi V1).
 
 // Logger un message de canal
 async function logChannelMessage(env, tenantId, channelType, toAddress, templateName, content, externalId) {
@@ -799,15 +713,8 @@ function getDefaultConfig(channelType) {
           welcome: true
         }
       };
-    case 'whatsapp':
-      return {
-        connectionMethod: 'api',
-        whatsappNumber: '',
-        templates: {
-          reminder_24h: true,
-          confirmation: true
-        }
-      };
+    // case 'whatsapp' supprimé au Lot 1 (devenu inatteignable : la route
+    // /api/v1/channels/:type ne matche plus whatsapp).
     default:
       return {};
   }

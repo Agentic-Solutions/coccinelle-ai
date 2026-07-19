@@ -76,13 +76,11 @@ export interface SendResult {
 export class ChannelOrchestrator {
   private smsService?: SMSService;
   private emailService?: EmailService;
-  // private whatsappService?: WhatsAppService;
   // private telegramService?: TelegramService;
 
   constructor(services: {
     smsService?: SMSService;
     emailService?: EmailService;
-    // whatsappService?: WhatsAppService;
     // telegramService?: TelegramService;
   }) {
     this.smsService = services.smsService;

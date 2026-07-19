@@ -11,7 +11,6 @@ import { omniLogger } from './utils/logger.js';
 
 // Auth helper
 import { requireAuth } from '../auth/helpers.js';
-import { isWhatsAppEnabled, whatsappDisabledResponse } from '../shared/whatsapp-killswitch.js';
 
 // Controllers
 import {
@@ -35,7 +34,6 @@ import {
   getCloudflareInstructions
 } from './controllers/email-config.js';
 import { sendEmail } from './controllers/email-send.js';
-import { handleOAuthCallback, getSharedWABAs } from './controllers/whatsapp-oauth.js';
 import { listInboxConversations, getInboxConversation, linkConversationToProspect } from './controllers/inbox.js';
 
 // Webhooks
@@ -44,7 +42,6 @@ import { handleCallStatus } from './webhooks/call-status.js';
 import { handleFallback } from './webhooks/fallback.js';
 import { handleConversationWebSocket } from './webhooks/websocket.js';
 import { handleIncomingSMS } from './webhooks/sms.js';
-import { handleIncomingWhatsApp } from './webhooks/whatsapp.js';
 import { handleIncomingEmail } from './webhooks/email.js';
 
 /**
@@ -168,15 +165,9 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
       return await verifyEmailForwarding(request, env);
     }
 
-    // GET /api/v1/omnichannel/whatsapp/oauth/callback
-    if (path === '/api/v1/omnichannel/whatsapp/oauth/callback' && method === 'GET') {
-      return await handleOAuthCallback(request, env);
-    }
+    // Routes OAuth Embedded Signup V1 supprimées au Lot 1 (elles stockaient
+    // meta_access_token en clair). La V2 repartira d'Embedded Signup v4 via Twilio.
 
-    // GET /api/v1/omnichannel/whatsapp/wabas
-    if (path === '/api/v1/omnichannel/whatsapp/wabas' && method === 'GET') {
-      return await getSharedWABAs(request, env);
-    }
     // POST /api/v1/omnichannel/email/send
     if (path === '/api/v1/omnichannel/email/send' && method === 'POST') {
       return await sendEmail(request, env);
@@ -274,14 +265,7 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
       return await handleIncomingSMS(request, env);
     }
 
-    // POST /webhooks/omnichannel/whatsapp — gelé (Lot 0, voir WHATSAPP_V2_PLAN.md)
-    // Même faille que le webhook Meta : fallback « premier tenant actif » (whatsapp.js:55)
-    if (path === '/webhooks/omnichannel/whatsapp' && method === 'POST') {
-      if (!isWhatsAppEnabled(env)) {
-        return whatsappDisabledResponse();
-      }
-      return await handleIncomingWhatsApp(request, env);
-    }
+    // WhatsApp V1 supprimé (Lot 1) — le webhook Twilio legacy vivait ici.
 
     // POST /webhooks/omnichannel/email
     if (path === '/webhooks/omnichannel/email' && method === 'POST') {

@@ -78,9 +78,6 @@ export async function handlePublicRoutes(request, env, path, method) {
       if (path === '/api/v1/public/test/sms') {
         return await handleTestSMS(request, env);
       }
-      if (path === '/api/v1/public/test/whatsapp') {
-        return await handleTestWhatsApp(request, env);
-      }
     }
 
     return null; // Route non trouvée
@@ -463,64 +460,7 @@ async function handleTestSMS(request, env) {
   }
 }
 
-// Test WhatsApp via Meta API
-async function handleTestWhatsApp(request, env) {
-  try {
-    const body = await request.json();
-    const { toNumber } = body;
-
-    if (!toNumber) {
-      return errorResponse('toNumber required', 400);
-    }
-
-    // Formater le numéro (ajouter 33 si nécessaire, sans le +)
-    let formattedNumber = toNumber.replace(/\s/g, '').replace('+', '');
-    if (formattedNumber.startsWith('0')) {
-      formattedNumber = '33' + formattedNumber.substring(1);
-    }
-
-    const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID;
-    const accessToken = env.WHATSAPP_ACCESS_TOKEN;
-
-    // Envoyer un message template (hello_world est pré-approuvé par Meta)
-    const response = await fetch(
-      `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: formattedNumber,
-          type: 'template',
-          template: {
-            name: 'hello_world',
-            language: { code: 'en_US' }
-          }
-        })
-      }
-    );
-
-    const result = await response.json();
-
-    if (result.error) {
-      logger.error('WhatsApp error', { error: result.error });
-      return errorResponse(`Erreur WhatsApp: ${result.error.message}`, 400);
-    }
-
-    return successResponse({
-      success: true,
-      message: 'Message WhatsApp envoyé avec succès !',
-      messageId: result.messages?.[0]?.id,
-      to: formattedNumber
-    });
-  } catch (error) {
-    logger.error('WhatsApp test failed', { error: error.message });
-    return errorResponse('Erreur lors de l\'envoi: ' + error.message, 500);
-  }
-}
+// handleTestWhatsApp() supprimé au Lot 1 (5e des 5 chemins d'envoi V1).
 
 // ========================================
 // HELPERS
