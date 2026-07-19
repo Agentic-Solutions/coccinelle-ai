@@ -412,6 +412,17 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
     depuis un site », Knowledge Base → « Base de connaissances », embedding/vector/chunks → cachés.
 16. Palette dashboard : blanc/noir/gris (exceptions vert/rouge pour variations).
 
+### Frontend (export statique)
+16bis. **`redirect()` de `next/navigation` est INTERDIT dans une page.** Le site est exporté en
+   statique (`next.config.js` : `output: 'export'`, `trailingSlash: true`) : `redirect()` n'y redirige
+   pas, il génère une **page d'erreur** (`<html id="__next_error__">`). Utiliser un
+   `<meta httpEquiv="refresh" content="0; url=/cible/" />` **+ un lien visible** de repli (fonctionne
+   sans JS et sans dépendre de la priorité assets statiques vs `public/_redirects` sur Cloudflare
+   Pages). ⚠️ Piège vécu le 19/07/2026 : la redirection `settings/channels/whatsapp` du Lot 0 a été
+   **déployée cassée** faute de build de vérification. Voir [[nextjs-static-export-redirect]].
+16ter. **Toujours vérifier le HTML généré**, pas seulement le succès du build : `grep __next_error__`
+   sur `out/**/index.html`. Un build vert n'implique pas une page fonctionnelle.
+
 ### Général
 17. Vérifier le `DEFAULT` d'une colonne avant de conclure qu'un champ manquant casse quelque chose.
 18. Toujours cibler `coccinelle-db-eu` (jamais l'ancienne `coccinelle-db`).
@@ -575,8 +586,11 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
 - [ ] Simplifier le parcours onboarding (identifier l'étape tueuse, réduire la friction).
 - [x] ~~**WhatsApp Lot 0 — sécurisation**~~ : **fait et déployé le 19/07/2026** (kill switch 4 surfaces,
       purge D1, front neutralisé). Détail en § p) point 11.
-- [ ] 🔴 **Révoquer les 4 secrets Meta/WhatsApp** — seul reliquat du Lot 0, **bloqué par la panne Meta
-      du 19/07**. À faire dès retour de la console. Voir § p) point 11 pour la liste et le risque résiduel.
+- [x] ~~**Révoquer les secrets Meta/WhatsApp**~~ : **fait le 19/07/2026** (app secret réinitialisé
+      0 h de grâce + tokens utilisateur système « Coccinelle API » révoqués). Risque GitHub public clos.
+- [ ] **WhatsApp Lot 2 — débloquer la soumission Meta** (prérequis relevés le 19/07, voir § p) point 14) :
+      icône 1024×1024, URL politique de confidentialité, **URL de suppression des données (à créer)**,
+      catégorie de l'app. Puis vérification métier SASU + App Review Tech Provider.
 - [ ] **WhatsApp Lot 2 — prérequis Meta** : vérification métier SASU + App Review Tech Provider
       (8 h de Youssef, déclenche **4–8 semaines d'attente** ⇒ à lancer dès que l'app Meta est
       accessible). Ne détourne pas l'effort du funnel — c'est de l'attente, pas du dev.
@@ -746,20 +760,34 @@ les deux avec des secrets vivants : `META_WHATSAPP_ACCESS_TOKEN` **et** `WHATSAP
     dans le tunnel P0).
     ⚠️ **Ne PAS mettre `OMNICHANNEL_ENABLED=false` pour couper WhatsApp** : ce flag gouverne aussi
     d'autres webhooks et casserait le magic moment QW8.
-    🔴 **RESTE À FAIRE — révocation des secrets Meta, bloquée par la panne Meta du 19/07.** Régénérer
-    `META_WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `META_APP_SECRET` ; **supprimer**
-    `META_WEBHOOK_VERIFY_TOKEN` (littéral de repli dans le code). Dès retour de la console Meta —
-    en profiter pour relever le statut Development/Live de l'app (prérequis du Lot 2).
-    **Risque résiduel :** ces tokens exposés sur GitHub public restent utilisables **directement**
-    contre l'API Graph. Le kill switch protège nos routes, **pas le compte Meta** — risque distinct,
-    non couvert par le déploiement.
+    ✅ **Révocation Meta FAITE le 19/07/2026** : app secret réinitialisé (**0 h de grâce**), tokens de
+    l'utilisateur système « Coccinelle API » révoqués. **Le risque lié à l'exposition GitHub publique
+    est clos.** Aucun impact fonctionnel : `META_APP_SECRET` n'était lu que par `whatsapp-oauth.js`
+    (supprimé au Lot 1) et les surfaces WhatsApp déployées étaient déjà en 404.
 12. **Critères d'acceptation NON NÉGOCIABLES du Lot 5** (la vérification de signature n'a
     volontairement PAS été rétro-ajoutée à V1, code condamné par le Lot 1) :
     - vérification **HMAC-SHA256 `X-Hub-Signature-256`** sur le **corps brut**, avant tout `JSON.parse` ;
     - **suppression** du fallback tenant : un `phone_number_id` inconnu doit être **rejeté**, jamais
       deviné (`SELECT id FROM tenants WHERE status='active' LIMIT 1` ⇒ à ne jamais réintroduire) ;
     - `META_WEBHOOK_VERIFY_TOKEN` sans valeur littérale de repli dans le code.
-13. ❌ **Ne PAS planifier sur** l'affirmation tierce très relayée « nouveau cadre d'identifiants DMA
+13. **Lot 1 (démolition V1) — code fait le 19/07/2026.** 13 fichiers, **+17 / −2 330**. Supprimés :
+    les 2 webhooks (`meta-whatsapp.js`, `whatsapp.js`), **`controllers/whatsapp-oauth.js`** (non prévu
+    au cadrage — l'Embedded Signup V1 qui écrivait `meta_access_token` **en clair**), le kill switch
+    du Lot 0, et les 3 modules morts frontend (`whatsappService/Client.ts`, `whatsappTemplates.ts`).
+    Excisions dans `index.js`, `omnichannel/index.js`, `channels/routes.js`, `voixia/orchestrator.js`,
+    `public/routes.js`. **Conservés volontairement** : `onWhatsAppReceived` (rebranché au Lot 7),
+    `trackWhatsApp` (Lot 8), matrice `channel-switcher`, tables D1, et `whatsapp` dans `listChannels`
+    (sinon l'entrée « Bientôt disponible » disparaît du dashboard).
+    ⚠️ **Leçon de méthode :** supprimer un bloc par bornes textuelles a emporté 4 routes NON-WhatsApp
+    (`email/send`, `inbox/conversations`, `conversations`, alias `agent-config`) coincées entre le bloc
+    OAuth et `phone-mappings`. Rattrapé par un **diff d'inventaire des routes avant/après** — contrôle
+    à refaire systématiquement sur tout lot de suppression touchant un routeur partagé.
+14. **Prérequis de soumission Meta relevés le 19/07/2026 — statut app : « Non publiée » (Development).**
+    Manquent pour soumettre : **icône 1024×1024**, **URL politique de confidentialité**
+    (→ `https://coccinelle.ai/confidentialite` existe déjà), **URL de suppression des données**
+    (⚠️ **à créer**, aucune page équivalente aujourd'hui), **catégorie de l'app**. Ces 4 éléments
+    bloquent le démarrage réel du Lot 2 (vérification métier + App Review Tech Provider).
+15. ❌ **Ne PAS planifier sur** l'affirmation tierce très relayée « nouveau cadre d'identifiants DMA
     obligatoire avant juin 2026 » : contredite par l'absence de toute mention dans l'annonce Meta et
     le changelog développeur.
 
