@@ -2,6 +2,7 @@
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
+import { isWhatsAppEnabled, whatsappDisabledResponse } from '../shared/whatsapp-killswitch.js';
 
 export async function handleChannelsRoutes(request, env, path, method) {
   try {
@@ -13,6 +14,13 @@ export async function handleChannelsRoutes(request, env, path, method) {
     const { user, tenant } = authResult;
     const tenantId = tenant.id;
     const userId = user.id;
+
+    // WhatsApp gelé (Lot 0, voir WHATSAPP_V2_PLAN.md) — une seule barrière plutôt que
+    // 5 regex à modifier : neutralise GET/PUT/enable/disable/test du canal whatsapp.
+    // Laisse passer /api/v1/channels (liste) : le canal doit rester visible en « Bientôt ».
+    if (/^\/api\/v1\/channels\/whatsapp(\/|$)/.test(path) && !isWhatsAppEnabled(env)) {
+      return whatsappDisabledResponse();
+    }
 
     // GET /api/v1/channels - Liste tous les canaux avec leur statut
     if (path === '/api/v1/channels' && method === 'GET') {

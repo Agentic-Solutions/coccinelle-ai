@@ -160,9 +160,12 @@ export default function ChannelsPage() {
       description: 'Messages WhatsApp Business automatisés',
       icon: MessageSquare,
       color: 'emerald',
-      path: '/dashboard/settings/channels/whatsapp',
+      // Gelé (Lot 0) : pointe vers la page « Bientôt disponible », pas vers l'ancienne
+      // page de configuration qui annonçait le canal comme opérationnel.
+      path: '/dashboard/channels/whatsapp',
       status: channels.whatsapp,
-      managedBy: 'client'
+      managedBy: 'client',
+      comingSoon: true
     }
   ];
 

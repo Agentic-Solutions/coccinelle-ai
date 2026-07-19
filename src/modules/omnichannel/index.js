@@ -11,6 +11,7 @@ import { omniLogger } from './utils/logger.js';
 
 // Auth helper
 import { requireAuth } from '../auth/helpers.js';
+import { isWhatsAppEnabled, whatsappDisabledResponse } from '../shared/whatsapp-killswitch.js';
 
 // Controllers
 import {
@@ -273,8 +274,12 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
       return await handleIncomingSMS(request, env);
     }
 
-    // POST /webhooks/omnichannel/whatsapp
+    // POST /webhooks/omnichannel/whatsapp — gelé (Lot 0, voir WHATSAPP_V2_PLAN.md)
+    // Même faille que le webhook Meta : fallback « premier tenant actif » (whatsapp.js:55)
     if (path === '/webhooks/omnichannel/whatsapp' && method === 'POST') {
+      if (!isWhatsAppEnabled(env)) {
+        return whatsappDisabledResponse();
+      }
       return await handleIncomingWhatsApp(request, env);
     }
 
