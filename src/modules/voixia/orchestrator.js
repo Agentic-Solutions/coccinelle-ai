@@ -9,6 +9,7 @@ import { errorResponse, successResponse } from '../../utils/response.js';
 import { requireVoixIAAuth } from './auth.js';
 import { generateId, logAudit } from '../auth/helpers.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
+import { isWhatsAppEnabled } from '../shared/whatsapp-killswitch.js';
 
 // ── Canaux supportes ──
 const CANAUX = ['voice', 'sms', 'email', 'whatsapp'];
@@ -97,6 +98,12 @@ async function handleOrchestrate(request, env) {
         result = await handleEmail(env, tenantId, from, to, content, context, prospect, metadata);
         break;
       case 'whatsapp':
+        // Gelé (Lot 0, voir WHATSAPP_V2_PLAN.md) — 4e chemin d'envoi, sinon /orchestrate
+        // resterait capable de pousser un message via Meta avec un token révoqué.
+        if (!isWhatsAppEnabled(env)) {
+          result = { success: false, error: 'Canal WhatsApp indisponible' };
+          break;
+        }
         result = await handleWhatsApp(env, tenantId, from, content, context, prospect);
         break;
     }

@@ -19,6 +19,7 @@ import { handleIntegrationsRoutes } from './modules/integrations/routes.js';
 // Module Omnichannel (indépendant, activable via OMNICHANNEL_ENABLED)
 import { handleOmnichannelRoutes } from './modules/omnichannel/index.js';
 import { handleMetaWebhookVerification, handleMetaWhatsAppWebhook } from "./modules/omnichannel/webhooks/meta-whatsapp.js";
+import { isWhatsAppEnabled, whatsappDisabledResponse } from "./modules/shared/whatsapp-killswitch.js";
 // [B4] RETELL = dead code (remplace par VoixIA) — import desactive 26/04/2026
 // import { handleRetellRoutes } from './modules/retell/routes.js';
 import { handlePermissionsRoutes } from './modules/permissions/routes.js';
@@ -389,8 +390,11 @@ export default {
       //   response = await handleRetellRoutes(request, env, path, method);
       //   if (response) return response;
       // }
-      // META WHATSAPP WEBHOOK
+      // META WHATSAPP WEBHOOK — gelé (Lot 0, voir WHATSAPP_V2_PLAN.md)
       if (path.startsWith("/webhooks/meta/whatsapp")) {
+        if (!isWhatsAppEnabled(env)) {
+          return whatsappDisabledResponse();
+        }
         if (method === "GET") {
           return await handleMetaWebhookVerification(request, env);
         }

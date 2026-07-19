@@ -52,8 +52,11 @@ bundle), nettoyer le code, améliorer l'UX (mobile-first : les clients sont au t
   simplifier le parcours. (Voir TODO section l.)
 
 **Points d'attention connus (non bloquants) :**
-- WhatsApp + OAuth email Outlook/Yahoo non fonctionnels à 100 %.
+- **WhatsApp V1 n'a jamais servi en production** (9 messages, tous smoke tests du 28/01/2026, 0 client
+  réel). Décision 19/07/2026 : **full redo « V2 » via Twilio BSP**. Analyse + plan complets dans
+  **`WHATSAPP_V2_PLAN.md`** (racine). ⚠️ Le webhook Meta V1 comporte une faille active — voir § j.
 - Clés Meta à régénérer (exposées sur GitHub public par le passé).
+- OAuth email Outlook/Yahoo non fonctionnels à 100 %.
 - Billing/Settings à finaliser (Stripe prix + secrets).
 
 ---
@@ -142,7 +145,7 @@ coccinelle-ai/
 |-------|-------|-----------|--------|
 | 📞 Téléphone | ✅ VoixIA (LiveKit) | ✅ Webhook | 🟡 95 % |
 | 💬 SMS | ✅ Twilio | ✅ Webhook | ✅ 100 % |
-| 📱 WhatsApp | ✅ Meta API | ✅ Webhook | 🟡 95 % |
+| 📱 WhatsApp | ⛔ gelé | ⛔ gelé | 🔴 **0 % réel — full redo V2** (voir `WHATSAPP_V2_PLAN.md`) |
 | 📧 Gmail | ✅ Gmail API | ✅ Cloudflare | 🟡 95 % |
 | 📧 Outlook | ✅ Backend | ❌ | 🔴 60 % |
 | 📧 Yahoo | ✅ Backend | ❌ | 🔴 60 % |
@@ -423,7 +426,9 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | Priorité | Bug | Détail |
 |----------|-----|--------|
 | 🔴 Critique | **Funnel onboarding** | 8/145 complétions, 0 depuis 25 jours — instrumenter + simplifier |
-| 🟠 Haute | Régénérer clés Meta | `META_APP_SECRET`, `META_WHATSAPP_ACCESS_TOKEN` exposées (GitHub public) |
+| 🔴 Critique | **Webhook WhatsApp Meta non signé** | `omnichannel/webhooks/meta-whatsapp.js` : **aucune vérif `X-Hub-Signature-256`** (0 occurrence dans `src/`) + fallback `SELECT id FROM tenants WHERE status='active' LIMIT 1` (`:54`, idem `whatsapp.js:55`) → un POST non authentifié est attribué à un tenant arbitraire, charge SA base de connaissances, génère une réponse IA et **l'envoie** (fuite inter-tenant + dépense). Clés exposées sur GitHub public ⇒ routes à considérer compromises. **Lot 0 : geler la route + révoquer les tokens (semaine du 19/07).** |
+| 🟠 Haute | Régénérer clés Meta | `META_APP_SECRET`, `META_WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `META_WEBHOOK_VERIFY_TOKEN` exposées (GitHub public). ⚠️ `META_WEBHOOK_VERIFY_TOKEN` retombe sur le littéral en dur `'coccinelle_meta_verify_2026'` (`meta-whatsapp.js:26`) |
+| 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
 | 🟡 Moyenne | Outlook OAuth | Secrets Azure non configurés |
 | 🟡 Moyenne | Yahoo OAuth | Client ID incorrect |
 | 🟡 Moyenne | Gmail OAuth | Bug corrigé, test inbox jamais fait |
@@ -568,7 +573,13 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
 ### 🔴 P0 — Débloquer le business
 - [ ] **Instrumenter l'onboarding** : mesurer l'abandon par étape (8/145, 0 depuis 25 j).
 - [ ] Simplifier le parcours onboarding (identifier l'étape tueuse, réduire la friction).
-- [ ] Régénérer les clés Meta exposées (`META_APP_SECRET`, `META_WHATSAPP_ACCESS_TOKEN`).
+- [x] ~~**WhatsApp Lot 0 — sécurisation**~~ : **fait et déployé le 19/07/2026** (kill switch 4 surfaces,
+      purge D1, front neutralisé). Détail en § p) point 11.
+- [ ] 🔴 **Révoquer les 4 secrets Meta/WhatsApp** — seul reliquat du Lot 0, **bloqué par la panne Meta
+      du 19/07**. À faire dès retour de la console. Voir § p) point 11 pour la liste et le risque résiduel.
+- [ ] **WhatsApp Lot 2 — prérequis Meta** : vérification métier SASU + App Review Tech Provider
+      (8 h de Youssef, déclenche **4–8 semaines d'attente** ⇒ à lancer dès que l'app Meta est
+      accessible). Ne détourne pas l'effort du funnel — c'est de l'attente, pas du dev.
 
 ### 🟠 P1 — Frictions UX Maze restantes
 - [ ] Ranger « Agent IA » dans **Configuration** (les 5 testeurs l'y cherchaient).
@@ -579,7 +590,8 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
 ### 🟡 P2 — Finalisation produit
 - [ ] Billing : `STRIPE_PRICE_ESSENTIEL/PRO/BUSINESS` en secrets + sync `billing_plans`.
 - [ ] Settings : profil, notifications, préférences, sécurité (30 % → 100 %).
-- [ ] WhatsApp V2 complet ; OAuth Outlook/Yahoo.
+- [ ] **WhatsApp V2 — lots 1 et 3 à 11** (≈ 116 h après les lots 0 et 2). Plan détaillé, estimations
+      et dépendances : **`WHATSAPP_V2_PLAN.md`**. OAuth Outlook/Yahoo.
 - [ ] Analytics : graphiques avancés, filtres, export.
 - [ ] Hook unifié `useTenant()`.
 
@@ -656,6 +668,100 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
    qu'un motif de rejet opaque. TPE sans site : on suggère une page pro publique (fiche Google, réseau
    social). Le champ reste `NULL`-able en base (0081) : seule la soumission l'exige.
 8. **Address créée AVANT les documents** : son SID (`address_sids`) est requis par le groupe adresse.
+
+## p) WHATSAPP V2 — DÉCISIONS ACTÉES (19/07/2026)
+
+> Analyse complète, plan de chantier en 12 lots (≈ 127 h) et estimations : **`WHATSAPP_V2_PLAN.md`**
+> (racine). Cette section ne garde que les invariants à ne pas ré-inférer.
+
+**Constat fondateur : WhatsApp V1 n'a jamais servi.** 9 messages en prod, tous du 28/01/2026, tous
+des smoke tests ; 0 ligne dans `channel_messages_log` ; 2 `channel_configurations` de tenants de test.
+**Rien à migrer, aucun utilisateur à casser** ⇒ le full redo est gratuit côté données. Le vrai travail
+est de **supprimer avant d'écrire** : 5 chemins d'envoi concurrents, 2 fournisseurs (Meta *et* Twilio,
+les deux avec des secrets vivants : `META_WHATSAPP_ACCESS_TOKEN` **et** `WHATSAPP_ACCESS_TOKEN`),
+1 363 lignes de code mort frontend, 2 pages dashboard contradictoires.
+
+1. **Fournisseur = Twilio BSP (Tech Provider Program)**, pas Meta Cloud API direct. Le prix n'est PAS
+   le motif (≈ 50 $/mois pour 10k messages, du bruit). Les motifs :
+   (a) en Meta direct, **chaque tenant devrait saisir son propre moyen de paiement Meta** — suicidaire
+   sur un tunnel à 8/145 ; (b) **Meta ne délivre pas d'OTP sur un numéro rattaché à un IVR** et tous
+   nos numéros pointent vers l'agent LiveKit — Twilio auto-vérifie par SMS ; (c) réutilise le bundle
+   réglementaire FR Twilio déjà approuvé (17/07) au lieu d'ouvrir un 2ᵉ front de conformité.
+2. **Un numéro peut cumuler voix + SMS + WhatsApp** — Meta est formel, l'enregistrement WhatsApp ne
+   casse ni la voix ni le SMS. **`+33939035761` cumule numéro d'essai voix (QW8) et sender WhatsApp.**
+   ⚠️ **Règle : n'enregistrer QUE des numéros Twilio SMS-capables** (l'OTP vocal est impossible, IVR).
+3. **Modèle de prix Meta = par message depuis le 01/07/2025.** Le modèle « par conversation 24 h » est
+   déprécié — ne pas raisonner dessus.
+4. **Tarifs Meta France (rate cards CSV/PDF officiels, en vigueur 01/07/2026) :** marketing
+   **0,0712 €**, utility **0,0248 €**, authentication 0,0248 €, **service GRATUIT** (depuis 01/11/2024).
+   ⚠️ France marketing est passé de ~0,1186 € à 0,0712 € au **01/01/2026** (−40 %) : toute grille
+   antérieure est périmée, et beaucoup de concurrents publient encore l'ancienne.
+5. **Nos deux grilles actées (19/07/2026) — § 5 de `WHATSAPP_V2_PLAN.md` :**
+   - **Coccinelle (TPE) — forfait :** extension **49 €/mois** (vs 79 € Fonio), **500 conversations
+     incluses**, **1 numéro**, **réponses service (IA réactive) ILLIMITÉES**, **+19 €/mois** par
+     numéro supplémentaire. **Exige un abonnement Coccinelle actif.**
+   - **VoixIA (revendeurs) — conso pure :** marketing **0,10 €** (marge ≈ 24 %) · utility **0,04 €**
+     (marge ≈ 27 %) · service **gratuit** · **+15 €/mois** par sender WhatsApp.
+   - Les deux grilles sont **alignées** (500 marketing incluses ≈ 0,098 €/msg) : pas d'arbitrage
+     possible entre les offres. À préserver si les prix bougent.
+   - **Fenêtre de service GRATUITE = promesse produit**, pas une optimisation (« vous ne payez que ce
+     que vous initiez, jamais les réponses à vos clients »). ⇒ Le Lot 6 (routage « utility dans
+     fenêtre ouverte = gratuit ») **reste sur le chemin critique** : pas de « réactif seul » sans lui.
+     Le Lot 8 doit gérer **deux modèles de facturation distincts** (forfait vs conso) + un compteur
+     de conversations incluses.
+6. **Marge Twilio : 0,005 $/message ENTRANT ET SORTANT** (Meta ne facture pas l'entrant) + 0,001 $ par
+   échec. Notre produit étant réactif, c'est ≈ 100 % du coût marginal réel.
+   ⚠️ **Piège n° 1 — « service illimité » n'est PAS gratuit pour nous.** À 49 €/mois, 5 000 messages
+   de service coûtent ≈ 21,5 € de Twilio (44 % du prix), 10 000 ≈ 43 € (88 %), 20 000 = perte. Une
+   TPE normale n'ira pas là, mais **un seul tenant atypique** (standard très sollicité, boucle
+   d'automatisation) mange la marge et rien ne l'en empêche. → **Clause d'usage raisonnable à fixer
+   AVANT la mise en vente** (≈ 3 000 msg service/mois) + compteur instrumenté au Lot 8. « Illimité »
+   reste l'argument ; le garde-fou est contractuel, non affiché.
+   ⚠️ **Piège n° 2 — « conversation » n'est plus une unité Meta** (facturation par message depuis le
+   01/07/2025). Les « 500 conversations incluses » ne correspondent à **aucun compteur plateforme** :
+   à définir et implémenter nous-mêmes. Recommandation : **500 messages template facturables/mois**
+   (marketing + utility), service jamais décompté. **Le mix marketing/utility détermine entièrement
+   la marge du forfait** (500 marketing = 35,60 € de coût, soit 73 % des 49 € ; 500 utility =
+   12,40 €, soit 25 %) — à surveiller dès les premiers tenants.
+7. **Limites d'envoi par portefeuille Meta, plus par numéro** (changement du 07/10/2025) :
+   250 → 2 000 → 10 000 → 100 000 → illimité, montée en < 6 h. L'état « Flagged » a été supprimé.
+   Chaque tenant possède son propre portefeuille via Embedded Signup ⇒ **chaque tenant démarre à
+   250 msg/24 h** et monte indépendamment, et **aucune remise de volume n'est mutualisable**.
+8. **Construire Embedded Signup v4** — la **v2 est supprimée le 15/10/2026**.
+9. **Plafond de 2 numéros par nouveau portefeuille Meta** (20 après vérification métier).
+10. **Résidence des données EU : non vérifiée, ne bloque pas** (décision 19/07). ⚠️ Tension à arbitrer
+    avant le Lot 10 : WhatsApp fait transiter chaque message par Meta, ce qui frotte avec le
+    positionnement « LLM et RAG hébergés en Europe ».
+11. **Lot 0 DÉPLOYÉ le 19/07/2026 (backend + frontend) — WhatsApp est GELÉ en production.** Kill switch
+    `src/modules/shared/whatsapp-killswitch.js` : **flag `WHATSAPP_ENABLED` absent = coupé**, donc
+    aucune modification de `wrangler.toml` n'a été nécessaire. 4 surfaces renvoient 404 (et non 403,
+    pour ne pas confirmer la route) : webhook Meta (`index.js:394`), webhook Twilio
+    (`omnichannel/index.js:277`), routes canal `/api/v1/channels/whatsapp*` (barrière unique en tête
+    de `channels/routes.js`), et **l'orchestrateur VoixIA** (`voixia/orchestrator.js`, `case
+    'whatsapp'`) — ce 4e chemin d'envoi avait été oublié au cadrage. Purge : 3 `omni_phone_mappings`
+    + 2 `channel_configurations` (snapshot pris avant) ; **les 9 `omni_messages` sont conservés**
+    comme référence du comportement V1. Front : `settings/channels/whatsapp` redirige vers la page
+    « Bientôt disponible », `comingSoon: true` sur l'entrée canal, et l'étape Canaux de l'onboarding
+    désactive WhatsApp + filtre défensivement `channelsData` (sinon 404 avalé en `console.warn`
+    dans le tunnel P0).
+    ⚠️ **Ne PAS mettre `OMNICHANNEL_ENABLED=false` pour couper WhatsApp** : ce flag gouverne aussi
+    d'autres webhooks et casserait le magic moment QW8.
+    🔴 **RESTE À FAIRE — révocation des secrets Meta, bloquée par la panne Meta du 19/07.** Régénérer
+    `META_WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `META_APP_SECRET` ; **supprimer**
+    `META_WEBHOOK_VERIFY_TOKEN` (littéral de repli dans le code). Dès retour de la console Meta —
+    en profiter pour relever le statut Development/Live de l'app (prérequis du Lot 2).
+    **Risque résiduel :** ces tokens exposés sur GitHub public restent utilisables **directement**
+    contre l'API Graph. Le kill switch protège nos routes, **pas le compte Meta** — risque distinct,
+    non couvert par le déploiement.
+12. **Critères d'acceptation NON NÉGOCIABLES du Lot 5** (la vérification de signature n'a
+    volontairement PAS été rétro-ajoutée à V1, code condamné par le Lot 1) :
+    - vérification **HMAC-SHA256 `X-Hub-Signature-256`** sur le **corps brut**, avant tout `JSON.parse` ;
+    - **suppression** du fallback tenant : un `phone_number_id` inconnu doit être **rejeté**, jamais
+      deviné (`SELECT id FROM tenants WHERE status='active' LIMIT 1` ⇒ à ne jamais réintroduire) ;
+    - `META_WEBHOOK_VERIFY_TOKEN` sans valeur littérale de repli dans le code.
+13. ❌ **Ne PAS planifier sur** l'affirmation tierce très relayée « nouveau cadre d'identifiants DMA
+    obligatoire avant juin 2026 » : contredite par l'absence de toute mention dans l'annonce Meta et
+    le changelog développeur.
 
 ## RÈGLES GLOBALES AGENTIC OS
 
