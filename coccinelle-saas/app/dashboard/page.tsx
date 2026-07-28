@@ -7,6 +7,7 @@ import {
   CreditCard, AlertCircle, FileText
 } from 'lucide-react';
 import Link from 'next/link';
+import SetupChecklist from '@/components/dashboard/SetupChecklist';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -150,6 +151,9 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activite</p>
       </div>
+
+      {/* Checklist de demarrage — se masque seule une fois les 5 etapes faites */}
+      <SetupChecklist />
 
       {/* Banniere abonnement */}
       {sub && sub.status === 'trialing' && sub.trial_days_remaining !== null && sub.trial_days_remaining > 0 && (

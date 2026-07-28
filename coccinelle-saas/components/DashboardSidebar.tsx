@@ -4,104 +4,18 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, Phone, Users, Hash, Bot,
-  MessageSquare, MessageCircle, Mail, Voicemail,
-  Calendar, BookOpen, HelpCircle, Package, Briefcase,
-  GitBranch, ListTree, Users2, CheckSquare,
-  BarChart3, ScrollText, Download, Bell, TrendingUp,
-  Settings, LogOut, Menu, X, PhoneCall, Clock,
-  ChevronLeft, ChevronRight, ChevronDown, CreditCard
+  Settings, LogOut, Menu, X, PhoneCall,
+  ChevronLeft, ChevronRight, ChevronDown, CreditCard,
+  SlidersHorizontal
 } from 'lucide-react';
 import CoccinelleIcon from '@/components/CoccinelleIcon';
-
-// ── Types ────────────────────────────────────────────
-
-interface NavItem {
-  name: string;
-  href: string;
-  icon: typeof LayoutDashboard;
-}
-
-interface NavGroup {
-  label: string;
-  items: NavItem[];
-}
-
-// ── Navigation ───────────────────────────────────────
-
-const navigation: NavGroup[] = [
-  {
-    label: 'Principal',
-    items: [
-      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Appels', href: '/dashboard/analytics/calls', icon: Phone },
-      { name: 'Contacts', href: '/dashboard/crm/prospects', icon: Users },
-      { name: 'Tâches', href: '/dashboard/tasks', icon: CheckSquare },
-    ],
-  },
-  {
-    label: 'Communication',
-    items: [
-      { name: 'Numéros', href: '/dashboard/channels/numbers', icon: Hash },
-      { name: 'SMS', href: '/dashboard/channels/sms', icon: MessageSquare },
-      { name: 'WhatsApp', href: '/dashboard/channels/whatsapp', icon: MessageCircle },
-      { name: 'Email', href: '/dashboard/channels/email', icon: Mail },
-      { name: 'Messagerie vocale', href: '/dashboard/channels/voicemail', icon: Voicemail },
-      { name: 'Notifications proactives', href: '/dashboard/proactive', icon: Bell },
-    ],
-  },
-  {
-    label: 'Intelligence',
-    items: [
-      { name: 'Base de connaissances', href: '/dashboard/knowledge', icon: BookOpen },
-      { name: 'FAQ', href: '/dashboard/knowledge/faq', icon: HelpCircle },
-      { name: 'Produits & Services', href: '/dashboard/knowledge/products', icon: Package },
-    ],
-  },
-  {
-    label: 'Agenda',
-    items: [
-      { name: 'Rendez-vous', href: '/dashboard/appointments', icon: Calendar },
-      { name: 'Disponibilités', href: '/dashboard/availability', icon: Clock },
-      { name: 'Prestations', href: '/dashboard/services', icon: Briefcase },
-      { name: 'Equipe', href: '/dashboard/teams', icon: Users },
-    ],
-  },
-  {
-    label: 'Configuration',
-    items: [
-      { name: 'Agents IA', href: '/dashboard/agents/configuration', icon: Bot },
-      { name: 'Séquences', href: '/dashboard/agents/nodes', icon: GitBranch },
-      { name: 'IVR / SVI', href: '/dashboard/channels/ivr', icon: ListTree },
-      { name: "Files d'attente", href: '/dashboard/channels/queues', icon: Users2 },
-    ],
-  },
-  {
-    label: 'Rapports',
-    items: [
-      { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-      { name: 'Insights', href: '/dashboard/analytics/insights', icon: TrendingUp },
-      { name: 'Transcripts', href: '/dashboard/analytics/transcripts', icon: ScrollText },
-      { name: 'Export', href: '/dashboard/analytics/export', icon: Download },
-    ],
-  },
-];
-
-// ── Helpers ───────────────────────────────────────────
-
-function isActive(pathname: string, href: string): boolean {
-  if (href === '/dashboard') return pathname === href;
-  return pathname === href || pathname.startsWith(href + '/');
-}
-
-function getActiveGroupLabel(pathname: string): string | null {
-  for (const group of navigation) {
-    if (group.items.some((item) => isActive(pathname, item.href))) {
-      return group.label;
-    }
-  }
-  return null;
-}
+import {
+  ADVANCED_NAV as navigation,
+  SIMPLE_NAV,
+  isActive,
+  getActiveGroupLabel,
+} from '@/lib/navigation';
+import { useUiMode, clearUiModeHint } from '@/hooks/useUiMode';
 
 // ── Composant ────────────────────────────────────────
 
@@ -118,6 +32,8 @@ const PLAN_LABELS: Record<string, string> = {
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { mode, toggle: toggleUiMode } = useUiMode();
+  const simple = mode === 'simple';
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [subPlan, setSubPlan] = useState<string | null>(null);
@@ -208,6 +124,8 @@ export default function DashboardSidebar() {
       // Déconnexion même si l'API échoue
     }
     localStorage.removeItem('auth_token');
+    // L'indice d'affichage ne doit pas fuiter d'un compte à l'autre.
+    clearUiModeHint();
     router.push('/login');
   }, [router]);
 
@@ -281,7 +199,33 @@ export default function DashboardSidebar() {
           </Link>
         )}
 
-        {/* Navigation avec accordéons */}
+        {/* Navigation — mode Simple : liste plate, sans accordéon */}
+        {simple ? (
+          <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
+            {SIMPLE_NAV.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={collapsed ? item.name : undefined}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    active
+                      ? 'bg-gray-100 text-gray-900 font-medium'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  } ${collapsed ? 'justify-center px-0' : ''}`}
+                >
+                  <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${
+                    active ? 'text-gray-900' : 'text-gray-400'
+                  }`} />
+                  {!collapsed && <span>{item.name}</span>}
+                </Link>
+              );
+            })}
+          </nav>
+        ) : (
+        /* Navigation avec accordéons */
         <nav className="flex-1 overflow-y-auto px-3 pb-3">
           {navigation.map((group) => {
             const isOpen = openGroups.has(group.label);
@@ -360,6 +304,23 @@ export default function DashboardSidebar() {
             );
           })}
         </nav>
+        )}
+
+        {/* Bascule affichage simplifié / complet */}
+        <div className="border-t border-gray-200 px-3 py-2">
+          <button
+            onClick={toggleUiMode}
+            title={collapsed ? (simple ? 'Affichage avancé' : 'Affichage simplifié') : undefined}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm w-full text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors ${
+              collapsed ? 'justify-center px-0' : ''
+            }`}
+          >
+            <SlidersHorizontal className="w-[18px] h-[18px] flex-shrink-0 text-gray-400" />
+            {!collapsed && (
+              <span>{simple ? 'Affichage avancé' : 'Affichage simplifié'}</span>
+            )}
+          </button>
+        </div>
 
         {/* Bas de sidebar */}
         <div className="border-t border-gray-200 px-3 py-3 space-y-0.5">

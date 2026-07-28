@@ -441,6 +441,24 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
         if (agentConfig) agentName = agentConfig.agent_name;
       } catch (e) { /* ignore */ }
 
+      // Preferences d'interface (migr. 0083 — Chantier CX 1).
+      // Lecture isolee : requireAuth() fait un SELECT a colonnes explicites et
+      // ne remonte pas ces champs. On ne les ajoute PAS a requireAuth (chemin
+      // partage par ~180 routes : un Worker deploye avant la migration ferait
+      // tomber toute l'authentification). Ici, l'echec degrade sur le defaut.
+      let uiPrefs = { ui_mode: 'simple', checklist_dismissed_at: null };
+      try {
+        const prefsRow = await env.DB.prepare(
+          'SELECT ui_mode, checklist_dismissed_at FROM users WHERE id = ?'
+        ).bind(user.id).first();
+        if (prefsRow) {
+          uiPrefs = {
+            ui_mode: prefsRow.ui_mode === 'advanced' ? 'advanced' : 'simple',
+            checklist_dismissed_at: prefsRow.checklist_dismissed_at || null
+          };
+        }
+      } catch (e) { /* colonnes absentes : on garde le defaut */ }
+
       // Calculer trial_active et jours restants
       let trialActive = false;
       let trialDaysRemaining = 0;
@@ -465,6 +483,8 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
           tenant_id: user.tenant_id,
           is_active: user.is_active,
           weekly_report_enabled: user.weekly_report_enabled ?? 1,
+          ui_mode: uiPrefs.ui_mode,
+          checklist_dismissed_at: uiPrefs.checklist_dismissed_at,
           created_at: user.created_at
         },
         tenant: {
