@@ -1326,20 +1326,48 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                 logger.error('voixia_configs upsert error', { error: e.message, tenantId });
               }
 
-              // Créer ou mettre à jour le prompt actif
+              // Créer ou mettre à jour le prompt actif.
+              //
+              // ORDRE VOLONTAIRE : on INSÈRE d'abord, on désactive les autres ensuite.
+              // L'ordre inverse (désactiver puis insérer) laissait le tenant avec ZÉRO
+              // prompt actif quand l'INSERT échouait — 6 tenants en prod se sont
+              // retrouvés dans cet état, dont la ligne réelle Coccinelle.ai.
+              // Ici, un échec d'INSERT laisse simplement le prompt précédent en place.
               if (data.system_prompt) {
                 try {
-                  // Désactiver les prompts existants
+                  // `id` est INTEGER PRIMARY KEY AUTOINCREMENT (CLAUDE.md § f) : on ne
+                  // le fournit PAS et on récupère meta.last_row_id. La table n'a pas de
+                  // colonne `updated_at` — ses colonnes de date sont created_at/activated_at.
+                  const inserted = await env.DB.prepare(
+                    `INSERT INTO ai_prompt_versions
+                       (tenant_id, canal, secteur, version, system_prompt, is_active, created_at, activated_at)
+                     VALUES (?, 'voice', ?,
+                       (SELECT COALESCE(MAX(version), 0) + 1 FROM ai_prompt_versions WHERE tenant_id = ?),
+                       ?, 1, datetime('now'), datetime('now'))`
+                  ).bind(tenantId, tenantSector, tenantId, data.system_prompt).run();
+
+                  const promptId = inserted.meta?.last_row_id;
+                  if (!promptId) throw new Error('INSERT sans last_row_id');
+
+                  // Un SEUL is_active=1 par tenant (règle absolue CLAUDE.md § f).
                   await env.DB.prepare(
-                    `UPDATE ai_prompt_versions SET is_active = 0 WHERE tenant_id = ?`
-                  ).bind(tenantId).run();
-                  // Créer le nouveau prompt actif
+                    `UPDATE ai_prompt_versions SET is_active = 0 WHERE tenant_id = ? AND id != ?`
+                  ).bind(tenantId, promptId).run();
+
+                  // voixia_configs.active_prompt_id pointerait sinon vers le prompt du
+                  // signup, périmé dès que l'utilisateur nomme son assistant.
                   await env.DB.prepare(
-                    `INSERT INTO ai_prompt_versions (id, tenant_id, system_prompt, secteur, is_active, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))`
-                  ).bind(generateId('prompt'), tenantId, data.system_prompt, tenantSector).run();
+                    `UPDATE voixia_configs SET active_prompt_id = ?, updated_at = datetime('now') WHERE tenant_id = ?`
+                  ).bind(promptId, tenantId).run();
                 } catch (e) {
-                  logger.error('ai_prompt_versions create error', { error: e.message, tenantId });
+                  // Ce catch a masqué la panne pendant des mois : l'utilisateur nommait
+                  // son assistant et l'agent continuait de s'annoncer « Coccinelle ».
+                  logger.error('ai_prompt_versions create FAILED — prompt personnalisé non appliqué', {
+                    error: e.message, tenantId, step: 'assistant'
+                  });
+                  await logOnboardingEvent(env, {
+                    tenantId, userId, step: 'assistant', event: 'error', errorMessage: e.message
+                  });
                 }
               } else if (data.secteur) {
                 try {
@@ -1455,21 +1483,24 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
               WHERE id = ?`
             ).bind(tenantId).run();
 
-            // Créer phone mapping si téléphone pro configuré
-            try {
-              const tenant = await env.DB.prepare(
-                `SELECT phone FROM tenants WHERE id = ?`
-              ).bind(tenantId).first();
-              if (tenant?.phone) {
-                await env.DB.prepare(
-                  `INSERT INTO omni_phone_mappings (phone, tenant_id, created_at)
-                   VALUES (?, ?, datetime('now'))
-                   ON CONFLICT(phone) DO UPDATE SET tenant_id = excluded.tenant_id`
-                ).bind(tenant.phone, tenantId).run();
-              }
-            } catch (e) {
-              console.error('[Onboarding] Error creating phone mapping:', e.message);
-            }
+            // PAS de phone mapping ici — supprimé le 05/08/2026, volontairement.
+            //
+            // Le code retiré insérait `tenants.phone` dans omni_phone_mappings. Or
+            // `tenants.phone` est le numéro que l'utilisateur DÉCLARE à l'étape
+            // Entreprise (son mobile perso), pas un numéro Twilio provisionné. Sans
+            // channel_type ni is_active, les DEFAULT en faisaient un mapping VOIX ACTIF :
+            //   - c'est exactement le « faux mapping » +33760762153 désactivé à la main
+            //     le 07/07/2026 (bug B20) ;
+            //   - `phone_number` est UNIQUE et l'ON CONFLICT réécrivait tenant_id : les
+            //     5 tenants qui partagent ce numéro se seraient volé le mapping, le
+            //     dernier à finir l'onboarding gagnant ;
+            //   - c'est inutile depuis B20 : resolve-phone résout par le numéro APPELÉ
+            //     (sip.trunkPhoneNumber), or personne n'appelle le mobile perso d'un
+            //     client à travers notre trunk.
+            // Le mapping légitime d'un vrai numéro provisionné est créé ailleurs :
+            // channels/routes.js (attribution d'un numéro) et reseller/routes.js.
+            // La colonne s'appelle `phone_number`, jamais `phone` : ne pas « réparer »
+            // ce bloc en renommant la colonne, il ne doit pas exister.
 
             // Marquer la session comme terminée
             try {
