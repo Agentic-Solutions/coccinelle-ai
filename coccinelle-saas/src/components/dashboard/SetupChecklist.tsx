@@ -1,19 +1,27 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-  CheckCircle,
-  Circle,
-  ChevronDown,
-  ChevronUp,
-  X,
-  Loader2
-} from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { buildApiUrl } from '@/lib/config';
+
+/**
+ * Checklist de démarrage — 5 étapes (Chantier CX 1, 28/07/2026).
+ *
+ * États calculés côté serveur DEPUIS LA DB (GET /api/v1/onboarding/checklist).
+ * Aucun état de progression en localStorage : le masquage lui-même est persisté
+ * en base (`users.checklist_dismissed_at`), sinon la checklist réapparaît dès
+ * qu'on change de navigateur.
+ *
+ * Rafraîchissement : au retour sur l'onglet (focus + visibilitychange). Un
+ * utilisateur qui part vérifier son numéro puis revient voit l'étape cochée
+ * sans avoir à recharger la page.
+ */
 
 interface Step {
   id: string;
   title: string;
+  hint?: string;
   completed: boolean;
   href: string | null;
 }
@@ -24,134 +32,173 @@ interface ChecklistData {
   total: number;
   progress_percent: number;
   setup_completed: boolean;
+  dismissed: boolean;
+}
+
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
 }
 
 export default function SetupChecklist() {
   const [checklist, setChecklist] = useState<ChecklistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
-  const [dismissed, setDismissed] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
-  useEffect(() => {
-    const d = localStorage.getItem('setup_checklist_dismissed');
-    if (d === 'true') {
-      setDismissed(true);
+  const fetchChecklist = useCallback(async () => {
+    const token = getToken();
+    if (!token) {
       setLoading(false);
       return;
     }
-
-    const fetchChecklist = async () => {
-      try {
-        const token = localStorage.getItem('auth_token');
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/onboarding/checklist`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            setChecklist(data.checklist);
-            // Collapse by default if more than half done
-            if (data.checklist.progress_percent >= 50) {
-              setExpanded(false);
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Error fetching checklist:', e);
-      } finally {
-        setLoading(false);
+    try {
+      const res = await fetch(buildApiUrl('/api/v1/onboarding/checklist'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.success && data.checklist) {
+        setChecklist(data.checklist);
       }
-    };
-
-    fetchChecklist();
+    } catch {
+      // Silencieux : la checklist est un accompagnement, pas une fonction
+      // critique. Une panne réseau ne doit pas polluer le dashboard.
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleDismiss = () => {
-    setDismissed(true);
-    localStorage.setItem('setup_checklist_dismissed', 'true');
-  };
+  useEffect(() => {
+    fetchChecklist();
+  }, [fetchChecklist]);
 
-  if (dismissed || loading) return null;
-  if (!checklist || checklist.setup_completed) return null;
+  // Rafraîchit au retour sur l'onglet — c'est ce qui coche l'étape « sans F5 ».
+  useEffect(() => {
+    const onFocus = () => fetchChecklist();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchChecklist();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchChecklist]);
 
-  const { steps, completed, total, progress_percent } = checklist;
+  const handleDismiss = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setHidden(true); // masquage optimiste
+    try {
+      const res = await fetch(buildApiUrl('/api/v1/onboarding/checklist/dismiss'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) setHidden(false);
+    } catch {
+      setHidden(false);
+    }
+  }, []);
+
+  if (loading || hidden || !checklist) return null;
+  if (checklist.dismissed) return null;
+
+  const { steps, completed, total, progress_percent, setup_completed } = checklist;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-6 overflow-hidden">
-      {/* Header */}
+      {/* En-tête + progression */}
       <div className="p-4 border-b border-gray-100">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-gray-900 text-sm">Configuration initiale</h3>
-                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">
-                  {completed}/{total}
-                </span>
-              </div>
-              {/* Barre de progression */}
-              <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
-                <div
-                  className="bg-gray-900 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${progress_percent}%` }}
-                />
-              </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-gray-900 text-sm">Bien démarrer</h2>
+              <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">
+                {completed}/{total}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {setup_completed
+                ? 'Tout est prêt. Votre assistant est opérationnel.'
+                : 'Quelques minutes pour que votre assistant réponde comme vous le souhaitez.'}
+            </p>
+            <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
+              <div
+                className="bg-gray-900 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${progress_percent}%` }}
+                role="progressbar"
+                aria-valuenow={completed}
+                aria-valuemin={0}
+                aria-valuemax={total}
+              />
             </div>
           </div>
-          <div className="flex items-center gap-1 ml-3">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => setExpanded(!expanded)}
               className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-              aria-label={expanded ? 'Reduire' : 'Developper'}
+              aria-label={expanded ? 'Réduire' : 'Développer'}
             >
-              {expanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+              {expanded
+                ? <ChevronUp className="w-4 h-4 text-gray-500" />
+                : <ChevronDown className="w-4 h-4 text-gray-500" />}
             </button>
-            <button
-              onClick={handleDismiss}
-              className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-              aria-label="Fermer"
-            >
-              <X className="w-4 h-4 text-gray-500" />
-            </button>
+            {/* Masquage possible uniquement une fois les 5 étapes terminées */}
+            {setup_completed && (
+              <button
+                onClick={handleDismiss}
+                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                aria-label="Masquer définitivement"
+                title="Masquer définitivement"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Steps */}
+      {/* Étapes */}
       {expanded && (
-        <div className="p-4 space-y-2">
-          {steps.map((step) => (
-            <div
+        <ol className="p-4 space-y-1.5">
+          {steps.map((step, index) => (
+            <li
               key={step.id}
-              className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
-                step.completed ? 'bg-green-50' : 'bg-gray-50 hover:bg-gray-100'
+              className={`flex items-center gap-3 p-2.5 rounded-lg ${
+                step.completed ? 'bg-gray-50' : 'bg-white hover:bg-gray-50 transition-colors'
               }`}
             >
-              {step.completed ? (
-                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-              ) : (
-                <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />
-              )}
-              <span className={`text-sm flex-1 ${step.completed ? 'text-green-800 line-through' : 'text-gray-700 font-medium'}`}>
-                {step.title}
+              <span
+                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium ${
+                  step.completed
+                    ? 'bg-gray-900 text-white'
+                    : 'border border-gray-300 text-gray-400'
+                }`}
+                aria-hidden="true"
+              >
+                {step.completed ? <Check className="w-3.5 h-3.5" /> : index + 1}
               </span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm ${step.completed ? 'text-gray-400 line-through' : 'text-gray-900 font-medium'}`}>
+                  {step.title}
+                </p>
+                {step.hint && !step.completed && (
+                  <p className="text-xs text-gray-500 mt-0.5">{step.hint}</p>
+                )}
+              </div>
               {!step.completed && step.href && (
-                <Link href={step.href}>
-                  <span className="text-xs font-medium text-gray-900 hover:text-gray-700 underline whitespace-nowrap">
-                    Configurer
-                  </span>
+                <Link
+                  href={step.href}
+                  className="text-xs font-medium text-gray-900 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors whitespace-nowrap flex-shrink-0"
+                >
+                  Compléter
                 </Link>
               )}
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
     </div>
   );

@@ -43,6 +43,19 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
         // notifPrefs reste null → repli sur les défauts ci-dessous
       }
 
+      // Preference d'affichage (migr. 0083). Lecture isolee et degradante :
+      // requireAuth() ne remonte pas cette colonne, et un GET /settings ne doit
+      // jamais retomber en 500 pour ca (cf. migration 0070).
+      let uiMode = 'simple';
+      try {
+        const prefsRow = await env.DB.prepare(
+          'SELECT ui_mode FROM users WHERE id = ?'
+        ).bind(user.id).first();
+        if (prefsRow?.ui_mode === 'advanced') uiMode = 'advanced';
+      } catch (uiError) {
+        logger.error('Get settings — ui_mode lookup failed', { error: uiError.message });
+      }
+
       return new Response(JSON.stringify({
         success: true,
         account: {
@@ -51,6 +64,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
           email: user.email,
           phone: user.phone || '',
           phone_verified: user.phone_verified || 0,
+          ui_mode: uiMode,
         },
         company: {
           name: tenant.name || '',
@@ -466,6 +480,70 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       return new Response(JSON.stringify({
         success: false,
         error: 'Erreur lors de la mise a jour des notifications'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // ========================================
+  // PUT /api/v1/settings/ui-mode
+  // Bascule sidebar simplifiee / complete (migr. 0083 — Chantier CX 1).
+  // Preference PAR UTILISATEUR (pas par tenant) : deux membres de la meme
+  // equipe peuvent avoir des affichages differents.
+  // ========================================
+  if (path === '/api/v1/settings/ui-mode' && method === 'PUT') {
+    try {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const { user } = authResult;
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(JSON.stringify({ success: false, error: 'Corps de requete invalide' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Liste blanche stricte : la valeur atterrit en base, on ne fait
+      // confiance a rien de ce qui vient du client.
+      const uiMode = body?.ui_mode;
+      if (uiMode !== 'simple' && uiMode !== 'advanced') {
+        return new Response(JSON.stringify({
+          success: false,
+          error: "ui_mode doit valoir 'simple' ou 'advanced'"
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      await env.DB.prepare(
+        `UPDATE users SET ui_mode = ?, updated_at = datetime('now') WHERE id = ?`
+      ).bind(uiMode, user.id).run();
+
+      return new Response(JSON.stringify({
+        success: true,
+        ui_mode: uiMode
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      logger.error('Update ui-mode error', { error: error.message });
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Erreur lors de la mise a jour de l'affichage"
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

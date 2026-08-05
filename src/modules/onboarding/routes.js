@@ -49,6 +49,134 @@ async function logOnboardingEvent(env, { tenantId, userId, step, stepIndex, even
 }
 
 /**
+ * Checklist de démarrage — 5 étapes (Chantier CX 1, 28/07/2026).
+ *
+ * Remplace l'ancienne checklist 8 étapes qui référençait « Sara » (interdit,
+ * règle i.14), lisait `oauth_tokens` (table inexistante) et `tenants.company_name`
+ * (doublon interdit, la source unique est `tenants.name`).
+ *
+ * Chaque état est calculé DEPUIS LA DB — jamais de localStorage, jamais de flag
+ * applicatif. En particulier `tenants.test_call_done` n'est PAS utilisé : la
+ * colonne est lue à 3 endroits du code mais n'est écrite nulle part.
+ *
+ * Chaque lecture est isolée dans son propre try/catch : une table absente ne
+ * doit pas faire tomber toute la checklist (leçon de la migration 0070).
+ *
+ * @returns {Promise<{steps: Array, completed: number, total: number,
+ *                    progress_percent: number, setup_completed: boolean}>}
+ */
+async function computeStartupChecklist(env, tenantId, user) {
+  // 1. Assistant configuré — a-t-il reçu un prénom ?
+  // On NE peut PAS se baser sur voixia_configs ni ai_prompt_versions : le signup
+  // les crée déjà (voice_id + prompt sectoriel par défaut), l'étape serait verte
+  // dès J0. `omni_agent_configs.agent_name` n'est écrit que sur action utilisateur.
+  let assistantDone = false;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT agent_name FROM omni_agent_configs WHERE tenant_id = ? LIMIT 1`
+    ).bind(tenantId).first();
+    assistantDone = !!(row?.agent_name && String(row.agent_name).trim() !== '');
+  } catch (e) { /* table absente */ }
+
+  // 2. Numéro vérifié — condition du « magic moment » QW8 : sans phone_verified,
+  // le numéro d'essai partagé ne sait pas à quel tenant rattacher l'appelant.
+  const phoneDone = (user?.phone_verified === 1 || user?.phone_verified === true);
+
+  // 3. Informations métier — l'assistant a-t-il de quoi répondre ?
+  // Trois sources possibles : documents importés, questions/réponses, prestations.
+  let knowledgeDone = false;
+  for (const sql of [
+    `SELECT 1 FROM knowledge_documents WHERE tenant_id = ? AND is_active = 1 LIMIT 1`,
+    `SELECT 1 FROM knowledge_faq WHERE tenant_id = ? AND is_active = 1 LIMIT 1`,
+    `SELECT 1 FROM services WHERE tenant_id = ? AND is_active = 1 LIMIT 1`
+  ]) {
+    if (knowledgeDone) break;
+    try {
+      const row = await env.DB.prepare(sql).bind(tenantId).first();
+      if (row) knowledgeDone = true;
+    } catch (e) { /* table absente : on tente la suivante */ }
+  }
+
+  // 4. Premier appel — trace réelle en base, pas un flag déclaratif.
+  let callDone = false;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT 1 FROM calls WHERE tenant_id = ? LIMIT 1`
+    ).bind(tenantId).first();
+    callDone = !!row;
+  } catch (e) { /* table absente */ }
+
+  // 5. Équipe — un 2e compte actif OU une invitation envoyée (même non acceptée :
+  // le geste a été fait, on ne bloque pas l'utilisateur sur l'inaction d'un tiers).
+  let teamDone = false;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM users WHERE tenant_id = ?`
+    ).bind(tenantId).first();
+    teamDone = (row?.n || 0) > 1;
+  } catch (e) { /* table absente */ }
+  if (!teamDone) {
+    try {
+      const row = await env.DB.prepare(
+        `SELECT 1 FROM user_invitations WHERE tenant_id = ? LIMIT 1`
+      ).bind(tenantId).first();
+      teamDone = !!row;
+    } catch (e) { /* table absente */ }
+  }
+
+  // Libellés : formulation « je », vocabulaire métier, zéro terme technique
+  // (règle i.15 : pas de RAG / knowledge base / crawl / embedding dans l'UI).
+  const steps = [
+    {
+      id: 'assistant',
+      title: 'Configurer mon assistant',
+      hint: 'Son prénom, sa voix, sa façon de répondre',
+      completed: assistantDone,
+      href: '/dashboard/agents/configuration'
+    },
+    {
+      id: 'phone',
+      title: 'Vérifier mon numéro de téléphone',
+      hint: 'Indispensable pour que votre assistant décroche',
+      completed: phoneDone,
+      href: '/dashboard/settings'
+    },
+    {
+      id: 'knowledge',
+      title: 'Ajouter mes informations',
+      hint: 'Horaires, tarifs, prestations — ce que votre assistant doit savoir',
+      completed: knowledgeDone,
+      href: '/dashboard/knowledge'
+    },
+    {
+      id: 'call',
+      title: 'Appeler mon assistant',
+      hint: 'Le meilleur moyen de vérifier qu\'il répond bien',
+      completed: callDone,
+      href: '/dashboard/channels/numbers'
+    },
+    {
+      id: 'team',
+      title: 'Inviter mon équipe',
+      hint: 'Vos collaborateurs reçoivent les demandes et les rendez-vous',
+      completed: teamDone,
+      href: '/dashboard/teams'
+    }
+  ];
+
+  const completed = steps.filter((s) => s.completed).length;
+  const total = steps.length;
+
+  return {
+    steps,
+    completed,
+    total,
+    progress_percent: Math.round((completed / total) * 100),
+    setup_completed: completed === total
+  };
+}
+
+/**
  * Génère un ID unique
  */
 function generateId(prefix) {
@@ -828,100 +956,37 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
       }
       const tenantId = authResult.tenant.id;
       const tenant = authResult.tenant;
+      const user = authResult.user;
 
       try {
-        // 1. Compte cree (toujours vrai si on est auth)
-        const accountCreated = true;
+        const checklist = await computeStartupChecklist(env, tenantId, user);
 
-        // 2. Profil entreprise complete (company_name + sector)
-        // Marque aussi comme fait si l'onboarding a renseigne ces champs
-        const profileCompleted = !!(tenant.company_name && tenant.sector);
-
-        // 3. Base de connaissances (au moins 1 document)
-        let kbCount = 0;
+        // Masquage : uniquement possible une fois les 5 étapes terminées
+        // (garde côté API sur POST /checklist/dismiss). Persisté en DB, jamais
+        // en localStorage — l'ancien composant utilisait localStorage, ce qui
+        // faisait réapparaître la checklist sur un autre appareil.
+        let dismissed = false;
         try {
-          const kbResult = await env.DB.prepare(
-            'SELECT COUNT(*) as count FROM knowledge_documents WHERE tenant_id = ?'
-          ).bind(tenantId).first();
-          kbCount = kbResult?.count || 0;
-        } catch (e) { /* table may not exist */ }
+          const row = await env.DB.prepare(
+            'SELECT checklist_dismissed_at FROM users WHERE id = ?'
+          ).bind(user.id).first();
+          dismissed = !!row?.checklist_dismissed_at;
+        } catch (e) { /* colonne absente (migration 0083 non appliquée) */ }
 
-        // 4. Agent vocal configure (omni_agent_configs)
-        let agentConfigured = false;
-        try {
-          const agentResult = await env.DB.prepare(
-            'SELECT id FROM omni_agent_configs WHERE tenant_id = ? LIMIT 1'
-          ).bind(tenantId).first();
-          agentConfigured = !!agentResult;
-        } catch (e) { /* table may not exist */ }
-
-        // 5. Disponibilites configurees (au moins 1 creneau)
-        let availabilityDone = false;
-        try {
-          const availResult = await env.DB.prepare(
-            'SELECT id FROM availability_slots WHERE tenant_id = ? AND is_available = 1 LIMIT 1'
-          ).bind(tenantId).first();
-          availabilityDone = !!availResult;
-          // L'onboarding auto-generate cree des creneaux Lun-Ven 9h-18h => deja fait
-        } catch (e) { /* table may not exist */ }
-
-        // 6. Types de RDV configures (au moins 1 type actif)
-        let appointmentTypesDone = false;
-        try {
-          const typesResult = await env.DB.prepare(
-            'SELECT id FROM appointment_types WHERE tenant_id = ? AND is_active = 1 LIMIT 1'
-          ).bind(tenantId).first();
-          appointmentTypesDone = !!typesResult;
-        } catch (e) { /* table may not exist */ }
-
-        // 7. Connexion email (OAuth token ou config email)
-        let emailConnected = false;
-        try {
-          const oauthResult = await env.DB.prepare(
-            'SELECT id FROM oauth_tokens WHERE tenant_id = ? LIMIT 1'
-          ).bind(tenantId).first();
-          emailConnected = !!oauthResult;
-        } catch (e) { /* table may not exist */ }
-
-        // 8. Appel test effectue
-        const testCallDone = tenant.test_call_done === 1;
-
-        // Onboarding flow = config initiale rapide (etapes 1-4)
-        // Checklist = tout ce qui reste apres l'onboarding
-        // Les etapes faites pendant l'onboarding sont marquees comme completees
-        const onboardingDone = tenant.onboarding_completed === 1;
-
-        const steps = [
-          { id: 'account', title: 'Compte cree', completed: accountCreated, href: null, category: 'onboarding' },
-          { id: 'profile', title: 'Profil entreprise', completed: profileCompleted, href: '/dashboard/settings', category: 'onboarding' },
-          { id: 'agent', title: 'Agent vocal Sara configure', completed: agentConfigured, href: '/dashboard/sara', category: 'onboarding' },
-          { id: 'knowledge', title: 'Base de connaissances', completed: kbCount >= 1, href: '/dashboard/knowledge', category: 'onboarding' },
-          { id: 'availability', title: 'Disponibilites configurees', completed: availabilityDone, href: '/dashboard/settings', category: 'setup' },
-          { id: 'appointment_types', title: 'Types de rendez-vous', completed: appointmentTypesDone, href: '/dashboard/settings', category: 'setup' },
-          { id: 'email', title: 'Connexion email', completed: emailConnected, href: '/dashboard/channels/email', category: 'setup' },
-          { id: 'test_call', title: 'Appel test effectue', completed: testCallDone, href: '/dashboard/sara', category: 'setup' }
-        ];
-
-        const completedCount = steps.filter(s => s.completed).length;
-        const totalSteps = steps.length;
-        const progressPercent = Math.round((completedCount / totalSteps) * 100);
-
-        // Marquer setup_completed_at si 100%
-        if (completedCount === totalSteps && !tenant.setup_completed_at) {
-          await env.DB.prepare(
-            'UPDATE tenants SET setup_completed_at = datetime(\'now\') WHERE id = ?'
-          ).bind(tenantId).run();
+        // Trace le moment où le tenant devient pleinement opérationnel.
+        if (checklist.setup_completed && !tenant.setup_completed_at) {
+          try {
+            await env.DB.prepare(
+              `UPDATE tenants SET setup_completed_at = datetime('now') WHERE id = ?`
+            ).bind(tenantId).run();
+          } catch (e) {
+            logger.warn('setup_completed_at update echec (non bloquant)', { error: e.message });
+          }
         }
 
         return new Response(JSON.stringify({
           success: true,
-          checklist: {
-            steps,
-            completed: completedCount,
-            total: totalSteps,
-            progress_percent: progressPercent,
-            setup_completed: completedCount === totalSteps
-          }
+          checklist: { ...checklist, dismissed }
         }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -929,6 +994,52 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
       } catch (error) {
         logger.error('Checklist error', { error: error.message });
         return new Response(JSON.stringify({ success: false, error: 'Erreur checklist' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // ========================================
+    // POST /api/v1/onboarding/checklist/dismiss
+    // Masque définitivement la checklist de démarrage (une fois 5/5).
+    // ========================================
+    if (path === '/api/v1/onboarding/checklist/dismiss' && method === 'POST') {
+      const authResult = await requireAuth(request, env);
+      if (authResult.error) {
+        return new Response(JSON.stringify({ success: false, error: authResult.error }), {
+          status: authResult.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      try {
+        const checklist = await computeStartupChecklist(env, authResult.tenant.id, authResult.user);
+
+        // On recalcule côté serveur : le client ne décide pas seul qu'il a fini.
+        if (!checklist.setup_completed) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Checklist incomplete',
+            completed: checklist.completed,
+            total: checklist.total
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        await env.DB.prepare(
+          `UPDATE users SET checklist_dismissed_at = datetime('now') WHERE id = ?`
+        ).bind(authResult.user.id).run();
+
+        return new Response(JSON.stringify({ success: true, dismissed: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        logger.error('Checklist dismiss error', { error: error.message });
+        return new Response(JSON.stringify({ success: false, error: 'Erreur masquage checklist' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
