@@ -16,15 +16,26 @@ import type { UiMode } from '@/lib/navigation';
 
 const CACHE_KEY = 'ui_mode_hint';
 
+// L'ACCÈS au stockage peut lever, pas seulement l'écriture : en navigation
+// privée stricte ou avec le stockage du site bloqué, un simple getItem jette
+// une SecurityError. Non protégée, l'exception remontait depuis l'effet et
+// cassait le hook — donc la sidebar.
 function readHint(): UiMode {
   if (typeof window === 'undefined') return 'simple';
-  const cached = window.localStorage.getItem(CACHE_KEY);
-  return cached === 'advanced' ? 'advanced' : 'simple';
+  try {
+    return window.localStorage.getItem(CACHE_KEY) === 'advanced' ? 'advanced' : 'simple';
+  } catch {
+    return 'simple';
+  }
 }
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  try {
+    return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  } catch {
+    return null;
+  }
 }
 
 export function useUiMode() {

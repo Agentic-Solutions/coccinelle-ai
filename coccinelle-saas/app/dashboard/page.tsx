@@ -95,9 +95,14 @@ export default function DashboardPage() {
   const [phoneVerified, setPhoneVerified] = useState<number | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined'
-      ? localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
-      : null;
+    // try/catch : un getItem peut lever (navigation privée stricte, stockage
+    // bloqué). Non protégé, l'effet jetait et `loading` restait bloqué à true.
+    let token: string | null = null;
+    try {
+      token = typeof window !== 'undefined'
+        ? localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
+        : null;
+    } catch { /* stockage inaccessible : traité comme non authentifié */ }
     if (!token) {
       setLoading(false);
       return;
@@ -136,10 +141,22 @@ export default function DashboardPage() {
     { label: 'Taux de reponse', value: `${responseRate}%`, icon: TrendingUp },
   ];
 
+  // La checklist ne dépend PAS du chargement des KPI : elle a son propre état
+  // et rend null tant qu'elle n'a rien. La laisser derrière le garde `loading`
+  // la rendait tributaire de 4 requêtes (calls/stats, calls, billing, auth/me)
+  // regroupées dans un Promise.all sans timeout — une seule qui ne revient pas
+  // et l'accompagnement du démarrage disparaît.
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <div className="p-6 space-y-6">
+        <div className="pl-10 lg:pl-0">
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activite</p>
+        </div>
+        <SetupChecklist />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
       </div>
     );
   }
