@@ -35,9 +35,14 @@ interface ChecklistData {
   dismissed: boolean;
 }
 
+// try/catch : un getItem peut lever (navigation privée stricte, stockage bloqué).
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  try {
+    return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+  } catch {
+    return null;
+  }
 }
 
 export default function SetupChecklist() {
