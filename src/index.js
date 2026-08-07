@@ -91,6 +91,30 @@ export default {
         if (response) return response;
       }
 
+      // WhatsApp — webhook de vérification App Review (parking, aucun traitement).
+      // GET = handshake Meta. POST = accusé 200 + drop. Le traitement réel
+      // (HMAC X-Hub-Signature-256 + résolution stricte du tenant, sans fallback)
+      // = Lot 5 (cf. WHATSAPP_V2_PLAN.md / CLAUDE.md §p point 12).
+      if (path === '/api/v1/whatsapp/webhook') {
+        if (method === 'GET') {
+          const mode = url.searchParams.get('hub.mode');
+          const token = url.searchParams.get('hub.verify_token');
+          const challenge = url.searchParams.get('hub.challenge');
+          // Fail-closed : aucune valeur littérale de repli (cf. §p point 12).
+          if (mode === 'subscribe' && env.META_WEBHOOK_VERIFY_TOKEN &&
+              token === env.META_WEBHOOK_VERIFY_TOKEN) {
+            return new Response(challenge, { status: 200 });
+          }
+          return new Response('Forbidden', { status: 403 });
+        }
+        if (method === 'POST') {
+          // Parking App Review : on accuse réception et on jette. Aucun
+          // JSON.parse, aucun accès DB, aucun envoi — rien à fuiter.
+          return new Response('EVENT_RECEIVED', { status: 200 });
+        }
+        return new Response('Method Not Allowed', { status: 405 });
+      }
+
       // Routes publiques (sans auth) - à traiter en premier
       if (path.startsWith('/api/v1/public/')) {
         response = await handlePublicRoutes(request, env, path, method);
