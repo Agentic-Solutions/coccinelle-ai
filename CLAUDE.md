@@ -111,6 +111,7 @@ coccinelle-ai/
 │       ├── omnicanal/              # orchestrator.js + routes.js (5 scénarios)
 │       ├── proactive/              # notifications proactives SMS/appel
 │       ├── omnichannel/  email/  oauth/  channels/  twilio/  retell/
+│       ├── shared/                 # sector-prompts.js (SOURCE UNIQUE prompts), horaires-slots, prestations
 │       └── public/                 # booking.js + routes.js (réservation publique)
 └── coccinelle-saas/                # Frontend Next.js
     ├── app/
@@ -129,7 +130,7 @@ coccinelle-ai/
     │       └── (redirections legacy : voixia, sara, prospects, products → nouvelles routes)
     ├── components/DashboardSidebar.tsx   # Sidebar Fonio (6 groupes accordéon)
     ├── lib/voices.ts               # SOURCE UNIQUE des voix (20 voix FR)
-    ├── lib/prompts.ts              # SOURCE UNIQUE prompts sectoriels (13 secteurs)
+    ├── lib/prompts.ts              # nodes + quick_scenarios UI (PLUS la source des prompts)
     └── src/components/SequenceEditor.tsx # Éditeur séquences (11 types de nodes)
 ```
 
@@ -228,13 +229,28 @@ Dashboard config agent → handleSavePrompt() envoie voice_id + llm_*
   → resolve-phone relit la DB à chaque appel (0 cache)
 ```
 
-### Prompts sectoriels
+### Prompts sectoriels — SOURCE UNIQUE `src/modules/shared/sector-prompts.js` (07/08/2026)
 
 ```
-Sélection secteur → getSectorPrompt(secteur) depuis lib/prompts.ts (JAMAIS de PROMPT_TEMPLATES local)
-  → system_prompt riche (identité + style + déroulement + OUTIL SILENCIEUX + MOTS INTERDITS)
-  → frontend remplace {ASSISTANT_NAME} et {COMPANY_NAME} AVANT envoi (0 variable {} en DB)
+Le prompt est GÉNÉRÉ CÔTÉ BACKEND, jamais lu dans ai_sector_templates ni reçu du front :
+  buildSectorPrompt({secteur, agentName, companyName}) → texte final, 0 variable {}
+  buildSectorTemplate(secteur) → version générique {ASSISTANT_NAME}/{COMPANY_NAME} (table D1)
+  normalizeSector(x) → 14 clés canoniques + alias (restauration→restaurant, services→artisan,
+                       commerce→ecommerce, garage→automobile, notaire/avocat→juridique…)
+  isPromptCompliant(t) → un prompt fourni de l'extérieur n'est gardé que s'il est conforme
 ```
+> **7 chemins backend** appellent ce générateur : signup (`auth/routes.js`), onboarding étape
+> assistant, revendeur (`reseller/routes.js`), `agents/auto-generate`, les **deux** branches de
+> `resolve-phone`, orchestrateur omnicanal. Un 8ᵉ point (`GET /ai/templates`) lit la table D1,
+> qui n'est plus qu'un **dérivé** régénéré par `scripts/backfill_ai_sector_templates.sql`.
+>
+> ⚠️ **`coccinelle-saas/lib/prompts.ts` n'est PLUS la source des prompts** (elle n'a jamais eu les
+> règles vocales). Elle reste la source des `nodes` et `quick_scenarios` du SequenceEditor et du
+> picker dashboard. Le `system_prompt` qu'elle expose est envoyé par l'onboarding puis **ignoré et
+> régénéré** par le backend. Son alignement = Lot B (non fait).
+>
+> **14 secteurs** : les 13 historiques + `syndic` (ajouté le 07/08 — le tenant démo Maze est en
+> `sector='syndic'` et il n'existait dans aucune source).
 
 ### Onboarding (4 étapes, API-first, 0 localStorage utilisateur)
 
@@ -286,7 +302,8 @@ Alias `/tools/*` disponibles (availability, book-appointment, knowledge, product
 | **Prompt actif** | **`ai_prompt_versions.is_active=1` (1 SEUL par tenant)** | — |
 | Config LLM/voix | `voixia_configs` (llm_provider, llm_model, voice_id, transfer_*) | — |
 | Liste voix | `lib/voices.ts` (VOICE_OPTIONS) | — |
-| Prompts secteurs | `lib/prompts.ts` (SECTOR_PROMPTS) | PROMPT_TEMPLATES local |
+| **Prompts secteurs** | **`src/modules/shared/sector-prompts.js`** (backend, 14 secteurs) | `lib/prompts.ts`, `ai_sector_templates`, `voixia-portal/lib/sectors.ts` |
+| Nodes / scénarios UI | `lib/prompts.ts` (SECTOR_PROMPTS) | PROMPT_TEMPLATES local |
 | Tél personnel | `users.phone` (vérifié `users.phone_verified`) | — |
 | Tél pro Twilio | `tenants.phone` | — |
 | Onboarding | `tenants.onboarding_completed` + `onboarding_sessions` | localStorage |
@@ -302,7 +319,7 @@ Le `system_prompt` en DB ne contient JAMAIS de variable `{}`.
 | `tenants` / `users` | Multi-tenant + auth (users.phone, phone_verified, phone_verification_*) |
 | `ai_prompt_versions` | Versions de prompt, `is_active=1` = actif |
 | `voixia_configs` | Config LLM/voix/transfert par tenant |
-| `ai_sector_templates` | Templates sectoriels (peuplé depuis lib/prompts.ts) |
+| `ai_sector_templates` | Templates sectoriels — **DÉRIVÉ**, plus une source (14 lignes, backfill 07/08 depuis `shared/sector-prompts.js`). Ne sert qu'à `GET /ai/templates` et au réglage LLM/voix par secteur |
 | `calls` / `call_summaries` / `ai_interaction_logs` | Appels + résumés + logs |
 | `appointments` / `availability_slots` | RDV (INDEX UNIQUE partiel anti double-booking, migr. 0066) |
 | `knowledge_documents` / `knowledge_chunks` | KB (recherche lit `content`, fallback documents) |
@@ -390,6 +407,14 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    à toute question sur les services ou tarifs » (sinon l'agent ne call pas le tool).
 6. `system_prompt` DOIT contenir « ne dis JAMAIS je consulte, je vérifie, un instant,
    je recherche » (OUTIL SILENCIEUX) + une liste de MOTS INTERDITS (ex : « sur devis »).
+6bis. **Ne JAMAIS écrire un `system_prompt` sans passer par `buildSectorPrompt()`**
+   (`src/modules/shared/sector-prompts.js`). Les règles 4, 5 et 6 ne se vérifient pas à la
+   relecture : elles se garantissent par le générateur. Un prompt venu de l'extérieur
+   (frontend, portail revendeur) se teste avec `isPromptCompliant()` et se **régénère** s'il
+   échoue — ne jamais le stocker tel quel. Tout prompt qui SORT vers un LLM passe par
+   `applyPromptVariables()` (les prompts historiques portent encore des `{}`).
+   Leçon du 07/08/2026 : 3 sources divergentes = 0/13 templates conformes en prod pendant
+   des mois, sur 100 % des nouveaux inscrits. Voir [[sector-prompts-source-unique]].
 
 ### Tools vocaux & TTS
 7. Retour tool vocal : JAMAIS de préfixe technique (« Réponse trouvée », etc.) — c'est lu à voix haute.
@@ -449,6 +474,25 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🟡 Moyenne | Dette `tenants.phone` | 5 tenants partagent `+33760762153`, formats mixtes `0760…`/`+3376…` — non utilisé par resolve-phone (secondaire) mais à assainir |
 
 ### Résolus majeurs (référence rapide)
+
+- **Templates sectoriels dégradés — E2E validé 07/08/2026** (chantier `chantier-templates-kb`).
+  **Constat** : 3 sources divergeaient (`lib/prompts.ts`, `ai_sector_templates`,
+  `voixia-portal/lib/sectors.ts`) et les DEUX que le backend utilisait — signup puis étape
+  « assistant » de l'onboarding — n'avaient **ni l'instruction `search_knowledge` (i.5) ni les
+  règles vocales (i.6)** : contrôle prod = **0/13 conformes** ⇒ 100 % des nouveaux inscrits
+  recevaient un agent répondant **de mémoire** sur les tarifs, sur le tunnel P0. Corriger une
+  seule source ne suffisait pas : le signup écrit un prompt, l'étape agent l'écrase, un
+  utilisateur qui saute l'étape garde celui du signup.
+  **Fix** : générateur unique `src/modules/shared/sector-prompts.js` (JS pur, côté Worker —
+  le prompt est généré là où il est écrit en base), fusion du déroulé métier de `lib/prompts.ts`
+  et du bloc de règles vocales de `buildStarterPrompt()`. **14 secteurs** (+ `syndic`) + table
+  d'alias (`restauration`/`services`/`commerce`/`garage`/`notaire`… retombaient silencieusement
+  sur `generaliste`). 7 chemins recâblés. **Fuite corrigée au passage** : `resolve-phone`
+  (2 branches) et l'orchestrateur renvoyaient le template BRUT — `{COMPANY_NAME}` partait au LLM
+  et était lu à voix haute. Backfill D1 par `scripts/backfill_ai_sector_templates.sql`
+  (14/14, aucun tenant touché). **Reste** : Lot B (aligner `lib/prompts.ts`, brancher le picker
+  dashboard sur `/ai/templates`, aligner le portail) + `tenants.sector` du portail non normalisé
+  (prompt correct via alias, mais préfixe de greeting Python neutre).
 
 - **B14** Architecture 404 : `fix-spa-404.sh` postbuild copie placeholder en 404.html (5 routes dynamiques).
 - **B15** Fiches détail « introuvable » : `window.location.pathname` au lieu de `useParams()` (4 Detail clients).
@@ -642,6 +686,12 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Chantier templates & KB — Lot A (07/08/2026)** — Consolidation des prompts sectoriels en une
+  source unique backend (`shared/sector-prompts.js`, 14 secteurs + alias), 7 chemins d'écriture
+  recâblés, backfill des 14 templates D1, fuite de variables `{}` vers le LLM fermée.
+  E2E validé sur comptes dédiés (V1/V2/V4/V7), `tsc` = 142, inventaire des routes 270/270.
+  Détail en § j. Lot B (frontend + portail) volontairement repoussé.
 
 - **Sprint WhatsApp V2 — lots 0 et 1 (19/07/2026)** — Analyse : V1 n'a jamais servi (9 messages de
   test, 0 client réel). Décision full redo via **Twilio BSP**, pricing acté (Coccinelle 49 €/mois
