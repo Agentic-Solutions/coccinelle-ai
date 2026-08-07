@@ -15,6 +15,7 @@
     "stripe": "^20.0.0"
   },
   "devDependencies": {
-    "wrangler": "^4.54.0"
+    "@cloudflare/workerd-darwin-arm64": "^1.20260804.1",
+    "wrangler": "^4.114.0"
   }
 }
