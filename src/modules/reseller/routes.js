@@ -18,6 +18,7 @@
 
 import * as auth from '../auth/helpers.js';
 import { logger } from '../../utils/logger.js';
+import { buildSectorPrompt, isPromptCompliant, normalizeSector } from '../shared/sector-prompts.js';
 
 function json(body, status, corsHeaders) {
   return new Response(JSON.stringify(body), {
@@ -251,27 +252,34 @@ export async function handleResellerRoutes(request, env, path, method, corsHeade
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
       `).bind(tenantId, agentName, companyName, syntheticEmail, apiKey, slug, sector, parentId, now).run();
 
-      // 2) Résoudre le prompt : fourni par le portail, sinon fallback template sectoriel
-      let systemPrompt = providedPrompt;
+      // 2) Résoudre le prompt.
+      //    Le portail envoie un prompt construit par buildStarterPrompt() (conforme) :
+      //    on le respecte. Tout prompt non conforme — ou absent — est REGÉNÉRÉ depuis
+      //    la source unique, jamais lu dans ai_sector_templates (table dégradée, et
+      //    les clés du portail « syndic », « restauration », « services », « commerce »
+      //    n'y existaient pas : elles retombaient silencieusement sur « generaliste »).
+      const canonicalSector = normalizeSector(sector);
+      let systemPrompt = isPromptCompliant(providedPrompt)
+        ? providedPrompt
+        : buildSectorPrompt({
+            secteur: canonicalSector,
+            agentName,
+            companyName,
+          });
       let resolvedProvider = llmProvider;
       let resolvedModel = llmModel;
       let resolvedVoice = voiceId;
 
-      if (!systemPrompt || !resolvedProvider || !resolvedModel || !resolvedVoice) {
+      if (!resolvedProvider || !resolvedModel || !resolvedVoice) {
         const tpl = await env.DB.prepare(`
-          SELECT system_prompt, llm_provider, llm_model, voice_id
+          SELECT llm_provider, llm_model, voice_id
           FROM ai_sector_templates
           WHERE secteur = ? OR secteur = 'generaliste'
           ORDER BY CASE WHEN secteur = ? THEN 1 ELSE 2 END
           LIMIT 1
-        `).bind(sector, sector).first();
+        `).bind(canonicalSector, canonicalSector).first().catch(() => null);
 
         if (tpl) {
-          if (!systemPrompt) {
-            systemPrompt = (tpl.system_prompt || '')
-              .replace(/\{ASSISTANT_NAME\}/g, 'Assistant')
-              .replace(/\{COMPANY_NAME\}/g, companyName);
-          }
           resolvedProvider = resolvedProvider || tpl.llm_provider || 'mistral';
           resolvedModel = resolvedModel || tpl.llm_model || 'mistral-large-latest';
           resolvedVoice = resolvedVoice || tpl.voice_id || 'cgSgspJ2msm6clMCkdW9';
@@ -281,7 +289,6 @@ export async function handleResellerRoutes(request, env, path, method, corsHeade
       resolvedProvider = resolvedProvider || 'mistral';
       resolvedModel = resolvedModel || 'mistral-large-latest';
       resolvedVoice = resolvedVoice || 'cgSgspJ2msm6clMCkdW9';
-      systemPrompt = systemPrompt || `Tu es l'assistant vocal de ${companyName}.`;
 
       // 3) Prompt actif (is_active=1 — un seul par tenant, ici le tout premier)
       const promptResult = await env.DB.prepare(`

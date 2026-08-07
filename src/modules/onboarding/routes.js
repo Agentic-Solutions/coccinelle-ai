@@ -18,6 +18,12 @@
 import { requireAuth } from '../auth/helpers.js';
 import { logger } from '../../utils/logger.js';
 import { syncHorairesToSlots } from '../shared/horaires-slots.js';
+import {
+  buildSectorPrompt,
+  isPromptCompliant,
+  normalizeSector,
+  DEFAULT_AGENT_NAME,
+} from '../shared/sector-prompts.js';
 
 /**
  * Journalise un événement d'onboarding (table onboarding_events, migration 0082).
@@ -774,8 +780,20 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
 
           case 'assistant':
             if (data) {
-              const tenantSector = authResult.tenant.sector || data.secteur || 'generaliste';
+              const tenantSector = normalizeSector(authResult.tenant.sector || data.secteur);
               const voiceId = data.voice_id || 'cgSgspJ2msm6clMCkdW9';
+
+              // SOURCE UNIQUE : le prompt est GÉNÉRÉ ici (shared/sector-prompts.js).
+              // Le frontend continue d'envoyer un `system_prompt` construit depuis
+              // lib/prompts.ts — il est IGNORÉ tant qu'il n'est pas conforme, car
+              // ces templates n'ont ni l'instruction search_knowledge (règle i.5)
+              // ni les règles vocales (règle i.6). Un prompt déjà conforme est
+              // respecté : c'est ce qui rendra le Lot B (frontend aligné) neutre.
+              const agentName = String(data.agent_name || '').trim() || DEFAULT_AGENT_NAME;
+              const companyName = authResult.tenant.name || '';
+              const systemPrompt = isPromptCompliant(data.system_prompt)
+                ? data.system_prompt
+                : buildSectorPrompt({ secteur: tenantSector, agentName, companyName });
 
               // UPSERT voixia_configs — INSERT si nouveau tenant, UPDATE si existant (BUG #016 fix)
               try {
@@ -800,7 +818,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
               // prompt actif quand l'INSERT échouait — 6 tenants en prod se sont
               // retrouvés dans cet état, dont la ligne réelle Coccinelle.ai.
               // Ici, un échec d'INSERT laisse simplement le prompt précédent en place.
-              if (data.system_prompt) {
+              if (systemPrompt) {
                 try {
                   // `id` est INTEGER PRIMARY KEY AUTOINCREMENT (CLAUDE.md § f) : on ne
                   // le fournit PAS et on récupère meta.last_row_id. La table n'a pas de
@@ -811,7 +829,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                      VALUES (?, 'voice', ?,
                        (SELECT COALESCE(MAX(version), 0) + 1 FROM ai_prompt_versions WHERE tenant_id = ?),
                        ?, 1, datetime('now'), datetime('now'))`
-                  ).bind(tenantId, tenantSector, tenantId, data.system_prompt).run();
+                  ).bind(tenantId, tenantSector, tenantId, systemPrompt).run();
 
                   const promptId = inserted.meta?.last_row_id;
                   if (!promptId) throw new Error('INSERT sans last_row_id');
@@ -836,13 +854,10 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                     tenantId, userId, step: 'assistant', event: 'error', errorMessage: e.message
                   });
                 }
-              } else if (data.secteur) {
-                try {
-                  await env.DB.prepare(
-                    `UPDATE ai_prompt_versions SET secteur = ? WHERE tenant_id = ? AND is_active = 1`
-                  ).bind(data.secteur, tenantId).run();
-                } catch { /* table may not exist */ }
               }
+              // (l'ancienne branche « pas de prompt fourni → on ne met à jour que le
+              //  secteur » a disparu : `systemPrompt` est désormais toujours renseigné,
+              //  puisqu'il est généré et non plus reçu du frontend.)
 
               // Sauvegarder agent_name dans omni_agent_configs (BUG #018 fix)
               if (data.agent_name) {

@@ -9,6 +9,7 @@ import { errorResponse, successResponse } from '../../utils/response.js';
 import { requireVoixIAAuth } from './auth.js';
 import { generateId, logAudit } from '../auth/helpers.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
+import { buildSectorPrompt, applyPromptVariables } from '../shared/sector-prompts.js';
 
 // ── Canaux supportes ──
 const CANAUX = ['voice', 'sms', 'email', 'whatsapp'];
@@ -248,16 +249,21 @@ async function loadPromptConfig(env, tenantId) {
     const config = await env.DB.prepare(`
       SELECT vc.llm_provider, vc.llm_model, vc.voice_id,
              vc.active_prompt_id, vc.secteur,
-             apv.system_prompt, apv.version as prompt_version
+             apv.system_prompt, apv.version as prompt_version,
+             t.name as company_name, t.sector as tenant_sector
       FROM voixia_configs vc
       LEFT JOIN ai_prompt_versions apv ON vc.active_prompt_id = apv.id
+      LEFT JOIN tenants t ON t.id = vc.tenant_id
       WHERE vc.tenant_id = ?
       LIMIT 1
     `).bind(tenantId).first();
 
+    const companyName = config?.company_name || '';
+
     if (config?.system_prompt) {
       return {
-        system_prompt: config.system_prompt,
+        // Filet : un prompt historique peut porter des {} — jamais vers le LLM.
+        system_prompt: applyPromptVariables(config.system_prompt, { companyName }),
         llm_provider: config.llm_provider,
         llm_model: config.llm_model,
         secteur: config.secteur,
@@ -265,15 +271,15 @@ async function loadPromptConfig(env, tenantId) {
       };
     }
 
-    // Fallback template sectoriel
-    const secteur = config?.secteur || 'generaliste';
+    // Fallback : prompt GENERE (source unique), plus le template D1 degrade.
+    const secteur = config?.secteur || config?.tenant_sector || 'generaliste';
     const template = await env.DB.prepare(`
-      SELECT system_prompt, llm_provider, llm_model
+      SELECT llm_provider, llm_model
       FROM ai_sector_templates WHERE secteur = ? LIMIT 1
-    `).bind(secteur).first();
+    `).bind(secteur).first().catch(() => null);
 
     return {
-      system_prompt: template?.system_prompt || getDefaultPrompt(),
+      system_prompt: buildSectorPrompt({ secteur, companyName }),
       llm_provider: config?.llm_provider || template?.llm_provider || 'anthropic',
       llm_model: config?.llm_model || template?.llm_model || 'claude-haiku-4-5-20251001',
       secteur,

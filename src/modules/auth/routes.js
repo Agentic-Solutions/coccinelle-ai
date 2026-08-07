@@ -3,6 +3,7 @@ import * as auth from './helpers.js';
 import { initTenantPermissions } from '../../utils/permissions.js';
 import { logger } from '../../utils/logger.js';
 import { rateLimitResponse } from '../../utils/rate-limiter.js';
+import { buildSectorPrompt, normalizeSector } from '../shared/sector-prompts.js';
 
 // ========================================
 // FONCTIONS UTILITAIRES POUR LE SLUG
@@ -212,46 +213,54 @@ export async function handleAuthRoutes(request, env, ctx, corsHeaders) {
       // FIX B1 : Auto-créer voixia_config + prompt sectoriel par défaut
       // ========================================
       try {
-        const effectiveSector = tenantSector || 'generaliste';
-        // Chercher template sectoriel ou fallback generaliste
+        // SOURCE UNIQUE : le prompt est GÉNÉRÉ (shared/sector-prompts.js), plus lu
+        // dans ai_sector_templates. Cette table était dégradée pour les 14 secteurs
+        // (aucune instruction search_knowledge, aucune règle vocale) : 100 % des
+        // nouveaux inscrits recevaient un agent qui répondait de mémoire sur les
+        // tarifs. Elle ne sert plus qu'à l'affichage et aux tenants historiques.
+        const effectiveSector = normalizeSector(tenantSector);
+
+        // Pas de prénom choisi à ce stade (il l'est à l'étape « assistant » de
+        // l'onboarding) → « Assistant », jamais « Coccinelle » qui faisait
+        // s'annoncer l'agent au nom de l'éditeur chez le client.
+        const defaultPrompt = buildSectorPrompt({
+          secteur: effectiveSector,
+          companyName: tenantName,
+        });
+
+        // Config LLM/voix : valeurs par défaut du produit, template D1 en secours
+        // pour un éventuel réglage sectoriel (voix genrée, modèle spécifique).
         const sectorTemplate = await env.DB.prepare(`
-          SELECT system_prompt, llm_provider, llm_model, voice_id
+          SELECT llm_provider, llm_model, voice_id
           FROM ai_sector_templates
           WHERE secteur = ? OR secteur = 'generaliste'
           ORDER BY CASE WHEN secteur = ? THEN 1 ELSE 2 END
           LIMIT 1
-        `).bind(effectiveSector, effectiveSector).first();
+        `).bind(effectiveSector, effectiveSector).first().catch(() => null);
 
-        if (sectorTemplate) {
-          // Remplacer les variables dans le template
-          let defaultPrompt = (sectorTemplate.system_prompt || '')
-            .replace(/\{ASSISTANT_NAME\}/g, 'Coccinelle')
-            .replace(/\{COMPANY_NAME\}/g, tenantName);
+        // Créer le prompt actif (id est INTEGER AUTOINCREMENT)
+        const promptResult = await env.DB.prepare(`
+          INSERT INTO ai_prompt_versions (tenant_id, secteur, system_prompt, is_active, version, created_at)
+          VALUES (?, ?, ?, 1, 1, ?)
+        `).bind(tenantId, effectiveSector, defaultPrompt, now).run();
+        const promptId = promptResult.meta?.last_row_id;
 
-          // Créer le prompt actif (id est INTEGER AUTOINCREMENT)
-          const promptResult = await env.DB.prepare(`
-            INSERT INTO ai_prompt_versions (tenant_id, secteur, system_prompt, is_active, version, created_at)
-            VALUES (?, ?, ?, 1, 1, ?)
-          `).bind(tenantId, effectiveSector, defaultPrompt, now).run();
-          const promptId = promptResult.meta?.last_row_id;
+        if (promptId) {
+          // Créer voixia_config avec le prompt actif
+          await env.DB.prepare(`
+            INSERT INTO voixia_configs (tenant_id, llm_provider, llm_model, voice_id, secteur, active_prompt_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            tenantId,
+            sectorTemplate?.llm_provider || 'mistral',
+            sectorTemplate?.llm_model || 'mistral-small-latest',
+            sectorTemplate?.voice_id || 'cgSgspJ2msm6clMCkdW9',
+            effectiveSector,
+            promptId,
+            now
+          ).run();
 
-          if (promptId) {
-            // Créer voixia_config avec le prompt actif
-            await env.DB.prepare(`
-              INSERT INTO voixia_configs (tenant_id, llm_provider, llm_model, voice_id, secteur, active_prompt_id, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).bind(
-              tenantId,
-              sectorTemplate.llm_provider || 'mistral',
-              sectorTemplate.llm_model || 'mistral-small-latest',
-              sectorTemplate.voice_id || 'cgSgspJ2msm6clMCkdW9',
-              effectiveSector,
-              promptId,
-              now
-            ).run();
-
-            logger.info('Auto-created voixia_config + prompt for new tenant', { tenantId, sector: effectiveSector, promptId });
-          }
+          logger.info('Auto-created voixia_config + prompt for new tenant', { tenantId, sector: effectiveSector, promptId });
         }
       } catch (voixiaError) {
         // Non-bloquant : si ça échoue, le tenant peut configurer manuellement

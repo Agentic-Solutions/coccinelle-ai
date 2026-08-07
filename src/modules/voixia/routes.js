@@ -9,6 +9,11 @@ import { generateId, logAudit } from '../auth/helpers.js';
 import { requireVoixIAAuth } from './auth.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
 import { findPrestationByName, findPrestationDurationById } from '../shared/prestations.js';
+import {
+  buildSectorPrompt,
+  applyPromptVariables,
+  normalizeSector,
+} from '../shared/sector-prompts.js';
 
 /**
  * Handler principal pour les routes /api/v1/voixia/*
@@ -1062,12 +1067,14 @@ async function handleResolvePhone(request, env) {
       changes: { phone: phone, found: !!resolved, via_caller: !!resolved?.via_caller }
     }).catch(() => {});
 
-    // Numero non trouve — retour par defaut avec template generaliste
+    // Numero non trouve — retour par defaut avec prompt generaliste GENERE.
+    // Avant : on renvoyait le template brut de ai_sector_templates, variables
+    // {COMPANY_NAME} comprises — l'agent les lisait a voix haute.
     if (!resolved) {
       const defaultTemplate = await env.DB.prepare(`
-        SELECT system_prompt, llm_provider, llm_model, voice_id
+        SELECT llm_provider, llm_model, voice_id
         FROM ai_sector_templates WHERE secteur = 'generaliste' LIMIT 1
-      `).first();
+      `).first().catch(() => null);
 
       return successResponse({
         tenant_id: null,
@@ -1077,7 +1084,7 @@ async function handleResolvePhone(request, env) {
         llm_provider: defaultTemplate?.llm_provider || 'mistral',
         llm_model: defaultTemplate?.llm_model || 'mistral-large-latest',
         voice_id: defaultTemplate?.voice_id || 'cgSgspJ2msm6clMCkdW9',
-        system_prompt: defaultTemplate?.system_prompt || null,
+        system_prompt: buildSectorPrompt({ secteur: 'generaliste' }),
         message: 'Numero non associe a un tenant — config generaliste par defaut'
       });
     }
@@ -1091,16 +1098,23 @@ async function handleResolvePhone(request, env) {
     const secteur = resolved.sector || 'generaliste';
 
     if (!systemPrompt) {
+      // Prompt GENERE, substitue avec la raison sociale du tenant : le template
+      // D1 ne sert plus qu'au reglage LLM/voix. Un tenant sans prompt actif
+      // recevait auparavant le template brut, non conforme et truffe de {}.
+      systemPrompt = buildSectorPrompt({
+        secteur,
+        companyName: resolved.company_name || '',
+      });
+
       const template = await env.DB.prepare(`
-        SELECT system_prompt, llm_provider, llm_model, voice_id
+        SELECT llm_provider, llm_model, voice_id
         FROM ai_sector_templates WHERE secteur = ? LIMIT 1
-      `).bind(secteur).first();
+      `).bind(secteur).first().catch(() => null);
 
       if (template) {
-        systemPrompt = template.system_prompt;
-        llmProvider = resolved.llm_provider || template.llm_provider;
-        llmModel = resolved.llm_model || template.llm_model;
-        voiceId = resolved.voice_id || template.voice_id;
+        llmProvider = resolved.llm_provider || template.llm_provider || llmProvider;
+        llmModel = resolved.llm_model || template.llm_model || llmModel;
+        voiceId = resolved.voice_id || template.voice_id || voiceId;
       }
     }
 
@@ -1114,7 +1128,11 @@ async function handleResolvePhone(request, env) {
       llm_provider: llmProvider,
       llm_model: llmModel,
       voice_id: voiceId,
-      system_prompt: systemPrompt,
+      // Filet : un prompt historique peut encore porter des {} en base — on ne
+      // les laisse pas partir vers le LLM (ils seraient lus a voix haute).
+      system_prompt: applyPromptVariables(systemPrompt, {
+        companyName: resolved.company_name || '',
+      }),
       active_prompt_id: resolved.active_prompt_id || null,
       prompt_version: resolved.prompt_version || null,
       message: 'Tenant resolu avec succes'
@@ -1419,13 +1437,7 @@ async function handleCreateAgentConfig(request, env) {
   try {
     let systemPrompt = '';
 
-    // 1. Récupérer le prompt depuis un template
-    if (template_id && agent_type === 'single_prompt') {
-      const tmpl = await env.DB.prepare(
-        'SELECT system_prompt FROM ai_sector_templates WHERE secteur = ?'
-      ).bind(template_id).first();
-      if (tmpl) systemPrompt = tmpl.system_prompt;
-    }
+    // 1. Flow conversationnel : le texte vient du template de flow (voixia_templates).
     if (template_id && agent_type === 'conversational_flow') {
       const tmpl = await env.DB.prepare(
         'SELECT greeting FROM voixia_templates WHERE id = ?'
@@ -1433,19 +1445,27 @@ async function handleCreateAgentConfig(request, env) {
       if (tmpl) systemPrompt = tmpl.greeting || '';
     }
 
-    // Fallback si pas de template
+    // 2. Prompt unique : GÉNÉRÉ depuis la source unique (shared/sector-prompts.js).
+    //    `template_id` porte ici une clé de secteur (l'appelant envoyait cette clé
+    //    à ai_sector_templates) : elle prime sur `secteur` si elle est fournie.
     if (!systemPrompt) {
-      systemPrompt = `Tu es ${agent_name}, assistant vocal IA de ${company_name || 'votre entreprise'}.`;
+      systemPrompt = buildSectorPrompt({
+        secteur: normalizeSector(template_id || secteur),
+        agentName: agent_name,
+        companyName: company_name,
+        horaires,
+        telephone,
+      });
+    } else {
+      // Le greeting d'un flow peut porter des variables : on les substitue et on
+      // garantit qu'aucun {} ne part en base (CLAUDE.md § f).
+      systemPrompt = applyPromptVariables(systemPrompt, {
+        agentName: agent_name,
+        companyName: company_name,
+        horaires,
+        telephone,
+      });
     }
-
-    // 2. Remplacer les variables
-    systemPrompt = systemPrompt
-      .replace(/\{ASSISTANT_NAME\}/g, agent_name)
-      .replace(/\{NOM_AGENT\}/g, agent_name)
-      .replace(/\{COMPANY_NAME\}/g, company_name || 'votre entreprise')
-      .replace(/\{NOM_ENTREPRISE\}/g, company_name || 'votre entreprise')
-      .replace(/\{HORAIRES\}/g, horaires || 'horaires habituels')
-      .replace(/\{TELEPHONE\}/g, telephone || '');
 
     // 3. Trouver la version max
     const maxV = await env.DB.prepare(
