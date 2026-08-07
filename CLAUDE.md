@@ -490,7 +490,9 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
   sur `generaliste`). 7 chemins recâblés. **Fuite corrigée au passage** : `resolve-phone`
   (2 branches) et l'orchestrateur renvoyaient le template BRUT — `{COMPANY_NAME}` partait au LLM
   et était lu à voix haute. Backfill D1 par `scripts/backfill_ai_sector_templates.sql`
-  (14/14, aucun tenant touché). **Reste** : Lot B (aligner `lib/prompts.ts`, brancher le picker
+  (14/14, aucun tenant touché). **Validé E2E 07/08** : V1/V2/V4/V7 sur comptes dédiés (supprimés
+  depuis) + **appel réel au numéro d'essai — `search_knowledge` bien appelé dans les logs, greeting
+  fluide**. **Reste** : Lot B (aligner `lib/prompts.ts`, brancher le picker
   dashboard sur `/ai/templates`, aligner le portail) + `tenants.sector` du portail non normalisé
   (prompt correct via alias, mais préfixe de greeting Python neutre).
 
