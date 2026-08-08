@@ -721,15 +721,24 @@ async function handleSearchKnowledge(request, env) {
 
   if (!question) return errorResponse('question ou query est requis', 400);
 
-  // ── LightRAG (prioritaire, timeout 3s) ──
-  const lightragEnabled = env.LIGHTRAG_ENABLED !== 'false' && env.LIGHTRAG_URL && env.LIGHTRAG_API_KEY;
+  // ── LightRAG : COUPE PAR DEFAUT (fail-safe, 08/08/2026) ──
+  //
+  // L'index LightRAG n'est PAS multi-tenant : rien n'y ingere jamais la KB d'un
+  // client (aucun code d'ingestion dans ce depot) et la requete ne portait ni
+  // tenant_id ni workspace. Tous les tenants recevaient donc le meme index, qui
+  // ne contenait que la documentation commerciale de Coccinelle.ai : un garage
+  // s'est vu repondre « Tarif Essentiel 79 euros par mois » sur une question de
+  // vidange, puis a invente ses propres tarifs et un faux numero.
+  //
+  // Le flag etait fail-open (`!== 'false'` + variable absente = actif). Il est
+  // desormais fail-safe : SEUL `LIGHTRAG_ENABLED = "true"` le reactive. Ne pas
+  // le remettre sans (a) une ingestion par tenant et (b) un filtre par tenant
+  // cote LightRAG — sinon la fuite inter-tenant revient telle quelle.
+  const lightragEnabled = env.LIGHTRAG_ENABLED === 'true' && env.LIGHTRAG_URL && env.LIGHTRAG_API_KEY;
+  let lightragAnswer = null;
   if (lightragEnabled) {
     try {
-      const lrResult = await _searchKnowledgeLightRAG(env, question);
-      if (lrResult) {
-        console.log(`[KB] provenance=lightrag tenant=${tenant_id}`);
-        return successResponse(lrResult);
-      }
+      lightragAnswer = await _searchKnowledgeLightRAG(env, question);
     } catch (err) {
       console.log(`[KB] lightrag_failed tenant=${tenant_id} err=${err.message}`);
     }
@@ -815,22 +824,171 @@ async function handleSearchKnowledge(request, env) {
     changes: { question: question.substring(0, 100), results_count: results.length }
   }).catch(() => {});
 
-  // Selectionner la meilleure answer : source_type='text' en priorite, tronquee a 500 chars
+  // ── Selection de la reponse ──
+  // Priorite source_type='text' (saisie manuelle du client) puis ordre de la requete.
   const textPriorityResults = results.filter(r => r.source_type === 'text');
   const bestResult = textPriorityResults.length > 0 ? textPriorityResults[0] : results[0];
-  const answer = bestResult?.content?.substring(0, 500) || null;
 
-  console.log(`[KB] provenance=fallback_like tenant=${tenant_id}`);
+  // On renvoie le PASSAGE PERTINENT, plus les 500 premiers caracteres du document.
+  // Sans chunks en base (0 chunk en prod le 08/08), `substring(0, 500)` renvoyait
+  // le debut du document quelle que soit la question : sur une fiche garage de
+  // 2 489 caracteres, « climatisation » (pos. 1252) ou « controle technique »
+  // (pos. 1603) etaient hors d'atteinte et l'agent recevait les horaires.
+  let answer = _extractRelevantPassage(bestResult?.content, searchWords);
+
+  // Un resultat LightRAG ne sert que de COMPLEMENT quand la KB du tenant n'a rien
+  // — jamais de court-circuit. Avant, il etait consulte en premier et renvoye tel
+  // quel des qu'il faisait 10 caracteres, « je n'ai pas assez d'informations »
+  // compris : la KB du client n'etait alors jamais lue.
+  if (!answer && lightragAnswer) {
+    answer = lightragAnswer;
+    searchType = 'lightrag';
+  }
+
+  // Coordonnees du tenant : elles vivent dans `tenants`, PAS dans la KB. Un
+  // client qui demande « quel est votre numero ? » ne trouvait donc rien, et
+  // l'agent inventait un numero plausible (05 61 ... a Toulouse le 08/08).
+  if (!answer) {
+    const contact = await _answerFromTenantContact(env, tenant_id, question);
+    if (contact) {
+      answer = contact;
+      searchType = 'tenant_contact';
+    }
+  }
+
+  const found = !!answer;
+  console.log(`[KB] provenance=${searchType} tenant=${tenant_id} found=${found} results=${results.length}`);
   return successResponse({
     results,
     count: results.length,
     answer,
-    found: !!answer,
+    // `found` reflete une VRAIE reponse. Un `found: true` sur un « je ne sais pas »
+    // pousse l'agent a inventer : MOTS INTERDITS lui interdit de dire qu'il ignore.
+    found,
     search_type: searchType,
-    message: results.length > 0
+    message: found
       ? `${results.length} résultat(s) trouvé(s)`
       : 'Aucun résultat trouvé dans la base de connaissances'
   });
+}
+
+/**
+ * Repond aux questions de coordonnees depuis la fiche du tenant.
+ *
+ * Le telephone, l'adresse et l'email professionnels sont dans `tenants` — jamais
+ * dans `knowledge_documents`. search_knowledge ne les exposait pas : l'agent,
+ * a qui MOTS INTERDITS interdit de dire qu'il ne sait pas, inventait.
+ * Retourne null si la question ne porte pas sur les coordonnees, ou si la donnee
+ * demandee est absente en base (on prefere « rien trouve » a une invention).
+ */
+async function _answerFromTenantContact(env, tenantId, question) {
+  const q = String(question || '').toLowerCase();
+
+  const veutTelephone = /(telephone|téléphone|numero|numéro|joindre|rappeler|appeler|portable)/.test(q);
+  const veutAdresse = /(adresse|situe|situé|ou etes|où êtes|ou se trouve|où se trouve|acces|accès|venir)/.test(q);
+  const veutEmail = /(email|e-mail|mail|courriel)/.test(q);
+  if (!veutTelephone && !veutAdresse && !veutEmail) return null;
+
+  let t = null;
+  try {
+    t = await env.DB.prepare(
+      'SELECT name, phone, address, email_pro FROM tenants WHERE id = ?'
+    ).bind(tenantId).first();
+  } catch (e) {
+    logger.warn('VoixIA — lecture coordonnees tenant echouee', { error: e.message, tenantId });
+    return null;
+  }
+  if (!t) return null;
+
+  const parts = [];
+  if (veutTelephone && t.phone) parts.push(`Notre numéro est le ${_formatPhoneFr(t.phone)}.`);
+  if (veutAdresse && t.address) parts.push(`Notre adresse est ${t.address}.`);
+  if (veutEmail && t.email_pro) parts.push(`Notre adresse email est ${t.email_pro}.`);
+
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/**
+ * +33760762153 → « 07 60 76 21 53 » (le TTS lit les paires, pas l'E.164).
+ * Tout format non reconnu est renvoye tel quel.
+ */
+export function _formatPhoneFr(phone) {
+  const raw = String(phone || '').replace(/[\s.-]/g, '');
+  const national = raw.startsWith('+33') ? '0' + raw.slice(3) : raw;
+  if (!/^0\d{9}$/.test(national)) return String(phone || '');
+  return national.match(/\d{2}/g).join(' ');
+}
+
+/**
+ * Extrait le passage le plus pertinent d'un document pour la question posee.
+ *
+ * Fenetre de ~500 caracteres centree sur la zone qui concentre le plus de mots
+ * recherches, elargie aux frontieres de phrase pour ne pas couper en plein mot
+ * (le texte part vers un TTS : une phrase tronquee s'entend).
+ * Retourne null si le document est vide — l'appelant en deduit « rien trouve ».
+ */
+export function _extractRelevantPassage(content, searchWords, windowSize = 500) {
+  const text = String(content || '').trim();
+  if (!text) return null;
+  if (text.length <= windowSize) return text;
+
+  const lower = text.toLowerCase();
+
+  // Position de chaque occurrence de chaque mot recherche.
+  const hits = [];
+  for (const word of searchWords) {
+    const w = String(word).toLowerCase();
+    if (!w) continue;
+    let from = 0;
+    let idx = lower.indexOf(w, from);
+    while (idx !== -1) {
+      hits.push(idx);
+      from = idx + w.length;
+      idx = lower.indexOf(w, from);
+    }
+  }
+
+  // Aucun mot trouve dans ce document (il a matche sur le titre) → debut du doc.
+  if (hits.length === 0) return _snapToSentence(text, 0, windowSize);
+
+  // Meilleur point d'ancrage : l'occurrence qui a le plus de voisines dans une
+  // fenetre de la taille demandee (la zone qui parle le plus du sujet).
+  let bestPos = hits[0];
+  let bestScore = 0;
+  for (const pos of hits) {
+    const score = hits.filter(h => h >= pos - windowSize / 2 && h <= pos + windowSize / 2).length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestPos = pos;
+    }
+  }
+
+  // Petit recul seulement (~100 car.) : le budget de la fenetre doit servir a ce
+  // qui SUIT le mot trouve, c'est la que se trouve la reponse. Un recul d'un tiers
+  // de fenetre gaspillait le budget en contexte amont et coupait la reponse.
+  const start = Math.max(0, bestPos - 100);
+  return _snapToSentence(text, start, windowSize);
+}
+
+/**
+ * Decoupe [start, start+len] en s'alignant sur des frontieres de phrase.
+ * Prefixe « … » si on ne demarre pas au debut du document.
+ */
+export function _snapToSentence(text, start, len) {
+  let from = start;
+  if (from > 0) {
+    // Reculer jusqu'a la fin de phrase precedente (dans une limite raisonnable).
+    const before = text.lastIndexOf('.', from);
+    if (before !== -1 && from - before < 120) from = before + 1;
+  }
+  let slice = text.slice(from, from + len).trim();
+
+  // Couper a la derniere phrase complete (regle 8 : pas de phrase tronquee au TTS).
+  if (from + len < text.length) {
+    const lastStop = Math.max(slice.lastIndexOf('.'), slice.lastIndexOf('!'), slice.lastIndexOf('?'));
+    if (lastStop > len / 3) slice = slice.slice(0, lastStop + 1);
+  }
+  return from > 0 ? `… ${slice}` : slice;
 }
 
 /**
@@ -850,18 +1008,55 @@ async function _searchKnowledgeLightRAG(env, question) {
   if (!res.ok) throw new Error(`LightRAG HTTP ${res.status}`);
   const data = await res.json();
   let answer = (data.response || '').trim();
-  if (answer.length < 10) return null;
+
+  // Retirer la section « References » : elle est destinee a un affichage ecrit,
+  // elle est lue a voix haute par l'agent.
+  answer = answer.replace(/\n#{1,6}\s*R[ée]f[ée]rences?[\s\S]*$/i, '').trim();
   // Nettoyer prefixes generiques du LLM
   answer = answer.replace(/^(Based on the (available )?knowledge[^.]*\.\s*)/i, '');
+  // Markdown → texte parlable (regles 8 et 9 : ni symbole ni titre au TTS).
+  answer = answer
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^[-*]\s+/gm, '')
+    .replace(/\n{2,}/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  // Une NON-REPONSE n'est pas une reponse. LightRAG repond volontiers « je n'ai
+  // pas assez d'informations » : renvoyer ce texte a l'agent, alors que MOTS
+  // INTERDITS lui interdit de dire qu'il ignore, le pousse mecaniquement a
+  // inventer (c'est l'origine des faux tarifs et du faux numero du 08/08).
+  if (_isNonAnswer(answer)) return null;
+  if (answer.length < 10) return null;
   if (answer.length > 500) answer = answer.substring(0, 500);
-  return {
-    answer,
-    found: true,
-    results: [{ source: 'lightrag', content: answer }],
-    count: 1,
-    search_type: 'lightrag',
-    message: '1 résultat(s) trouvé(s)',
-  };
+  return answer;
+}
+
+/**
+ * Detecte les formulations par lesquelles un RAG dit qu'il n'a pas trouve.
+ * Volontairement large : un faux positif fait retomber sur la KB du tenant
+ * (comportement souhaite), un faux negatif fait halluciner l'agent.
+ */
+export function _isNonAnswer(text) {
+  const t = String(text || '').toLowerCase();
+  if (!t) return true;
+  const marqueurs = [
+    "n'ai pas assez d'informations",
+    "n'ai pas d'informations",
+    "n'ai pas acces",
+    "n'ai pas accès",
+    'ne dispose pas',
+    'aucune information',
+    'aucune reference disponible',
+    'aucune référence disponible',
+    'pas en mesure de repondre',
+    'pas en mesure de répondre',
+    "don't have enough information",
+    'no relevant information',
+    'i do not have',
+  ];
+  return marqueurs.some(m => t.includes(m));
 }
 
 /**
