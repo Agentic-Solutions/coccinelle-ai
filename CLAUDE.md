@@ -383,6 +383,15 @@ vecteurs de la base de connaissances, alternative/complément à Cloudflare Vect
 
 **Isolation critique :** le workspace `coccinelle` NE DOIT JAMAIS partager d'index avec
 `1compta`. Toujours vérifier le workspace ciblé avant toute opération d'ingestion/query.
+Vérifié le 08/08/2026 : isolation **saine** — deux conteneurs (`coccinelle-lightrag`,
+`1compta-lightrag`) et deux volumes Docker distincts.
+
+> 🔴 **LightRAG est COUPÉ du chemin vocal depuis le 08/08/2026** (`LIGHTRAG_ENABLED === 'true'`,
+> absent = coupé). Il n'est **pas multi-tenant** : aucune ingestion par tenant n'existe, l'index
+> ne contient que la doc commerciale de Coccinelle.ai, et la requête ne portait ni `tenant_id`
+> ni workspace — tous les clients recevaient le même index. **Ne pas réactiver sans (a) ingestion
+> par tenant et (b) filtre par tenant.** La recherche vocale repose aujourd'hui sur D1
+> (LIKE word-split OR + extraction du passage pertinent). Voir § j et [[lightrag-non-multitenant]].
 
 **Commandes :**
 ```bash
@@ -415,6 +424,15 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    `applyPromptVariables()` (les prompts historiques portent encore des `{}`).
    Leçon du 07/08/2026 : 3 sources divergentes = 0/13 templates conformes en prod pendant
    des mois, sur 100 % des nouveaux inscrits. Voir [[sector-prompts-source-unique]].
+6ter. **L'ORDRE et les EXEMPLES d'un prompt pèsent plus que ses règles.** Trois invariants,
+   payés par une régression en prod le 08/08 (plus aucun appel d'outil) :
+   - la **dernière** instruction avant CLÔTURE doit être celle qu'on veut voir exécutée —
+     c'est `TOOL_ORDER_BLOCK` (appeler l'outil), jamais l'échappatoire ;
+   - **tout exemple verbatim est un script que le modèle rejouera** : ne jamais donner
+     l'exemple du chemin d'échec sans donner d'abord celui du chemin nominal ;
+   - une consigne de repli s'énonce **conditionnée** (« SEULEMENT si l'outil a été appelé et
+     n'a rien renvoyé »), jamais comme une règle générale — et si elle promet une action
+     (rappel), elle doit imposer l'outil qui la réalise (`create_task`).
 
 ### Tools vocaux & TTS
 7. Retour tool vocal : JAMAIS de préfixe technique (« Réponse trouvée », etc.) — c'est lu à voix haute.
@@ -474,6 +492,38 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🟡 Moyenne | Dette `tenants.phone` | 5 tenants partagent `+33760762153`, formats mixtes `0760…`/`+3376…` — non utilisé par resolve-phone (secondaire) mais à assainir |
 
 ### Résolus majeurs (référence rapide)
+
+- **KB — LightRAG court-circuitait la base de connaissances du client (08/08/2026)**.
+  Symptôme : l'agent appelait bien `search_knowledge` (prompt conforme) mais répondait à côté,
+  inventait des fourchettes de prix et un faux numéro dans un devis envoyé au client.
+  **Cause** : `handleSearchKnowledge` interrogeait LightRAG **en premier**, sans `tenant_id` ni
+  workspace (`LIGHTRAG_WORKSPACE` de wrangler.toml n'était jamais lu par le code), et renvoyait
+  sa réponse dès 10 caractères — « je n'ai pas assez d'informations » compris, avec `found:true`.
+  Or **rien n'ingère jamais la KB d'un tenant dans LightRAG** : l'index ne contenait que la doc
+  commerciale de Coccinelle.ai. Un garage recevait « Tarif Essentiel 79 euros par mois » sur une
+  question de vidange. Flag **fail-open** (absent = actif). Isolation vis-à-vis de `1compta`
+  **vérifiée saine** (conteneurs et volumes Docker distincts) : la fuite était inter-tenants
+  Coccinelle + éditeur→client.
+  **Fix** : LightRAG **coupé par défaut** (`LIGHTRAG_ENABLED === 'true'`, réactivable
+  explicitement seulement) et rétrogradé en **complément** jamais en court-circuit ; détection des
+  non-réponses ; markdown et section « References » retirés (lus à voix haute sinon) ;
+  `_extractRelevantPassage()` remplace `substring(0,500)` qui renvoyait le **début du document**
+  quelle que soit la question ; `_answerFromTenantContact()` expose téléphone / adresse / email
+  qui vivent dans `tenants` et non dans la KB — l'agent n'avait aucune source pour le numéro.
+  ⚠️ **Ne pas réactiver LightRAG sans (a) une ingestion par tenant et (b) un filtre par tenant** :
+  la fuite reviendrait telle quelle. Voir [[lightrag-non-multitenant]].
+
+- **Prompt — la porte de sortie a tué l'appel d'outil, puis a été réparée (08/08/2026)**.
+  Le bloc anti-invention ajouté le matin même occupait la **dernière place** avant CLÔTURE et se
+  terminait par le **seul exemple prêt à prononcer** de tout le prompt (« Je vous fais rappeler par
+  un conseiller »). Résultat : plus **aucun** appel de `search_knowledge` dans les logs, l'agent
+  partait directement sur le rappel même quand la réponse était en base. Causalité isolée (Python
+  inchangé, API correcte au curl, seul delta = ce bloc). **Fix** : `TOOL_ORDER_BLOCK` séquencé —
+  appel de l'outil en 1, exemple du chemin **nominal** avant celui de l'échec, porte de sortie
+  conditionnée deux fois et assortie d'un `create_task` obligatoire (un rappel promis sans
+  `create_task` n'existe pas), section ZÉRO INVENTION (ni invention **ni approximation**).
+  Réparé en base par `REPLACE` sur chaînes exactes relevées en base, garde-fou anti-écrasement :
+  2 prompts personnalisés et 1 orphelin volontairement épargnés. Voir [[prompt-ordre-outils]].
 
 - **Templates sectoriels dégradés — E2E validé 07/08/2026** (chantier `chantier-templates-kb`).
   **Constat** : 3 sources divergeaient (`lib/prompts.ts`, `ai_sector_templates`,
@@ -643,6 +693,19 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
       accessible). Ne détourne pas l'effort du funnel — c'est de l'attente, pas du dev.
 
 ### 🟠 P1 — Frictions UX Maze restantes
+- [ ] **Chunking KB mort — décision à prendre** (diagnostic du 08/08) : **0 chunk en prod pour
+      62 documents**. `src/modules/knowledge/processor.js`, seul écrivain de `knowledge_chunks`,
+      **n'est importé nulle part** et **ne compile pas** (`chunkText` déclaré deux fois, lignes 7
+      et 68 → `SyntaxError`, jamais remontée puisque le fichier n'est jamais chargé). Le niveau
+      chunks ET toute la voie Vectorize sont donc inertes pour tous les tenants. Deux options :
+      réparer et brancher le chunking (précision, coût d'indexation, reprise des 62 docs), ou
+      assumer le doc-level et supprimer le code mort. L'extraction de passage livrée le 08/08
+      rend la seconde option viable à court terme.
+- [ ] **Resynchroniser `voixia/agent/tools/knowledge.py`** : la copie du dépôt est périmée (elle
+      appelle `/api/v1/knowledge/search` avec un filtre `score > 0.3`), la version déployée
+      appelle `/api/v1/voixia/knowledge` et lit `answer`. C'est la version déployée qui fait foi.
+- [ ] Nettoyer les **prompts orphelins** (`ai_prompt_versions.is_active=1` dont le tenant n'existe
+      plus — 2 lignes au 08/08, jamais servies puisque resolve-phone joint `tenants`).
 - [ ] Ranger « Agent IA » dans **Configuration** (les 5 testeurs l'y cherchaient).
 - [ ] Clarifier les libellés KB ↔ Disponibilités ↔ Prompt (confusion testeurs).
 - [ ] Déployer le feedback UI sur clics échoués (code prêt : tasks, agents/config, teams, services).
@@ -688,6 +751,13 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Chantier KB & LightRAG (08/08/2026)** — LightRAG coupé fail-safe (il court-circuitait la KB de
+  chaque client avec la doc commerciale de l'éditeur), extraction du passage pertinent à la place
+  d'un `substring(0,500)`, coordonnées du tenant exposées à l'agent, et bloc `TOOL_ORDER_BLOCK`
+  (ordre d'appel des outils + zéro invention + rappel réel via `create_task`) après une régression
+  du même jour où le prompt avait fait disparaître tout appel d'outil. Recette validée par appel
+  réel : 79 € restitués depuis la KB, porte de sortie fonctionnelle. Détail en § j.
 
 - **Chantier templates & KB — Lot A (07/08/2026)** — Consolidation des prompts sectoriels en une
   source unique backend (`shared/sector-prompts.js`, 14 secteurs + alias), 7 chemins d'écriture

@@ -40,6 +40,45 @@ export const DEFAULT_AGENT_NAME = 'Assistant';
 // sont celles qui font effectivement appeler l'outil par le LLM.
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// Bloc « ordre d'appel des outils » — EXPORTÉ.
+//
+// Exporté parce que le script SQL de réparation des prompts déjà en base doit
+// utiliser EXACTEMENT ce texte : la premiere version avait été retapée à la main
+// dans le générateur SQL, ce qui a produit deux structures différentes en base
+// (une avec ligne vide, une sans) — cf. régression du 08/08.
+//
+// ⚠️ Ce bloc est VOLONTAIREMENT le dernier avant CLÔTURE et VOLONTAIREMENT
+// statique (aucune variable {}) :
+//   - dernier  → la récence porte sur « appelle l'outil », pas sur l'échappatoire.
+//     La version précédente terminait sur l'exemple du rappel conseiller : c'était
+//     le seul exemple prêt à prononcer du prompt, le modèle le rejouait sans
+//     jamais appeler l'outil (aucun appel dans les logs le 08/08).
+//   - statique → réparable en base par un REPLACE déterministe, sans régénérer
+//     par tenant et sans écraser les personnalisations client.
+// L'exemple du chemin NOMINAL doit rester avant celui de l'échec.
+export const TOOL_ORDER_BLOCK = `OUTIL SEARCH_KNOWLEDGE — ORDRE OBLIGATOIRE
+1. Toute question sur les services, les prestations, les tarifs, les délais, les
+   horaires, l'adresse, le téléphone ou le fonctionnement de l'entreprise : tu appelles
+   search_knowledge AVANT de répondre. Sans exception, même si tu crois connaître la
+   réponse, même si la question ressemble à une question déjà posée.
+2. L'outil renvoie une information : tu la donnes telle quelle, chiffres compris.
+   Exemple : « La recharge de climatisation est à 79 euros. »
+3. L'outil ne renvoie rien sur ce point : SEULEMENT dans ce cas, et seulement APRÈS
+   l'avoir appelé, tu proposes de faire rappeler par un conseiller. Tu n'annonces pas
+   que tu n'as pas trouvé, tu enchaînes naturellement.
+   Tu appelles ALORS create_task avec la demande et les coordonnées de l'appelant.
+   Sans cet appel d'outil, le rappel n'existe pas : ce serait une promesse en l'air.
+   Exemple : « Je vous fais rappeler par un conseiller qui vous donnera le montant
+   exact. À quel numéro peut-on vous joindre ? » — puis create_task.
+
+ZÉRO INVENTION
+Tout tarif, délai, numéro de téléphone, adresse, email, horaire ou donnée factuelle
+que tu prononces provient de l'outil. Tu n'en inventes aucun et tu n'en approximes
+aucun : ni fourchette, ni « environ », ni « en général », ni ordre de grandeur.
+Si l'information n'est pas revenue de l'outil, la seule réponse autorisée est celle
+du point 3 ci-dessus. Aucune autre.`;
+
 function voiceRulesBlock() {
   return `CONNAISSANCES
 Appelle TOUJOURS l'outil search_knowledge AVANT de répondre à toute question sur
@@ -54,7 +93,8 @@ avec la réponse comme si tu la connaissais.
 MOTS INTERDITS
 N'emploie jamais : « sur devis », « je ne sais pas », « je n'ai pas l'information »,
 « système », « base de données », « intelligence artificielle », « robot ».
-Si une information manque, propose de transmettre la demande ou de fixer un rappel.
+
+${TOOL_ORDER_BLOCK}
 
 CLÔTURE
 Termine chaque appel en récapitulant ce qui a été convenu et en remerciant l'appelant.`;
