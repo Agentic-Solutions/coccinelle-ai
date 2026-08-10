@@ -164,17 +164,8 @@ DELETE FROM property_matches WHERE prospect_id IN (
   )
 );
 
--- ══ ÉTAPE 2 — 85 tables portant un tenant_id ══
+-- ══ ÉTAPE 2 — 85 tables portant un tenant_id (ordre topologique : enfants avant parents) ══
 DELETE FROM agent_invitations WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
-DELETE FROM agents WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
     'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
@@ -228,15 +219,6 @@ DELETE FROM appointment_types WHERE tenant_id IS NOT NULL AND tenant_id <> 'glob
     'tenant_mrlxfcxtsc6vcmwwmii',
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
-DELETE FROM appointments WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
 DELETE FROM assignment_rules WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
@@ -282,15 +264,6 @@ DELETE FROM billing_payment_methods WHERE tenant_id IS NOT NULL AND tenant_id <>
     'tenant_mrlxfcxtsc6vcmwwmii',
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
-DELETE FROM billing_subscriptions WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
 DELETE FROM billing_usage WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
@@ -328,15 +301,6 @@ DELETE FROM call_logs WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND 
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
 DELETE FROM call_summaries WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
-DELETE FROM calls WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
     'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
@@ -498,15 +462,6 @@ DELETE FROM knowledge_chunks WHERE tenant_id IS NOT NULL AND tenant_id <> 'globa
     'tenant_mrlxfcxtsc6vcmwwmii',
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
-DELETE FROM knowledge_documents WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
 DELETE FROM knowledge_faq WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
@@ -642,15 +597,6 @@ DELETE FROM omni_rule_executions WHERE tenant_id IS NOT NULL AND tenant_id <> 'g
     'tenant_mrlxfcxtsc6vcmwwmii',
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
-DELETE FROM omni_rules WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
 DELETE FROM onboarding_analytics WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
@@ -661,15 +607,6 @@ DELETE FROM onboarding_analytics WHERE tenant_id IS NOT NULL AND tenant_id <> 'g
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
 DELETE FROM onboarding_events WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
-DELETE FROM onboarding_sessions WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
     'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
@@ -733,33 +670,6 @@ DELETE FROM product_matches WHERE tenant_id IS NOT NULL AND tenant_id <> 'global
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
 DELETE FROM product_variants WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
-DELETE FROM products WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
-DELETE FROM properties WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
-DELETE FROM prospects WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
     'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
@@ -867,15 +777,6 @@ DELETE FROM tenant_channels WHERE tenant_id IS NOT NULL AND tenant_id <> 'global
     'tenant_mrlxfcxtsc6vcmwwmii',
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
-DELETE FROM tenant_integrations WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
-    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
-    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
-    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
-    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
-    'tenant_mrci7x0u23wuqu5gf1q',
-    'tenant_mrlxfcxtsc6vcmwwmii',
-    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
-  );
 DELETE FROM tenant_role_permissions WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
@@ -922,6 +823,105 @@ DELETE FROM vapi_calls WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND
     'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
   );
 DELETE FROM voixia_configs WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM appointments WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM billing_subscriptions WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM calls WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM knowledge_documents WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM omni_rules WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM onboarding_sessions WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM products WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM tenant_integrations WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM agents WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM properties WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
+    'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
+    'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
+    'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
+    'tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk',
+    'tenant_mrci7x0u23wuqu5gf1q',
+    'tenant_mrlxfcxtsc6vcmwwmii',
+    'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  );
+DELETE FROM prospects WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
     'tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg',
     'tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp',
     'tenant_eS5hbXJvdWNoZXRlc3RAZ21haWwuY29t',
