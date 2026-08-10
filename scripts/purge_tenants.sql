@@ -63,6 +63,18 @@ SELECT CASE WHEN id IN (
 FROM tenants GROUP BY sort;
 
 
+-- ══ ÉTAPE 0 — réparation d'une incohérence inter-tenant préexistante ══
+-- 10 créneaux de disponibilité d'« Agentic solutions » (CONSERVÉ) référencent
+-- `agent_coccinelle_001`, un agent de « test13 » (SUPPRIMÉ). C'est la contrainte
+-- qui faisait échouer la purge : availability_slots.agent_id -> agents.
+-- agent_id est NOT NULL, on ne peut pas le vider : on rattache les créneaux à
+-- l'agent propre du tenant conservé. Aucune donnée perdue — le planning
+-- (lundi-vendredi, 09:00-12:00 et 14:00-17:00) est conservé à l'identique.
+UPDATE availability_slots
+SET agent_id = 'agent_youssef_agentic'
+WHERE tenant_id = 'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy'
+  AND agent_id IN (SELECT id FROM agents WHERE tenant_id <> 'tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy');
+
 -- ══ ÉTAPE 1 — tables filles rattachées par leur parent ══
 DELETE FROM call_events WHERE call_id IN (
   SELECT id FROM calls WHERE tenant_id IS NOT NULL AND tenant_id <> 'global' AND tenant_id NOT IN (
