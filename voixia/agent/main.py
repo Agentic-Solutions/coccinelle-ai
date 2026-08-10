@@ -157,6 +157,7 @@ async def entrypoint(ctx: JobContext) -> None:
     from llm_factory import get_llm_client
     from pipeline import VoixIAAgent, log_call_to_api
     from tenant import extract_sip_to_number, resolve_tenant
+    from tools.context import set_call_context
 
     _init_newrelic()
 
@@ -196,6 +197,13 @@ async def entrypoint(ctx: JobContext) -> None:
             "Tenant resolu — phone : %s | company : %s | prompt : %s | llm : %s | voice : %s",
             sip_to_number, company_name, prompt_type, llm_model, voice_id,
         )
+        # ANCRAGE DU TENANT — a poser AVANT toute construction d'outil.
+        # Sans cette ligne, search_knowledge / send_sms / send_email / transfer
+        # lisent VOIXIA_TENANT_ID dans le .env : une valeur figee, la meme pour
+        # tout le serveur. Tous les appels interrogeaient donc la base de
+        # connaissances d'un seul tenant (« Agentic solutions »), d'ou des
+        # reponses hors sujet et des tarifs inventes.
+        set_call_context(tenant_info.get("tenant_id"), tenant_info.get("api_key"))
     else:
         tenant_info = {"tenant_id": ""}
         logger.info("Pas de metadonnees SIP — fallback sur config par defaut")

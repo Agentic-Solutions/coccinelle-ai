@@ -1,215 +1,146 @@
 """
-VoixIA - Tools Messagerie
-Envoi de SMS et d'emails de confirmation via l'API Coccinelle.
+Outils d'envoi de messages (SMS et e-mail) via l'API VoixIA Coccinelle.
+
+Ce module fournit deux fonctions :
+- ``send_sms`` : envoie un SMS via POST /api/v1/voixia/sms
+- ``send_email`` : envoie un e-mail (POST /api/v1/email/send)
+
+Authentification par cle API (X-VoixIA-Key + X-VoixIA-Tenant).
 """
 
-from __future__ import annotations
-
 import logging
-from typing import Annotated
+import os
 
-from livekit.agents import llm
 import httpx
 
-logger = logging.getLogger("voixia.tools.messaging")
+from .context import get_api_key, get_tenant_id
+
+logger = logging.getLogger(__name__)
+
+# Timeout par defaut pour les requetes HTTP (en secondes)
+_TIMEOUT_SECONDES = 10
+
+# URL de base de l'API VoixIA Coccinelle
+_BASE_URL = "https://coccinelle-api.youssef-amrouche.workers.dev"
 
 
-class MessagingTools(llm.FunctionContext):
-    """Tools pour l'envoi de SMS et emails via Coccinelle."""
-
-    def __init__(self, api_base: str, api_token: str) -> None:
-        super().__init__()
-        self._api_base = api_base.rstrip("/")
-        self._api_token = api_token
-        self._client = httpx.AsyncClient(
-            base_url=self._api_base,
-            headers={
-                "Authorization": f"Bearer {self._api_token}",
-                "Content-Type": "application/json",
-            },
-            timeout=10.0,
-        )
-
-    # ------------------------------------------------------------------
-    # send_sms
-    # ------------------------------------------------------------------
-    @llm.ai_callable(
-        description=(
-            "Envoyer un SMS au client. "
-            "Utilise cet outil pour envoyer un SMS de confirmation, "
-            "un recapitulatif ou toute information utile au client par SMS."
-        )
-    )
-    async def send_sms(
-        self,
-        to: Annotated[
-            str,
-            llm.TypeInfo(
-                description=(
-                    "Numero de telephone du destinataire au format international "
-                    "(ex: +33612345678)"
-                )
-            ),
-        ],
-        message: Annotated[
-            str,
-            llm.TypeInfo(
-                description="Contenu du SMS a envoyer (160 caracteres recommandes)"
-            ),
-        ],
-    ) -> str:
-        """Envoie un SMS via l'API Twilio de Coccinelle."""
-        try:
-            # Validation basique du numero
-            if not to or len(to) < 10:
-                return (
-                    "Le numero de telephone fourni ne semble pas valide. "
-                    "Pouvez-vous me le redonner ?"
-                )
-
-            response = await self._client.post(
-                "/api/v1/twilio/sms/send",
-                json={
-                    "to": to,
-                    "message": message,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            status = data.get("data", {}).get("status", data.get("status", ""))
-
-            if status == "sent" or data.get("success", False):
-                return (
-                    f"Le SMS a ete envoye avec succes au {_mask_phone(to)}. "
-                    "Le client devrait le recevoir dans quelques instants."
-                )
-            else:
-                error_msg = data.get("data", {}).get(
-                    "message", data.get("error", "")
-                )
-                logger.warning("SMS send returned non-success: %s", error_msg)
-                return (
-                    "Le SMS n'a pas pu etre envoye pour le moment. "
-                    "Souhaitez-vous reessayer ou utiliser une autre methode ?"
-                )
-
-        except httpx.HTTPStatusError as exc:
-            logger.error("send_sms HTTP error: %s", exc.response.text)
-            return (
-                "L'envoi du SMS a echoue en raison d'une erreur technique. "
-                "Souhaitez-vous que je reessaye ?"
-            )
-        except Exception as exc:
-            logger.error("send_sms error: %s", exc)
-            return (
-                "Je n'ai pas pu envoyer le SMS. "
-                "Un conseiller pourra s'en charger pour vous."
-            )
-
-    # ------------------------------------------------------------------
-    # send_email
-    # ------------------------------------------------------------------
-    @llm.ai_callable(
-        description=(
-            "Envoyer un email de confirmation ou d'information au client. "
-            "Utilise cet outil quand le client souhaite recevoir "
-            "une confirmation ou des informations par email."
-        )
-    )
-    async def send_email(
-        self,
-        to: Annotated[
-            str,
-            llm.TypeInfo(description="Adresse email du destinataire"),
-        ],
-        subject: Annotated[
-            str,
-            llm.TypeInfo(description="Objet de l'email"),
-        ],
-        body: Annotated[
-            str,
-            llm.TypeInfo(
-                description="Contenu principal de l'email en texte simple"
-            ),
-        ],
-    ) -> str:
-        """Envoie un email via le service email de Coccinelle."""
-        try:
-            # Validation basique de l'email
-            if not to or "@" not in to:
-                return (
-                    "L'adresse email fournie ne semble pas valide. "
-                    "Pouvez-vous me la redonner ?"
-                )
-
-            response = await self._client.post(
-                "/api/v1/email/auto-reply",
-                json={
-                    "to": to,
-                    "subject": subject,
-                    "body": body,
-                },
-            )
-            response.raise_for_status()
-
-            return (
-                f"L'email a ete envoye avec succes a {_mask_email(to)}. "
-                "Le client devrait le recevoir sous peu."
-            )
-
-        except httpx.HTTPStatusError as exc:
-            status_code = exc.response.status_code
-            logger.error(
-                "send_email HTTP error %d: %s",
-                status_code,
-                exc.response.text,
-            )
-
-            if status_code == 501:
-                return (
-                    "Le service d'envoi d'emails n'est pas encore configure. "
-                    "Souhaitez-vous que j'envoie un SMS a la place ?"
-                )
-
-            return (
-                "L'envoi de l'email a echoue. "
-                "Souhaitez-vous que j'envoie un SMS a la place ?"
-            )
-        except Exception as exc:
-            logger.error("send_email error: %s", exc)
-            return (
-                "Je n'ai pas pu envoyer l'email pour le moment. "
-                "Puis-je vous envoyer un SMS a la place ?"
-            )
-
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-
-def _mask_phone(phone: str) -> str:
-    """Masque partiellement un numero pour la confidentialite vocale.
-
-    Exemple: +33612345678 -> +336...5678
+def _get_client() -> httpx.AsyncClient:
     """
-    if len(phone) > 7:
-        return phone[:4] + "..." + phone[-4:]
-    return phone
+    Retourne un client HTTP configure pour l'API VoixIA Coccinelle.
 
-
-def _mask_email(email: str) -> str:
-    """Masque partiellement un email pour la confidentialite vocale.
-
-    Exemple: jean.dupont@email.com -> j...t@email.com
+    Le client est pre-configure avec :
+    - L'URL de base (COCCINELLE_API_BASE ou valeur par defaut)
+    - Les headers d'authentification VoixIA (X-VoixIA-Key + X-VoixIA-Tenant)
+    - Un timeout de 10 secondes
     """
+    base_url = os.environ.get("COCCINELLE_API_BASE", _BASE_URL)
+    api_key = get_api_key()
+    # Tenant de l\'APPEL en cours (contexte), plus la valeur figee du .env :
+    # celle-ci faisait lire la KB d\'un autre client a chaque appel.
+    tenant_id = get_tenant_id()
+
+    return httpx.AsyncClient(
+        base_url=base_url,
+        headers={
+            "X-VoixIA-Key": api_key,
+            "X-VoixIA-Tenant": tenant_id,
+        },
+        timeout=_TIMEOUT_SECONDES,
+    )
+
+
+async def send_sms(to: str, message: str) -> str:
+    """
+    Envoie un SMS au numero indique via POST /api/v1/voixia/sms.
+
+    Instrumente avec New Relic pour le suivi des performances.
+
+    Args:
+        to: Numero de telephone du destinataire (format international, ex. +33612345678).
+        message: Contenu du message SMS a envoyer.
+
+    Returns:
+        Message de confirmation d'envoi en francais ou message d'erreur.
+    """
+    # Instrumentation New Relic (import lazy)
     try:
-        local, domain = email.split("@", 1)
-        if len(local) > 2:
-            masked_local = local[0] + "..." + local[-1]
-        else:
-            masked_local = local
-        return f"{masked_local}@{domain}"
-    except ValueError:
-        return email
+        import newrelic.agent
+        newrelic.agent.add_custom_parameter("tool", "send_sms")
+        newrelic.agent.add_custom_parameter("sms_to", to)
+    except Exception:
+        pass
+
+    logger.info("Envoi d'un SMS au %s", to)
+    try:
+        async with _get_client() as client:
+            reponse = await client.post(
+                "/api/v1/voixia/sms",
+                json={"to": to, "message": message},
+            )
+            reponse.raise_for_status()
+            donnees = reponse.json()
+            logger.info("SMS envoye avec succes au %s : %s", to, donnees)
+            return f"SMS envoye avec succes au {to}."
+    except httpx.HTTPStatusError as exc:
+        logger.error("Erreur HTTP lors de l'envoi du SMS : %s", exc.response.text)
+        return (
+            f"Erreur lors de l'envoi du SMS : "
+            f"{exc.response.status_code} — {exc.response.text}"
+        )
+    except httpx.TimeoutException:
+        logger.error("Timeout lors de l'envoi du SMS au %s", to)
+        return "Erreur : le serveur n'a pas repondu a temps pour l'envoi du SMS."
+    except Exception as exc:
+        logger.exception("Erreur inattendue lors de l'envoi du SMS")
+        return f"Erreur inattendue lors de l'envoi du SMS : {exc}"
+
+
+async def send_email(to: str, subject: str, body: str) -> str:
+    """
+    Envoie un e-mail au destinataire indique via POST /api/v1/email/send.
+
+    Note : l'endpoint e-mail n'a pas encore de route VoixIA dediee,
+    cet appel utilise donc l'ancien endpoint avec les headers VoixIA.
+    Si l'API retourne 401/404, un endpoint VoixIA e-mail devra etre ajoute.
+
+    Instrumente avec New Relic pour le suivi des performances.
+
+    Args:
+        to: Adresse e-mail du destinataire.
+        subject: Objet de l'e-mail.
+        body: Corps du message e-mail.
+
+    Returns:
+        Message de confirmation d'envoi en francais ou message d'erreur.
+    """
+    # Instrumentation New Relic (import lazy)
+    try:
+        import newrelic.agent
+        newrelic.agent.add_custom_parameter("tool", "send_email")
+        newrelic.agent.add_custom_parameter("email_to", to)
+    except Exception:
+        pass
+
+    logger.info("Envoi d'un e-mail a %s (objet : \u00ab %s \u00bb)", to, subject)
+    try:
+        async with _get_client() as client:
+            reponse = await client.post(
+                "/api/v1/email/send",
+                json={"to": to, "subject": subject, "body": body},
+            )
+            reponse.raise_for_status()
+            donnees = reponse.json()
+            logger.info("E-mail envoye avec succes a %s : %s", to, donnees)
+            return f"E-mail envoye avec succes a {to} (objet : \u00ab {subject} \u00bb)."
+    except httpx.HTTPStatusError as exc:
+        logger.error("Erreur HTTP lors de l'envoi de l'e-mail : %s", exc.response.text)
+        return (
+            f"Erreur lors de l'envoi de l'e-mail : "
+            f"{exc.response.status_code} — {exc.response.text}"
+        )
+    except httpx.TimeoutException:
+        logger.error("Timeout lors de l'envoi de l'e-mail a %s", to)
+        return "Erreur : le serveur n'a pas repondu a temps pour l'envoi de l'e-mail."
+    except Exception as exc:
+        logger.exception("Erreur inattendue lors de l'envoi de l'e-mail")
+        return f"Erreur inattendue lors de l'envoi de l'e-mail : {exc}"
