@@ -24,6 +24,7 @@ import {
   normalizeSector,
   DEFAULT_AGENT_NAME,
 } from '../shared/sector-prompts.js';
+import { indexerFiches } from '../shared/kb-ingest.js';
 
 /**
  * Journalise un événement d'onboarding (table onboarding_events, migration 0082).
@@ -903,6 +904,12 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                 `Notre adresse est : ${adresse.trim()}. Nous sommes situes a ${adresse.trim()}.`
               ).run();
 
+              await indexerFiches(env, {
+                documentId: `doc_adresse_${tenantId}`,
+                tenantId,
+                contenu: `Notre adresse est : ${adresse.trim()}. Nous sommes situes a ${adresse.trim()}.`,
+              });
+
               // Chantier #1B : adresse structurée dans tenants.address (source unique + pré-remplit Paramètres)
               await env.DB.prepare(
                 `UPDATE tenants SET address = ?, updated_at = datetime('now') WHERE id = ?`
@@ -918,6 +925,12 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                 tenantId,
                 `Nous proposons : ${services.trim()}.`
               ).run();
+
+              await indexerFiches(env, {
+                documentId: `doc_services_${tenantId}`,
+                tenantId,
+                contenu: `Nous proposons : ${services.trim()}.`,
+              });
             }
 
             if (tarifs && tarifs.trim()) {
@@ -929,6 +942,12 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                 tenantId,
                 `Concernant nos tarifs : ${tarifs.trim()}.`
               ).run();
+
+              await indexerFiches(env, {
+                documentId: `doc_tarifs_${tenantId}`,
+                tenantId,
+                contenu: `Concernant nos tarifs : ${tarifs.trim()}.`,
+              });
             }
 
             // Q&A supplementaires (max 3)
@@ -945,6 +964,12 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                     qa.question.trim(),
                     qa.answer.trim()
                   ).run();
+
+                  await indexerFiches(env, {
+                    documentId: `doc_qa_${i}_${tenantId}`,
+                    tenantId,
+                    contenu: qa.answer.trim(),
+                  });
                 }
               }
             }

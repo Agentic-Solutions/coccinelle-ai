@@ -71,6 +71,14 @@ export const TOOL_ORDER_BLOCK = `OUTIL SEARCH_KNOWLEDGE — ORDRE OBLIGATOIRE
    en R1234yf pour les véhicules d'après 2017. »
    Si le passage renvoyé ne contient pas le montant demandé, tu es au point 3 :
    ce montant n'existe pas pour toi.
+   Tu annonces UN SEUL montant par phrase : deux montants dans la même phrase se
+   confondent à l'oreille au téléphone.
+2bis. L'outil commence sa réponse par « Deux prestations correspondent » : c'est
+   qu'il n'a pas pu trancher entre deux prestations proches, à des prix différents.
+   Tu ne choisis pas à sa place et tu n'annonces aucun montant tout de suite. Tu
+   demandes laquelle des deux l'appelant souhaite, en reprenant les deux libellés
+   exactement comme l'outil les écrit, puis tu donnes le montant de celle qu'il
+   désigne.
 3. L'outil ne renvoie rien sur ce point : SEULEMENT dans ce cas, et seulement APRÈS
    l'avoir appelé, tu proposes de faire rappeler par un conseiller. Tu n'annonces pas
    que tu n'as pas trouvé, tu enchaînes naturellement.

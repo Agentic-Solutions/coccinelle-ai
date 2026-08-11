@@ -236,9 +236,29 @@ async def entrypoint(ctx: JobContext) -> None:
     vad = silero.VAD.load()
     stt = deepgram.STT(language="fr")
     llm = get_llm_client(provider=llm_provider, model=llm_model)
+    # Sans voice_settings explicites, ElevenLabs applique les reglages par
+    # defaut du compte — mesures le 11/08/2026 : stability 0.5, speed 1.0, soit
+    # le debit maximal et la stabilite la plus basse. Les montants passaient
+    # trop vite pour etre distincts a l'oreille (« 15 » entendu « 25 »).
+    #
+    # speed 0.92 : environ 8 % plus lent, verifie sur l'API (une phrase de
+    #   reference passe de 5,93 s a ~6,4 s). eleven_multilingual_v2 honore bien
+    #   ce parametre, ce n'etait pas acquis.
+    # stability 0.6 : moins de derive prosodique sur les chiffres. On ne monte
+    #   pas plus haut — au-dela de 0,7 la voix s'aplatit et articule MOINS bien.
+    # Reglages explicites = comportement identique pour les 20 voix, quels que
+    #   soient les reglages enregistres cote compte (que notre cle API n'a
+    #   d'ailleurs pas le droit de lire).
     tts = elevenlabs.TTS(
         model="eleven_multilingual_v2",
         voice_id=voice_id,
+        voice_settings=elevenlabs.VoiceSettings(
+            stability=0.6,
+            similarity_boost=0.75,
+            style=0.0,
+            speed=0.92,
+            use_speaker_boost=True,
+        ),
     )
 
     # --- Etape 4b : Injection du caller phone dans le prompt (extrait a l etape 2) ---

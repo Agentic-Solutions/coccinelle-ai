@@ -14,6 +14,11 @@ import {
   applyPromptVariables,
   normalizeSector,
 } from '../shared/sector-prompts.js';
+import {
+  classerFiches,
+  detecterAmbiguite,
+  plier as plierFiche,
+} from '../shared/kb-fiches.js';
 
 /**
  * Handler principal pour les routes /api/v1/voixia/*
@@ -753,8 +758,13 @@ async function handleSearchKnowledge(request, env) {
   // « Delai » et inversement — une question sur le delai d'une courroie ne
   // trouvait rien alors que la reponse etait dans le document. Le contenu est
   // desaccentue symetriquement cote SQL (_foldSql).
+  // Les CHIFFRES sont conserves (11/08/2026). Avec `[^a-z\s]`, « R1234yf »
+  // devenait « r yf » puis disparaissait : le seul mot qui distingue la
+  // recharge a 129 euros de celle a 79 euros n'atteignait jamais la recherche.
+  // Le probleme touche toute reference technique — 5W30, un millesime, une
+  // reference piece, un numero de modele.
   const searchWords = _foldAccents(question)
-    .replace(/[^a-z\s]/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 3 && !stopWords.has(w));
   if (searchWords.length === 0) searchWords.push(_foldAccents(question));
@@ -827,6 +837,27 @@ async function handleSearchKnowledge(request, env) {
     resource_type: 'knowledge',
     changes: { question: question.substring(0, 100), results_count: results.length }
   }).catch(() => {});
+
+  // ── NIVEAU 1 : les fiches (11/08/2026) ──
+  // Quand la KB du client est un tableau (CSV export tableur, Markdown, PDF
+  // converti), l'ingestion en a fait des FICHES : une ligne = un libelle + son
+  // prix, indivisibles. On interroge ce niveau AVANT toute extraction par
+  // fenetre de caracteres, qui coupait entre une prestation et son tarif et
+  // faisait annoncer le prix de la ligne voisine (« montage equilibrage » a
+  // 15 EUR repondu 25 EUR, le 11/08).
+  const reponseFiche = await _repondreDepuisFiches(env, tenant_id, searchWords);
+  if (reponseFiche) {
+    console.log(`[KB] provenance=fiche tenant=${tenant_id} ambigu=${reponseFiche.ambigu}`);
+    return successResponse({
+      results,
+      count: results.length,
+      answer: reponseFiche.answer,
+      found: true,
+      ambiguous: reponseFiche.ambigu,
+      search_type: 'fiche',
+      message: `${results.length} résultat(s) trouvé(s)`,
+    });
+  }
 
   // ── Selection de la reponse ──
   // Priorite source_type='text' (saisie manuelle du client) puis ordre de la requete.
@@ -923,6 +954,77 @@ const _CARTE_ACCENTS = {
   'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
   'ç': 'c', 'ñ': 'n', 'ÿ': 'y',
 };
+
+/**
+ * NIVEAU FICHE — repond depuis les lignes normalisees d'un tableau.
+ *
+ * Une fiche est indivisible : « Montage equilibrage : 15 euros (par pneu). »
+ * Elle ne peut donc pas etre tronquee entre le libelle et le prix, ce qui etait
+ * la cause du 25 EUR annonce a la place du 15 EUR.
+ *
+ * Retourne null si aucune fiche ne repond — le chemin prose existant prend
+ * alors le relais, inchange.
+ */
+async function _repondreDepuisFiches(env, tenant_id, searchWords) {
+  if (!searchWords.length) return null;
+
+  let lignes = [];
+  try {
+    const clauses = searchWords.map(() => `${_foldSql('kc.content')} LIKE ?`).join(' OR ');
+    const res = await env.DB.prepare(`
+      SELECT kc.content, kc.metadata
+      FROM knowledge_chunks kc
+      JOIN knowledge_documents kd ON kd.id = kc.document_id
+      WHERE kc.tenant_id = ?
+        AND kd.is_active = 1
+        AND (${clauses})
+      LIMIT 60
+    `).bind(tenant_id, ...searchWords.map(w => `%${w}%`)).all();
+    lignes = res.results || [];
+  } catch (error) {
+    logger.warn('VoixIA — niveau fiche indisponible, repli sur le texte', { error: error.message });
+    return null;
+  }
+
+  const fiches = [];
+  for (const l of lignes) {
+    let meta = null;
+    try { meta = JSON.parse(l.metadata || '{}'); } catch { meta = null; }
+    if (!meta || meta.type !== 'fiche') continue;
+    fiches.push({
+      libelle: meta.libelle || '',
+      prix: meta.prix || '',
+      details: meta.details || '',
+      categorie: meta.categorie || '',
+      texte: l.content,
+      index: fiches.length,
+    });
+  }
+  if (!fiches.length) return null;
+
+  const classees = classerFiches(fiches, searchWords);
+  const meilleure = classees[0];
+  if (!meilleure || meilleure.score <= 0) return null;
+
+  // Garde-fou : un mot de la question doit toucher le LIBELLE. Un mot trouve
+  // seulement dans la colonne « details » ou « categorie » ne designe pas la
+  // prestation demandee — repondre la-dessus, c'est repondre a cote avec
+  // l'assurance d'un found=true.
+  const libellePlie = plierFiche(meilleure.libelle);
+  if (!searchWords.some(w => libellePlie.includes(w))) return null;
+
+  const ambigu = detecterAmbiguite(classees);
+  if (ambigu) {
+    // Deux prestations proches a prix differents : l'agent doit demander
+    // laquelle (regle 2bis du prompt) plutot que d'en choisir une au hasard.
+    return {
+      answer: `Deux prestations correspondent : ${ambigu[0].texte} ${ambigu[1].texte}`,
+      ambigu: true,
+    };
+  }
+
+  return { answer: meilleure.texte, ambigu: false };
+}
 
 export function _foldAccents(texte) {
   return String(texte || '')
