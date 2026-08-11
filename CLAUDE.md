@@ -453,6 +453,15 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 ### Recherche KB
 11. TOUJOURS splitter la question en mots significatifs, chercher avec OR
     (`LIKE '%mot1%' OR LIKE '%mot2%'`). JAMAIS `LIKE '%phrase entière%'`.
+11bis. **Ne jamais retirer les chiffres des mots recherchés.** `[^a-z\s]` transformait
+    « R1234yf » en « r yf », donc en rien : le seul mot qui distingue deux prestations
+    disparaissait avant la requête. Toute référence technique est concernée.
+11ter. **Un montant n'est JAMAIS séparé de son libellé.** Sur une KB tabulaire, l'unité de
+    recherche est la **fiche** (une ligne = un libellé + son prix, indivisible), jamais une
+    fenêtre de caractères — une fenêtre coupe entre la prestation et son tarif. La
+    normalisation se fait **à l'ingestion** (`shared/kb-fiches.js`), pour tous les formats
+    d'import : le client n'a rien à changer à son fichier. Corollaire : deux fiches proches à
+    prix différents ne se départagent pas au score — l'agent demande laquelle.
 12. JAMAIS de documents crawlés d'un autre site dans la KB (vérifier `source_type` avant démo).
 
 ### UI / produit
@@ -508,6 +517,29 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🟡 Moyenne | Dette `tenants.phone` | 5 tenants partagent `+33760762153`, formats mixtes `0760…`/`+3376…` — non utilisé par resolve-phone (secondaire) mais à assainir |
 
 ### Résolus majeurs (référence rapide)
+
+- **KB tabulaire — le prix de la ligne voisine (11/08/2026)**. « Montage équilibrage » facturé
+  **15 €** annoncé **25 €**. Trois étages empilés, tous mesurés : (1) le classement des passages
+  récompensait la **densité** de mots, donc « pneu » (10 occurrences) écrasait « équilibrage »
+  (1 occurrence) qui portait la réponse ; (2) la fenêtre de 500 caractères commençait **30
+  caractères après** la bonne ligne ; (3) le plafond TTS de 300 caractères supprimait le second
+  passage — le seul à contenir les 15 €. **Le LLM n'a jamais vu la réponse** : il a cité verbatim
+  un chiffre voisin, exactement comme le prompt le lui demande. L'ancrage verbatim n'était pas en
+  cause ; le défaut était dans ce qu'on lui donnait à lire.
+  **Fix — changement d'unité, pas rafistolage de la fenêtre** : à l'**ingestion**, un document
+  tabulaire engendre **une fiche par ligne** dans `knowledge_chunks`
+  (`src/modules/shared/kb-fiches.js` + `kb-ingest.js`). Une fiche est indivisible, donc un prix ne
+  peut plus être servi sans son libellé. Détection de structure (CSV, point-virgule, tabulation,
+  Markdown), découpage respectant les guillemets, colonnes identifiées par en-tête **ou** par
+  contenu, classement pondéré par la **rareté** (IDF) et pénalité des concepts non demandés.
+  **Seuil d'ambiguïté** : deux fiches proches à prix différents ne se départagent pas, l'agent
+  demande laquelle (règle **2bis** du prompt). **Garde-fou anti-prose** : un paragraphe dont chaque
+  phrase porte une virgule présente 100 % de régularité en deux colonnes — deux critères
+  (cellules courtes, et ≥ 3 colonnes ou une colonne de montants) l'écartent, et les 30 documents
+  rédigés des autres tenants restent servis par le chemin prose, inchangé.
+  **Découverte au passage** : les mots recherchés étaient filtrés par `[^a-z\s]`, donc **« R1234yf »
+  devenait « r yf » puis disparaissait** — le seul mot distinguant 129 € de 79 €. Toute référence
+  technique était invisible (5W30, millésime, référence pièce). Voir [[kb-fiches-tabulaires]].
 
 - **Outils VoixIA — 4 outils sur 8 travaillaient sur le mauvais tenant (11/08/2026)**.
   Chaque module d'outil construisait son client HTTP avec
@@ -727,26 +759,28 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
       accessible). Ne détourne pas l'effort du funnel — c'est de l'attente, pas du dev.
 
 ### 🟠 P1 — Frictions UX Maze restantes
-- [ ] **Chunking KB mort — décision à prendre** (diagnostic du 08/08) : **0 chunk en prod pour
-      62 documents**. `src/modules/knowledge/processor.js`, seul écrivain de `knowledge_chunks`,
-      **n'est importé nulle part** et **ne compile pas** (`chunkText` déclaré deux fois, lignes 7
-      et 68 → `SyntaxError`, jamais remontée puisque le fichier n'est jamais chargé). Le niveau
-      chunks ET toute la voie Vectorize sont donc inertes pour tous les tenants. Deux options :
-      réparer et brancher le chunking (précision, coût d'indexation, reprise des 62 docs), ou
-      assumer le doc-level et supprimer le code mort. L'extraction de passage livrée le 08/08
-      rend la seconde option viable à court terme.
+- [x] ~~**Chunking KB mort — décision à prendre**~~ : **tranché le 11/08**. `knowledge_chunks`
+      n'est plus une table morte : elle porte désormais les **fiches** (une ligne de tableau =
+      une fiche), écrites par `shared/kb-ingest.js` aux 6 points d'ingestion. Le découpage en
+      chunks de longueur fixe, lui, reste abandonné — c'est la **structure** du document qui
+      décide du découpage, pas un nombre de caractères.
+      ⚠️ Reste à supprimer : `src/modules/knowledge/processor.js` est toujours du code mort qui
+      **ne compile pas** (`chunkText` déclaré deux fois, lignes 7 et 68 → `SyntaxError` jamais
+      remontée puisque le fichier n'est jamais importé). La voie Vectorize reste inerte.
 - [x] ~~Resynchroniser les fichiers Python de l'agent~~ : **fait le 11/08** — les 16 fichiers de
       `voixia/agent/` sont désormais identiques md5 pour md5 à `/opt/voixia/agent/`. Six étaient
       restés à mars (API LiveKit 0.x) et trois manquaient, dont `llm_factory.py` et `tools/tasks.py`.
 - [x] ~~Nettoyer les prompts orphelins~~ : **fait le 10/08** par la purge (voir § q).
-- [ ] **Plafond TTS de 300 caractères vs extraction multi-passages** (constat du 11/08) : l'API
-      renvoie jusqu'à 2 passages (500 car. chacun) mais `_nettoyer_pour_tts()` tronque le retour
-      d'outil à **300 caractères** côté Python — le deuxième passage n'atteint donc jamais le LLM,
-      et un montant situé en fin de premier passage peut sauter. Les 4 questions de recette du
-      11/08 passent (le montant demandé est centré dans la fenêtre), mais la marge est mince.
-      Ce plafond datait de l'époque où le retour d'outil était lu **tel quel** à voix haute ; le
-      LLM reformule aujourd'hui. À arbitrer : relever le plafond (≈ 600) ou rendre la troncature
-      consciente du mot recherché plutôt que de couper les 300 premiers caractères.
+- [x] ~~Plafond TTS de 300 caractères~~ : **porté à 600 le 11/08**, coupe sur une fin de phrase
+      donc sur une fiche entière (`_MAX_CHARS_TTS`, `tools/knowledge.py`). C'est lui qui
+      supprimait la réponse « 15 euros » au profit des lignes voisines.
+- [ ] **Le chemin prose garde la faiblesse corrigée sur le tabulaire** : son classement reste
+      positionnel, sans pondération par la rareté. Constaté le 11/08 sur Syndic Horizon —
+      « quand a lieu l'assemblée générale » renvoie un passage sur les charges. Non régressif
+      (ce chemin n'a pas été touché), mais la même pondération IDF y est applicable.
+- [ ] **Étendre les fiches aux autres unités** : `knowledge_faq` (0 ligne aujourd'hui) et les
+      produits/services du dashboard sont déjà structurés — ils gagneraient à alimenter le même
+      niveau fiche plutôt que de rester des sources parallèles.
 - [ ] Ranger « Agent IA » dans **Configuration** (les 5 testeurs l'y cherchaient).
 - [ ] Clarifier les libellés KB ↔ Disponibilités ↔ Prompt (confusion testeurs).
 - [ ] Déployer le feedback UI sur clics échoués (code prêt : tasks, agents/config, teams, services).
