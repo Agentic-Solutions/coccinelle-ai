@@ -1,5 +1,5 @@
 # CLAUDE.md — Coccinelle.ai
-# Dernière mise à jour : 18 juillet 2026
+# Dernière mise à jour : 11 août 2026
 # (remplace intégralement la version du 22 mai 2026 ; backup : CLAUDE.md.backup-20260702)
 
 > Ce fichier est la source de vérité opérationnelle du projet.
@@ -179,6 +179,13 @@ module `src/modules/email/routes.js`. Page `channels/email/page.tsx` (4 sections
   - Entrée : https://coccinelle.ai/demo (auto-login + redirect /dashboard)
   - Données : 3 membres, 6 skills, 5 tâches, 5 appels, 4 prospects, 11 KB FAQ syndic, 3 RDV,
     3 services, dispos Lun–Ven 9h–18h.
+- **Compte de recette vocale** : `garage.toulouse@test.com` — Tenant
+  `tenant_Z2FyYWdlLnRvdWxvdXNlQHRlc3QuY29t`, Company **Garage Toulouse** (secteur automobile).
+  Recréé le 11/08 après la purge (⚠️ **nouvel identifiant** : l'ancien
+  `tenant_dGVzdC5nYXJhZ2VAdGVzdC5mcg` — `test.garage@test.fr` — n'existe plus, et les 6 appels
+  historiques qui le référencent restent orphelins). **Seul compte dont `users.phone_verified=1`
+  sur `+33760762153`** : c'est donc lui, et lui seul, que le numéro d'essai `+33939035761`
+  résout via la branche `caller`. KB : 2 documents (adresse + un CSV de 29 prestations).
 - Autres comptes de test + numéros Twilio : voir `.credentials.md`.
 
 ### Secrets & clés (emplacement)
@@ -470,6 +477,15 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 17. Vérifier le `DEFAULT` d'une colonne avant de conclure qu'un champ manquant casse quelque chose.
 18. Toujours cibler `coccinelle-db-eu` (jamais l'ancienne `coccinelle-db`).
 19. LightRAG : toujours vérifier le workspace (`coccinelle` ≠ `1compta`).
+20. **`voixia/agent/` doit rester identique md5 pour md5 à `/opt/voixia/agent/`.** Le serveur fait
+   foi ; le dépôt en est le miroir, pas la source. Le vérifier (`find … -name '*.py' | xargs md5`
+   des deux côtés) **avant** de raisonner sur ce code : entre mars et août 2026, six fichiers du
+   dépôt décrivaient une architecture LiveKit 0.x qui n'a jamais tourné, et trois fichiers réels
+   — dont `llm_factory.py` et `tools/tasks.py` — n'y figuraient pas du tout. Lire le dépôt pour
+   comprendre la prod menait alors droit à un faux diagnostic. Ne jamais versionner de `.pyc`.
+21. **Un outil VoixIA ne lit JAMAIS le tenant dans l'environnement** : `get_tenant_id()` /
+   `get_api_key()` de `tools/context.py`, alimentés par `set_call_context()` au début de l'appel.
+   `VOIXIA_TENANT_ID` du `.env` est un secours, pas une source (voir § j, 11/08/2026).
 
 ---
 
@@ -492,6 +508,24 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🟡 Moyenne | Dette `tenants.phone` | 5 tenants partagent `+33760762153`, formats mixtes `0760…`/`+3376…` — non utilisé par resolve-phone (secondaire) mais à assainir |
 
 ### Résolus majeurs (référence rapide)
+
+- **Outils VoixIA — 4 outils sur 8 travaillaient sur le mauvais tenant (11/08/2026)**.
+  Chaque module d'outil construisait son client HTTP avec
+  `os.environ.get("VOIXIA_TENANT_ID")` — une valeur **figée dans `/opt/voixia/.env`**, la même
+  pour tout le serveur, et pointant sur **« Agentic solutions »**. Le tenant résolu par
+  `resolve-phone` n'était donc utilisé que pour le prompt et la voix : tous les appels d'outils
+  partaient chez un tiers. Conséquences réelles : `search_knowledge` lisait la KB d'une autre
+  entreprise (c'est la cause des tarifs « inventés » du 08/08), `check_availability` annonçait
+  **les créneaux d'un autre garage**, `book_appointment` y **posait** le rendez-vous,
+  `create_prospect` y créait la fiche, `search_products` y lisait le catalogue.
+  **Fix en deux temps** : `tools/context.py` (`ContextVar` posé par `set_call_context()` dans
+  `main.py`, juste après `resolve_tenant`, **avant** la construction des outils ; le `.env` ne
+  sert plus que de secours) — appliqué le 10/08 à `knowledge`, `messaging`, `transfer`, puis le
+  **11/08 à `crm`, `appointments`, `products`**, seuls restants. `create_task` était déjà correct
+  (`pipeline.py` lui passe `self._tenant_info`). **Invariant : tout nouveau module d'outil doit
+  lire `get_tenant_id()` / `get_api_key()`, jamais l'environnement.**
+  Le trou de 10 mois tenait à ce que le serveur n'avait qu'**un seul** tenant utile ; il ne
+  devient visible qu'à partir du deuxième client.
 
 - **KB — LightRAG court-circuitait la base de connaissances du client (08/08/2026)**.
   Symptôme : l'agent appelait bien `search_knowledge` (prompt conforme) mais répondait à côté,
@@ -701,11 +735,18 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
       réparer et brancher le chunking (précision, coût d'indexation, reprise des 62 docs), ou
       assumer le doc-level et supprimer le code mort. L'extraction de passage livrée le 08/08
       rend la seconde option viable à court terme.
-- [ ] **Resynchroniser `voixia/agent/tools/knowledge.py`** : la copie du dépôt est périmée (elle
-      appelle `/api/v1/knowledge/search` avec un filtre `score > 0.3`), la version déployée
-      appelle `/api/v1/voixia/knowledge` et lit `answer`. C'est la version déployée qui fait foi.
-- [ ] Nettoyer les **prompts orphelins** (`ai_prompt_versions.is_active=1` dont le tenant n'existe
-      plus — 2 lignes au 08/08, jamais servies puisque resolve-phone joint `tenants`).
+- [x] ~~Resynchroniser les fichiers Python de l'agent~~ : **fait le 11/08** — les 16 fichiers de
+      `voixia/agent/` sont désormais identiques md5 pour md5 à `/opt/voixia/agent/`. Six étaient
+      restés à mars (API LiveKit 0.x) et trois manquaient, dont `llm_factory.py` et `tools/tasks.py`.
+- [x] ~~Nettoyer les prompts orphelins~~ : **fait le 10/08** par la purge (voir § q).
+- [ ] **Plafond TTS de 300 caractères vs extraction multi-passages** (constat du 11/08) : l'API
+      renvoie jusqu'à 2 passages (500 car. chacun) mais `_nettoyer_pour_tts()` tronque le retour
+      d'outil à **300 caractères** côté Python — le deuxième passage n'atteint donc jamais le LLM,
+      et un montant situé en fin de premier passage peut sauter. Les 4 questions de recette du
+      11/08 passent (le montant demandé est centré dans la fenêtre), mais la marge est mince.
+      Ce plafond datait de l'époque où le retour d'outil était lu **tel quel** à voix haute ; le
+      LLM reformule aujourd'hui. À arbitrer : relever le plafond (≈ 600) ou rendre la troncature
+      consciente du mot recherché plutôt que de couper les 300 premiers caractères.
 - [ ] Ranger « Agent IA » dans **Configuration** (les 5 testeurs l'y cherchaient).
 - [ ] Clarifier les libellés KB ↔ Disponibilités ↔ Prompt (confusion testeurs).
 - [ ] Déployer le feedback UI sur clics échoués (code prêt : tasks, agents/config, teams, services).
@@ -751,6 +792,14 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Clôture KB & multi-tenant (10–11/08/2026)** — Purge de 150 tenants jetables (§ q), puis
+  déploiement du mini-lot KB : ancrage verbatim des montants dans les 7 prompts actifs (dont un
+  régénéré par la source unique), accents pliés côté SQL, seuil de pertinence et extraction de
+  jusqu'à deux passages par document. Surtout : découverte que **4 outils sur 8 travaillaient
+  encore sur un tenant figé du `.env`** — `check_availability` annonçait les créneaux d'une autre
+  entreprise. Ancrage complété, dépôt Python resynchronisé sur la production (16 fichiers,
+  md5 identiques). Détail en § j et § q.
 
 - **Chantier KB & LightRAG (08/08/2026)** — LightRAG coupé fail-safe (il court-circuitait la KB de
   chaque client avec la doc commerciale de l'éditeur), extraction du passage pertinent à la place
@@ -925,6 +974,39 @@ les deux avec des secrets vivants : `META_WHATSAPP_ACCESS_TOKEN` **et** `WHATSAP
 15. ❌ **Ne PAS planifier sur** l'affirmation tierce très relayée « nouveau cadre d'identifiants DMA
     obligatoire avant juin 2026 » : contredite par l'absence de toute mention dans l'annonce Meta et
     le changelog développeur.
+
+## q) PURGE DES TENANTS (10/08/2026) — ce qui reste, et ce qu'on a appris
+
+**157 tenants → 7.** 150 comptes jetables (inscriptions de test, essais abandonnés, comptes de
+recette) supprimés en une transaction, après validation ligne à ligne d'un inventaire complet.
+4 736 lignes effacées dans 46 tables, base passée de 6,7 à 3,6 Mo.
+
+**Les 7 conservés** : Coccinelle.ai, AMROUCHE, Agentic solutions, Syndic Horizon (démo Maze),
+Léa et Léo (tenants enfants du portail revendeur VoixIA), et **Garage Toulouse** (recréé le 11/08,
+nouvel identifiant — voir § d).
+
+**Ce qui a réellement bloqué** (deux échecs en prod avant d'y arriver) : ce n'était **pas** l'ordre
+de suppression. Dix lignes `availability_slots` appartenant à **Agentic solutions** (conservé)
+pointaient vers `agent_coccinelle_001`, un agent de **test13** (condamné). `agent_id` étant
+`NOT NULL`, aucune suppression ne pouvait passer. Correctif : une **ÉTAPE 0** qui repointe ces
+10 lignes vers l'agent du tenant conservé, sans perte.
+
+**Méthode qui a fini par marcher** — à reprendre pour toute purge :
+1. **Le schéma réel de la prod**, pas une reconstitution depuis `migrations/` (les deux divergent).
+2. **Tester les 34 arcs de clés étrangères un par un** contre la vraie donnée. Un rejeu à blanc
+   sur des tables vides, ou avec `PRAGMA foreign_keys=OFF`, est **structurellement incapable** de
+   trouver ce genre de blocage — il valide la syntaxe, pas la réalité.
+3. Chercher les **références croisées entre un tenant conservé et un tenant condamné** : c'est là
+   que ça casse, pas dans l'ordre topologique.
+4. Backup **vérifié** (compter les tables et les INSERT, s'assurer que les tenants conservés y sont)
+   avant d'exécuter. `backup_avant_purge_20260810.sql`, 4,0 Mo, 109 tables.
+5. D1 **refuse `BEGIN TRANSACTION`** (erreur 7500) mais exécute un `--file` de façon **atomique** :
+   c'est le fichier entier qui fait la transaction.
+
+**Conséquences à connaître** : 6 appels historiques référencent l'ancien Garage Toulouse et
+restent orphelins ; les `task_types` globaux (`tenant_id='global'`, 11 lignes) ont été préservés ;
+plus aucun `users.phone_verified=1` sur `+33760762153` **hormis** le nouveau Garage Toulouse, ce
+qui rend la résolution du numéro d'essai déterministe.
 
 ## RÈGLES GLOBALES AGENTIC OS
 
