@@ -451,6 +451,14 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 10. Documents KB en langage vocal pur : phrases ≤ 15 mots, pas de symboles/sigles/markdown.
 
 ### SMS sortants
+10quater. **Un SMS se compte en unités GSM-7, jamais en caractères.** Un seul caractère hors
+    table (`ô`, `ç` minuscule, apostrophe courbe `’`) bascule le message entier en UCS-2 :
+    la capacité passe de 160 à **70** par segment. Passer par
+    `compterSms()` / `compacterPourGsm7()` (`shared/sms-format.js`) avant de conclure qu'un
+    message « tient ». `€` compte double mais reste plus court que « EUR ».
+10quinquies. **`appointments.scheduled_at` est une date-heure NAÏVE et déjà LOCALE.** Ne jamais
+    la passer à `new Date()` puis la reformater avec un `timeZone` : cela ajoute deux heures en
+    été. Lire les composantes du texte telles quelles.
 10bis. **La règle « ce SMS mérite-t-il le lien de réservation ? » vit dans UN SEUL fichier** :
     `src/modules/shared/sms-booking-link.js` (table `TYPES_SMS`). Un module d'envoi n'écrit
     jamais cette décision lui-même — il passe un `type`. Ajouter un type au tableau, jamais un
@@ -527,6 +535,42 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🟡 Moyenne | Dette `tenants.phone` | 5 tenants partagent `+33760762153`, formats mixtes `0760…`/`+3376…` — non utilisé par resolve-phone (secondaire) mais à assainir |
 
 ### Résolus majeurs (référence rapide)
+
+- **SMS — un devis en deux morceaux, et deux bugs d'heure (11/08/2026)**. Le devis partait en
+  **deux SMS**. La cause n'est pas la longueur mais l'**encodage** : Twilio code en GSM-7
+  (160 caractères par segment) tant que *tous* les caractères appartiennent à l'alphabet
+  GSM 03.38 ; **un seul** caractère hors table bascule le message en UCS-2 et la capacité tombe
+  à **70**. Le piège est contre-intuitif en français : « é è à ù ì ò » **sont** dans la table,
+  « ô â ê î û ë ï » **non**, et « ç » **minuscule** non plus — le mot « français » correctement
+  accentué fait exploser le compte. « € » y est, mais dans la table d'**extension** : il compte
+  double, et reste malgré tout plus court que « EUR ».
+  **Fix** : `shared/sms-format.js` (compteur exact + translitération **ciblée** — on ne touche
+  qu'aux caractères hors table, dégrader « Réservez » en « Reservez » serait gratuit), ajustement
+  à un segment par troncature **sur les séparateurs d'énumération** (jamais au milieu d'une
+  prestation : un montant sans libellé est ce que tout le reste du produit s'interdit), route
+  courte `/b/{slug}`, et règle de composition dans les 7 prompts actifs.
+  Mesures : devis d'origine **252 unités = 2 segments** ; gabarit compact **139 = 1 segment**.
+  **Deux bugs que seule la recette réelle pouvait montrer** : « Votre RDV chez **undefined** »
+  (le `SELECT` ne ramenait que `tenants.id`) et une **heure décalée de deux heures** —
+  `appointments.scheduled_at` est une date-heure **naïve et déjà locale**, la relire avec
+  `new Date()` la traite comme de l'UTC. Un RDV de 14h30 était confirmé pour 16h30, un RDV de
+  16h rappelé pour 18h. Le défaut vivait dans **deux fichiers** : corriger `public/booking.js`
+  n'a pas suffi, `cron/reminders.js` refaisait la même conversion. Voir [[sms-encodage-gsm7]].
+
+- **Réservation publique — la confirmation n'était pas en panne, elle n'existait pas (11/08/2026)**.
+  La page promet « vous recevrez une confirmation par SMS ou par e-mail » ; la route insérait le
+  rendez-vous puis répondait, **sans le moindre appel Twilio ni Resend**. Les colonnes
+  `confirmation_sent` / `confirmation_channel` existaient pourtant en base : la fonction avait été
+  prévue, jamais écrite. `shared/sms-envoi.js` envoie **et** rattache le message à la conversation
+  du contact, pour qu'il apparaisse dans sa fiche. Au passage, `customer_name`, `customer_phone`
+  et `booking_source` restaient `NULL` sur les rendez-vous pris en ligne — désormais remplis.
+
+- **Rappel J-1 — trois manques (11/08/2026)**. Le cron `0 17 * * *` existait et tournait.
+  Manquaient : l'exception **« réservé il y a moins de 24 h »** (`julianday(scheduled_at) -
+  julianday(created_at) >= 1`), le lien de modification, le message court, et la trace dans
+  l'historique de conversation. « Répondez CONFIRMER ou ANNULER » a été retiré : **rien ne
+  traitait ces réponses**, la promesse était vide.
+
 
 - **Page de réservation publique cassée pour TOUS les tenants (11/08/2026)**. Découvert en
   vérifiant le prérequis des liens SMS. `coccinelle.ai/booking/{slug}` affichait

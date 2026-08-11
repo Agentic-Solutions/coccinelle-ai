@@ -10,6 +10,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { envoyerSmsTrace } from '../modules/shared/sms-envoi.js';
 import { reconcilePendingBundles } from '../modules/compliance/routes.js';
 
 /**
@@ -45,7 +46,8 @@ export async function sendTomorrowReminders(env) {
   // Query tous les RDV de demain, tous tenants, non rappeles
   const { results: appointments } = await env.DB.prepare(`
     SELECT a.id, a.customer_name, a.customer_phone, a.scheduled_at, a.notes,
-      t.name AS company_name, t.id AS tenant_id,
+      t.name AS company_name, t.id AS tenant_id, t.slug AS tenant_slug,
+      a.prospect_id,
       COALESCE(ca.first_name || ' ' || ca.last_name, '') AS agent_name,
       s.name AS service_name, s.duration_minutes,
       COALESCE(a.customer_phone, p.phone) AS phone
@@ -59,6 +61,10 @@ export async function sendTomorrowReminders(env) {
       AND a.reminder_sent = 0
       AND COALESCE(a.customer_phone, p.phone) IS NOT NULL
       AND COALESCE(a.customer_phone, p.phone) != ''
+      -- Pas de rappel pour un rendez-vous pris il y a moins de 24 h : le client
+      -- vient de le fixer, le lui rappeler le soir meme fait redondant et
+      -- ferait douter d'un doublon.
+      AND julianday(a.scheduled_at) - julianday(a.created_at) >= 1
   `).bind(dateStr).all();
 
   if (!appointments || appointments.length === 0) {
@@ -77,36 +83,40 @@ export async function sendTomorrowReminders(env) {
       const phone = apt.phone;
       const customerName = apt.customer_name || 'Client';
 
-      // Formater heure en fr-FR (Europe/Paris)
-      const scheduledDate = new Date(apt.scheduled_at);
-      const heureStr = scheduledDate.toLocaleString('fr-FR', {
-        timeZone: 'Europe/Paris',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      const jourStr = scheduledDate.toLocaleString('fr-FR', {
-        timeZone: 'Europe/Paris',
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long'
-      });
+      // ⚠️ `scheduled_at` est une date-heure NAIVE et deja LOCALE
+      // (« 2026-08-12T16:00:00 ») : c'est l'heure affichee au client. La relire
+      // avec new Date() la fait interpreter comme de l'UTC, et la reafficher en
+      // Europe/Paris ajoute deux heures — un RDV de 16h etait rappele pour 18h
+      // (constate en recette reelle le 11/08/2026, apres correction du meme
+      // defaut dans public/booking.js : le bug vivait dans DEUX fichiers).
+      const partie = String(apt.scheduled_at).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+      const heureStr = partie ? `${partie[4]}:${partie[5]}` : String(apt.scheduled_at);
+      const jourStr = partie
+        ? new Date(Date.UTC(+partie[1], +partie[2] - 1, +partie[3])).toLocaleDateString('fr-FR', {
+            timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long',
+          })
+        : '';
 
-      // Construire le message
-      let message = `Rappel : Votre RDV`;
-      if (apt.service_name) {
-        message += ` ${apt.service_name}`;
+      // Message court : un rappel se lit sur l'ecran de veille, il ne se
+      // deroule pas. Le lien remplace « Repondez CONFIRMER ou ANNULER », qui
+      // promettait un traitement des reponses entrantes qui n'existe pas.
+      let message = `Rappel : RDV demain ${jourStr} a ${heureStr}`;
+      if (apt.company_name) message += ` chez ${apt.company_name}`;
+      message += '.';
+      if (apt.tenant_slug) {
+        message += ` Modifier : https://coccinelle.ai/b/${encodeURIComponent(apt.tenant_slug)}`;
       }
-      message += ` demain ${jourStr} a ${heureStr}`;
-      if (apt.agent_name && apt.agent_name.trim()) {
-        message += ` avec ${apt.agent_name.trim()}`;
-      }
-      if (apt.company_name) {
-        message += ` chez ${apt.company_name}`;
-      }
-      message += `. Repondez CONFIRMER ou ANNULER.`;
 
-      // Envoyer via Twilio
-      const smsResult = await sendSMSViaTwilio(env, phone, message, apt.tenant_id);
+      // Envoi trace : part par Twilio ET apparait dans l'historique du contact.
+      const smsResult = await envoyerSmsTrace(env, {
+        tenantId: apt.tenant_id,
+        to: phone,
+        message,
+        type: 'rappel_rdv',        // pas d'ajout automatique de lien : il est deja la
+        prospectId: apt.prospect_id || null,
+        nomContact: customerName,
+      });
+      smsResult.success = smsResult.envoye;
 
       if (smsResult.success) {
         // Marquer comme envoye
@@ -131,60 +141,8 @@ export async function sendTomorrowReminders(env) {
   return { sent, errors, details };
 }
 
-/**
- * Envoie un SMS via Twilio (meme pattern que sendTwilioSMS dans twilio/routes.js).
+/*
+ * `sendSMSViaTwilio` a ete retiree le 11/08/2026 : elle envoyait sans laisser
+ * de trace dans l'historique du contact. Les rappels passent desormais par
+ * shared/sms-envoi.js, qui envoie ET rattache le message a la conversation.
  */
-async function sendSMSViaTwilio(env, to, message, tenantId) {
-  const accountSid = env.TWILIO_ACCOUNT_SID;
-  const authToken = env.TWILIO_AUTH_TOKEN;
-  const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
-
-  if (!accountSid || !authToken) {
-    return { success: false, error: 'Twilio credentials not configured' };
-  }
-
-  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-
-  const formData = new URLSearchParams();
-  formData.append('From', from);
-  formData.append('To', to);
-  formData.append('Body', message);
-
-  try {
-    const response = await fetch(twilioUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return { success: false, error: data.message || 'SMS send failed' };
-    }
-
-    // Log SMS en DB
-    try {
-      await env.DB.prepare(`
-        INSERT INTO sms_messages (id, tenant_id, to_number, from_number, message, status, direction, twilio_sid, created_at)
-        VALUES (?, ?, ?, ?, ?, 'sent', 'outbound', ?, datetime('now'))
-      `).bind(
-        `sms_reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        tenantId || 'unknown',
-        to,
-        from,
-        message,
-        data.sid
-      ).run();
-    } catch (dbErr) {
-      logger.warn('Could not log reminder SMS to DB', { error: dbErr.message });
-    }
-
-    return { success: true, messageSid: data.sid };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}

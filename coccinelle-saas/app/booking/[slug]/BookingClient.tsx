@@ -148,10 +148,10 @@ export default function BookingClient() {
         });
         setStep('confirmation');
       } else {
-        setError(data.error || 'Erreur lors de la reservation');
+        setError(data.error || 'Erreur lors de la réservation');
       }
     } catch {
-      setError('Erreur reseau. Veuillez reessayer.');
+      setError('Erreur réseau. Veuillez réessayer.');
     } finally {
       setSubmitting(false);
     }
@@ -186,7 +186,7 @@ export default function BookingClient() {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
-    }) + ' a ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
   const themeColor = tenant?.color || '#1a1a1a';
@@ -213,7 +213,7 @@ export default function BookingClient() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Page introuvable</h1>
           <p className="text-gray-600 mb-6">{error}</p>
-          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">Retour a l&apos;accueil</Link>
+          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">Retour à l&apos;accueil</Link>
         </div>
       </div>
     );
@@ -242,7 +242,7 @@ export default function BookingClient() {
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className="flex items-center gap-2 mb-8">
           {(['type', 'date', 'slot', 'form', 'confirmation'] as Step[]).map((s, i) => {
-            const labels = ['Type', 'Date', 'Creneau', 'Coordonnees', 'Confirmation'];
+            const labels = ['Type', 'Date', 'Créneau', 'Coordonnées', 'Confirmation'];
             const stepOrder = ['type', 'date', 'slot', 'form', 'confirmation'];
             const currentIdx = stepOrder.indexOf(step);
             const isActive = i <= currentIdx;
@@ -334,7 +334,7 @@ export default function BookingClient() {
         {/* Step 3: Select slot */}
         {step === 'slot' && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Choisissez un creneau</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Choisissez un créneau</h2>
             <p className="text-gray-600 mb-6">{formatDate(selectedDate)}</p>
 
             {slots.length === 0 ? (
@@ -342,7 +342,7 @@ export default function BookingClient() {
                 <svg className="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-gray-500">Aucun creneau disponible pour cette date</p>
+                <p className="text-gray-500">Aucun créneau disponible pour cette date</p>
                 <button onClick={() => setStep('date')} className="mt-4 text-sm text-gray-700 hover:text-gray-900 font-medium">
                   Choisir une autre date
                 </button>
@@ -370,7 +370,7 @@ export default function BookingClient() {
         {/* Step 4: Contact form */}
         {step === 'form' && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Vos coordonnees</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Vos coordonnées</h2>
             <p className="text-gray-600 mb-6">
               {selectedType?.name ? `${selectedType.name} - ` : ''}
               {formatDate(selectedDate)} a {selectedSlot?.time}
@@ -414,7 +414,7 @@ export default function BookingClient() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telephone *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
                 <input
                   type="tel"
                   required
@@ -460,7 +460,7 @@ export default function BookingClient() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Rendez-vous confirme !</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Rendez-vous confirmé !</h2>
             <p className="text-gray-600 mb-6">
               Votre rendez-vous a bien ete enregistre.
             </p>
@@ -493,7 +493,7 @@ export default function BookingClient() {
             </div>
 
             <p className="text-sm text-gray-500 mt-6">
-              Vous recevrez une confirmation par SMS ou email.
+              Vous recevrez une confirmation par SMS ou par e-mail.
             </p>
           </div>
         )}
@@ -501,7 +501,7 @@ export default function BookingClient() {
 
       {/* Footer */}
       <footer className="text-center py-6 text-xs text-gray-400">
-        Propulse par <Link href="/" className="text-gray-500 hover:text-gray-700">coccinelle.ai</Link>
+        Propulsé par <Link href="/" className="text-gray-500 hover:text-gray-700">coccinelle.ai</Link>
       </footer>
     </div>
   );

@@ -16,9 +16,14 @@
 // pire une invitation a reprendre un second rendez-vous.
 
 import { logger } from '../../utils/logger.js';
+import { compacterPourGsm7, compterSms } from './sms-format.js';
 
 /** Base publique des pages de reservation. */
 const BASE_PUBLIQUE = 'https://coccinelle.ai';
+
+// Route COURTE : /b/{slug} plutot que /booking/{slug}. Sept caracteres gagnes
+// sur chaque SMS, la ou 160 decident du nombre de segments factures.
+const CHEMIN_COURT = '/b/';
 
 /**
  * Regle d'inclusion par type de SMS.
@@ -52,9 +57,6 @@ export const TYPES_SMS = {
 /** Type applique quand l'appelant n'en fournit pas : le cas general. */
 const TYPE_PAR_DEFAUT = 'information';
 
-/** Un SMS Twilio depasse 160 caracteres = plusieurs segments factures. */
-const LONGUEUR_SEGMENT = 160;
-
 export function doitInclureLien(type) {
   const regle = TYPES_SMS[type || TYPE_PAR_DEFAUT];
   // Un type inconnu n'ajoute PAS de lien : on ne devine pas a la place de
@@ -77,7 +79,7 @@ export async function construireLienReservation(env, tenantId) {
       logger.warn('[SMS] Tenant sans slug — lien de reservation omis', { tenantId });
       return null;
     }
-    return `${BASE_PUBLIQUE}/booking/${encodeURIComponent(slug)}`;
+    return `${BASE_PUBLIQUE}${CHEMIN_COURT}${encodeURIComponent(slug)}`;
   } catch (error) {
     logger.warn('[SMS] Lien de reservation indisponible', { tenantId, erreur: error.message });
     return null;
@@ -94,26 +96,69 @@ export async function construireLienReservation(env, tenantId) {
  * @param {{tenantId: string, message: string, type?: string}} options
  * @returns {Promise<string>} le message, enrichi ou inchange
  */
+/** Au-dela, on tronque l'enumeration plutot que de payer un segment de plus. */
+const MAX_PRESTATIONS_CITEES = 4;
+
+/**
+ * Ramene un message a UN SEUL segment quand c'est possible sans mutiler
+ * l'information.
+ *
+ * La troncature se fait sur les separateurs d'enumeration, jamais au milieu
+ * d'une prestation : couper « Permutation 25 » laisserait un montant sans
+ * libelle, ce que tout le reste du produit s'interdit. Si meme quatre
+ * prestations ne tiennent pas, on rend le message tel quel — deux segments
+ * valent mieux qu'un devis faux.
+ */
+export function ajusterAUnSegment(corps, lien) {
+  const avecLien = (texte) => (lien ? `${texte.replace(/[\s.]+$/, '')}. RDV : ${lien}` : texte);
+
+  const complet = compacterPourGsm7(avecLien(corps));
+  if (compterSms(complet).segments <= 1 || !lien) return complet;
+
+  // On isole la partie enumerative : ce qui suit le premier « : ».
+  const sep = corps.indexOf(' : ');
+  if (sep === -1) return complet;
+
+  const entete = corps.slice(0, sep + 3);
+  const items = corps.slice(sep + 3).split(/,\s*/).map(x => x.trim()).filter(Boolean);
+  if (items.length <= 1) return complet;
+
+  for (let n = Math.min(MAX_PRESTATIONS_CITEES, items.length - 1); n >= 1; n--) {
+    const candidat = compacterPourGsm7(
+      `${entete}${items.slice(0, n).join(', ')}. Devis complet et RDV : ${lien}`,
+    );
+    if (compterSms(candidat).segments <= 1) return candidat;
+  }
+  return complet;
+}
+
+/**
+ * Ajoute le lien de reservation a un SMS quand son type le justifie, puis
+ * ajuste le message a un segment.
+ *
+ * Ne leve jamais et ne bloque jamais l'envoi : en cas de doute, le message part
+ * tel quel. Idempotent — un message qui porte deja le lien n'est pas double.
+ *
+ * @param {object} env
+ * @param {{tenantId: string, message: string, type?: string}} options
+ * @returns {Promise<string>} le message, enrichi ou inchange
+ */
 export async function enrichirSmsAvecLien(env, { tenantId, message, type }) {
   const texte = String(message || '');
   try {
     if (!texte.trim()) return texte;
-    if (!doitInclureLien(type)) return texte;
+
+    // Meme sans lien, on rend le message compatible GSM-7 : un seul « ô » ou
+    // un « ç » fait tomber la capacite de 160 a 70 caracteres par segment.
+    if (!doitInclureLien(type)) return compacterPourGsm7(texte);
+
     // Deja present (l'appelant l'a compose lui-meme, ou re-enrichissement).
-    if (texte.includes('/booking/')) return texte;
+    if (texte.includes('/booking/') || texte.includes('/b/')) return compacterPourGsm7(texte);
 
     const lien = await construireLienReservation(env, tenantId);
-    if (!lien) return texte;
+    if (!lien) return compacterPourGsm7(texte);
 
-    const separateur = /[.!?]$/.test(texte.trim()) ? ' ' : '. ';
-    const enrichi = `${texte.trim()}${separateur}Réservez en ligne : ${lien}`;
-
-    // Garde-fou de cout : on n'ajoute pas un segment SMS a un message qui tient
-    // deja tout juste. Au-dela, le lien vaut son segment — c'est le but.
-    if (texte.length <= LONGUEUR_SEGMENT && enrichi.length > LONGUEUR_SEGMENT * 2) {
-      return texte;
-    }
-    return enrichi;
+    return ajusterAUnSegment(texte.trim(), lien);
   } catch (error) {
     logger.warn('[SMS] Enrichissement du lien echoue, message envoye tel quel', {
       tenantId, erreur: error.message,
