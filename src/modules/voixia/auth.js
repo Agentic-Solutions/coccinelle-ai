@@ -26,9 +26,29 @@ export async function requireVoixIAAuth(request, env) {
       return { error: 'Service VoixIA non configuré', status: 503 };
     }
 
-    if (!timingSafeEqual(apiKey, env.VOIXIA_API_KEY)) {
+    // ── Fenêtre de rotation ──
+    // La clé vit à DEUX endroits : les secrets du Worker et /opt/voixia/.env sur
+    // le serveur de l'agent. Avec une seule valeur acceptée, les tourner l'une
+    // après l'autre coupe TOUS les appels entrants pendant l'intervalle
+    // (resolve-phone en 401, l'agent ne décroche plus).
+    // `VOIXIA_API_KEY_ROTATION` est un second secret TEMPORAIRE qui porte la
+    // nouvelle clé le temps de la bascule : les deux valeurs sont acceptées, le
+    // serveur peut passer quand il veut, et on supprime ce secret juste après.
+    // ⚠️ Le laisser en place laisserait DEUX clés valides indéfiniment — c'est
+    // exactement ce qu'une rotation cherche à supprimer. À effacer sitôt la
+    // bascule vérifiée (procédure § r de CLAUDE.md).
+    const cleValide = timingSafeEqual(apiKey, env.VOIXIA_API_KEY)
+      || (env.VOIXIA_API_KEY_ROTATION
+          && timingSafeEqual(apiKey, env.VOIXIA_API_KEY_ROTATION));
+
+    if (!cleValide) {
       logger.warn('VoixIA auth failed — clé API invalide', { ip: getClientIP(request) });
       return { error: 'Clé API VoixIA invalide', status: 401 };
+    }
+
+    if (env.VOIXIA_API_KEY_ROTATION) {
+      logger.warn('[Sécurité] Fenêtre de rotation OUVERTE — deux clés VoixIA sont valides. '
+        + 'Supprimer VOIXIA_API_KEY_ROTATION dès la bascule terminée.');
     }
 
     const tenantId = request.headers.get('X-VoixIA-Tenant');
