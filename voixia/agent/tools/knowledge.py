@@ -23,7 +23,12 @@ logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDES = 10
 _BASE_URL = "https://coccinelle-api.youssef-amrouche.workers.dev"
-_MAX_CHARS_TTS = 300
+# Budget du retour d'outil. Il valait 300 depuis l'epoque ou ce texte etait lu
+# TEL QUEL a voix haute ; aujourd'hui le LLM le reformule. A 300, la reponse
+# « Montage equilibrage : 15 euros » etait supprimee au profit des lignes
+# voisines, et l'agent annoncait 25 euros (11/08/2026). 600 laisse passer la
+# fiche demandee ET sa clarification quand deux prestations se ressemblent.
+_MAX_CHARS_TTS = 600
 
 
 def _nettoyer_pour_tts(texte: str) -> str:
@@ -108,7 +113,9 @@ def _nettoyer_pour_tts(texte: str) -> str:
     if len(texte) > _MAX_CHARS_TTS:
         coupe = texte[:_MAX_CHARS_TTS]
         dernier_point = max(coupe.rfind("."), coupe.rfind("!"), coupe.rfind("?"))
-        if dernier_point > 100:
+        # Le seuil suit le budget : couper sur une fin de phrase garde une fiche
+        # entiere (libelle + prix), couper au mot separerait les deux.
+        if dernier_point > _MAX_CHARS_TTS // 3:
             texte = coupe[:dernier_point + 1]
         else:
             texte = coupe.rsplit(" ", 1)[0] + "."

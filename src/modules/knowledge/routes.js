@@ -9,6 +9,7 @@ import * as search from './search.js';
 import * as embeddings from './embeddings.js';
 import * as crawler from './crawler.js';
 import * as auth from '../auth/helpers.js';
+import { indexerFiches } from '../shared/kb-ingest.js';
 
 // ========================================
 // HELPER: Auth check réutilisable
@@ -311,6 +312,7 @@ async function handleCrawl(request, env) {
         now
       ).run();
       
+      await indexerFiches(env, { documentId: docId, tenantId: tenant.id, contenu: page.content || '' });
       savedDocs.push({ id: docId, url: page.url, title: page.title });
     }
     
@@ -398,6 +400,8 @@ async function handleCreateDocument(request, env) {
     (id, tenant_id, source_type, source_url, title, content, content_hash, word_count, status, metadata, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, datetime('now'))
   `).bind(id, tenantId, sourceType, sourceUrl || null, title, content, contentHash, wordCount, metadata).run();
+
+  await indexerFiches(env, { documentId: id, tenantId, contenu: content });
 
   logger.info('[KB] Document created', { tenantId, documentId: id });
 
