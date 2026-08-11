@@ -747,13 +747,17 @@ async function handleSearchKnowledge(request, env) {
   // ── Fallback : recherche locale (vectorielle + LIKE) ──
   // ── OPTIMISE BUG #011 : preparer la recherche textuelle en parallele de l'embedding ──
   // Splitter la question en mots significatifs (>= 3 caracteres) pour recherche OR
-  const stopWords = new Set(['les', 'des', 'une', 'est', 'que', 'qui', 'dans', 'pour', 'sur', 'par', 'avec', 'son', 'ses', 'vos', 'nos', 'aux', 'ont', 'sont', 'quels', 'quel', 'quelle', 'quelles', 'comment', 'vous']);
-  const searchWords = question
-    .toLowerCase()
-    .replace(/[^a-zA-ZÀ-ÿ\s]/g, '')
+  const stopWords = new Set(['les', 'des', 'une', 'est', 'que', 'qui', 'dans', 'pour', 'sur', 'par', 'avec', 'son', 'ses', 'vos', 'nos', 'aux', 'ont', 'sont', 'quels', 'quel', 'quelle', 'quelles', 'comment', 'vous', 'chez', 'une', 'dune', 'cest', 'pouvez', 'faites', 'propose', 'proposez']);
+  // Les mots de recherche sont DESACCENTUES (08/08/2026) : le LIKE de SQLite est
+  // insensible a la casse ASCII mais PAS aux accents. « delai » ne matchait pas
+  // « Delai » et inversement — une question sur le delai d'une courroie ne
+  // trouvait rien alors que la reponse etait dans le document. Le contenu est
+  // desaccentue symetriquement cote SQL (_foldSql).
+  const searchWords = _foldAccents(question)
+    .replace(/[^a-z\s]/g, ' ')
     .split(/\s+/)
     .filter(w => w.length >= 3 && !stopWords.has(w));
-  if (searchWords.length === 0) searchWords.push(question);
+  if (searchWords.length === 0) searchWords.push(_foldAccents(question));
 
   // ── Lancer recherche textuelle ET vectorielle en parallele ──
   // La recherche textuelle est toujours prete comme fallback immediat
@@ -827,14 +831,44 @@ async function handleSearchKnowledge(request, env) {
   // ── Selection de la reponse ──
   // Priorite source_type='text' (saisie manuelle du client) puis ordre de la requete.
   const textPriorityResults = results.filter(r => r.source_type === 'text');
-  const bestResult = textPriorityResults.length > 0 ? textPriorityResults[0] : results[0];
+  const ordered = textPriorityResults.length > 0
+    ? [...textPriorityResults, ...results.filter(r => r.source_type !== 'text')]
+    : results;
 
-  // On renvoie le PASSAGE PERTINENT, plus les 500 premiers caracteres du document.
-  // Sans chunks en base (0 chunk en prod le 08/08), `substring(0, 500)` renvoyait
-  // le debut du document quelle que soit la question : sur une fiche garage de
-  // 2 489 caracteres, « climatisation » (pos. 1252) ou « controle technique »
-  // (pos. 1603) etaient hors d'atteinte et l'agent recevait les horaires.
-  let answer = _extractRelevantPassage(bestResult?.content, searchWords);
+  // MULTI-PASSAGES (08/08/2026) : jusqu'a 2 extraits pertinents concatenes.
+  // Une question a deux facettes (« le delai ET le tarif d'une courroie »)
+  // trouvait sa reponse eclatee dans deux sections du meme document ; un seul
+  // extrait de 500 caracteres n'en rapportait qu'une moitie.
+  //
+  // SEUIL DE PERTINENCE : un extrait n'est retenu que s'il couvre reellement la
+  // question. Sans ce seuil, un OR sur un mot courant (« changement »,
+  // « distribution ») suffisait a declarer found=true avec un passage hors sujet
+  // — l'agent recevait « j'ai trouve » + du texte inutile et inventait un prix
+  // (les 69 euros du 08/08). Desormais : hors sujet => found=false => porte de
+  // sortie, qui elle fonctionne.
+  // Les deux extraits peuvent venir du MEME document : une question a deux
+  // facettes (« le delai ET le tarif d'une courroie ») a sa reponse eclatee
+  // entre deux sections d'une meme fiche. Ne prendre qu'un extrait par document
+  // renvoyait la section DELAIS sans la ligne courroie, et le seuil de
+  // pertinence rejetait le tout — l'agent partait sur la porte de sortie alors
+  // que la reponse etait en base.
+  //
+  // Le PREMIER extrait doit etre franchement pertinent (c'est lui qui autorise
+  // found=true) ; le SECOND ne sert que de complement et se contente d'un mot
+  // recherche, sinon on perd la moitie des reponses a deux facettes.
+  const passages = [];
+  for (const r of ordered) {
+    if (passages.length >= 2) break;
+    for (const p of _extractPassages(r.content, searchWords, 2 - passages.length)) {
+      if (passages.includes(p)) continue;
+      const gardeFou = passages.length === 0
+        ? _passageEstPertinent(p, searchWords)
+        : _contientUnMotRecherche(p, searchWords);
+      if (gardeFou) passages.push(p);
+      if (passages.length >= 2) break;
+    }
+  }
+  let answer = passages.length > 0 ? passages.join(' … ') : null;
 
   // Un resultat LightRAG ne sert que de COMPLEMENT quand la KB du tenant n'a rien
   // — jamais de court-circuit. Avant, il etait consulte en premier et renvoye tel
@@ -870,6 +904,104 @@ async function handleSearchKnowledge(request, env) {
       ? `${results.length} résultat(s) trouvé(s)`
       : 'Aucun résultat trouvé dans la base de connaissances'
   });
+}
+
+/**
+ * Desaccentue et met en minuscules — normalisation commune a la question et au
+ * contenu. Sans elle, `LIKE '%delai%'` ne trouve pas « Delai » et `'%délai%'`
+ * ne trouve pas « delai » : le LIKE de SQLite ignore la casse ASCII, pas les
+ * accents.
+ */
+// Remplacement caractere par caractere (1:1) et NON via NFD : la normalisation
+// NFD raccourcit la chaine (« é » -> « e » + accent combinant supprime), ce qui
+// decalerait toutes les positions utilisees par l'extraction de passage.
+const _CARTE_ACCENTS = {
+  'á': 'a', 'à': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a', 'å': 'a',
+  'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+  'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+  'ó': 'o', 'ò': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+  'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
+  'ç': 'c', 'ñ': 'n', 'ÿ': 'y',
+};
+
+export function _foldAccents(texte) {
+  return String(texte || '')
+    .toLowerCase()
+    .replace(/[áàâäãåéèêëíìîïóòôöõúùûüçñÿ]/g, (c) => _CARTE_ACCENTS[c] || c);
+}
+
+// Couples (accentue, ascii) appliques cote SQL pour desaccentuer le contenu.
+// Limite aux caracteres reellement presents en francais : chaque paire ajoute
+// un REPLACE imbrique a la requete.
+const _ACCENTS_SQL = [
+  ['é', 'e'], ['è', 'e'], ['ê', 'e'], ['ë', 'e'],
+  ['à', 'a'], ['â', 'a'], ['ä', 'a'],
+  ['î', 'i'], ['ï', 'i'],
+  ['ô', 'o'], ['ö', 'o'],
+  ['ù', 'u'], ['û', 'u'], ['ü', 'u'],
+  ['ç', 'c'],
+];
+
+/**
+ * Expression SQL desaccentuant une colonne : LOWER(REPLACE(REPLACE(col,'é','e')…)).
+ * Utilisee des deux cotes de la comparaison pour que la recherche soit
+ * symetrique. Le volume concerne est faible (quelques dizaines de documents par
+ * tenant) : le cout d'un balayage sans index est negligeable devant une reponse
+ * fausse.
+ */
+function _foldSql(colonne) {
+  let expr = `LOWER(${colonne})`;
+  for (const [accent, ascii] of _ACCENTS_SQL) {
+    expr = `REPLACE(${expr}, '${accent}', '${ascii}')`;
+  }
+  return expr;
+}
+
+/**
+ * Un passage repond-il vraiment a la question ?
+ *
+ * Regle : au moins DEUX mots recherches distincts presents, ou UN SEUL s'il est
+ * suffisamment discriminant (>= 7 caracteres, ex. « climatisation »,
+ * « distribution »). Un mot court isole (« prix », « chez ») ne suffit plus.
+ */
+/** Au moins un mot recherche present — garde-fou du passage COMPLEMENTAIRE. */
+export function _contientUnMotRecherche(passage, searchWords) {
+  const texte = _foldAccents(passage);
+  return searchWords.some(mot => mot && texte.includes(mot));
+}
+
+/**
+ * Extrait jusqu'a `maxPassages` zones pertinentes d'un MEME document.
+ *
+ * La deuxieme zone est cherchee en dehors de la fenetre deja retenue : sur une
+ * fiche tarifaire, « le delai » et « la courroie » vivent dans deux sections
+ * eloignees, et n'en rapporter qu'une revient a repondre a moitie.
+ */
+export function _extractPassages(content, searchWords, maxPassages = 2, windowSize = 500) {
+  const texte = String(content || '').trim();
+  if (!texte) return [];
+  if (texte.length <= windowSize) return [texte];
+
+  const passages = [];
+  const zonesPrises = [];
+
+  for (let i = 0; i < maxPassages; i++) {
+    const extrait = _extractRelevantPassage(texte, searchWords, windowSize, zonesPrises);
+    if (!extrait) break;
+    passages.push(extrait.texte);
+    zonesPrises.push([extrait.debut, extrait.fin]);
+  }
+  return passages;
+}
+
+export function _passageEstPertinent(passage, searchWords) {
+  const texte = _foldAccents(passage);
+  const trouves = new Set();
+  for (const mot of searchWords) {
+    if (mot && texte.includes(mot)) trouves.add(mot);
+  }
+  if (trouves.size >= 2) return true;
+  return [...trouves].some(m => m.length >= 7);
 }
 
 /**
@@ -927,12 +1059,16 @@ export function _formatPhoneFr(phone) {
  * (le texte part vers un TTS : une phrase tronquee s'entend).
  * Retourne null si le document est vide — l'appelant en deduit « rien trouve ».
  */
-export function _extractRelevantPassage(content, searchWords, windowSize = 500) {
+export function _extractRelevantPassage(content, searchWords, windowSize = 500, zonesPrises = []) {
   const text = String(content || '').trim();
   if (!text) return null;
-  if (text.length <= windowSize) return text;
+  if (text.length <= windowSize) {
+    return zonesPrises.length > 0 ? null : { texte: text, debut: 0, fin: text.length };
+  }
 
-  const lower = text.toLowerCase();
+  // Desaccentue en conservant les positions (cf. _CARTE_ACCENTS) : les mots
+  // recherches arrivent deja desaccentues.
+  const lower = _foldAccents(text);
 
   // Position de chaque occurrence de chaque mot recherche.
   const hits = [];
@@ -948,15 +1084,31 @@ export function _extractRelevantPassage(content, searchWords, windowSize = 500) 
     }
   }
 
-  // Aucun mot trouve dans ce document (il a matche sur le titre) → debut du doc.
-  if (hits.length === 0) return _snapToSentence(text, 0, windowSize);
+  // Ecarter les occurrences deja couvertes par un passage precedent : c'est ce
+  // qui permet au 2e extrait de porter sur une AUTRE section du document.
+  const dejaPris = (pos) => zonesPrises.some(([d, f]) => pos >= d && pos < f);
+  const restants = hits.filter(pos => !dejaPris(pos));
+
+  // Aucun mot trouve dans ce document (il a matche sur le titre) → debut du doc,
+  // et seulement s'il s'agit du premier extrait.
+  if (hits.length === 0) {
+    return zonesPrises.length > 0 ? null : _snapToSentence(text, 0, windowSize);
+  }
+  if (restants.length === 0) return null;
 
   // Meilleur point d'ancrage : l'occurrence qui a le plus de voisines dans une
-  // fenetre de la taille demandee (la zone qui parle le plus du sujet).
-  let bestPos = hits[0];
-  let bestScore = 0;
-  for (const pos of hits) {
-    const score = hits.filter(h => h >= pos - windowSize / 2 && h <= pos + windowSize / 2).length;
+  // fenetre de la taille demandee (la zone qui parle le plus du sujet). A
+  // egalite de voisinage, on prefere le mot le plus discriminant — sinon
+  // « delai », present deux fois dans la section DELAIS, l'emporte sur
+  // « courroie » qui porte pourtant la reponse.
+  let bestPos = restants[0];
+  let bestScore = -1;
+  for (const pos of restants) {
+    const voisins = restants.filter(h => h >= pos - windowSize / 2 && h <= pos + windowSize / 2).length;
+    const motLePlusLong = Math.max(
+      ...searchWords.map(w => (lower.startsWith(w, pos) ? w.length : 0)),
+    );
+    const score = voisins * 10 + motLePlusLong;
     if (score > bestScore) {
       bestScore = score;
       bestPos = pos;
@@ -988,7 +1140,13 @@ export function _snapToSentence(text, start, len) {
     const lastStop = Math.max(slice.lastIndexOf('.'), slice.lastIndexOf('!'), slice.lastIndexOf('?'));
     if (lastStop > len / 3) slice = slice.slice(0, lastStop + 1);
   }
-  return from > 0 ? `… ${slice}` : slice;
+  // On renvoie AUSSI les bornes : l'extraction du 2e passage doit savoir quelle
+  // zone du document est deja couverte.
+  return {
+    texte: from > 0 ? `… ${slice}` : slice,
+    debut: from,
+    fin: from + slice.length,
+  };
 }
 
 /**
@@ -1064,14 +1222,18 @@ export function _isNonAnswer(text) {
  * Utilisee comme fallback rapide ou recherche principale
  */
 async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
-  // Lancer les 3 niveaux de recherche en parallele
-  const chunkLikeClauses = searchWords.map(() => 'kc.content LIKE ?').join(' OR ');
+  // Lancer les 3 niveaux de recherche en parallele.
+  // Les comparaisons se font sur du contenu DESACCENTUE des deux cotes
+  // (_foldSql cote colonne, mots deja desaccentues cote parametre).
+  const chunkLikeClauses = searchWords.map(() => `${_foldSql('kc.content')} LIKE ?`).join(' OR ');
   const chunkParams = [tenant_id, ...searchWords.map(w => `%${w}%`), topK];
 
-  const docLikeClauses = searchWords.map(() => '(title LIKE ? OR content LIKE ?)').join(' OR ');
+  const docLikeClauses = searchWords
+    .map(() => `(${_foldSql('title')} LIKE ? OR ${_foldSql('content')} LIKE ?)`).join(' OR ');
   const docParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
 
-  const faqLikeClauses = searchWords.map(() => '(question LIKE ? OR answer LIKE ?)').join(' OR ');
+  const faqLikeClauses = searchWords
+    .map(() => `(${_foldSql('question')} LIKE ? OR ${_foldSql('answer')} LIKE ?)`).join(' OR ');
   const faqParams = [tenant_id, ...searchWords.flatMap(w => [`%${w}%`, `%${w}%`]), topK];
 
   // ── Lancer les 3 requetes en parallele (Promise.allSettled) ──
