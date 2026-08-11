@@ -163,7 +163,7 @@ npx wrangler deploy
 
 ### Compte de test (local)
 - Email : `admin@coccinelle-test.com`
-- Password : `CoccinelleTest123`
+- Password : `<mot de passe — voir .credentials.md>`
 
 ---
 
@@ -203,7 +203,7 @@ Tester les pages frontend :
 - Frontend : /Users/amrouche.7/match-immo-mcp/coccinelle-ai/coccinelle-saas/
 - Manifeste : MANIFESTE_COCCINELLE_V26.md
 
-**Compte test** : admin@coccinelle-test.com / CoccinelleTest123
+**Compte test** : admin@coccinelle-test.com / <mot de passe — voir .credentials.md>
 ```
 
 ---

@@ -76,7 +76,7 @@ architectures divergentes, aucune branchée.
    réponse IA est générée et **envoyée**. Combiné au point 1 : fuite inter-tenant + dépense sur votre
    compte Meta, déclenchables sans authentification.
 3. **Token de vérification en dur** : `META_WEBHOOK_VERIFY_TOKEN` retombe sur le littéral
-   `'coccinelle_meta_verify_2026'` (`meta-whatsapp.js:26`).
+   `'<verify-token — voir .credentials.md>'` (`meta-whatsapp.js:26`).
 4. **Secrets en clair en base.** `omni_phone_mappings.meta_access_token` est stocké en clair ;
    `channel_configurations.config_encrypted` contient un simple `JSON.stringify` — malgré son nom.
 5. Les clés Meta ayant été exposées sur GitHub public, ces routes sont à considérer comme

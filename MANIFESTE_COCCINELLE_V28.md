@@ -111,7 +111,7 @@ VALUES ('+33939035760', 'tenant_dGVzdDdAdGVzdC5jb20', 'whatsapp', 1);
 ### Comptes de test
 | Environnement | Email | Password |
 |---------------|-------|----------|
-| Local | `admin@coccinelle-test.com` | `CoccinelleTest123` |
+| Local | `admin@coccinelle-test.com` | `<mot de passe — voir .credentials.md>` |
 | Production | `admin@coccinelle-prod.com` | `CoccinelleProd123` |
 
 ### Meta App
@@ -195,7 +195,7 @@ J'ai ouvert l'app "coccinelle.ai" sur developers.facebook.com
 - Manifeste : MANIFESTE_COCCINELLE_V28.md
 
 **Comptes** :
-- Local : admin@coccinelle-test.com / CoccinelleTest123
+- Local : admin@coccinelle-test.com / <mot de passe — voir .credentials.md>
 - Prod : admin@coccinelle-prod.com / CoccinelleProd123
 ```
 

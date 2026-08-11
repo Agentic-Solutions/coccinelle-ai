@@ -56,7 +56,7 @@
 | Information | Valeur |
 |-------------|--------|
 | URL | `https://coccinelle-api.youssef-amrouche.workers.dev/webhooks/meta/whatsapp` |
-| Verify Token | `coccinelle_meta_verify_2026` |
+| Verify Token | `<verify-token — voir .credentials.md>` |
 | Événements | `messages` |
 
 ### Meta App
@@ -111,7 +111,7 @@ TXT cf2024-1._domainkey.coccinelle.ai → DKIM key
 ### Comptes de test
 | Environnement | Email | Password |
 |---------------|-------|----------|
-| Local | `admin@coccinelle-test.com` | `CoccinelleTest123` |
+| Local | `admin@coccinelle-test.com` | `<mot de passe — voir .credentials.md>` |
 | Production | `admin@coccinelle-prod.com` | `CoccinelleProd123` |
 
 ### Tenants avec slug
@@ -162,7 +162,7 @@ Je continue le développement de Coccinelle.ai.
 - Phone Number ID (test) : 883453898184903
 - Phone Number ID (prod) : 917756968084685
 - WABA ID (test) : 1366785598272425
-- Verify Token : coccinelle_meta_verify_2026
+- Verify Token : <verify-token — voir .credentials.md>
 
 ### Email Routing Cloudflare - 90% ✅
 - ✅ DNS transféré vers Cloudflare (MX + SPF OK)
@@ -188,7 +188,7 @@ J'ai ajouté `y.amrouche1301@gmail.com` comme destination dans Cloudflare Email 
 - Manifeste : MANIFESTE_COCCINELLE_V29.md
 
 **Comptes** :
-- Local : admin@coccinelle-test.com / CoccinelleTest123
+- Local : admin@coccinelle-test.com / <mot de passe — voir .credentials.md>
 - Prod : admin@coccinelle-prod.com / CoccinelleProd123
 ```
 

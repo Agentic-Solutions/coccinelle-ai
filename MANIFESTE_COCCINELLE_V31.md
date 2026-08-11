@@ -56,7 +56,7 @@
 | Phone Number ID (prod) | `917756968084685` |
 | WABA ID (prod) | `3443641465776367` |
 | Webhook URL | `https://coccinelle-api.youssef-amrouche.workers.dev/webhooks/meta/whatsapp` |
-| Verify Token | `coccinelle_meta_verify_2026` |
+| Verify Token | `<verify-token — voir .credentials.md>` |
 
 ### Meta App
 | Attribut | Valeur |
@@ -84,7 +84,7 @@
 ### Comptes de test
 | Environnement | Email | Password |
 |---------------|-------|----------|
-| Local | `admin@coccinelle-test.com` | `CoccinelleTest123` |
+| Local | `admin@coccinelle-test.com` | `<mot de passe — voir .credentials.md>` |
 | Production | `admin@coccinelle-prod.com` | `CoccinelleProd123` |
 
 ---
@@ -152,7 +152,7 @@ Je continue le développement de Coccinelle.ai.
 - Manifeste : MANIFESTE_COCCINELLE_V31.md
 
 **Comptes** :
-- Local : admin@coccinelle-test.com / CoccinelleTest123
+- Local : admin@coccinelle-test.com / <mot de passe — voir .credentials.md>
 - Prod : admin@coccinelle-prod.com / CoccinelleProd123
 ```
 

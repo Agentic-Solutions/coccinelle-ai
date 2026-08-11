@@ -174,7 +174,7 @@ module `src/modules/email/routes.js`. Page `channels/email/page.tsx` (4 sections
 
 ### Comptes de test
 
-- **Compte démo Maze** : `demo.maze@coccinelle.ai` / `DemoMaze2026!`
+- **Compte démo Maze** : `demo.maze@coccinelle.ai` / `<mot de passe — voir .credentials.md>`
   - Tenant : `tenant_ZGVtby5tYXplQGNvY2NpbmVsbGUuYWk` — Company : **Syndic Horizon** (secteur syndic)
   - Entrée : https://coccinelle.ai/demo (auto-login + redirect /dashboard)
   - Données : 3 membres, 6 skills, 5 tâches, 5 appels, 4 prospects, 11 KB FAQ syndic, 3 RDV,
@@ -514,8 +514,8 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | Priorité | Bug | Détail |
 |----------|-----|--------|
 | 🔴 Critique | **Funnel onboarding** | 8/145 complétions, 0 depuis 25 jours — instrumenter + simplifier |
-| 🔴 Critique | **Webhook WhatsApp Meta non signé** | `omnichannel/webhooks/meta-whatsapp.js` : **aucune vérif `X-Hub-Signature-256`** (0 occurrence dans `src/`) + fallback `SELECT id FROM tenants WHERE status='active' LIMIT 1` (`:54`, idem `whatsapp.js:55`) → un POST non authentifié est attribué à un tenant arbitraire, charge SA base de connaissances, génère une réponse IA et **l'envoie** (fuite inter-tenant + dépense). Clés exposées sur GitHub public ⇒ routes à considérer compromises. **Lot 0 : geler la route + révoquer les tokens (semaine du 19/07).** |
-| 🟠 Haute | Régénérer clés Meta | `META_APP_SECRET`, `META_WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `META_WEBHOOK_VERIFY_TOKEN` exposées (GitHub public). ⚠️ `META_WEBHOOK_VERIFY_TOKEN` retombe sur le littéral en dur `'coccinelle_meta_verify_2026'` (`meta-whatsapp.js:26`) |
+| 🔴 Critique | **Clé API VoixIA exposée sur GitHub public** | `VOIXIA_API_KEY` (`813f88…1cc9`) est en clair dans **20 commits publics** du 02/04 au 09/05 (`CLAUDE.md`, `dashboard/proactive/page.tsx`), retirée de l'arbre le 16/05 mais **l'historique n'a pas été réécrit**. **Vérifiée VIVANTE le 11/08** (HTTP 200). C'est une clé **globale** et le tenant est choisi par l'en-tête `X-VoixIA-Tenant` que l'appelant contrôle : quiconque la possède lit la base de connaissances de **n'importe quel** tenant, pose des rendez-vous, crée des prospects et **envoie des SMS facturés**. Rotation = seul remède (§ r) |
+| ✅ Clos | ~~Régénérer clés Meta~~ | **Vérifié le 11/08** : `META_WHATSAPP_ACCESS_TOKEN` expiré le 28/01 (Graph API code 190), `META_APP_SECRET` invalidé par la réinitialisation du 19/07 (« Invalid OAuth access token signature »), `META_WEBHOOK_VERIFY_TOKEN` bien tourné (la valeur publique renvoie 403 sur le handshake). `WHATSAPP_ACCESS_TOKEN` **n'a jamais été dans le dépôt**. Les 3 valeurs Meta restent lisibles dans `wrangler.toml` à 3 commits publics (01/03→09/05) mais n'ouvrent plus rien |
 | 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
 | 🟠 Haute | **Webhook SMS entrant : tenant en dur** | `omnichannel/webhooks/sms.js:49` crée toute nouvelle conversation avec `'tenant_mihmuebzieaxehi7qv'` **écrit en dur** — un tenant purgé le 10/08, donc inexistant. Même antipattern que la faille WhatsApp (fallback « premier tenant actif »). À résoudre par `omni_phone_mappings` sur le numéro appelé, comme `resolve-phone`. En attendant, le lien de réservation est omis sur ce chemin plutôt que fabriqué au hasard |
 | 🟡 Moyenne | Outlook OAuth | Secrets Azure non configurés |
@@ -1073,6 +1073,79 @@ pointaient vers `agent_coccinelle_001`, un agent de **test13** (condamné). `age
 restent orphelins ; les `task_types` globaux (`tenant_id='global'`, 11 lignes) ont été préservés ;
 plus aucun `users.phone_verified=1` sur `+33760762153` **hormis** le nouveau Garage Toulouse, ce
 qui rend la résolution du numéro d'essai déterministe.
+
+## r) ROTATION DES SECRETS — PROCÉDURE (11/08/2026)
+
+**Ce qu'un `git rm` ne fait PAS.** Retirer un secret d'un fichier ne le retire pas de
+l'historique : il reste lisible sur GitHub à chaque commit qui l'a porté, dans les forks, dans
+les clones, et dans les caches d'indexation. **La rotation est le seul remède réel** ; la purge
+de l'arbre n'est que de l'hygiène. Corollaire vécu : l'audit du 16/05 a retiré la clé VoixIA de
+`CLAUDE.md` et l'a crue traitée — elle était encore valide et publique le 11/08, trois mois plus
+tard.
+
+### r.1 — `VOIXIA_API_KEY` (🔴 urgent, vérifiée vivante)
+
+⚠️ **Piège : la clé vit à DEUX endroits.** Le Worker la lit dans ses secrets, l'agent Python la
+lit dans `/opt/voixia/.env`. Tourner l'un sans l'autre coupe **tous les appels entrants** —
+`resolve-phone` répond 401 et l'agent ne décroche plus. **L'ordre ci-dessous n'est pas
+négociable** : le serveur d'abord ne marche pas non plus (l'ancienne clé serait refusée). Il faut
+une fenêtre où les deux clés sont acceptées, ou accepter ~30 s de coupure en heures creuses.
+
+```bash
+# 1. Générer une clé neuve (64 hex)
+openssl rand -hex 32
+
+# 2. La poser côté Worker
+cd ~/Projects/saas/coccinelle-ai && nvm use 22
+npx wrangler@latest secret put VOIXIA_API_KEY        # coller la nouvelle valeur
+
+# 3. IMMÉDIATEMENT après, côté agent Python
+ssh root@51.15.130.204
+  sed -i 's/^VOIXIA_API_KEY=.*/VOIXIA_API_KEY=<nouvelle>/' /opt/voixia/.env
+  systemctl restart voixia
+
+# 4. Vérifier — la NOUVELLE doit passer, l'ANCIENNE échouer
+curl -s -o /dev/null -w "%{http_code}\n" \
+  "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/resolve-phone?phone=%2B33939035760" \
+  -H "X-VoixIA-Key: <nouvelle>" -H "X-VoixIA-Tenant: tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp"   # 200
+curl -s -o /dev/null -w "%{http_code}\n" ... -H "X-VoixIA-Key: <ancienne>" ...                  # 401 attendu
+
+# 5. Appel réel au +33939035761 : l'agent doit décrocher et répondre depuis la KB.
+# 6. Mettre à jour .credentials.md (gitignored).
+```
+
+> **Défaut de conception à corriger ensuite** : une clé **unique et globale**, avec le tenant
+> choisi par un en-tête que l'appelant fournit (`src/modules/voixia/auth.js`). La rotation ferme
+> la fuite mais pas le modèle : une clé par tenant, ou une signature liant clé et tenant,
+> supprimerait la classe entière. Même famille que le fallback tenant du webhook WhatsApp.
+
+### r.2 — Secrets Meta (✅ déjà tournés, procédure conservée)
+
+Vérifié le 11/08 : les trois valeurs publiques sont mortes. Si une rotation redevient nécessaire :
+
+1. **App Secret** — developers.facebook.com → l'app → *Paramètres* → *Général* → *Clé secrète* →
+   **Réinitialiser** (choisir **0 h de grâce** : au-delà, l'ancienne reste valide pendant le délai).
+2. **Token utilisateur système** — *Business Settings* → *Utilisateurs* → *Utilisateurs système* →
+   « Coccinelle API » → **Révoquer** les jetons existants, puis *Générer un nouveau token*
+   (permissions `whatsapp_business_messaging`, `whatsapp_business_management`).
+3. **Verify token** — valeur libre, à choisir soi-même (`openssl rand -hex 16`), puis la reporter
+   **des deux côtés** : console Meta (*WhatsApp → Configuration → Webhook*) **et** secret Worker.
+   Le handshake échoue en 403 tant que les deux ne coïncident pas — c'est le comportement voulu.
+
+```bash
+npx wrangler@latest secret put META_APP_SECRET
+npx wrangler@latest secret put META_WHATSAPP_ACCESS_TOKEN
+npx wrangler@latest secret put META_WEBHOOK_VERIFY_TOKEN
+npx wrangler@latest secret list          # contrôle
+```
+
+### r.3 — Comptes de test
+
+`CoccinelleTest123` était publié dans 5 fichiers suivis (purgés le 11/08). À changer via l'UI ;
+sa valeur ne revient pas dans le dépôt — elle vit dans `.credentials.md`.
+Le mot de passe du compte démo Maze reste **public par conception** : `app/demo/page.tsx` fait un
+auto-login et l'expédie de toute façon dans le bundle JavaScript. Ce compte ne doit donc contenir
+que de la donnée de démonstration — c'est le cas.
 
 ## RÈGLES GLOBALES AGENTIC OS
 
