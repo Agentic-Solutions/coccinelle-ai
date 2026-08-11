@@ -1127,41 +1127,52 @@ de l'arbre n'est que de l'hygiène. Corollaire vécu : l'audit du 16/05 a retir�
 `CLAUDE.md` et l'a crue traitée — elle était encore valide et publique le 11/08, trois mois plus
 tard.
 
-### r.1 — `VOIXIA_API_KEY` (🔴 urgent, vérifiée vivante)
+### r.1 — `VOIXIA_API_KEY` (🔴 urgent, vérifiée vivante le 11/08)
 
-⚠️ **Piège : la clé vit à DEUX endroits.** Le Worker la lit dans ses secrets, l'agent Python la
-lit dans `/opt/voixia/.env`. Tourner l'un sans l'autre coupe **tous les appels entrants** —
-`resolve-phone` répond 401 et l'agent ne décroche plus. **L'ordre ci-dessous n'est pas
-négociable** : le serveur d'abord ne marche pas non plus (l'ancienne clé serait refusée). Il faut
-une fenêtre où les deux clés sont acceptées, ou accepter ~30 s de coupure en heures creuses.
+**Où elle vit** (inventaire du 11/08) : le secret Worker, `/opt/voixia/.env` ligne 32,
+`.credentials.md` (local, gitignored), et **20 commits publics** (02/04→09/05). Quatre
+sauvegardes `tenant.py.bak-*` la portaient aussi sur le serveur — **supprimées**. Les scripts,
+la doc et le portail revendeur ne la contiennent pas.
+
+⚠️ **La clé vit à DEUX endroits actifs** : le Worker la lit dans ses secrets, l'agent Python
+dans `/opt/voixia/.env` (`resolve_tenant` ne transmet pas de clé par appel, les outils retombent
+donc sur celle de l'environnement). `requireVoixIAAuth` n'acceptant **qu'une seule valeur**,
+les tourner l'une après l'autre coupe tous les appels entrants pendant l'intervalle.
+
+**Fenêtre de rotation** (livrée le 11/08) : `VOIXIA_API_KEY_ROTATION` est un second secret
+**temporaire** accepté en plus du principal. Il rend la bascule sans coupure et réversible à
+chaque étape. **Le supprimer sitôt la bascule vérifiée** — le laisser en place, c'est garder
+deux clés valides, exactement ce que la rotation cherche à supprimer. Tant qu'il existe, chaque
+appel authentifié écrit un `WARN` « Fenêtre de rotation OUVERTE » dans les logs.
 
 ```bash
-# 1. Générer une clé neuve (64 hex)
-openssl rand -hex 32
-
-# 2. La poser côté Worker
 cd ~/Projects/saas/coccinelle-ai && nvm use 22
-npx wrangler@latest secret put VOIXIA_API_KEY        # coller la nouvelle valeur
+# La clé neuve vit dans .credentials.md — jamais copiée-collée à l'écran.
+NOUVELLE=$(sed -n '/ROTATION VOIXIA_API_KEY/,$p' .credentials.md | grep -oE '\b[0-9a-f]{64}\b' | head -1)
 
-# 3. IMMÉDIATEMENT après, côté agent Python
-ssh root@51.15.130.204
-  sed -i 's/^VOIXIA_API_KEY=.*/VOIXIA_API_KEY=<nouvelle>/' /opt/voixia/.env
-  systemctl restart voixia
+# 1. Le Worker accepte la nouvelle EN PLUS de l'ancienne (aucun effet visible)
+echo -n "$NOUVELLE" | ./node_modules/.bin/wrangler secret put VOIXIA_API_KEY_ROTATION
 
-# 4. Vérifier — la NOUVELLE doit passer, l'ANCIENNE échouer
-curl -s -o /dev/null -w "%{http_code}\n" \
-  "https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/resolve-phone?phone=%2B33939035760" \
-  -H "X-VoixIA-Key: <nouvelle>" -H "X-VoixIA-Tenant: tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp"   # 200
-curl -s -o /dev/null -w "%{http_code}\n" ... -H "X-VoixIA-Key: <ancienne>" ...                  # 401 attendu
+# 2. L'agent bascule — les deux clés étant acceptées, aucune coupure
+ssh root@51.15.130.204 "sed -i 's|^VOIXIA_API_KEY=.*|VOIXIA_API_KEY=$NOUVELLE|' /opt/voixia/.env && systemctl restart voixia"
 
-# 5. Appel réel au +33939035761 : l'agent doit décrocher et répondre depuis la KB.
-# 6. Mettre à jour .credentials.md (gitignored).
+# 3. Contrôle AVANT de fermer la fenêtre : un appel réel au +33939035761 doit aboutir
+ssh root@51.15.130.204 "journalctl -u voixia -n 30 --no-pager | grep -E \"Contexte d'appel|Tool :\""
+
+# 4. La nouvelle devient la principale, et l'ANCIENNE MEURT ICI
+echo -n "$NOUVELLE" | ./node_modules/.bin/wrangler secret put VOIXIA_API_KEY
+./node_modules/.bin/wrangler secret delete VOIXIA_API_KEY_ROTATION
+
+# 5. L'ancienne doit désormais renvoyer 401 — c'est le seul vrai critère de réussite
 ```
 
 > **Défaut de conception à corriger ensuite** : une clé **unique et globale**, avec le tenant
 > choisi par un en-tête que l'appelant fournit (`src/modules/voixia/auth.js`). La rotation ferme
-> la fuite mais pas le modèle : une clé par tenant, ou une signature liant clé et tenant,
-> supprimerait la classe entière. Même famille que le fallback tenant du webhook WhatsApp.
+> la fuite mais pas le modèle. À noter au passage : le portail revendeur expose une clé **par
+> tenant** (`tenants.api_key`, page `/settings/api-key`) que `requireVoixIAAuth` **n'accepte
+> pas** — vérifié le 11/08, elle renvoie 401. La page promet donc aux revendeurs une
+> authentification qui n'existe pas ; c'est aussi la brique qui manque pour supprimer la clé
+> globale.
 
 ### r.2 — Secrets Meta (✅ déjà tournés, procédure conservée)
 
