@@ -1,6 +1,7 @@
 // Module Public Booking - Prise de RDV publique par slug tenant
 import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 /**
  * GET /api/v1/public/booking/:tenantSlug
@@ -69,7 +70,7 @@ export async function handleGetBookingSlots(request, env, slug) {
     }
 
     const tenant = await env.DB.prepare(
-      'SELECT id FROM tenants WHERE slug = ? AND is_active = 1'
+      'SELECT id, name FROM tenants WHERE slug = ? AND is_active = 1'
     ).bind(slug).first();
 
     if (!tenant) {
@@ -231,7 +232,7 @@ export async function handleCreatePublicBooking(request, env, slug) {
     }
 
     const tenant = await env.DB.prepare(
-      'SELECT id FROM tenants WHERE slug = ? AND is_active = 1'
+      'SELECT id, name FROM tenants WHERE slug = ? AND is_active = 1'
     ).bind(slug).first();
 
     if (!tenant) {
@@ -312,8 +313,9 @@ export async function handleCreatePublicBooking(request, env, slug) {
       await env.DB.prepare(`
         INSERT INTO appointments (
           id, tenant_id, prospect_id, agent_id, service_id, type,
-          scheduled_at, duration_minutes, management_token, status, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)
+          scheduled_at, duration_minutes, management_token, status, notes, created_at,
+          customer_name, customer_email, customer_phone, booking_source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, 'booking_page')
       `).bind(
         appointmentId,
         tenant.id,
@@ -325,7 +327,10 @@ export async function handleCreatePublicBooking(request, env, slug) {
         durationMinutes,
         managementToken,
         notes || null,
-        now
+        now,
+        `${first_name} ${last_name}`.trim(),
+        email || null,
+        phone || null
       ).run();
     } catch (insertError) {
       // Fallback: try with minimal columns (original schema compatibility)
@@ -354,12 +359,51 @@ export async function handleCreatePublicBooking(request, env, slug) {
       }
     }
 
+    // ── Confirmation au client ──
+    // La page promet « vous recevrez une confirmation par SMS ou par e-mail »
+    // depuis toujours, et rien n'etait envoye : l'appel n'existait pas. Non
+    // bloquant — un SMS qui echoue ne doit pas annuler un rendez-vous pris.
+    let confirmationEnvoyee = false;
+    let canalConfirmation = null;
+    try {
+      const quand = _formaterDateHeureFr(datetime);
+      const libelle = typeName ? `${typeName} ` : '';
+      const texte = `Votre RDV ${libelle}chez ${tenant.name} est confirmé : ${quand}.`;
+
+      if (phone) {
+        const envoi = await envoyerSmsTrace(env, {
+          tenantId: tenant.id,
+          to: phone,
+          message: texte,
+          type: 'confirmation_rdv',   // pas de lien de reservation : le RDV est pris
+          prospectId,
+          nomContact: `${first_name} ${last_name}`.trim(),
+        });
+        if (envoi.envoye) { confirmationEnvoyee = true; canalConfirmation = 'sms'; }
+      }
+
+      if (confirmationEnvoyee) {
+        await env.DB.prepare(
+          `UPDATE appointments SET confirmation_sent = 1, confirmation_channel = ?
+           WHERE id = ?`,
+        ).bind(canalConfirmation, appointmentId).run();
+      } else {
+        logger.warn('[Booking] Confirmation non envoyée', { appointmentId, phone: !!phone });
+      }
+    } catch (erreurConfirmation) {
+      logger.warn('[Booking] Confirmation en échec, rendez-vous conservé', {
+        appointmentId, erreur: erreurConfirmation.message,
+      });
+    }
+
     return successResponse({
       appointment_id: appointmentId,
       prospect_id: prospectId,
       datetime,
       duration_minutes: durationMinutes,
       type_name: typeName,
+      confirmation_sent: confirmationEnvoyee,
+      confirmation_channel: canalConfirmation,
       message: 'Votre rendez-vous a été confirmé'
     }, 201, request);
 
@@ -372,6 +416,32 @@ export async function handleCreatePublicBooking(request, env, slug) {
 // ========================================
 // HELPERS
 // ========================================
+
+/**
+ * « mercredi 12 août à 14:30 ».
+ *
+ * ⚠️ `appointments.scheduled_at` est une date-heure NAIVE et deja LOCALE
+ * (« 2026-08-12T14:30:00 », sans fuseau) : c'est l'heure affichee au client sur
+ * la page de reservation. La relire avec `new Date()` la fait interpreter comme
+ * de l'UTC, et la reafficher en Europe/Paris ajoute deux heures — un rendez-vous
+ * pris a 14h30 etait confirme pour 16h30 (constate en recette le 11/08/2026).
+ * On lit donc les composantes telles quelles, sans jamais convertir.
+ */
+function _formaterDateHeureFr(valeur) {
+  try {
+    const m = String(valeur).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (!m) return String(valeur);
+    const [, annee, mois, jour, heures, minutes] = m;
+    // Le jour de la semaine se calcule en UTC pour n'introduire aucun decalage.
+    const reference = new Date(Date.UTC(+annee, +mois - 1, +jour));
+    const libelle = reference.toLocaleDateString('fr-FR', {
+      timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long',
+    });
+    return `${libelle} à ${heures}:${minutes}`;
+  } catch {
+    return String(valeur);
+  }
+}
 
 function generateTimeSlots(startTime, endTime, existingAppointments, slotDuration = 30) {
   const slots = [];

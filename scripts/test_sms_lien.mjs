@@ -55,7 +55,7 @@ verifier('la table couvre les 14 types documentes', Object.keys(TYPES_SMS).lengt
 
 console.log('\n══════ Construction du lien');
 verifier('slug present → URL publique',
-  (await construireLienReservation(ENV, 't_garage')) === 'https://coccinelle.ai/booking/garage-toulouse');
+  (await construireLienReservation(ENV, 't_garage')) === 'https://coccinelle.ai/b/garage-toulouse');
 verifier('slug vide → null, jamais une URL cassee',
   (await construireLienReservation(ENV, 't_sans_slug')) === null);
 verifier('tenant inconnu → null',
@@ -69,7 +69,7 @@ const devis = await enrichirSmsAvecLien(ENV, {
   message: 'Votre devis : vidange essence 89 euros, filtre inclus.',
   type: 'devis',
 });
-verifier('le devis porte le lien', devis.includes('https://coccinelle.ai/booking/garage-toulouse'));
+verifier('le devis porte le lien', devis.includes('https://coccinelle.ai/b/garage-toulouse'));
 verifier('le message d\'origine est preserve mot pour mot',
   devis.startsWith('Votre devis : vidange essence 89 euros, filtre inclus.'), devis);
 
@@ -88,11 +88,11 @@ verifier('le code de verification reste intact', code === 'Votre code est 483920
 
 const deja = await enrichirSmsAvecLien(ENV, {
   tenantId: 't_garage',
-  message: 'Reservez ici : https://coccinelle.ai/booking/garage-toulouse',
+  message: 'Reservez ici : https://coccinelle.ai/b/garage-toulouse',
   type: 'devis',
 });
 verifier('idempotent : un lien deja present n\'est pas double',
-  (deja.match(/\/booking\//g) || []).length === 1, deja);
+  (deja.match(/\/b\//g) || []).length === 1, deja);
 
 const sansSlug = await enrichirSmsAvecLien(ENV, {
   tenantId: 't_sans_slug', message: 'Nos tarifs commencent a 89 euros.', type: 'tarif',
@@ -116,7 +116,43 @@ const sansPoint = await enrichirSmsAvecLien(ENV, {
   tenantId: 't_garage', message: 'Vidange 89 euros', type: 'tarif',
 });
 verifier('une phrase sans point final recoit un point avant le lien',
-  sansPoint.includes('Vidange 89 euros. Réservez en ligne'), sansPoint);
+  sansPoint.includes('Vidange 89 euros. RDV :'), sansPoint);
+
+console.log('\n══════ Un seul segment');
+const { compterSms } = await import('../src/modules/shared/sms-format.js');
+
+const devisCourt = await enrichirSmsAvecLien(ENV, {
+  tenantId: 't_garage',
+  message: 'Devis Garage Toulouse - Fiat 500 : Montage pneu 15€/u, Permutation 25€, Clim R1234yf 129€',
+  type: 'devis',
+});
+const cCourt = compterSms(devisCourt);
+verifier(`devis type = 1 segment (${cCourt.unites} unités, ${cCourt.encodage})`,
+  cCourt.segments === 1, devisCourt);
+
+const devisLong = await enrichirSmsAvecLien(ENV, {
+  tenantId: 't_garage',
+  message: 'Devis Garage Toulouse - Fiat 500 : Vidange essence 89€, Vidange diesel 99€, '
+    + 'Revision citadine 189€, Revision berline 229€, Revision SUV 269€, Plaquettes avant 149€, '
+    + 'Plaquettes et disques 289€, Courroie 450 a 750€',
+  type: 'devis',
+});
+const cLong = compterSms(devisLong);
+verifier(`devis trop long ramene a 1 segment (${cLong.unites} unités)`, cLong.segments === 1, devisLong);
+verifier('la troncature annonce le devis complet', devisLong.includes('Devis complet et RDV'), devisLong);
+verifier('aucun montant orphelin apres troncature',
+  !/,\s*\d+€?\s*$/.test(devisLong.split('. Devis complet')[0]), devisLong);
+console.log('    rendu : ' + devisLong);
+
+const accents = await enrichirSmsAvecLien(ENV, {
+  tenantId: 't_garage',
+  message: 'Contrôle technique et réparation : 49€. Nous sommes français.',
+  type: 'tarif',
+});
+verifier('les caracteres hors GSM-7 sont translitteres (ô, ç)',
+  compterSms(accents).encodage === 'GSM-7', accents);
+verifier('les accents GSM-7 sont preserves (é)', accents.includes('réparation'), accents);
+console.log('    rendu : ' + accents);
 
 console.log('\n═══════════════════════════════════════════');
 console.log(`RESULTAT : ${ok}/${total}`);

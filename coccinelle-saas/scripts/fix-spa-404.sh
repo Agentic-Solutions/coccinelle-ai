@@ -21,6 +21,7 @@ declare -a ROUTES=(
   "dashboard/customers/_/index.html:dashboard/customers/404.html"
   "dashboard/rdv/_/index.html:dashboard/rdv/404.html"
   "booking/_/index.html:booking/404.html"
+  "b/_/index.html:b/404.html"
 )
 
 ERRORS=0
