@@ -5,6 +5,7 @@
 import { queries } from '../db/queries.js';
 import { omniLogger } from '../utils/logger.js';
 import { ClaudeAIService } from '../services/claude-ai.js';
+import { enrichirSmsAvecLien } from '../../shared/sms-booking-link.js';
 
 /**
  * POST /webhooks/omnichannel/sms
@@ -108,7 +109,11 @@ export async function handleIncomingSMS(request, env) {
     `).bind(JSON.stringify({ aiSession: session }), conversationId).run();
 
     // Envoyer la réponse via Twilio SMS
-    await sendTwilioSMS(env, from, response);
+    // Tenant de la conversation — jamais une valeur devinee. Sur une nouvelle
+    // conversation, ce webhook ecrit encore un tenant EN DUR
+    // ('tenant_mihmuebzieaxehi7qv', purge le 10/08 donc inexistant) : dans ce
+    // cas le lien est simplement omis, jamais fabrique au hasard.
+    await sendTwilioSMS(env, from, response, conversation?.tenant_id || null, 'reponse_sms');
 
     // Répondre avec TwiML vide (la réponse a déjà été envoyée via API)
     return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
@@ -131,17 +136,21 @@ export async function handleIncomingSMS(request, env) {
 /**
  * Envoyer un SMS via l'API Twilio
  */
-async function sendTwilioSMS(env, to, message) {
+async function sendTwilioSMS(env, to, message, tenantId = null, type = 'reponse_sms') {
   const accountSid = env.TWILIO_ACCOUNT_SID;
   const authToken = env.TWILIO_AUTH_TOKEN;
   const from = env.TWILIO_PHONE_NUMBER;
 
   const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
 
+  // Reponse a un client qui ecrit : s'il pose une question, il peut vouloir
+  // venir. Regle d'inclusion dans shared/sms-booking-link.js.
+  const corps = await enrichirSmsAvecLien(env, { tenantId, message, type });
+
   const body = new URLSearchParams({
     To: to,
     From: from,
-    Body: message
+    Body: corps
   });
 
   const response = await fetch(url, {

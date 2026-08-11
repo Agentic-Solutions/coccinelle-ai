@@ -37,7 +37,22 @@ type Step = 'type' | 'date' | 'slot' | 'form' | 'confirmation';
 
 export default function BookingClient() {
   const params = useParams();
-  const slug = params.slug as string;
+
+  // Le site est exporte en statique : seul `/booking/_` est pre-rendu, et
+  // Cloudflare Pages sert cette page pour toutes les URL /booking/*.
+  // `useParams()` renvoie donc « _ », le slug de BUILD — jamais celui de
+  // l'URL visitee. La page appelait /api/v1/public/booking/_ et affichait
+  // « Entreprise introuvable » POUR TOUS LES TENANTS (constate le 11/08/2026).
+  // Le chemin reel de la barre d'adresse est la seule source fiable ici.
+  const [slug, setSlug] = useState<string>('');
+  useEffect(() => {
+    const depuisUrl = window.location.pathname
+      .split('/')
+      .filter(Boolean)
+      .pop();
+    const depuisParams = typeof params?.slug === 'string' ? params.slug : '';
+    setSlug(depuisUrl && depuisUrl !== '_' ? decodeURIComponent(depuisUrl) : depuisParams);
+  }, [params]);
 
   const [step, setStep] = useState<Step>('type');
   const [loading, setLoading] = useState(true);

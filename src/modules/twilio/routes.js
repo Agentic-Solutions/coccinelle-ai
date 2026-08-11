@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
 import { handleConversationWebSocket } from './websocket.js';
 import { TwilioSignatureValidator } from './validator.js';
+import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
 
 export async function handleTwilioRoutes(request, env, path, method) {
   try {
@@ -669,7 +670,7 @@ async function handleSendSMS(request, env, tenantId) {
   if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
   if (!message) return errorResponse('Message requis', 400);
 
-  const result = await sendTwilioSMS(env, to, message, tenantId);
+  const result = await sendTwilioSMS(env, to, message, tenantId, 'manuel');
   
   if (result.success) {
     return successResponse({
@@ -698,7 +699,7 @@ async function handleSMSConfirmation(request, env, tenantId) {
 
   const message = `Bonjour ${name}, votre RDV est confirmé pour le ${date} à ${time} chez ${company}. À bientôt !`;
 
-  const result = await sendTwilioSMS(env, to, message, tenantId);
+  const result = await sendTwilioSMS(env, to, message, tenantId, 'confirmation_rdv');
   
   if (result.success) {
     return successResponse({
@@ -727,7 +728,7 @@ async function handleSMSReminder(request, env, tenantId) {
 
   const message = `Rappel ${name} : votre RDV est demain ${date} à ${time} chez ${company}. Besoin de modifier ? Répondez à ce SMS.`;
 
-  const result = await sendTwilioSMS(env, to, message, tenantId);
+  const result = await sendTwilioSMS(env, to, message, tenantId, 'rappel_rdv');
   
   if (result.success) {
     return successResponse({
@@ -760,7 +761,7 @@ async function handleSMSCancel(request, env, tenantId) {
     message = `Bonjour ${name}, votre RDV chez ${company} a été annulé. Contactez-nous pour reprogrammer.`;
   }
 
-  const result = await sendTwilioSMS(env, to, message, tenantId);
+  const result = await sendTwilioSMS(env, to, message, tenantId, 'annulation_rdv');
   
   if (result.success) {
     return successResponse({
@@ -806,7 +807,7 @@ async function handleSMSHistory(env, tenantId) {
 /**
  * Fonction commune pour envoyer un SMS via Twilio
  */
-async function sendTwilioSMS(env, to, message, tenantId) {
+async function sendTwilioSMS(env, to, message, tenantId, type = 'manuel') {
   const accountSid = env.TWILIO_ACCOUNT_SID;
   const authToken = env.TWILIO_AUTH_TOKEN;
   const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
@@ -816,12 +817,16 @@ async function sendTwilioSMS(env, to, message, tenantId) {
     return { success: false, error: 'SMS service not configured' };
   }
 
+  // Lien de reservation quand le type de message le justifie. La regle vit dans
+  // shared/sms-booking-link.js — jamais ici.
+  const corps = await enrichirSmsAvecLien(env, { tenantId, message, type });
+
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
 
   const formData = new URLSearchParams();
   formData.append('From', from);
   formData.append('To', to);
-  formData.append('Body', message);
+  formData.append('Body', corps);
 
   try {
     const response = await fetch(twilioUrl, {

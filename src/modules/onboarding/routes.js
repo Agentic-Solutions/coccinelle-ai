@@ -25,6 +25,7 @@ import {
   DEFAULT_AGENT_NAME,
 } from '../shared/sector-prompts.js';
 import { indexerFiches } from '../shared/kb-ingest.js';
+import { realignerSlugSurNom } from '../shared/slug.js';
 
 /**
  * Journalise un événement d'onboarding (table onboarding_events, migration 0082).
@@ -770,6 +771,19 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
                 data.horaires ? (typeof data.horaires === 'string' ? data.horaires : JSON.stringify(data.horaires)) : null,
                 tenantId
               ).run();
+
+              // L'adresse publique de reservation (coccinelle.ai/booking/{slug})
+              // est fixee au signup, AVANT que le nom d'entreprise soit connu :
+              // un inscrit qui saisit son nom personnel se retrouvait avec
+              // « youssef-amrouche-4 » comme adresse publique de « Coccinelle.ai ».
+              // On la realigne ici — mais seulement tant qu'aucun client ne s'en
+              // est servi (garde-fou dans shared/slug.js).
+              if (companyName) {
+                const nouveauSlug = await realignerSlugSurNom(env.DB, tenantId, companyName);
+                if (nouveauSlug) {
+                  logger.info('[Onboarding] Slug public realigne', { tenantId, slug: nouveauSlug });
+                }
+              }
 
               // SSOT horaires : projeter les horaires société dans availability_slots
               // (agent société par défaut = maître lu par VoixIA/booking). Non bloquant.

@@ -450,6 +450,15 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    / TVA→T V A regex `\b`, ordinaux, ponctuation, markdown, espaces, troncature).
 10. Documents KB en langage vocal pur : phrases ≤ 15 mots, pas de symboles/sigles/markdown.
 
+### SMS sortants
+10bis. **La règle « ce SMS mérite-t-il le lien de réservation ? » vit dans UN SEUL fichier** :
+    `src/modules/shared/sms-booking-link.js` (table `TYPES_SMS`). Un module d'envoi n'écrit
+    jamais cette décision lui-même — il passe un `type`. Ajouter un type au tableau, jamais un
+    `if` dans un module d'envoi. Un type inconnu n'ajoute pas de lien (on ne devine pas).
+10ter. **Ne jamais fabriquer une URL publique à partir d'un slug absent** : mieux vaut un SMS
+    sans lien qu'un lien vers « Entreprise introuvable ». L'enrichissement ne bloque jamais
+    l'envoi : si la base est indisponible, le message part tel quel.
+
 ### Recherche KB
 11. TOUJOURS splitter la question en mots significatifs, chercher avec OR
     (`LIKE '%mot1%' OR LIKE '%mot2%'`). JAMAIS `LIKE '%phrase entière%'`.
@@ -508,6 +517,7 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🔴 Critique | **Webhook WhatsApp Meta non signé** | `omnichannel/webhooks/meta-whatsapp.js` : **aucune vérif `X-Hub-Signature-256`** (0 occurrence dans `src/`) + fallback `SELECT id FROM tenants WHERE status='active' LIMIT 1` (`:54`, idem `whatsapp.js:55`) → un POST non authentifié est attribué à un tenant arbitraire, charge SA base de connaissances, génère une réponse IA et **l'envoie** (fuite inter-tenant + dépense). Clés exposées sur GitHub public ⇒ routes à considérer compromises. **Lot 0 : geler la route + révoquer les tokens (semaine du 19/07).** |
 | 🟠 Haute | Régénérer clés Meta | `META_APP_SECRET`, `META_WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `META_WEBHOOK_VERIFY_TOKEN` exposées (GitHub public). ⚠️ `META_WEBHOOK_VERIFY_TOKEN` retombe sur le littéral en dur `'coccinelle_meta_verify_2026'` (`meta-whatsapp.js:26`) |
 | 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
+| 🟠 Haute | **Webhook SMS entrant : tenant en dur** | `omnichannel/webhooks/sms.js:49` crée toute nouvelle conversation avec `'tenant_mihmuebzieaxehi7qv'` **écrit en dur** — un tenant purgé le 10/08, donc inexistant. Même antipattern que la faille WhatsApp (fallback « premier tenant actif »). À résoudre par `omni_phone_mappings` sur le numéro appelé, comme `resolve-phone`. En attendant, le lien de réservation est omis sur ce chemin plutôt que fabriqué au hasard |
 | 🟡 Moyenne | Outlook OAuth | Secrets Azure non configurés |
 | 🟡 Moyenne | Yahoo OAuth | Client ID incorrect |
 | 🟡 Moyenne | Gmail OAuth | Bug corrigé, test inbox jamais fait |
@@ -517,6 +527,28 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🟡 Moyenne | Dette `tenants.phone` | 5 tenants partagent `+33760762153`, formats mixtes `0760…`/`+3376…` — non utilisé par resolve-phone (secondaire) mais à assainir |
 
 ### Résolus majeurs (référence rapide)
+
+- **Page de réservation publique cassée pour TOUS les tenants (11/08/2026)**. Découvert en
+  vérifiant le prérequis des liens SMS. `coccinelle.ai/booking/{slug}` affichait
+  **« Page introuvable — Entreprise introuvable »**, quel que soit le tenant, depuis toujours.
+  **Cause** : `BookingClient.tsx` lisait `useParams()`. En export statique, seul `/booking/_` est
+  prérendu et Cloudflare Pages sert cette page pour toutes les URL `/booking/*` : `useParams()`
+  renvoie donc **`_`**, le slug de BUILD, jamais celui de l'URL visitée. La page appelait
+  `/api/v1/public/booking/_` → « Entreprise introuvable ». Le HTML servi contient littéralement
+  `"_"` comme paramètre. **Fix** : lire `window.location.pathname` (repli sur `useParams()`) —
+  c'est la règle 16bis, et exactement la famille de B15. **Le backend, lui, fonctionnait
+  parfaitement** (créneaux servis correctement) : seul le front n'atteignait jamais le bon slug.
+  ⚠️ Un build vert ne prouve rien ici : il fallait charger la page dans un vrai navigateur.
+
+- **Lien de réservation dans les SMS — décision centralisée (11/08/2026)**. Le lien n'existait
+  que dans le devis, alors qu'une douzaine de chemins envoient des SMS. Un SMS où la prise de
+  rendez-vous a du sens **sans** le lien pour la prendre, c'est un client perdu à la dernière
+  marche : il a le tarif, il est d'accord, et il doit rappeler. `shared/sms-booking-link.js`
+  porte la table `TYPES_SMS` (14 types) et l'enrichissement ; 8 chemins d'envoi lui passent un
+  type. **Exception retournée à l'analyse** : le SMS d'**annulation** de RDV dit déjà
+  « contactez-nous pour reprogrammer » — c'est l'endroit même où le lien évite un appel, il
+  reçoit donc le lien. Restent sans lien : confirmation et rappel de RDV, code de vérification,
+  notifications internes à l'équipe. Voir [[sms-lien-reservation]].
 
 - **KB tabulaire — le prix de la ligne voisine (11/08/2026)**. « Montage équilibrage » facturé
   **15 €** annoncé **25 €**. Trois étages empilés, tous mesurés : (1) le classement des passages

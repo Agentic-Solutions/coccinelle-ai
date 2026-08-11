@@ -7,6 +7,7 @@ import { successResponse, errorResponse } from '../../utils/response.js';
 import { logAudit } from '../auth/helpers.js';
 import { requireVoixIAAuth } from '../voixia/auth.js';
 import { requireAuth } from '../auth/helpers.js';
+import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
 
 /**
  * Handler principal pour les routes /api/v1/proactive/*
@@ -110,7 +111,12 @@ async function handleProactiveTrigger(request, env, corsHeaders) {
 
   // 6. Envoyer SMS via Twilio
   let result = { success: false };
-  const message = resolveVars(template.message_sms);
+  const messageBrut = resolveVars(template.message_sms);
+  // Communication proactive : on relance un client, l'etape suivante est un
+  // rendez-vous. Regle d'inclusion dans shared/sms-booking-link.js.
+  const message = await enrichirSmsAvecLien(env, {
+    tenantId: tenant_id, message: messageBrut, type: 'prospection',
+  });
 
   if (channel === 'sms') {
     try {

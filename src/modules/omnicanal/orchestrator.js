@@ -10,6 +10,7 @@
 
 import { logger } from '../../utils/logger.js';
 import { phoneVariants } from '../prospects/dedup.js';
+import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
 
 // Fonction principale — declenchee apres chaque evenement
 export async function handleOmniEvent(env, tenantId, event) {
@@ -115,7 +116,11 @@ async function executeRule(env, rule, tenant, tenantId, event) {
           body: new URLSearchParams({
             From: env.TWILIO_PHONE_NUMBER || '+33939035760',
             To: to,
-            Body: message
+            Body: await enrichirSmsAvecLien(env, {
+              tenantId,
+              message,
+              type: rule.sms_type || 'suivi_appel',
+            })
           })
         }
       );

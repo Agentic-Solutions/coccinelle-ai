@@ -4,76 +4,28 @@ import { initTenantPermissions } from '../../utils/permissions.js';
 import { logger } from '../../utils/logger.js';
 import { rateLimitResponse } from '../../utils/rate-limiter.js';
 import { buildSectorPrompt, normalizeSector } from '../shared/sector-prompts.js';
+import { genererSlugDepuisNom, genererSlugUnique, slugDisponible } from '../shared/slug.js';
 
 // ========================================
 // FONCTIONS UTILITAIRES POUR LE SLUG
 // ========================================
 
 /**
- * Génère un slug à partir d'un nom d'entreprise
- * "Salon Marie & Fils" → "salon-marie-fils"
- * "Café de la Gare" → "cafe-de-la-gare"
+ * Generation de slug — DELEGUEE a shared/slug.js.
+ * Les implementations vivaient ici, hors de portee de l'onboarding qui est
+ * pourtant le seul a connaitre le vrai nom de l'entreprise. Une seule source
+ * desormais ; ces deux fonctions ne sont plus que des alias historiques.
  */
 function generateSlugFromName(name) {
-  if (!name) return null;
-  
-  return name
-    .toLowerCase()
-    .trim()
-    // Remplace les caractères accentués
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    // Remplace les espaces et caractères spéciaux par des tirets
-    .replace(/[^a-z0-9]+/g, '-')
-    // Supprime les tirets en début et fin
-    .replace(/^-+|-+$/g, '')
-    // Limite la longueur à 50 caractères
-    .substring(0, 50);
+  return genererSlugDepuisNom(name);
 }
 
-/**
- * Vérifie si un slug est disponible
- */
-async function isSlugAvailable(db, slug) {
-  if (!slug) return false;
-  
-  const existing = await db.prepare(
-    'SELECT id FROM tenants WHERE slug = ?'
-  ).bind(slug).first();
-  
-  return !existing;
-}
-
-/**
- * Génère un slug unique en ajoutant un suffixe si nécessaire
- * "salon-marie" → "salon-marie" (si disponible)
- * "salon-marie" → "salon-marie-2" (si pris)
- * "salon-marie" → "salon-marie-3" (si -2 aussi pris)
- */
 async function generateUniqueSlug(db, baseName) {
-  const baseSlug = generateSlugFromName(baseName);
-  
-  if (!baseSlug) {
-    // Si pas de nom, génère un slug aléatoire
-    return 'tenant-' + Math.random().toString(36).substring(2, 10);
-  }
-  
-  // Vérifie si le slug de base est disponible
-  if (await isSlugAvailable(db, baseSlug)) {
-    return baseSlug;
-  }
-  
-  // Sinon, essaie avec des suffixes numériques
-  for (let i = 2; i <= 100; i++) {
-    const candidateSlug = `${baseSlug}-${i}`;
-    if (await isSlugAvailable(db, candidateSlug)) {
-      return candidateSlug;
-    }
-  }
-  
-  // En dernier recours, ajoute un suffixe aléatoire
-  const randomSuffix = Math.random().toString(36).substring(2, 6);
-  return `${baseSlug}-${randomSuffix}`;
+  return genererSlugUnique(db, baseName);
+}
+
+async function isSlugAvailable(db, slug) {
+  return slugDisponible(db, slug);
 }
 
 // ========================================

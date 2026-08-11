@@ -14,6 +14,7 @@ import {
   applyPromptVariables,
   normalizeSector,
 } from '../shared/sector-prompts.js';
+import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
 import {
   classerFiches,
   detecterAmbiguite,
@@ -581,12 +582,22 @@ async function handleSendSMS(request, env) {
     return errorResponse('Service SMS non configuré (Twilio)', 503);
   }
 
+  // Lien de reservation quand le type de message le justifie (regle unique dans
+  // shared/sms-booking-link.js). L'agent vocal envoie ici ses devis, ses
+  // reponses tarifaires et ses recapitulatifs d'appel : c'est le chemin ou le
+  // client a le tarif en main et n'a plus qu'a prendre rendez-vous.
+  const corps = await enrichirSmsAvecLien(env, {
+    tenantId: tenant_id,
+    message,
+    type: body.type || 'information',
+  });
+
   // Envoyer via l'API Twilio
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   const formData = new URLSearchParams();
   formData.append('From', from);
   formData.append('To', to);
-  formData.append('Body', message);
+  formData.append('Body', corps);
 
   try {
     const response = await fetch(twilioUrl, {

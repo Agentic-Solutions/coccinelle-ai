@@ -10,6 +10,7 @@ import { requireVoixIAAuth } from './auth.js';
 import { generateId, logAudit } from '../auth/helpers.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
 import { buildSectorPrompt, applyPromptVariables } from '../shared/sector-prompts.js';
+import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
 
 // ── Canaux supportes ──
 const CANAUX = ['voice', 'sms', 'email', 'whatsapp'];
@@ -433,10 +434,16 @@ async function handleSMS(env, tenantId, from, content, context, prospect) {
   // Generer la reponse
   const response = await generateLLMResponse(env, context.system_prompt, content, 'sms', context);
 
-  // Envoyer via Twilio
-  const sent = await sendTwilioSMS(env, from, response);
+  // Reponse de l'agent a un SMS client : s'il pose une question, il peut vouloir
+  // venir. Regle d'inclusion dans shared/sms-booking-link.js.
+  const corps = await enrichirSmsAvecLien(env, {
+    tenantId, message: response, type: 'reponse_sms',
+  });
 
-  return { response, sent };
+  // Envoyer via Twilio
+  const sent = await sendTwilioSMS(env, from, corps);
+
+  return { response: corps, sent };
 }
 
 /**
