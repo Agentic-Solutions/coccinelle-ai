@@ -1,290 +1,286 @@
 """
-VoixIA — Pipeline vocal STT -> LLM -> TTS.
+Pipeline vocal VoixIA — Agent et instrumentation New Relic.
 
-Ce module assemble le pipeline vocal en selectionnant dynamiquement
-les providers (STT, LLM, TTS, VAD) selon la configuration.
+Ce module definit :
+- VoixIAAgent : agent vocal avec prompt systeme et outils metier (@function_tool)
+- VoixIAPipeline : instrumentation New Relic pour le suivi des latences
+- log_call_to_api : log d appel vers POST /api/v1/voixia/log-call
 
-Architecture :
-  Microphone/SIP -> VAD (Silero) -> STT (Deepgram) -> LLM (Mistral|Claude) -> TTS (ElevenLabs|Cartesia) -> Audio
-
-Utilise le SDK LiveKit Agents v1.4+ avec le pattern AgentSession + Agent.
+Le prompt systeme est selectionne dynamiquement via resolve_tenant (tenant.py).
 """
 
 import logging
+import os
 import time
-from typing import Any
 
-from livekit.agents import AgentSession, Agent, room_io
-from livekit.plugins import deepgram, openai, silero
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
+import httpx
+from livekit.agents import Agent, function_tool
 
-from config import (
-    stt_config,
-    vad_config,
-    get_llm_provider,
-    get_llm_config,
-    get_tts_provider,
-    get_tts_config,
-    LATENCY_TARGET_MS,
-)
-from prompts import SYSTEM_PROMPT, GREETING_INSTRUCTIONS
+from config import PROMPT_TYPE, get_llm_config
+from prompts import get_prompt
+from tools import appointments, messaging, crm, products, knowledge, transfer, tasks
 
 logger = logging.getLogger("voixia.pipeline")
 
+SEUIL_LATENCE_MS = 800
 
-# ==============================================================================
-# Construction des composants du pipeline
-# ==============================================================================
-
-def create_stt() -> deepgram.STT:
-    """Cree et configure le composant STT (Deepgram)."""
-    logger.info("Initialisation STT : Deepgram %s (langue: %s)", stt_config.model, stt_config.language)
-
-    return deepgram.STT(
-        model=stt_config.model,
-        language=stt_config.language,
-        punctuate=stt_config.punctuate,
-        smart_format=stt_config.smart_format,
-        interim_results=stt_config.interim_results,
-        keywords=stt_config.keywords,
-    )
-
-
-def create_llm() -> Any:
-    """
-    Cree et configure le composant LLM selon le provider selectionne.
-
-    - Mistral : utilise le plugin OpenAI avec base_url Mistral (API compatible)
-    - Claude  : utilise le plugin Anthropic natif
-    """
-    llm_cfg = get_llm_config()
-    provider = get_llm_provider()
-
-    if provider == "claude":
-        from livekit.plugins import anthropic
-        logger.info("Initialisation LLM : Claude / %s", llm_cfg.model)
-        return anthropic.LLM(
-            model=llm_cfg.model,
-            api_key=llm_cfg.api_key or None,
-            temperature=llm_cfg.temperature,
-        )
-    else:
-        # Mistral via le plugin OpenAI (API compatible)
-        logger.info("Initialisation LLM : Mistral / %s", llm_cfg.model)
-        return openai.LLM(
-            model=llm_cfg.model,
-            base_url=llm_cfg.base_url,
-            api_key=llm_cfg.api_key or None,
-            temperature=llm_cfg.temperature,
-        )
-
-
-def create_tts() -> Any:
-    """
-    Cree et configure le composant TTS selon le provider selectionne.
-
-    - ElevenLabs : voix francaise naturelle, modele multilingue
-    - Cartesia   : alternative plus rapide
-    """
-    tts_cfg = get_tts_config()
-    provider = get_tts_provider()
-
-    if provider == "cartesia":
-        from livekit.plugins import cartesia
-        logger.info("Initialisation TTS : Cartesia / %s (voix: %s)", tts_cfg.model, tts_cfg.voice_id)
-        return cartesia.TTS(
-            model=tts_cfg.model,
-            voice=tts_cfg.voice_id,
-            api_key=tts_cfg.api_key or None,
-            language=tts_cfg.language,
-        )
-    else:
-        from livekit.plugins import elevenlabs
-        logger.info(
-            "Initialisation TTS : ElevenLabs / %s (voix: %s)",
-            tts_cfg.model, tts_cfg.voice_id,
-        )
-        return elevenlabs.TTS(
-            model=tts_cfg.model,
-            voice_id=tts_cfg.voice_id,
-            api_key=tts_cfg.api_key or None,
-            language=tts_cfg.language,
-        )
-
-
-def create_vad() -> silero.VAD:
-    """Cree et configure le composant VAD (Silero)."""
-    logger.info(
-        "Initialisation VAD : Silero (seuil: %.2f, silence: %.2fs)",
-        vad_config.threshold,
-        vad_config.min_silence_duration,
-    )
-    return silero.VAD.load(
-        min_silence_duration=vad_config.min_silence_duration,
-        min_speech_duration=vad_config.min_speech_duration,
-        padding_duration=vad_config.padding_duration,
-        activation_threshold=vad_config.threshold,
-    )
-
-
-# ==============================================================================
-# Agent vocal principal
-# ==============================================================================
 
 class VoixIAAgent(Agent):
     """
-    Agent vocal VoixIA.
+    Agent vocal VoixIA (livekit-agents >= 1.4.6).
 
-    Herite de livekit.agents.Agent et definit les instructions systeme.
-    Les tools (rendez-vous, SMS, CRM, etc.) seront ajoutes par l'Agent 3
-    sous forme de methodes decorees avec @function_tool.
+    Accepte soit un system_prompt direct (depuis l'API Coccinelle),
+    soit un prompt_type pour charger le prompt depuis prompts.py.
     """
+
+    def __init__(
+        self,
+        prompt_type: str | None = None,
+        system_prompt: str | None = None,
+        tenant_info: dict | None = None,
+    ) -> None:
+        # Priorite 1 : system_prompt direct depuis l'API
+        # Priorite 2 : prompt_type -> get_prompt()
+        # Priorite 3 : PROMPT_TYPE par defaut (env)
+        if system_prompt:
+            resolved_prompt = system_prompt
+            resolved_type = prompt_type or "api"
+        else:
+            resolved_type = prompt_type or PROMPT_TYPE
+            resolved_prompt = get_prompt(resolved_type)
+
+        self._tenant_info = tenant_info or {}
+        super().__init__(instructions=resolved_prompt)
+        logger.info(
+            "VoixIAAgent initialise — prompt : %s (%d car.)",
+            resolved_type, len(resolved_prompt),
+        )
+
+    @function_tool
+    async def book_appointment(
+        self,
+        customer_name: str,
+        customer_phone: str,
+        date_time: str,
+        service: str,
+    ) -> str:
+        """Reserver un rendez-vous pour un client.
+
+        Args:
+            customer_name: Nom complet du client.
+            customer_phone: Numero de telephone du client.
+            date_time: Date et heure souhaitees (format ISO 8601).
+            service: Type de service demande.
+        """
+        logger.info("Tool : book_appointment — %s le %s", customer_name, date_time)
+        return await appointments.book_appointment(
+            customer_name, customer_phone, date_time, service
+        )
+
+    @function_tool
+    async def check_availability(self, date: str, service: str) -> str:
+        """Verifier la disponibilite des creneaux pour une date et un service.
+
+        Args:
+            date: Date souhaitee (format AAAA-MM-JJ).
+            service: Type de service demande.
+        """
+        logger.info("Tool : check_availability — %s / %s", date, service)
+        return await appointments.check_availability(date, service)
+
+    @function_tool
+    async def send_sms(self, to: str, message: str) -> str:
+        """Envoyer un SMS au client.
+
+        Args:
+            to: Numero de telephone du destinataire (format international).
+            message: Contenu du SMS a envoyer.
+        """
+        logger.info("Tool : send_sms — %s", to)
+        return await messaging.send_sms(to, message)
+
+    @function_tool
+    async def send_email(self, to: str, subject: str, body: str) -> str:
+        """Envoyer un e-mail au destinataire.
+
+        Args:
+            to: Adresse e-mail du destinataire.
+            subject: Objet de l'e-mail.
+            body: Corps du message.
+        """
+        logger.info("Tool : send_email — %s", to)
+        return await messaging.send_email(to, subject, body)
+
+    @function_tool
+    async def create_prospect(self, name: str, phone: str, email: str) -> str:
+        """Creer un prospect dans le CRM Coccinelle.
+
+        Args:
+            name: Nom complet du prospect.
+            phone: Numero de telephone du prospect.
+            email: Adresse e-mail du prospect.
+        """
+        logger.info("Tool : create_prospect — %s", name)
+        return await crm.create_prospect(name, phone, email)
+
+    @function_tool
+    async def search_products(self, query: str) -> str:
+        """Rechercher des produits dans le catalogue.
+
+        Args:
+            query: Termes de recherche.
+        """
+        logger.info("Tool : search_products — %s", query)
+        return await products.search_products(query)
+
+    @function_tool
+    async def search_knowledge(self, question: str) -> str:
+        """Rechercher dans la base de connaissances Coccinelle.
+
+        Args:
+            question: Question posee par l'utilisateur.
+        """
+        logger.info("Tool : search_knowledge — %s", question)
+        return await knowledge.search_knowledge(question)
+
+    @function_tool
+    async def transfer_to_human(self, reason: str) -> str:
+        """Transferer l appel vers un conseiller humain.
+
+        Args:
+            reason: Raison du transfert demande par le client.
+        """
+        logger.info("Tool : transfer_to_human — %s", reason)
+        return await transfer.transfer_to_human(reason)
+
+    @function_tool
+    async def create_task(
+        self,
+        description: str,
+        keywords: str,
+        contact_name: str = "",
+        contact_phone: str = "",
+        kb_response: str = "",
+        kb_satisfied: bool = False,
+    ) -> str:
+        """Creer une tache et l affecter au bon membre de l equipe.
+        A utiliser UNIQUEMENT si la base de connaissances ne peut pas
+        repondre, si le client est insatisfait, si c est une urgence
+        physique, ou si le client demande un humain.
+
+        Args:
+            description: Description de la demande du client.
+            keywords: Mots-cles pour identifier le type (sinistre, contestation, travaux...).
+            contact_name: Nom du client.
+            contact_phone: Telephone du client.
+            kb_response: Reponse fournie par la base de connaissances.
+            kb_satisfied: True si le client etait satisfait de la reponse KB.
+        """
+        logger.info("Tool : create_task — %s / %s", keywords, contact_name)
+        tenant_info = getattr(self, "_tenant_info", {})
+        tenant_id = tenant_info.get("tenant_id", "")
+        secteur = tenant_info.get("sector", "")
+        return await tasks.call_create_task(
+            tenant_id=tenant_id,
+            description=description,
+            keywords=keywords,
+            contact_name=contact_name,
+            contact_phone=contact_phone,
+            secteur=secteur,
+            kb_response=kb_response,
+            kb_satisfied=kb_satisfied,
+        )
+
+
+class VoixIAPipeline:
+    """Instrumentation New Relic pour le pipeline vocal."""
 
     def __init__(self) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+        self._provider = os.environ.get("LLM_PROVIDER", "mistral")
+        self._llm_config = get_llm_config(self._provider)
+
+    @staticmethod
+    def _enregistrer_latence(nom_metrique: str, duree_ms: float) -> None:
+        try:
+            import newrelic.agent
+            newrelic.agent.record_custom_metric(nom_metrique, duree_ms)
+        except Exception:
+            pass
+
+    def _instrumenter_stt(self, debut: float) -> float:
+        duree_ms = (time.perf_counter() - debut) * 1000
+        self._enregistrer_latence("voixia.latency.stt", duree_ms)
+        logger.debug("Latence STT : %.1f ms", duree_ms)
+        return duree_ms
+
+    def _instrumenter_llm(self, debut: float) -> float:
+        duree_ms = (time.perf_counter() - debut) * 1000
+        self._enregistrer_latence("voixia.latency.llm", duree_ms)
+        try:
+            import newrelic.agent
+            newrelic.agent.record_custom_metric(
+                f"voixia.llm.provider.{self._provider}", 1
+            )
+        except Exception:
+            pass
+        logger.debug("Latence LLM (%s) : %.1f ms", self._llm_config.display_name, duree_ms)
+        return duree_ms
+
+    def _instrumenter_tts(self, debut: float) -> float:
+        duree_ms = (time.perf_counter() - debut) * 1000
+        self._enregistrer_latence("voixia.latency.tts", duree_ms)
+        logger.debug("Latence TTS : %.1f ms", duree_ms)
+        return duree_ms
+
+    def _instrumenter_total(self, debut: float) -> None:
+        duree_ms = (time.perf_counter() - debut) * 1000
+        self._enregistrer_latence("voixia.latency.total", duree_ms)
+        try:
+            import newrelic.agent
+            newrelic.agent.add_custom_parameter("llm_provider", self._provider)
+        except Exception:
+            pass
+        if duree_ms > SEUIL_LATENCE_MS:
+            logger.warning(
+                "Latence elevee : %.1f ms (seuil : %d ms) — %s",
+                duree_ms, SEUIL_LATENCE_MS, self._llm_config.display_name,
+            )
+        else:
+            logger.info("Latence totale : %.1f ms", duree_ms)
 
 
-# ==============================================================================
-# Creation de la session AgentSession
-# ==============================================================================
+# ═══════════════════════════════════════════════════════════════
+# Log d appel vers POST /api/v1/voixia/log-call
+# Appele par main.py dans le shutdown callback de la session
+# ═══════════════════════════════════════════════════════════════
 
-def create_agent_session(tools: list | None = None) -> AgentSession:
-    """
-    Assemble et retourne une AgentSession configuree avec le pipeline vocal complet.
-
-    Args:
-        tools: Liste optionnelle de function tools a enregistrer.
-               Sera rempli par l'Agent 3 (tool calls Coccinelle).
-
-    Returns:
-        AgentSession prete a etre demarree avec session.start().
-    """
-    logger.info("=" * 50)
-    logger.info("Creation du pipeline vocal VoixIA")
-    logger.info("=" * 50)
-
-    # Construction des composants
-    stt = create_stt()
-    llm = create_llm()
-    tts = create_tts()
-    vad = create_vad()
-
-    # Detection de tour de parole multilingue
-    turn_detection = MultilingualModel()
-
-    # Configuration de la session
-    session_kwargs: dict[str, Any] = {
-        "stt": stt,
-        "llm": llm,
-        "tts": tts,
-        "vad": vad,
-        "turn_detection": turn_detection,
-        # Filtres de texte pour le TTS (pas de markdown ni d'emoji en vocal)
-        "tts_text_transforms": ["filter_markdown", "filter_emoji"],
-        # Generation preemptive pour reduire la latence
-        "preemptive_generation": True,
-        # Nombre max d'appels de tools enchaines
-        "max_tool_steps": 5,
-    }
-
-    # Ajouter les tools si fournis
-    if tools:
-        session_kwargs["tools"] = tools
-        logger.info("Tools enregistres : %d", len(tools))
-
-    session = AgentSession(**session_kwargs)
-
-    # Attacher les evenements de monitoring
-    _attach_latency_monitor(session)
-
-    logger.info("Pipeline vocal cree avec succes.")
-    return session
-
-
-# ==============================================================================
-# Monitoring de la latence
-# ==============================================================================
-
-# Variable pour mesurer le temps entre la fin de parole et le debut de reponse
-_last_user_speech_end: float = 0.0
-
-
-def _attach_latency_monitor(session: AgentSession) -> None:
-    """
-    Attache des callbacks sur la session pour mesurer et logger la latence
-    du pipeline (temps entre fin de parole utilisateur et debut de reponse TTS).
-    """
-
-    @session.on("user_state_changed")
-    def on_user_state_changed(event: Any) -> None:
-        """Capture le moment ou l'utilisateur arrete de parler."""
-        global _last_user_speech_end
-        state = getattr(event, "state", getattr(event, "new_state", None))
-        # L'utilisateur vient de finir de parler
-        if state and str(state).lower() in ("listening", "idle", "away"):
-            _last_user_speech_end = time.monotonic()
-
-    @session.on("agent_state_changed")
-    def on_agent_state_changed(event: Any) -> None:
-        """Mesure la latence quand l'agent commence a parler."""
-        global _last_user_speech_end
-        state = getattr(event, "state", getattr(event, "new_state", None))
-        if state and str(state).lower() == "speaking" and _last_user_speech_end > 0:
-            latency_ms = (time.monotonic() - _last_user_speech_end) * 1000
-            _last_user_speech_end = 0.0
-
-            if latency_ms <= LATENCY_TARGET_MS:
-                logger.info(
-                    "Latence pipeline : %.0f ms (cible: %d ms) OK",
-                    latency_ms, LATENCY_TARGET_MS,
-                )
-            else:
-                logger.warning(
-                    "Latence pipeline : %.0f ms (cible: %d ms) DEPASSE",
-                    latency_ms, LATENCY_TARGET_MS,
-                )
-
-    @session.on("user_input_transcribed")
-    def on_user_transcribed(event: Any) -> None:
-        """Log la transcription de l'utilisateur pour le debug."""
-        text = getattr(event, "text", getattr(event, "transcript", ""))
-        is_final = getattr(event, "is_final", True)
-        if is_final and text:
-            logger.info("Utilisateur : %s", text.strip())
-
-    logger.debug("Monitoring de latence attache a la session.")
-
-
-# ==============================================================================
-# Options de room pour les appels SIP (telephonie)
-# ==============================================================================
-
-def get_room_options() -> room_io.RoomOptions:
-    """
-    Retourne les options de room optimisees pour les appels SIP entrants.
-
-    - Audio uniquement (pas de video)
-    - Annulation de bruit pour la telephonie
-    - Fermeture automatique quand l'appelant raccroche
-    """
-    from livekit import rtc
-    from livekit.plugins import noise_cancellation
-
-    return room_io.RoomOptions(
-        audio_input=room_io.AudioInputOptions(
-            # Utiliser l'annulation de bruit telephonique pour les appels SIP
-            noise_cancellation=lambda params: (
-                noise_cancellation.BVCTelephony()
-                if params.participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
-                else noise_cancellation.BVC()
-            ),
-        ),
-        # Pas de video pour un agent vocal
-        video_input=False,
-        video_output=False,
-        # Activer l'entree/sortie texte pour le chat
-        text_input=True,
-        text_output=True,
-        # Fermer la session quand l'appelant raccroche
-        close_on_disconnect=True,
-    )
+async def log_call_to_api(
+    tenant_id: str,
+    api_key: str,
+    base_url: str,
+    caller_phone: str,
+    duration_seconds: int,
+    transcript: str,
+    summary: str,
+) -> None:
+    """Envoie le log d appel a POST /api/v1/voixia/log-call (silencieux)."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{base_url}/api/v1/voixia/log-call",
+                json={
+                    "caller_phone": caller_phone,
+                    "duration_seconds": duration_seconds,
+                    "status": "completed",
+                    "direction": "inbound",
+                    "transcript": transcript,
+                    "summary": summary,
+                },
+                headers={
+                    "X-VoixIA-Key": api_key,
+                    "X-VoixIA-Tenant": tenant_id,
+                },
+            )
+            logger.info("log-call HTTP %d — tenant=%s duree=%ds", resp.status_code, tenant_id, duration_seconds)
+    except Exception as e:
+        logger.warning("log-call echoue (silencieux) : %s", e)

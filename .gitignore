@@ -61,3 +61,7 @@ MANIFESTE_TODO_v3_7_4.md
 # Backups datés (R36) + artefacts de test
 *.backup-*
 .playwright-mcp/
+
+# Python — bytecode compilé (jamais versionné : dépend de la version de l'interpréteur)
+__pycache__/
+*.pyc
