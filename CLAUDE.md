@@ -522,7 +522,7 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | Priorité | Bug | Détail |
 |----------|-----|--------|
 | 🔴 Critique | **Funnel onboarding** | 8/145 complétions, 0 depuis 25 jours — instrumenter + simplifier |
-| 🔴 Critique | **Clé API VoixIA exposée sur GitHub public** | `VOIXIA_API_KEY` (`813f88…1cc9`) est en clair dans **20 commits publics** du 02/04 au 09/05 (`CLAUDE.md`, `dashboard/proactive/page.tsx`), retirée de l'arbre le 16/05 mais **l'historique n'a pas été réécrit**. **Vérifiée VIVANTE le 11/08** (HTTP 200). C'est une clé **globale** et le tenant est choisi par l'en-tête `X-VoixIA-Tenant` que l'appelant contrôle : quiconque la possède lit la base de connaissances de **n'importe quel** tenant, pose des rendez-vous, crée des prospects et **envoie des SMS facturés**. Rotation = seul remède (§ r) |
+| 🔴 Critique | **Clé API VoixIA exposée — rotation ENGAGÉE, PAS TERMINÉE** | `VOIXIA_API_KEY` (`813f88…1cc9`) est en clair dans **20 commits publics** (02/04→09/05) et **répond toujours 200 au 12/08 15h50**. L'agent est passé à la nouvelle clé (`/opt/voixia/.env`, sauvegarde `.env.avant-rotation`), mais côté Worker `VOIXIA_API_KEY` porte encore l'ANCIENNE valeur et `VOIXIA_API_KEY_ROTATION` (la nouvelle) existe toujours : **les deux clés sont acceptées**. ⚠️ Supprimer `VOIXIA_API_KEY_ROTATION` **sans** avoir d'abord écrit la nouvelle valeur dans `VOIXIA_API_KEY` couperait tous les appels. Procédure et contrôle robuste en § r.1. Tant que le contrôle ne renvoie pas **401 sur l'ancienne**, la fuite est ouverte |
 | ✅ Clos | ~~Régénérer clés Meta~~ | **Vérifié le 11/08** : `META_WHATSAPP_ACCESS_TOKEN` expiré le 28/01 (Graph API code 190), `META_APP_SECRET` invalidé par la réinitialisation du 19/07 (« Invalid OAuth access token signature »), `META_WEBHOOK_VERIFY_TOKEN` bien tourné (la valeur publique renvoie 403 sur le handshake). `WHATSAPP_ACCESS_TOKEN` **n'a jamais été dans le dépôt**. Les 3 valeurs Meta restent lisibles dans `wrangler.toml` à 3 commits publics (01/03→09/05) mais n'ouvrent plus rien |
 | 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
 | 🟠 Haute | **Webhook SMS entrant : tenant en dur** | `omnichannel/webhooks/sms.js:49` crée toute nouvelle conversation avec `'tenant_mihmuebzieaxehi7qv'` **écrit en dur** — un tenant purgé le 10/08, donc inexistant. Même antipattern que la faille WhatsApp (fallback « premier tenant actif »). À résoudre par `omni_phone_mappings` sur le numéro appelé, comme `resolve-phone`. En attendant, le lien de réservation est omis sur ce chemin plutôt que fabriqué au hasard |
@@ -1147,23 +1147,36 @@ appel authentifié écrit un `WARN` « Fenêtre de rotation OUVERTE » dans les 
 
 ```bash
 cd ~/Projects/saas/coccinelle-ai && nvm use 22
-# La clé neuve vit dans .credentials.md — jamais copiée-collée à l'écran.
+# Les clés vivent dans .credentials.md — jamais copiées-collées à l'écran.
 NOUVELLE=$(sed -n '/ROTATION VOIXIA_API_KEY/,$p' .credentials.md | grep -oE '\b[0-9a-f]{64}\b' | head -1)
+ANCIENNE=$(grep -oE '\b[0-9a-f]{64}\b' .credentials.md | head -1)
+# ⚠️ GARDE-FOU : une variable vide produit un 401 TROMPEUR qui fait croire la
+# rotation terminée. C'est exactement l'erreur commise le 12/08.
+[ ${#NOUVELLE} -eq 64 ] && [ ${#ANCIENNE} -eq 64 ] || { echo "STOP : extraction invalide"; return 2>/dev/null || exit 1; }
 
-# 1. Le Worker accepte la nouvelle EN PLUS de l'ancienne (aucun effet visible)
+# 1. Le Worker accepte la nouvelle EN PLUS de l'ancienne
 echo -n "$NOUVELLE" | ./node_modules/.bin/wrangler secret put VOIXIA_API_KEY_ROTATION
 
 # 2. L'agent bascule — les deux clés étant acceptées, aucune coupure
-ssh root@51.15.130.204 "sed -i 's|^VOIXIA_API_KEY=.*|VOIXIA_API_KEY=$NOUVELLE|' /opt/voixia/.env && systemctl restart voixia"
+ssh root@51.15.130.204 "cp /opt/voixia/.env /opt/voixia/.env.avant-rotation && \
+  sed -i 's|^VOIXIA_API_KEY=.*|VOIXIA_API_KEY='$NOUVELLE'|' /opt/voixia/.env && systemctl restart voixia"
 
-# 3. Contrôle AVANT de fermer la fenêtre : un appel réel au +33939035761 doit aboutir
-ssh root@51.15.130.204 "journalctl -u voixia -n 30 --no-pager | grep -E \"Contexte d'appel|Tool :\""
+# 3. Appel réel au +33939035761 — le seul test qui vaut
 
-# 4. La nouvelle devient la principale, et l'ANCIENNE MEURT ICI
+# 4. La nouvelle devient principale. NE PAS supprimer la fenêtre avant d'avoir
+#    vérifié cette écriture : sinon le Worker retombe sur l'ancienne clé pendant
+#    que l'agent tourne sur la nouvelle, et TOUT tombe en 401.
 echo -n "$NOUVELLE" | ./node_modules/.bin/wrangler secret put VOIXIA_API_KEY
+./node_modules/.bin/wrangler secret list | grep VOIXIA   # les deux doivent être là
+
+# 5. Fermeture de la fenêtre — c'est ICI que l'ancienne meurt
 ./node_modules/.bin/wrangler secret delete VOIXIA_API_KEY_ROTATION
 
-# 5. L'ancienne doit désormais renvoyer 401 — c'est le seul vrai critère de réussite
+# 6. CONTRÔLE FINAL — le seul critère de réussite
+API="https://coccinelle-api.youssef-amrouche.workers.dev/api/v1/voixia/resolve-phone?phone=%2B33939035760"
+T="tenant_eS5hbXJvdWNoZUBjb2NjaW5lbGxlLmFp"
+echo -n "ancienne (doit être 401) : "; curl -s -o /dev/null -w "%{http_code}\n" -A "Mozilla/5.0" "$API" -H "X-VoixIA-Key: $ANCIENNE" -H "X-VoixIA-Tenant: $T"
+echo -n "nouvelle (doit être 200) : "; curl -s -o /dev/null -w "%{http_code}\n" -A "Mozilla/5.0" "$API" -H "X-VoixIA-Key: $NOUVELLE" -H "X-VoixIA-Tenant: $T"
 ```
 
 > **Défaut de conception à corriger ensuite** : une clé **unique et globale**, avec le tenant
