@@ -1,5 +1,5 @@
 # CLAUDE.md — Coccinelle.ai
-# Dernière mise à jour : 11 août 2026
+# Dernière mise à jour : 13 août 2026
 # (remplace intégralement la version du 22 mai 2026 ; backup : CLAUDE.md.backup-20260702)
 
 > Ce fichier est la source de vérité opérationnelle du projet.
@@ -104,7 +104,9 @@ coccinelle-ai/
 │   ├── config/cors.js              # CORS (inclut PATCH depuis B16)
 │   └── modules/
 │       ├── auth/                   # JWT (signup, /register alias, refresh)
-│       ├── products/  appointments/  knowledge/  prospects/  teams/
+│       ├── assistant/              # GET/PUT /assistant/config — page « Mon Assistant » (CX-2)
+│       ├── knowledge/              # + versions.js (historique, corbeille) + suggestions.js (chips)
+│       ├── products/  appointments/  prospects/  teams/
 │       ├── tasks/                  # CRUD tâches + create-task VoixIA + skills
 │       ├── permissions/            # RBAC (10 permissions)
 │       ├── voixia/                 # resolve-phone, log-call, tools, orchestrator
@@ -121,7 +123,9 @@ coccinelle-ai/
     │   ├── fondateurs/             # Waitlist (2 places/secteur)
     │   └── dashboard/
     │       ├── page.tsx            # Home + KPIs (API réelle)
-    │       ├── agents/             # configuration / scripts / nodes / test
+    │       ├── assistant/          # « Mon Assistant » — mode Simple (CX-2)
+    │       ├── savoir/             # « Ce que sait votre assistant » — mode Simple (CX-2)
+    │       ├── agents/             # configuration / scripts / nodes / test (mode Avancé)
     │       ├── knowledge/          # base + faq / products / docs
     │       ├── channels/           # email / sms / whatsapp / numbers / voicemail / ivr / queues
     │       ├── analytics/          # calls / messages / transcripts / performance / export
@@ -329,7 +333,8 @@ Le `system_prompt` en DB ne contient JAMAIS de variable `{}`.
 | `ai_sector_templates` | Templates sectoriels — **DÉRIVÉ**, plus une source (14 lignes, backfill 07/08 depuis `shared/sector-prompts.js`). Ne sert qu'à `GET /ai/templates` et au réglage LLM/voix par secteur |
 | `calls` / `call_summaries` / `ai_interaction_logs` | Appels + résumés + logs |
 | `appointments` / `availability_slots` | RDV (INDEX UNIQUE partiel anti double-booking, migr. 0066) |
-| `knowledge_documents` / `knowledge_chunks` | KB (recherche lit `content`, fallback documents) |
+| `knowledge_documents` / `knowledge_chunks` | KB (recherche lit `content`, fallback documents). `deleted_at` = corbeille 30 j ; `chunks.metadata.ligne` = index de la ligne source (CX-2) |
+| `knowledge_document_versions` | Historique des modifications KB (migr. 0084). On versionne le **document**, jamais la fiche |
 | `tasks` / `task_types` | Tâches (task_types globaux `tenant_id='global'` + tenant-specific) |
 | `member_skills` | Compétences membres unifiées RDV+Tâches (priorité 1 affectation) |
 | `assignment_rules` | Règles d'affectation (legacy, priorité 2) |
@@ -479,6 +484,19 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
     normalisation se fait **à l'ingestion** (`shared/kb-fiches.js`), pour tous les formats
     d'import : le client n'a rien à changer à son fichier. Corollaire : deux fiches proches à
     prix différents ne se départagent pas au score — l'agent demande laquelle.
+11quater. **Une fiche est une PROJECTION, pas la donnée.** `indexerFiches()` supprime et
+    reconstruit **toutes** les fiches d'un document depuis `knowledge_documents.content` à
+    chaque écriture. Corriger un `knowledge_chunks` en base, c'est donc corriger un cache :
+    la valeur revient à la première ré-ingestion — un ré-import du site, une modification du
+    document — sans que personne ne comprenne pourquoi le prix a changé tout seul.
+    ⇒ Une correction de fiche **réécrit la ligne du document parent**
+    (`reecrireLigneFiche()` / `supprimerLigneFiche()` dans `shared/kb-fiches.js`), puis
+    réindexe. Corollaire : chaque fiche porte `metadata.ligne`, son index dans le contenu
+    **brut** — `chunk_index` est le rang de la fiche, pas celui de la ligne (les lignes vides,
+    les séparateurs Markdown et les lignes hors format dominant sont écartés en route). Une
+    fiche sans `ligne` (indexée avant le 12/08/2026) est lisible mais **refuse** la correction
+    en ligne, par un 409 explicite plutôt qu'une écriture au hasard. Le backfill se génère par
+    `scripts/generer_reingestion_fiches.mjs`. Voir [[kb-fiches-tabulaires]].
 12. JAMAIS de documents crawlés d'un autre site dans la KB (vérifier `source_type` avant démo).
 
 ### UI / produit
@@ -535,6 +553,18 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🟡 Moyenne | Dette `tenants.phone` | 5 tenants partagent `+33760762153`, formats mixtes `0760…`/`+3376…` — non utilisé par resolve-phone (secondaire) mais à assainir |
 
 ### Résolus majeurs (référence rapide)
+
+- **Le greeting ne disait pas le prénom de l'assistant (13/08/2026)**. `main.py` extrayait
+  le prénom du `system_prompt` et le passait à `get_greeting(assistant_name=…)` — paramètre
+  **documenté et ignoré** par la phrase retournée, qui restait « {société}, bonjour ! Comment
+  puis-je vous aider ? ». La page « Mon Assistant » montrait donc au client un accueil que son
+  assistant ne prononçait pas. **Trouvé par la recette, pas par la lecture** : le prompt était
+  correct, la chaîne page → API → prompt → agent l'était aussi, seule la phrase littérale du
+  greeting ne l'était pas. Fix : la phrase utilise le paramètre déjà transmis, avec **repli sur
+  la formulation historique** si le prénom manque. Accents obligatoires (la chaîne part au TTS).
+  Le `1. ACCUEIL — Accueille au nom de {société}` du prompt sectoriel reste **inchangé** : le
+  risque de double présentation existe sur le papier, l'appel réel ne l'a pas produit, et une
+  retouche de prompt avait fait disparaître tout appel d'outil le 08/08.
 
 - **SMS — un devis en deux morceaux, et deux bugs d'heure (11/08/2026)**. Le devis partait en
   **deux SMS**. La cause n'est pas la longueur mais l'**encodage** : Twilio code en GSM-7
@@ -903,6 +933,16 @@ Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
 
+- **Chantier CX-2 (12–13/08/2026)** — « Mon Assistant » et « Ce que sait votre assistant »,
+  déployées et recettées en conditions réelles (correction d'un tarif confirmée à l'oral par
+  appel, prénom modifié entendu au décrochage). Détail et invariants en § s. Trois défauts que
+  seule la recette pouvait montrer : le **greeting ne disait pas le prénom** alors que le
+  paramètre lui était déjà transmis ; le **dimanche était immodifiable** par la nouvelle route ;
+  et une **version de prompt était créée à chaque sauvegarde** pour un texte identique. La
+  migration 0084 ne suffisait pas non plus : les fiches déjà en base n'ayant pas d'index de
+  ligne, la correction aurait répondu 409 sur tout l'existant — d'où un backfill (29 fiches,
+  soit 100 % des fiches de la base, toutes chez Garage Toulouse).
+
 - **Clôture KB & multi-tenant (10–11/08/2026)** — Purge de 150 tenants jetables (§ q), puis
   déploiement du mini-lot KB : ancrage verbatim des montants dans les 7 prompts actifs (dont un
   régénéré par la source unique), accents pliés côté SQL, seuil de pertinence et extraction de
@@ -1214,6 +1254,73 @@ sa valeur ne revient pas dans le dépôt — elle vit dans `.credentials.md`.
 Le mot de passe du compte démo Maze reste **public par conception** : `app/demo/page.tsx` fait un
 auto-login et l'expédie de toute façon dans le bundle JavaScript. Ce compte ne doit donc contenir
 que de la donnée de démonstration — c'est le cas.
+
+## s) CHANTIER CX-2 (13/08/2026) — deux pages qui montrent ce que l'assistant dit
+
+**En production sur coccinelle.ai.** Deux pages remplacent, en mode Simple, la configuration
+éclatée. Elles reposent sur un principe unique : **on ne configure pas un assistant dans un
+formulaire, on corrige ce qu'il dit.**
+
+| Page | Route | Ce qu'elle fait |
+|---|---|---|
+| Mon Assistant | `/dashboard/assistant` | 3 conversations témoins, 5 valeurs surlignées ouvrant chacune le panneau qui la règle |
+| Ce que sait votre assistant | `/dashboard/savoir` | fil de test sur la **vraie** route de l'agent, correction en ligne, historique, corbeille |
+
+Sidebar mode Simple : `Mon assistant` → `/dashboard/assistant`, ajout de `Sa connaissance`.
+**Aucune entrée retirée** (6 → 7), **aucune redirection** — les anciennes URL répondent 200
+(le mode Simple masque, il ne bloque pas ; et `redirect()` casse en export statique).
+`ADVANCED_NAV` inchangé. La checklist de démarrage pointe désormais sur ces deux pages.
+
+### Invariants à ne pas ré-inférer
+
+1. **Une fiche est une projection** — voir règle **11quater** (§ i). C'est l'invariant central
+   du chantier : une correction s'écrit dans la **ligne du document**, jamais dans le chunk.
+2. **`/voixia/knowledge` renvoie `source`** (`document_id`, `chunk_id`, `libelle`, `prix`,
+   `ligne`, `modifiable`, `label`). Sans elle, le dashboard ne peut ni afficher la provenance,
+   ni corriger, ni supprimer. Ajout **additif** : l'agent Python lit `answer`/`found` et ignore
+   le reste. `source: null` quand la réponse est ambiguë (deux fiches), vient de LightRAG, ou
+   des coordonnées du tenant — on ne fait pas corriger la mauvaise ligne.
+3. **`GET`/`PUT /api/v1/assistant/config`** est le SEUL chemin d'écriture de la page 1. Il
+   touche `tenants`, `voixia_configs` **et** le prompt actif en un aller-retour : quatre
+   écritures enchaînées depuis le front pourraient réussir à moitié et laisser un prénom changé
+   avec un prompt inchangé. Le prompt est **toujours régénéré** par `buildSectorPrompt()`
+   (règle 6bis) mais **versionné seulement si le texte diffère** — le gabarit sectoriel ne porte
+   pas `{HORAIRES}`, donc changer les horaires produisait un prompt identique et une version
+   vide à chaque clic.
+4. **Le dimanche n'est pas affiché** (la maquette montre lun–sam). Sa valeur est **reportée**
+   telle quelle… *sauf si l'appelant l'envoie explicitement*. Reporter systématiquement rendait
+   ce jour immodifiable par cette route, sans erreur ni trace.
+5. **Les chips ne suggèrent que ce qui a une réponse** : elles sont bâties sur les libellés des
+   fiches réelles et les coordonnées du tenant, jamais sur une liste écrite d'avance. Le secteur
+   ne fait que tourner la phrase. Rotation par `?exclure=`, panachage par famille — un tri
+   alphabétique servait cinq « Prix … » d'affilée et ne montrait jamais les horaires.
+6. **Pas d'appel sortant.** La maquette annonce « votre assistant vous appelle » ; cette brique
+   n'existe pas. Le bandeau reprend le mécanisme réel : l'appelant compose le numéro d'essai et
+   `resolve-phone` le reconnaît à son numéro vérifié.
+
+### Recette locale sur données réelles
+
+`wrangler dev --remote` **ne partage pas le `JWT_SECRET`** de production : tout ce qui passe par
+`requireAuth` y répond 401 avec un jeton pourtant valide. Et `lib/config.ts` bascule sur l'API
+locale dès que le hostname vaut `localhost`. Le relais versionné règle les deux :
+
+```bash
+cd coccinelle-saas && npm run build
+node design/cx2/serveur-recette.mjs      # puis http://localhost:3000/_session
+```
+
+⚠️ Les maquettes de `design/cx2/` sont des pages « bundled » : leur contenu vit dans un
+`<script type="__bundler/template">`, pas dans le HTML lisible. Utiliser
+`design/cx2/extraire-maquette.js` — le rendu du fichier brut ne fait pas foi.
+
+### Migration 0084 (additive, appliquée le 12/08)
+
+`knowledge_documents.deleted_at`, table `knowledge_document_versions` (+ index UNIQUE
+`(document_id, version)` : deux écritures concurrentes calculeraient le même `max+1`),
+`voixia_configs.after_hours_behavior` / `after_hours_message`. Revue AVANT/APRÈS :
+`design/cx2/revue-0084.sh`.
+
+---
 
 ## RÈGLES GLOBALES AGENTIC OS
 
