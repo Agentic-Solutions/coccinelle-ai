@@ -14,6 +14,7 @@ import { handleProductCategoriesRoutes } from './modules/products/categories-rou
 import { handleTwilioRoutes } from './modules/twilio/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
 import { handleKnowledgeManualRoutes } from './modules/knowledge/manual.js';
+import { handleAssistantRoutes } from './modules/assistant/routes.js';
 import { handleChannelsRoutes } from './modules/channels/routes.js';
 import { handleIntegrationsRoutes } from './modules/integrations/routes.js';
 // Module Omnichannel (indépendant, activable via OMNICHANNEL_ENABLED)
@@ -324,6 +325,12 @@ export default {
         if (response) return response;
       }
       
+      // Page « Mon Assistant » (CX-2) — config en un seul aller-retour.
+      if (path.startsWith('/api/v1/assistant/')) {
+        response = await handleAssistantRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
       if (path.startsWith('/api/v1/knowledge/')) {
         if (path.includes('/faq') || path.includes('/snippets')) {
           response = await handleKnowledgeManualRoutes(request, env, ctx, getCorsHeaders(request));

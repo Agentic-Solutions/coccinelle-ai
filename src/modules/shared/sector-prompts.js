@@ -94,7 +94,38 @@ aucun : ni fourchette, ni « environ », ni « en général », ni ordre de gran
 Si l'information n'est pas revenue de l'outil, la seule réponse autorisée est celle
 du point 3 ci-dessus. Aucune autre.`;
 
-function voiceRulesBlock() {
+/**
+ * Bloc « hors horaires » (chantier CX-2, choix du client sur « Mon Assistant »).
+ *
+ * Absent par défaut : les prompts existants ne changent pas tant que le client
+ * n'a rien choisi. Il se place AVANT TOOL_ORDER_BLOCK — la dernière instruction
+ * avant CLÔTURE doit rester l'appel d'outil (règle i.6ter, payée par la
+ * régression du 08/08 où plus aucun outil n'était appelé).
+ *
+ * La branche « message » IMPOSE create_task : un message promis mais non
+ * enregistré n'existe pas, c'est exactement la promesse vide qu'on a retirée du
+ * rappel J-1 (« Répondez CONFIRMER » que rien ne traitait).
+ */
+function afterHoursBlock(mode) {
+  if (mode === 'message') {
+    return `HORS HORAIRES
+Quand l'appel arrive en dehors des horaires d'ouverture : annonce que nous sommes
+fermés, indique l'heure de réouverture, puis prends le message de l'appelant.
+Un message pris n'existe que s'il est enregistré : appelle create_task avec le nom
+de l'appelant, son numéro et sa demande AVANT de conclure l'appel.`;
+  }
+  if (mode === 'horaires') {
+    return `HORS HORAIRES
+Quand l'appel arrive en dehors des horaires d'ouverture : annonce que nous sommes
+fermés et rappelle nos horaires d'ouverture. Ne promets ni rappel ni message.
+Propose à l'appelant de rappeler pendant les horaires, ou de prendre rendez-vous
+avec book_appointment s'il le souhaite.`;
+  }
+  return null;
+}
+
+function voiceRulesBlock(horsHoraires) {
+  const hors = afterHoursBlock(horsHoraires);
   return `CONNAISSANCES
 Appelle TOUJOURS l'outil search_knowledge AVANT de répondre à toute question sur
 les services, les prestations, les tarifs, les horaires ou le fonctionnement de {COMPANY_NAME}.
@@ -118,7 +149,7 @@ concerné, deux points, puis chaque prestation suivie de son prix, séparées pa
 des virgules. Quatre prestations au maximum, les plus chères d'abord.
 Tu n'ajoutes JAMAIS de lien toi-même : il est ajouté automatiquement, et un lien
 en double coûte un second SMS.
-
+${hors ? `\n${hors}\n` : ''}
 ${TOOL_ORDER_BLOCK}
 
 CLÔTURE
@@ -547,7 +578,7 @@ export function getSectorLabel(input) {
  * Destinée à `ai_sector_templates` et au script de backfill — JAMAIS écrite
  * telle quelle dans `ai_prompt_versions`.
  */
-export function buildSectorTemplate(secteur) {
+export function buildSectorTemplate(secteur, { horsHoraires = null } = {}) {
   const key = normalizeSector(secteur);
   const s = SECTORS[key];
   const identite = s.qualifier
@@ -560,7 +591,7 @@ export function buildSectorTemplate(secteur) {
     `MISSION\nTa mission est de ${s.mission}.\nTu réponds au téléphone de façon naturelle, chaleureuse et professionnelle.`,
     STYLE_BLOCK,
     `DÉROULEMENT DE L'APPEL\n\n${s.deroulement}`,
-    voiceRulesBlock()
+    voiceRulesBlock(horsHoraires)
   );
   return blocs.join('\n\n');
 }
@@ -602,10 +633,14 @@ export function applyPromptVariables(text, vars = {}) {
  * @param {string} p.companyName  raison sociale (tenants.name)
  * @param {string} [p.horaires]   texte d'horaires déjà mis en forme
  * @param {string} [p.telephone]  numéro de contact
+ * @param {'message'|'horaires'|null} [p.horsHoraires] comportement hors horaires
+ *        choisi sur « Mon Assistant ». Absent = aucun bloc, prompt inchangé.
  * @returns {string}
  */
-export function buildSectorPrompt({ secteur, agentName, companyName, horaires, telephone } = {}) {
-  return applyPromptVariables(buildSectorTemplate(secteur), {
+export function buildSectorPrompt({
+  secteur, agentName, companyName, horaires, telephone, horsHoraires = null,
+} = {}) {
+  return applyPromptVariables(buildSectorTemplate(secteur, { horsHoraires }), {
     agentName,
     companyName,
     horaires,
@@ -619,6 +654,40 @@ export function buildSectorPrompt({ secteur, agentName, companyName, horaires, t
  * fourni de l'extérieur (frontend, portail revendeur) pour décider s'il
  * faut le régénérer.
  */
+/**
+ * Répliques des 3 conversations témoins de la page « Mon Assistant » (CX-2).
+ *
+ * La maquette est écrite pour un garage : « je voudrais faire remplacer mes
+ * plaquettes », « quelqu'un de l'atelier ». Sur un syndic ou un cabinet
+ * d'avocats, ces phrases sonnent faux et décrédibilisent la page qui doit
+ * justement rassurer. Elles vivent donc ICI, dans la source unique qui connaît
+ * déjà les 14 secteurs — pas en dur dans un composant React.
+ *
+ * `lieu` : comment le client nomme l'endroit (« l'atelier », « le cabinet »).
+ * `demande` : la demande type du scénario « hors horaires ».
+ * Secteur inconnu → repli générique, jamais d'erreur (arbitrage du 12/08).
+ */
+export const SCENARIOS_SECTEUR = {
+  generaliste: { lieu: 'nos bureaux', demande: 'prendre rendez-vous cette semaine' },
+  immobilier: { lieu: "l'agence", demande: 'visiter un appartement cette semaine' },
+  syndic: { lieu: 'vos bureaux', demande: 'signaler une fuite dans mon immeuble' },
+  sante: { lieu: 'le cabinet', demande: 'prendre rendez-vous cette semaine' },
+  dentiste: { lieu: 'le cabinet', demande: 'faire détartrer mes dents cette semaine' },
+  restaurant: { lieu: 'le restaurant', demande: 'réserver une table pour samedi soir' },
+  automobile: { lieu: "l'atelier", demande: 'faire remplacer mes plaquettes cette semaine' },
+  beaute: { lieu: 'le salon', demande: 'prendre rendez-vous pour une coupe cette semaine' },
+  fitness: { lieu: 'la salle', demande: 'inscrire un nouvel abonnement cette semaine' },
+  ecommerce: { lieu: 'le service client', demande: 'suivre une commande passée cette semaine' },
+  artisan: { lieu: "l'atelier", demande: 'faire établir un devis cette semaine' },
+  juridique: { lieu: 'le cabinet', demande: 'consulter un avocat cette semaine' },
+  education: { lieu: 'le centre', demande: 'inscrire quelqu\'un à une formation cette semaine' },
+  autre: { lieu: 'nos bureaux', demande: 'prendre rendez-vous cette semaine' },
+};
+
+export function getScenarios(secteur) {
+  return SCENARIOS_SECTEUR[normalizeSector(secteur)] || SCENARIOS_SECTEUR.generaliste;
+}
+
 export function isPromptCompliant(text) {
   const t = String(text || '');
   return (

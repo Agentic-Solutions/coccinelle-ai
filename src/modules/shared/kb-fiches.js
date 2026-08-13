@@ -108,6 +108,12 @@ function nettoyerLigneMarkdown(ligne) {
  * Le critere est la REGULARITE : au moins 60 % des lignes utiles doivent se
  * decouper en le meme nombre de champs (>= 2). Un texte redige contenant des
  * virgules echoue ce test — ses lignes n'ont aucune regularite de comptage.
+ *
+ * Chaque rangee retenue porte `ligne` : son INDEX DANS LE CONTENU BRUT. C'est la
+ * seule facon de retrouver plus tard la ligne d'origine d'une fiche pour la
+ * corriger (§ 5.5 du plan CX-2) : le rang de la fiche ne convient pas, puisque
+ * les lignes vides, les separateurs Markdown et les lignes hors format dominant
+ * sont ecartes en route.
  */
 export function detecterStructure(contenu) {
   const brut = String(contenu || '').replace(/\r\n?/g, '\n');
@@ -116,21 +122,23 @@ export function detecterStructure(contenu) {
   // est vide. La moitie des lignes perdaient un champ et la regularite
   // s'effondrait — le fichier repassait en « prose ».
   const toutesLignes = brut.split('\n')
-    .map(l => l.replace(/^[ ]+/, '').replace(/[ \r]+$/, ''))
-    .filter(l => l.trim());
-  const lignes = toutesLignes.filter(l => !estSeparateurMarkdown(l));
+    .map((l, i) => ({ texte: l.replace(/^[ ]+/, '').replace(/[ \r]+$/, ''), ligne: i }))
+    .filter(r => r.texte.trim());
+  const lignes = toutesLignes.filter(r => !estSeparateurMarkdown(r.texte));
 
   if (lignes.length < MIN_LIGNES_TABLEAU) {
     return { type: 'prose', separateur: null, lignes: [] };
   }
 
-  const estMarkdown = lignes.filter(l => l.startsWith('|') && l.endsWith('|')).length
+  const estMarkdown = lignes.filter(r => r.texte.startsWith('|') && r.texte.endsWith('|')).length
     >= lignes.length * SEUIL_REGULARITE;
-  const lignesUtiles = estMarkdown ? lignes.map(nettoyerLigneMarkdown) : lignes;
+  const lignesUtiles = estMarkdown
+    ? lignes.map(r => ({ ...r, texte: nettoyerLigneMarkdown(r.texte) }))
+    : lignes;
 
   let meilleur = null;
   for (const sep of (estMarkdown ? ['|'] : SEPARATEURS)) {
-    const comptes = lignesUtiles.map(l => decouperLigne(l, sep).length);
+    const comptes = lignesUtiles.map(r => decouperLigne(r.texte, sep).length);
     // Nombre de champs dominant.
     const frequences = new Map();
     for (const n of comptes) frequences.set(n, (frequences.get(n) || 0) + 1);
@@ -159,8 +167,8 @@ export function detecterStructure(contenu) {
   // (titre isole, phrase de conclusion) n'est pas une fiche et ne doit pas
   // fabriquer de colonnes decalees.
   const lignesTableau = lignesUtiles
-    .map(l => decouperLigne(l, meilleur.separateur))
-    .filter(champs => champs.length === meilleur.nChamps);
+    .map(r => ({ champs: decouperLigne(r.texte, meilleur.separateur), ligne: r.ligne }))
+    .filter(r => r.champs.length === meilleur.nChamps);
 
   // ── Garde-fou anti-prose ──
   // La regularite ne suffit PAS. Un paragraphe redige ou chaque phrase porte
@@ -169,12 +177,12 @@ export function detecterStructure(contenu) {
   // tres bien. Deux criteres separent une vraie table d'un texte :
   //   1. ses cellules sont COURTES (un libelle, pas une phrase) ;
   //   2. elle a au moins 3 colonnes, ou bien une colonne de montants.
-  const cellules = lignesTableau.flat();
+  const cellules = lignesTableau.flatMap(r => r.champs);
   const nonVides = cellules.filter(c => c.trim());
   const courtes = nonVides.filter(c => c.trim().split(/\s+/).length <= 6).length;
   const proportionCourtes = nonVides.length ? courtes / nonVides.length : 0;
 
-  const lignesAvecMontant = lignesTableau.filter(champs => champs.some(contientMontant)).length;
+  const lignesAvecMontant = lignesTableau.filter(r => r.champs.some(contientMontant)).length;
   const proportionMontants = lignesTableau.length ? lignesAvecMontant / lignesTableau.length : 0;
 
   const ressembleATable = proportionCourtes >= 0.7
@@ -186,6 +194,8 @@ export function detecterStructure(contenu) {
     type: 'tableau',
     separateur: meilleur.separateur,
     nChamps: meilleur.nChamps,
+    markdown: estMarkdown,
+    // [{ champs: string[], ligne: number }] — `ligne` indexe le contenu BRUT.
     lignes: lignesTableau,
   };
 }
@@ -210,11 +220,13 @@ function chercherColonne(entete, mots) {
 /**
  * Identifie le role de chaque colonne : d'abord par l'en-tete, sinon par le
  * contenu. Un export tableur sans ligne d'en-tete reste exploitable.
+ *
+ * @param {{champs: string[], ligne: number}[]} lignes  sortie de detecterStructure
  */
 export function identifierColonnes(lignes) {
   if (!lignes.length) return null;
 
-  const premiere = lignes[0];
+  const premiere = lignes[0].champs;
   const idx = {
     categorie: chercherColonne(premiere, MOTS_CATEGORIE),
     libelle: chercherColonne(premiere, MOTS_LIBELLE),
@@ -236,7 +248,7 @@ export function identifierColonnes(lignes) {
     // autres ; la categorie, la moins discriminante (elle se repete).
     const stats = [];
     for (let c = 0; c < nCol; c++) {
-      const cellules = donnees.map(l => l[c] || '');
+      const cellules = donnees.map(r => r.champs[c] || '');
       const remplies = cellules.filter(Boolean);
       stats.push({
         col: c,
@@ -330,13 +342,14 @@ export function construireFiches(contenu) {
   if (!cols || cols.libelle === -1) return [];
 
   const fiches = [];
-  for (const ligne of cols.donnees) {
-    const libelle = (ligne[cols.libelle] || '').trim();
+  for (const rangee of cols.donnees) {
+    const champs = rangee.champs;
+    const libelle = (champs[cols.libelle] || '').trim();
     if (!libelle) continue;
 
-    const prix = cols.prix !== -1 ? (ligne[cols.prix] || '').trim() : '';
-    const details = cols.details !== -1 ? (ligne[cols.details] || '').trim() : '';
-    const categorie = cols.categorie !== -1 ? (ligne[cols.categorie] || '').trim() : '';
+    const prix = cols.prix !== -1 ? (champs[cols.prix] || '').trim() : '';
+    const details = cols.details !== -1 ? (champs[cols.details] || '').trim() : '';
+    const categorie = cols.categorie !== -1 ? (champs[cols.categorie] || '').trim() : '';
 
     // Une ligne sans prix ni details n'apporte rien : le libelle seul ne
     // repond a aucune question.
@@ -349,11 +362,145 @@ export function construireFiches(contenu) {
       details,
       categorie,
       texte: rendu.texte,
+      // Index dans le contenu BRUT du document. C'est lui qui permet de
+      // corriger la bonne ligne : `index` ci-dessous est le rang de la fiche,
+      // qui ne designe aucune ligne du fichier d'origine.
+      ligne: rangee.ligne,
       index: fiches.length,
     });
   }
 
   return fiches;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORRECTION D'UNE FICHE — on reecrit LA LIGNE DU DOCUMENT, jamais le chunk.
+//
+// indexerFiches() supprime et reconstruit TOUTES les fiches d'un document depuis
+// knowledge_documents.content a chaque ecriture. Corriger un chunk en base, c'est
+// corriger un cache : la valeur reviendrait a la premiere re-ingestion (un
+// re-import du site, une modification du document) sans que personne ne comprenne
+// pourquoi le prix a change tout seul.
+//
+// La source, c'est le document. Ces deux fonctions sont donc le seul chemin
+// legitime d'une correction de fiche.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Decoupe une ligne en champs BRUTS : ni trim, ni guillemets retires.
+ *
+ * decouperLigne() nettoie ses champs — parfait pour lire, destructeur pour
+ * reecrire : les cellules qu'on ne touche pas doivent ressortir a l'octet pres,
+ * sans quoi corriger un prix reformaterait toute la ligne.
+ */
+function decouperLigneBrut(ligne, separateur) {
+  const champs = [];
+  let courant = '';
+  let dansGuillemets = false;
+
+  for (let i = 0; i < ligne.length; i++) {
+    const c = ligne[i];
+    if (c === '"') {
+      if (dansGuillemets && ligne[i + 1] === '"') { courant += '""'; i++; continue; }
+      dansGuillemets = !dansGuillemets;
+      courant += c;
+      continue;
+    }
+    if (c === separateur && !dansGuillemets) { champs.push(courant); courant = ''; continue; }
+    courant += c;
+  }
+  champs.push(courant);
+  return champs;
+}
+
+/** Rend une valeur reinjectable dans une ligne, sans casser le decoupage. */
+function encoderChamp(valeur, separateur, markdown) {
+  const v = String(valeur == null ? '' : valeur).replace(/[\r\n]+/g, ' ').trim();
+  // Un tableau Markdown ne connait pas les guillemets CSV : la barre s'y echappe.
+  if (markdown) return v.replace(/\|/g, '\\|');
+  if (v.includes(separateur) || v.includes('"')) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+/** Retrouve la rangee tabulaire correspondant a une ligne du contenu brut. */
+function localiserRangee(contenu, ligneIndex) {
+  const structure = detecterStructure(contenu);
+  if (structure.type !== 'tableau') return null;
+
+  const cols = identifierColonnes(structure.lignes);
+  if (!cols || cols.libelle === -1) return null;
+
+  // La rangee doit etre une ligne de DONNEES : reecrire l'en-tete renommerait
+  // les colonnes de tout le document.
+  const rangee = cols.donnees.find(r => r.ligne === ligneIndex);
+  if (!rangee) return null;
+
+  return { structure, cols, rangee };
+}
+
+/**
+ * Reecrit une ligne du document a partir des champs corriges d'une fiche.
+ *
+ * @param {string} contenu    knowledge_documents.content
+ * @param {number} ligneIndex index dans le contenu brut (metadata.ligne de la fiche)
+ * @param {{libelle?: string, prix?: string, details?: string}} modifs
+ * @returns {{contenu: string, avant: string, apres: string}|null} null si la
+ *          ligne n'est pas une fiche corrigeable — l'appelant refuse alors la
+ *          modification plutot que d'ecrire au hasard.
+ */
+export function reecrireLigneFiche(contenu, ligneIndex, modifs = {}) {
+  const brut = String(contenu || '').replace(/\r\n?/g, '\n');
+  const lignes = brut.split('\n');
+  if (!(ligneIndex >= 0 && ligneIndex < lignes.length)) return null;
+
+  const cible = localiserRangee(brut, ligneIndex);
+  if (!cible) return null;
+  const { structure, cols } = cible;
+
+  const originale = lignes[ligneIndex];
+  const md = structure.markdown && originale.trim().startsWith('|');
+  const corps = md ? nettoyerLigneMarkdown(originale) : originale;
+
+  const champs = decouperLigneBrut(corps, structure.separateur);
+  // Filet : si le decoupage brut ne retrouve pas le meme nombre de colonnes que
+  // la detection, on ne sait plus quelle cellule porte quoi. On s'abstient.
+  if (champs.length !== structure.nChamps) return null;
+
+  let touche = false;
+  for (const [champ, colonne] of [
+    ['libelle', cols.libelle], ['prix', cols.prix], ['details', cols.details],
+  ]) {
+    if (modifs[champ] === undefined || colonne === -1) continue;
+    // On conserve l'indentation d'origine de la cellule : corriger un prix ne
+    // doit pas reformater l'alignement d'un tableau soigne.
+    const [, avantEspaces = '', , apresEspaces = ''] = champs[colonne].match(/^(\s*)(.*?)(\s*)$/s) || [];
+    champs[colonne] = avantEspaces
+      + encoderChamp(modifs[champ], structure.separateur, md)
+      + apresEspaces;
+    touche = true;
+  }
+  if (!touche) return null;
+
+  const recompose = champs.join(structure.separateur);
+  const apres = md ? `|${recompose}|` : recompose;
+  lignes[ligneIndex] = apres;
+
+  return { contenu: lignes.join('\n'), avant: originale, apres };
+}
+
+/**
+ * Supprime la ligne d'une fiche. Les fiches suivantes changent d'index : c'est
+ * sans consequence, indexerFiches() les reconstruit toutes juste apres.
+ */
+export function supprimerLigneFiche(contenu, ligneIndex) {
+  const brut = String(contenu || '').replace(/\r\n?/g, '\n');
+  const lignes = brut.split('\n');
+  if (!(ligneIndex >= 0 && ligneIndex < lignes.length)) return null;
+  if (!localiserRangee(brut, ligneIndex)) return null;
+
+  const avant = lignes[ligneIndex];
+  lignes.splice(ligneIndex, 1);
+  return { contenu: lignes.join('\n'), avant };
 }
 
 /** Poids d'un mot : rare = discriminant. */

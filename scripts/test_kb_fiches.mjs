@@ -14,6 +14,8 @@ import {
   detecterAmbiguite,
   detecterStructure,
   plier,
+  reecrireLigneFiche,
+  supprimerLigneFiche,
 } from '../src/modules/shared/kb-fiches.js';
 
 // ── Le catalogue reel du tenant de recette (Garage Toulouse), 29 lignes ──
@@ -187,6 +189,61 @@ if (structureProse.type !== 'prose' || fichesProse.length !== 0) {
 } else {
   console.log('  ✅ laisse au chemin prose existant, inchange');
 }
+
+// ── Correction d'une fiche : on reecrit LA LIGNE DU DOCUMENT ──
+// C'est l'invariant du chantier CX-2. Si la correction n'atterrit pas dans le
+// contenu du document, elle sera effacee a la premiere re-ingestion.
+console.log(`\n══════ correction d'une fiche (reecriture de la ligne source)`);
+
+function verifier(nom, condition, detail = '') {
+  total++;
+  if (condition) { reussites++; console.log(`  ✅ ${nom}`); }
+  else { echecs.push(`${nom}${detail ? ' — ' + detail : ''}`); console.log(`  ❌ ${nom} ${detail}`); }
+}
+
+const fichesCsv = construireFiches(CSV);
+const montage = fichesCsv.find(f => plier(f.libelle).startsWith('montage equilibrage'));
+
+verifier('la fiche porte son index de ligne source',
+  montage && Number.isInteger(montage.ligne));
+verifier('cet index designe bien la ligne du fichier',
+  montage && plier(CSV.split('\n')[montage.ligne]).includes('montage equilibrage'),
+  montage ? `ligne ${montage.ligne} = ${JSON.stringify(CSV.split('\n')[montage.ligne])}` : '');
+
+const corrige = reecrireLigneFiche(CSV, montage.ligne, { prix: '18 EUR' });
+verifier('la reecriture aboutit', !!corrige);
+verifier('la ligne corrigee porte le nouveau prix',
+  corrige && corrige.apres.includes('18 EUR'), corrige ? corrige.apres : '');
+verifier('le libelle est intact', corrige && corrige.apres.includes('Montage equilibrage'));
+verifier('les autres lignes ne bougent pas',
+  corrige && corrige.contenu.split('\n').filter((l, i) => i !== montage.ligne)
+    .join('\n') === CSV.split('\n').filter((l, i) => i !== montage.ligne).join('\n'));
+
+const refiches = construireFiches(corrige?.contenu || '');
+const remontage = refiches.find(f => plier(f.libelle).startsWith('montage equilibrage'));
+verifier('la re-ingestion restitue 18 euros',
+  remontage && remontage.texte.includes('18 euros'), remontage ? remontage.texte : '');
+verifier('le nombre de fiches est inchange', refiches.length === fichesCsv.length,
+  `${refiches.length} vs ${fichesCsv.length}`);
+
+// Une valeur contenant le separateur ne doit pas fabriquer une colonne de plus.
+const piege = reecrireLigneFiche(CSV, montage.ligne, { details: 'Par pneu, jantes alu comprises' });
+const fichesPiege = construireFiches(piege?.contenu || '');
+verifier('une valeur contenant une virgule ne casse pas la ligne',
+  fichesPiege.length === fichesCsv.length, `${fichesPiege.length} fiches`);
+verifier('...et se relit entiere',
+  fichesPiege.some(f => f.details === 'Par pneu, jantes alu comprises'));
+
+// L'en-tete n'est pas une fiche : le reecrire renommerait les colonnes.
+verifier('l\'en-tete est refuse', reecrireLigneFiche(CSV, 0, { prix: '1 EUR' }) === null);
+verifier('une ligne hors tableau est refusee',
+  reecrireLigneFiche(PROSE, 1, { prix: '1 EUR' }) === null);
+
+const suppr = supprimerLigneFiche(CSV, montage.ligne);
+verifier('la suppression retire la ligne', suppr
+  && construireFiches(suppr.contenu).length === fichesCsv.length - 1);
+verifier('...et seulement celle-la',
+  suppr && !construireFiches(suppr.contenu).some(f => plier(f.libelle).startsWith('montage equilibrage')));
 
 console.log(`\n═══════════════════════════════════════════`);
 console.log(`RESULTAT : ${reussites}/${total} restitutions exactes`);

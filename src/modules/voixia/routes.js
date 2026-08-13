@@ -866,6 +866,7 @@ async function handleSearchKnowledge(request, env) {
       found: true,
       ambiguous: reponseFiche.ambigu,
       search_type: 'fiche',
+      source: reponseFiche.source,
       message: `${results.length} résultat(s) trouvé(s)`,
     });
   }
@@ -899,6 +900,9 @@ async function handleSearchKnowledge(request, env) {
   // found=true) ; le SECOND ne sert que de complement et se contente d'un mot
   // recherche, sinon on perd la moitie des reponses a deux facettes.
   const passages = [];
+  // Le resultat qui a fourni le PREMIER passage : c'est lui qui porte la
+  // reponse, donc lui que le dashboard doit proposer de corriger.
+  let porteur = null;
   for (const r of ordered) {
     if (passages.length >= 2) break;
     for (const p of _extractPassages(r.content, searchWords, 2 - passages.length)) {
@@ -906,11 +910,15 @@ async function handleSearchKnowledge(request, env) {
       const gardeFou = passages.length === 0
         ? _passageEstPertinent(p, searchWords)
         : _contientUnMotRecherche(p, searchWords);
-      if (gardeFou) passages.push(p);
+      if (gardeFou) {
+        if (!porteur) porteur = r;
+        passages.push(p);
+      }
       if (passages.length >= 2) break;
     }
   }
   let answer = passages.length > 0 ? passages.join(' … ') : null;
+  let source = answer ? _sourceDePassage(porteur) : null;
 
   // Un resultat LightRAG ne sert que de COMPLEMENT quand la KB du tenant n'a rien
   // — jamais de court-circuit. Avant, il etait consulte en premier et renvoye tel
@@ -919,6 +927,9 @@ async function handleSearchKnowledge(request, env) {
   if (!answer && lightragAnswer) {
     answer = lightragAnswer;
     searchType = 'lightrag';
+    // LightRAG n'est pas multi-tenant : sa reponse ne correspond a AUCUN
+    // document du client, donc a rien de corrigeable.
+    source = null;
   }
 
   // Coordonnees du tenant : elles vivent dans `tenants`, PAS dans la KB. Un
@@ -929,6 +940,9 @@ async function handleSearchKnowledge(request, env) {
     if (contact) {
       answer = contact;
       searchType = 'tenant_contact';
+      // Ces coordonnees vivent dans `tenants`, pas dans la base de
+      // connaissances : elles se corrigent depuis « Mon Assistant ».
+      source = { type: 'tenant', libelle: 'coordonnées de l\'entreprise' };
     }
   }
 
@@ -938,6 +952,7 @@ async function handleSearchKnowledge(request, env) {
     results,
     count: results.length,
     answer,
+    source: found ? source : null,
     // `found` reflete une VRAIE reponse. Un `found: true` sur un « je ne sais pas »
     // pousse l'agent a inventer : MOTS INTERDITS lui interdit de dire qu'il ignore.
     found,
@@ -966,6 +981,80 @@ const _CARTE_ACCENTS = {
   'ç': 'c', 'ñ': 'n', 'ÿ': 'y',
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PROVENANCE DE LA REPONSE (chantier CX-2)
+//
+// L'endpoint renvoyait `answer` sans jamais dire d'ou elle venait. Le dashboard
+// ne pouvait donc ni afficher « Source : … », ni proposer de corriger la valeur,
+// ni supprimer l'information fautive. Ces trois actions sont toute la page
+// « Ce que sait votre assistant ».
+//
+// Ajout STRICTEMENT additif : l'agent Python lit `answer` et `found`, il ignore
+// les cles qu'il ne connait pas.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * D'ou vient un document, en langage client. Reprend les libelles de la maquette
+ * (« tarifs.csv », « garage-martin.fr », « Google Business », « ajouté
+ * manuellement ») — jamais de vocabulaire technique (regle i.15).
+ */
+function _origineDocument({ title, source_type, source_url } = {}) {
+  if (source_type === 'google_business') return 'Google Business';
+  if (source_url) {
+    try { return new URL(source_url).hostname.replace(/^www\./, ''); } catch { /* titre */ }
+  }
+  if (source_type === 'text' || source_type === 'manual') return title || 'ajouté manuellement';
+  return title || 'base de connaissances';
+}
+
+/** Provenance d'une reponse portee par une fiche : corrigeable ligne a ligne. */
+function _sourceDeFiche(fiche) {
+  if (!fiche) return null;
+  const origine = _origineDocument({
+    title: fiche.titre, source_type: fiche.source_type, source_url: fiche.source_url,
+  });
+  return {
+    type: 'fiche',
+    document_id: fiche.document_id || null,
+    chunk_id: fiche.chunk_id || null,
+    titre: fiche.titre || null,
+    source_type: fiche.source_type || null,
+    source_url: fiche.source_url || null,
+    libelle: fiche.libelle || null,
+    prix: fiche.prix || null,
+    // `ligne` absent = fiche indexee avant CX-2 : lisible, mais pas corrigeable
+    // en ligne tant que le document n'a pas ete re-ingere.
+    ligne: Number.isInteger(fiche.ligne) ? fiche.ligne : null,
+    modifiable: Number.isInteger(fiche.ligne) && !!fiche.document_id,
+    label: `${origine} — fiche ${fiche.libelle || ''}`.trim(),
+  };
+}
+
+/** Provenance d'une reponse extraite d'un texte redige : le document entier. */
+function _sourceDePassage(resultat) {
+  if (!resultat || !resultat.document_id) return null;
+  const origine = _origineDocument({
+    title: resultat.source_title,
+    source_type: resultat.source_type,
+    source_url: resultat.source_url,
+  });
+  return {
+    type: 'document',
+    document_id: resultat.document_id,
+    chunk_id: resultat.chunk_id || null,
+    titre: resultat.source_title || null,
+    source_type: resultat.source_type || null,
+    source_url: resultat.source_url || null,
+    libelle: null,
+    prix: null,
+    ligne: null,
+    // Un texte redige se corrige en entier, pas ligne a ligne : le dashboard
+    // ouvre le document au lieu de proposer l'edition en ligne.
+    modifiable: false,
+    label: origine,
+  };
+}
+
 /**
  * NIVEAU FICHE — repond depuis les lignes normalisees d'un tableau.
  *
@@ -983,7 +1072,8 @@ async function _repondreDepuisFiches(env, tenant_id, searchWords) {
   try {
     const clauses = searchWords.map(() => `${_foldSql('kc.content')} LIKE ?`).join(' OR ');
     const res = await env.DB.prepare(`
-      SELECT kc.content, kc.metadata
+      SELECT kc.id AS chunk_id, kc.document_id, kc.content, kc.metadata,
+             kd.title, kd.source_type, kd.source_url
       FROM knowledge_chunks kc
       JOIN knowledge_documents kd ON kd.id = kc.document_id
       WHERE kc.tenant_id = ?
@@ -1009,6 +1099,15 @@ async function _repondreDepuisFiches(env, tenant_id, searchWords) {
       categorie: meta.categorie || '',
       texte: l.content,
       index: fiches.length,
+      // Provenance (CX-2). classerFiches() propage ces cles telles quelles.
+      chunk_id: l.chunk_id,
+      document_id: l.document_id,
+      titre: l.title,
+      source_type: l.source_type,
+      source_url: l.source_url,
+      // `ligne` peut manquer sur les fiches indexees avant CX-2 : elles restent
+      // consultables, seule la correction en ligne leur est refusee.
+      ligne: Number.isInteger(meta.ligne) ? meta.ligne : null,
     });
   }
   if (!fiches.length) return null;
@@ -1031,10 +1130,13 @@ async function _repondreDepuisFiches(env, tenant_id, searchWords) {
     return {
       answer: `Deux prestations correspondent : ${ambigu[0].texte} ${ambigu[1].texte}`,
       ambigu: true,
+      // Aucune source : la reponse porte DEUX fiches, en designer une seule
+      // ferait corriger la mauvaise.
+      source: null,
     };
   }
 
-  return { answer: meilleure.texte, ambigu: false };
+  return { answer: meilleure.texte, ambigu: false, source: _sourceDeFiche(meilleure) };
 }
 
 export function _foldAccents(texte) {
@@ -1352,7 +1454,7 @@ async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
   // ── Lancer les 3 requetes en parallele (Promise.allSettled) ──
   const [chunksRes, docsRes, faqRes] = await Promise.allSettled([
     env.DB.prepare(`
-      SELECT kc.content, kc.chunk_index,
+      SELECT kc.id AS chunk_id, kc.document_id, kc.content, kc.chunk_index,
              kd.title, kd.source_type, kd.source_url,
              CASE WHEN kd.source_type = 'text' THEN 0 ELSE 1 END as priority
       FROM knowledge_chunks kc
@@ -1365,7 +1467,7 @@ async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
     `).bind(...chunkParams).all(),
 
     env.DB.prepare(`
-      SELECT title, content, source_url, source_type,
+      SELECT id, title, content, source_url, source_type,
              CASE WHEN source_type = 'text' THEN 0 ELSE 1 END as priority
       FROM knowledge_documents
       WHERE tenant_id = ?
@@ -1391,6 +1493,10 @@ async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
       source_title: chunk.title,
       source_type: chunk.source_type,
       source_url: chunk.source_url,
+      // Provenance (CX-2) : le dashboard doit pouvoir afficher « Source : … » et
+      // ouvrir la bonne fiche a la correction. L'agent Python ignore ces cles.
+      document_id: chunk.document_id,
+      chunk_id: chunk.chunk_id,
       relevance_score: null
     }));
   }
@@ -1401,6 +1507,8 @@ async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
       source_title: doc.title,
       source_type: doc.source_type,
       source_url: doc.source_url,
+      document_id: doc.id,
+      chunk_id: null,
       relevance_score: null
     }));
   }
@@ -1410,6 +1518,12 @@ async function _searchKnowledgeText(env, tenant_id, searchWords, topK) {
       content: `Q: ${faq.question}\nR: ${faq.answer}`,
       source_title: 'FAQ',
       source_type: 'faq',
+      // Une entree de FAQ ne vit pas dans knowledge_documents : elle n'est donc
+      // ni corrigeable ni supprimable depuis le fil de test. Le dashboard le
+      // voit a `document_id: null` et masque les deux boutons plutot que de
+      // proposer une action qui echouerait.
+      document_id: null,
+      chunk_id: null,
       relevance_score: null
     }));
   }

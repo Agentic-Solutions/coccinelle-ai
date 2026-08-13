@@ -53,6 +53,10 @@ export async function indexerFiches(env, { documentId, tenantId, contenu }) {
         prix: fiche.prix,
         details: fiche.details,
         categorie: fiche.categorie,
+        // Index de la ligne dans knowledge_documents.content. C'est la seule
+        // trace qui permette de corriger la BONNE ligne du document — sans
+        // elle, une correction ne peut viser que le chunk, donc un cache.
+        ligne: fiche.ligne,
       }),
     ));
 
@@ -71,4 +75,35 @@ export async function indexerFiches(env, { documentId, tenantId, contenu }) {
     });
     return { fiches: 0, structure: 'erreur' };
   }
+}
+
+/**
+ * Ecrit un nouveau contenu de document ET reconstruit ses fiches.
+ *
+ * Point de passage OBLIGATOIRE de toute modification de contenu : le document
+ * et ses fiches doivent bouger ensemble. Les separer, c'est laisser l'agent
+ * repondre depuis d'anciennes fiches sur un document deja corrige.
+ *
+ * Contrairement a indexerFiches(), cette fonction LEVE en cas d'echec d'ecriture :
+ * ici l'appelant est une modification explicite de l'utilisateur, qui doit savoir
+ * qu'elle n'a pas eu lieu (l'indexation, elle, reste non bloquante).
+ */
+export async function ecrireContenuDocument(env, { documentId, tenantId, contenu }) {
+  const empreinte = await crypto.subtle
+    .digest('SHA-256', new TextEncoder().encode(contenu))
+    .then(h => Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+  await env.DB.prepare(`
+    UPDATE knowledge_documents
+       SET content = ?, content_hash = ?, word_count = ?, updated_at = datetime('now')
+     WHERE id = ? AND tenant_id = ?
+  `).bind(
+    contenu,
+    empreinte,
+    contenu.split(/\s+/).filter(Boolean).length,
+    documentId,
+    tenantId,
+  ).run();
+
+  return indexerFiches(env, { documentId, tenantId, contenu });
 }

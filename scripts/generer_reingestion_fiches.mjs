@@ -74,6 +74,10 @@ for (const doc of documents) {
       prix: f.prix,
       details: f.details,
       categorie: f.categorie,
+      // CX-2 : index de la ligne dans knowledge_documents.content. Sans lui, la
+      // correction en ligne est refusee (409) — les fiches indexees avant le
+      // 12/08 n'ont que ce backfill pour devenir corrigeables.
+      ligne: f.ligne,
     });
     lignes.push(
       `INSERT INTO knowledge_chunks (id, document_id, tenant_id, chunk_index, content, token_count, metadata, created_at)\n`

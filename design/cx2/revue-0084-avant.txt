@@ -1,0 +1,31 @@
+Revue AVANT — migration 0084 (prod coccinelle-db-eu, 12/08/2026)
+Genere par : ./design/cx2/revue-0084.sh
+
+STRUCTURE (0 = absent, attendu partout avant la migration)
+  col_documents_deleted_at      0
+  col_cfg_after_hours_behavior  0
+  col_cfg_after_hours_message   0
+  table_versions                0
+  index_unique_version          0
+
+VOLUMES (doivent etre IDENTIQUES apres la migration)
+  doc_total       31
+  doc_actifs      31
+  doc_inactifs     0
+  fiches_total    29
+  tenants          7
+  cfg_total        7
+  prompts_actifs   7
+  gt_documents     2
+  gt_fiches       29
+
+Lectures utiles :
+  - doc_inactifs = 0 : aucun document n'a ete supprime en douceur avant ce
+    chantier. La reserve du commentaire de migration (« les lignes deja a
+    is_active = 0 garderont deleted_at NULL ») ne concerne donc AUCUNE ligne.
+  - fiches_total = gt_fiches = 29 : toutes les fiches de la base appartiennent a
+    Garage Toulouse. Les 29 autres documents (6 tenants) sont de la prose, servie
+    par le chemin prose — inchange par ce chantier.
+  - 7 tenants / 7 configs / 7 prompts actifs : un seul is_active=1 par tenant,
+    l'invariant de CLAUDE.md § f tient.
+  - gt_documents = 2 : l'adresse + le CSV de 29 prestations, conforme au § d.
