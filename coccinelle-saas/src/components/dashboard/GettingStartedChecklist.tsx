@@ -90,9 +90,13 @@ export default function GettingStartedChecklist({
           ? 'in-progress'
           : 'completed',
         icon: <BookOpen className="w-5 h-5" />,
+        // Chantier CX-2 (13/08/2026) — la checklist envoyait vers les pages
+        // éclatées, la sidebar vers les nouvelles : deux chemins pour le même
+        // réglage, et un nouvel inscrit tombait sur celui que le chantier
+        // cherchait justement à remplacer.
         action: documentsCount < 3 ? {
           label: 'Enrichir ma KB →',
-          href: '/dashboard/knowledge?tab=builder'
+          href: '/dashboard/savoir'
         } : undefined
       },
       {
@@ -103,9 +107,12 @@ export default function GettingStartedChecklist({
           : 'Assistant fonctionne correctement',
         status: callsCount === 0 ? 'pending' : 'completed',
         icon: <Phone className="w-5 h-5" />,
+        // « Mon Assistant » porte le bandeau « Validez en conditions réelles »
+        // avec le numéro d'essai : c'est littéralement ce que cette étape
+        // promet, et l'ancienne page ne l'affichait pas.
         action: callsCount === 0 ? {
           label: 'Voir le numéro',
-          href: '/dashboard/agents/configuration'
+          href: '/dashboard/assistant'
         } : undefined
       },
       {
