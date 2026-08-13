@@ -13,9 +13,9 @@
 
 import {
   LayoutDashboard, Phone, Users, Hash, Bot,
-  MessageSquare, MessageCircle, Mail, Voicemail,
+  MessageSquare, MessageCircle, Mail,
   Calendar, BookOpen, HelpCircle, Package, Briefcase,
-  GitBranch, ListTree, Users2, CheckSquare,
+  GitBranch, CheckSquare,
   BarChart3, ScrollText, Download, Bell, TrendingUp,
   Clock, LifeBuoy,
 } from 'lucide-react';
@@ -72,7 +72,13 @@ export const ADVANCED_NAV: NavGroup[] = [
       { name: 'SMS', href: '/dashboard/channels/sms', icon: MessageSquare },
       { name: 'WhatsApp', href: '/dashboard/channels/whatsapp', icon: MessageCircle },
       { name: 'Email', href: '/dashboard/channels/email', icon: Mail },
-      { name: 'Messagerie vocale', href: '/dashboard/channels/voicemail', icon: Voicemail },
+      // « Messagerie vocale » retirée le 13/08/2026 (chantier MÉNAGE, lot 3).
+      // La page faisait 16 lignes et annonçait « arrive prochainement ». Vérifié
+      // avant retrait : aucune route backend, aucun webhook Twilio
+      // d'enregistrement, aucune table D1. Le flux n'a jamais existé — et la
+      // fonction est déjà rendue ailleurs, en mieux : hors horaires l'agent
+      // prend le message et l'enregistre par create_task ; transfert
+      // impossible, il propose un rappel (create_prospect + SMS).
       { name: 'Notifications proactives', href: '/dashboard/proactive', icon: Bell },
     ],
   },
@@ -99,8 +105,11 @@ export const ADVANCED_NAV: NavGroup[] = [
     items: [
       { name: 'Agents IA', href: '/dashboard/agents/configuration', icon: Bot },
       { name: 'Séquences', href: '/dashboard/agents/nodes', icon: GitBranch },
-      { name: 'IVR / SVI', href: '/dashboard/channels/ivr', icon: ListTree },
-      { name: "Files d'attente", href: '/dashboard/channels/queues', icon: Users2 },
+      // « IVR / SVI » et « Files d'attente » retirées le 13/08/2026 (lot 3) :
+      // deux pages de 16 lignes, « arrive prochainement », sans route ni table
+      // derrière. Une entrée de menu qui ne mène à rien coûte plus cher qu'une
+      // entrée absente — le client cherche la fonction, la trouve, et découvre
+      // qu'elle n'existe pas.
     ],
   },
   {
