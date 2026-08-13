@@ -36,7 +36,16 @@ export interface NavGroup {
 /** Mode Simple — liste plate, sans en-tête de groupe. */
 export const SIMPLE_NAV: NavItem[] = [
   { name: 'Accueil', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Mon assistant', href: '/dashboard/agents/configuration', icon: Bot },
+  // Chantier CX-2 (13/08/2026) — les deux pages « conversation ».
+  // « Mon assistant » ne pointe plus sur agents/configuration : cette page
+  // reste accessible en direct et en mode Avancé, elle n'est que masquée
+  // (le mode Simple masque, il ne bloque pas — règle posée par CX-1).
+  // « Sa connaissance » et non « Ce qu'il sait » : le pronom obligerait à
+  // deviner le référent. La page, elle, garde son titre complet
+  // (« Ce que sait votre assistant ») — un intitulé de menu et un titre de
+  // page n'ont pas le même travail à faire.
+  { name: 'Mon assistant', href: '/dashboard/assistant', icon: Bot },
+  { name: 'Sa connaissance', href: '/dashboard/savoir', icon: BookOpen },
   { name: 'Appels', href: '/dashboard/analytics/calls', icon: Phone },
   // /dashboard/appointments n'est qu'un redirect() vers /dashboard/rdv — donc une
   // page d'erreur en export statique (règle i.16bis). On vise la vraie page.
