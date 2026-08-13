@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MessageSquare, Mail, Phone, Search, User, ExternalLink, UserPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Mail, Phone, Search, User, ExternalLink, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 const API_URL = 'https://coccinelle-api.youssef-amrouche.workers.dev';
@@ -435,13 +435,25 @@ export default function InboxPage() {
                         Lier automatiquement
                       </button>
 
-                      <Link
-                        href={`/dashboard/crm/prospects/new?phone=${encodeURIComponent(selectedConv.customer_phone || '')}&email=${encodeURIComponent(selectedConv.customer_email || '')}&name=${encodeURIComponent(selectedConv.customer_name || '')}`}
-                        className="flex items-center justify-center gap-2 w-full px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        Creer un prospect
-                      </Link>
+                      {/* Bouton « Creer un prospect » retire le 13/08/2026
+                          (chantier MENAGE, lot 1).
+
+                          Il pointait sur /dashboard/crm/prospects/new avec
+                          phone, email et name en parametres. Cette page N'EXISTE
+                          PAS : le bouton menait a un 404 depuis toujours.
+
+                          Le faire pointer sur la liste des contacts n'aurait
+                          rien arrange — elle ne lit AUCUN parametre d'URL et
+                          aurait ignore le numero en silence. C'est pire qu'un
+                          bouton absent : le client croit avoir transmis quelque
+                          chose.
+
+                          Pour le retablir, il faut d'abord que
+                          /dashboard/crm/prospects lise ces trois parametres et
+                          ouvre son formulaire d'ajout pre-rempli (l'etat
+                          showAddModal existe deja). En attendant, « Lier
+                          automatiquement » ci-dessus reste la seule action de
+                          ce bloc, et elle fonctionne. */}
                     </div>
                   )}
 

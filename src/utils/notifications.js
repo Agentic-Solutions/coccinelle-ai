@@ -14,10 +14,22 @@ export async function createNotification(env, { tenant_id, user_id, type, title,
   // Send browser push notification (best-effort, non-blocking)
   try {
     if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY_JWK) {
-      const pushUrl = type === 'new_appointment' ? '/dashboard/appointments'
-        : type === 'missed_call' ? '/dashboard/calls'
-        : type === 'new_prospect' ? '/dashboard/prospects'
-        : type === 'new_message' ? '/dashboard/inbox'
+      // ── Destinations des notifications (corrige le 13/08/2026) ──
+      //
+      // Les QUATRE URL precedentes etaient mortes : trois pointaient sur des
+      // redirections legacy, qui en export statique affichent une page d'erreur
+      // au lieu de rediriger (regle i.16bis), et « /dashboard/calls » n'a JAMAIS
+      // existe. Autrement dit, taper sur une notification menait toujours dans
+      // le mur — le chemin le plus court entre un client et la perte de
+      // confiance, puisque c'est lui qui declenche le geste.
+      //
+      // Ces URL doivent viser des pages REELLES. Toute modification ici se
+      // verifie avec design/menage/verifier-liens.sh, qui echoue si une URL
+      // referencee ne correspond a aucune page construite.
+      const pushUrl = type === 'new_appointment' ? '/dashboard/rdv'
+        : type === 'missed_call' ? '/dashboard/analytics/calls'
+        : type === 'new_prospect' ? '/dashboard/crm/prospects'
+        : type === 'new_message' ? '/dashboard/conversations'
         : '/dashboard';
 
       await sendPushToTenant(env, tenant_id, {
