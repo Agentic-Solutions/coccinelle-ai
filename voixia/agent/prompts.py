@@ -236,9 +236,17 @@ def get_greeting(
     """
     Retourne l'instruction d'accueil dynamique.
 
-    Le greeting est une COURTE phrase d'accueil. Il ne doit PAS demander
-    a l'agent de se presenter (le system_prompt gere la personnalite).
-    Cela evite la double presentation (greeting + system_prompt).
+    Le greeting est une COURTE phrase LITTERALE (regle i.2), prononcee telle
+    quelle par session.say(). Il ne demande jamais a l'agent de se presenter :
+    il SE presente, en un souffle. La nuance compte — une instruction du genre
+    « presente-toi » relancerait le LLM et produirait une seconde presentation
+    par-dessus celle du system_prompt.
+
+    Le prenom y figure depuis le 13/08/2026 (chantier CX-2). Il etait deja
+    extrait par main.py et transmis ici, mais la phrase l'ignorait : la page
+    « Mon Assistant » montrait donc au client un accueil que son assistant ne
+    prononcait pas. Une page qui promet ce que le produit ne fait pas
+    reconstruit exactement le probleme qu'elle doit resoudre.
 
     Args:
         prompt_type: type de prompt ("generaliste", "immobilier", etc.).
@@ -252,4 +260,15 @@ def get_greeting(
         return GREETINGS.get(prompt_type, GREETINGS["generaliste"])
 
     company_display = format_company_for_greeting(company_name, prompt_type)
-    return f"{company_display}, bonjour ! Comment puis-je vous aider ?"
+
+    # Repli sur la phrase historique quand le prenom manque : un prompt
+    # personnalise dont la regex ne tire aucun nom ne doit pas produire
+    # « Garage Toulouse, bonjour !  a votre ecoute » avec un trou au milieu.
+    prenom = (assistant_name or "").strip()
+    if not prenom:
+        return f"{company_display}, bonjour ! Comment puis-je vous aider ?"
+
+    # Accents obligatoires : cette phrase part au TTS. « a votre ecoute » se
+    # ferait lire « a » (verbe) au lieu de « à » — c'est pour la meme raison
+    # que « Cabinet médical » porte le sien plus haut.
+    return f"{company_display}, bonjour ! {prenom} à votre écoute, que puis-je faire pour vous ?"
