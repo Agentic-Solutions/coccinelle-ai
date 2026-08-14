@@ -118,11 +118,14 @@ export default function RendezVousAVenir() {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: CX2.encre }}>Rendez-vous à venir</h2>
           <span style={{ fontSize: 13, color: CX2.texteTertiaire }}>Les 3 prochains jours</span>
         </span>
+        {/* Vers l'AGENDA et non la liste : à cet endroit on cherche un
+            planning — « qu'est-ce que j'ai cette semaine » — et non un tableau
+            trié par date. La liste reste à un onglet de là. */}
         <Link
-          href="/dashboard/rdv"
+          href="/dashboard/rdv/agenda"
           style={{ fontSize: 13, color: CX2.texteSecondaire, textDecoration: 'underline', textUnderlineOffset: 3 }}
         >
-          Tout voir
+          Voir l'agenda
         </Link>
       </div>
 

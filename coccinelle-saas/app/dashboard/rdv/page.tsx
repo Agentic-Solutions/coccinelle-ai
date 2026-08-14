@@ -358,7 +358,7 @@ export default function RdvPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 justify-between flex-wrap">
             <Link href="/dashboard">
               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-5 h-5" />
@@ -369,6 +369,28 @@ export default function RdvPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Rendez-vous</h1>
               <p className="text-xs sm:text-sm text-gray-600 truncate">Gérez tous vos rendez-vous prospects</p>
             </div>
+          </div>
+
+          {/* Bascule de vue (14/08/2026). La liste et l'agenda montrent le MÊME
+              contenu, lu à la même source : ce sont deux vues, pas deux pages.
+              La création, les filtres et la recherche restent ici — l'agenda
+              n'en porte aucun, c'est ce qui l'empêche de redevenir un doublon. */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 flex-shrink-0" role="tablist">
+            <span
+              role="tab"
+              aria-selected
+              className="px-3.5 py-1.5 rounded-md text-sm font-medium bg-white text-gray-900 shadow-sm"
+            >
+              Liste
+            </span>
+            <Link
+              href="/dashboard/rdv/agenda"
+              role="tab"
+              aria-selected={false}
+              className="px-3.5 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              Agenda
+            </Link>
           </div>
         </div>
       </header>
