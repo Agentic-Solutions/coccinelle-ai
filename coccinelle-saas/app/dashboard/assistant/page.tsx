@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Loader2, Phone, Volume2 } from 'lucide-react';
 import { VOICE_OPTIONS } from '@/lib/voices';
 import { DAY_LABELS, type DayKey, type Horaires } from '@/lib/horaires';
@@ -534,27 +535,45 @@ export default function PageAssistant() {
               onBasculer={() => setOuvert(ouvert === 'canaux' ? null : 'canaux')}
             >
               <div style={{ padding: '0 22px 18px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {canaux.map((c) => (
-                  <span key={c.type} style={{
+                {canaux.map((c) => {
+                  const contenu = (
+                    <>
+                      {/* Gelé : aucun point. Un point orange dit « en panne », or
+                          WhatsApp n'est pas en panne — il n'est pas ouvert. */}
+                      {!c.bientot && (
+                        <span style={{
+                          width: 7, height: 7, borderRadius: 999, display: 'block',
+                          background: c.actif ? CX2.vert : CX2.orange,
+                        }} />
+                      )}
+                      {NOM_CANAL[c.type] || c.type}
+                      {c.bientot && (
+                        <span style={{ fontSize: '11.5px', color: CX2.texteDiscret }}>· bientôt</span>
+                      )}
+                    </>
+                  );
+                  const style: React.CSSProperties = {
                     display: 'flex', alignItems: 'center', gap: '7px',
                     border: `1px solid ${CX2.bordureFine}`, borderRadius: 999,
                     padding: '6px 12px', fontSize: '12.5px',
                     color: c.bientot ? CX2.texteDiscret : CX2.encreSurvol,
-                  }}>
-                    {/* Gelé : aucun point. Un point orange dit « en panne », or
-                        WhatsApp n'est pas en panne — il n'est pas ouvert. */}
-                    {!c.bientot && (
-                      <span style={{
-                        width: 7, height: 7, borderRadius: 999, display: 'block',
-                        background: c.actif ? CX2.vert : CX2.orange,
-                      }} />
-                    )}
-                    {NOM_CANAL[c.type] || c.type}
-                    {c.bientot && (
-                      <span style={{ fontSize: '11.5px', color: CX2.texteDiscret }}>· bientôt</span>
-                    )}
-                  </span>
-                ))}
+                    textDecoration: 'none',
+                  };
+                  const cible = cibleCanal(c);
+                  // WhatsApp est gelé : pas de lien. Une pastille cliquable qui
+                  // mène à une page « bientôt disponible » promet deux fois.
+                  if (!cible) return <span key={c.type} style={style}>{contenu}</span>;
+                  return (
+                    <Link
+                      key={c.type}
+                      href={cible}
+                      style={style}
+                      title={c.actif ? 'Ouvrir la configuration' : 'Activer ce canal'}
+                    >
+                      {contenu}
+                    </Link>
+                  );
+                })}
               </div>
             </PanneauAccordeon>
           </aside>
@@ -616,6 +635,35 @@ export default function PageAssistant() {
 const NOM_CANAL: Record<string, string> = {
   phone: 'Téléphone', sms: 'SMS', email: 'E-mail', whatsapp: 'WhatsApp',
 };
+
+/**
+ * Où mène une pastille (14/08/2026).
+ *
+ * Une pastille qui ne mène nulle part constate un problème sans offrir de le
+ * régler. La cible dépend de l'ÉTAT : un canal actif s'ouvre sur sa
+ * configuration, un canal inactif sur ce qui l'active — ce n'est pas le même
+ * geste, et souvent pas la même page.
+ *
+ * `null` = aucun lien. Réservé à WhatsApp : il est gelé, et une pastille
+ * cliquable menant à « bientôt disponible » promettrait deux fois.
+ */
+function cibleCanal(c: Canal): string | null {
+  switch (c.type) {
+    case 'phone':
+      // Actif : les lignes rattachées. Inactif : l'activation passe par un
+      // numéro personnel vérifié, qui vit dans le compte — c'est la condition
+      // que resolve-phone applique pour la branche « numéro d'essai ».
+      return c.actif ? '/dashboard/channels/numbers' : '/dashboard/settings#joindre';
+    case 'sms':
+      return '/dashboard/channels/sms';
+    case 'email':
+      // Actif comme inactif : la même page. C'est elle qui porte désormais le
+      // bouton de connexion d'une boîte.
+      return '/dashboard/channels/email';
+    default:
+      return null;
+  }
+}
 
 /**
  * « 2 canaux actifs » — au singulier quand il n'y en a qu'un, et sans compter

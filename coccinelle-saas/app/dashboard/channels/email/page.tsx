@@ -218,6 +218,49 @@ export default function EmailPage() {
           </div>
         </div>
 
+        {/* SECTION 1bis — RÉCEPTION : connecter une boîte (14/08/2026)
+            ────────────────────────────────────────────────────────────
+            Cette page ne réglait que l'ENVOI (expéditeur Resend, test, logs).
+            Relier une boîte pour LIRE les e-mails n'existait nulle part dans
+            l'interface : aucune page n'appelait /api/v1/oauth/google/authorize,
+            alors que la route fonctionne (GOOGLE_CLIENT_ID et REDIRECT_URI en
+            vars, CLIENT_SECRET en secret, 302 vérifié en production). Le canal
+            e-mail était donc inactivable depuis le produit.
+
+            Gmail seul : Outlook et Yahoo ne sont pas fonctionnels à 100 %
+            (CLAUDE.md § b), et un bouton qui mène à une déception coûte plus
+            cher qu'un bouton absent.
+
+            ⚠️ DETTE — la route attend le JWT dans l'URL (`?token=`). Un jeton de
+            30 jours atterrit donc dans l'historique du navigateur, dans les
+            journaux de tout intermédiaire, et dans le `Referer` envoyé à Google.
+            C'est le contrat existant du backend, pas un choix de cette page.
+            Remplacement par un jeton court à usage unique : backlog, PRIORITAIRE
+            (0,5 j, cf. PLAN-NAVIGATION.md § 13). */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Recevoir les e-mails</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Reliez votre boîte pour que votre assistant lise les messages qui vous arrivent.
+          </p>
+          <a
+            href={urlConnexionGmail()}
+            onClick={(e) => {
+              // Recalculé au clic : `useAuth` rafraîchit le jeton en arrière-plan,
+              // et une URL figée au montage partirait avec l'ancien — donc un 401
+              // silencieux au retour de Google.
+              e.preventDefault();
+              window.location.href = urlConnexionGmail();
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Connecter ma boîte Gmail
+          </a>
+          <p className="text-xs text-gray-400 mt-3">
+            Vous serez redirigé vers Google, puis ramené ici.
+          </p>
+        </div>
+
         {/* SECTION 2 — Configuration expéditeur */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Configuration expéditeur</h2>
@@ -360,4 +403,23 @@ export default function EmailPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * URL de connexion Gmail.
+ *
+ * Le jeton voyage en paramètre parce que la route l'attend ainsi : c'est une
+ * navigation de page, pas un `fetch` — aucun en-tête `Authorization` ne peut
+ * l'accompagner. Le `redirect` ramène ici après le passage chez Google.
+ *
+ * Appelée au rendu (pour l'attribut `href`, qui garde le lien réel) ET au clic,
+ * qui seul fait foi : `useAuth` rafraîchit le jeton en arrière-plan, et une URL
+ * figée au montage partirait avec l'ancien.
+ */
+function urlConnexionGmail(): string {
+  const jeton = typeof window !== 'undefined'
+    ? (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '')
+    : '';
+  const retour = encodeURIComponent('/dashboard/channels/email');
+  return buildApiUrl(`/api/v1/oauth/google/authorize?token=${encodeURIComponent(jeton)}&redirect=${retour}`);
 }
