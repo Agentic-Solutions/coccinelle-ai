@@ -536,3 +536,86 @@ héritées de `twilio/routes.js` qui ne peuvent plus rien remonter. Soit les pag
 `channels/*` deviennent la source d'un vrai réglage par tenant — ce qui suppose
 de décider ce que « désactiver le SMS » signifie quand l'envoi est une capacité
 plateforme — soit la table et ses écrans disparaissent.
+
+---
+
+## 13. Chantier NAVIGATION 3 (14/08/2026)
+
+### 13.1 — « Passer » : le blocage était dans l'API, pas dans le bouton
+
+`POST /onboarding/checklist/dismiss` recalculait la checklist côté serveur et
+renvoyait **409 « Checklist incomplete »** tant que les 5 étapes n'étaient pas
+faites. Afficher le bouton sans toucher au backend aurait produit un clic qui
+échoue en silence.
+
+La garde confondait deux choses : **avoir terminé** est un fait que le serveur
+calcule, **vouloir masquer** est une décision du client. En production, l'effet
+était l'inverse du but : un compte bloqué à 4/5 — Garage Toulouse, faute
+d'équipe à inviter — gardait le bloc ouvert en tête de son tableau de bord,
+définitivement et sans recours.
+
+Garde retirée, bouton « Passer » discret visible à tout avancement, avec une
+confirmation en ligne (le geste est irréversible depuis l'interface). Aucune
+migration : `users.checklist_dismissed_at` existe depuis la 0083. Le masquage
+reste en base — il doit suivre le client d'un appareil à l'autre — là où le
+`localStorage` ne gouverne que le repli.
+
+### 13.2 — Pastilles de canaux : où elles mènent
+
+| Canal | État | Cible |
+|---|---|---|
+| Téléphone | actif | `/dashboard/channels/numbers` |
+| Téléphone | inactif | `/dashboard/settings#joindre` (numéro vérifié) |
+| SMS | toujours actif | `/dashboard/channels/sms` |
+| E-mail | actif ou non | `/dashboard/channels/email` |
+| WhatsApp | gelé | **aucun lien** |
+
+WhatsApp n'est pas cliquable : une pastille menant à « bientôt disponible »
+promettrait deux fois.
+
+**Découverte au passage — le canal e-mail était inactivable depuis le produit.**
+Aucune page du frontend n'appelait `/api/v1/oauth/google/authorize` : le mot
+`authorize` n'apparaissait qu'une fois dans tout `app/`, `src/`, `lib/`,
+`components/`, dans un composant orphelin. `channels/email` ne réglait que
+l'**envoi** (expéditeur Resend, test, historique), jamais la **réception**.
+Le backend, lui, fonctionne : `GOOGLE_CLIENT_ID` et `GOOGLE_REDIRECT_URI` sont
+dans `wrangler.toml`, `GOOGLE_CLIENT_SECRET` est en secret, et la route répond
+**302** vers Google (vérifié en production). Le bouton manquant était un lien,
+pas une fonctionnalité. Gmail seul : Outlook et Yahoo ne sont pas fonctionnels
+à 100 %, et un bouton qui mène à une déception coûte plus qu'un bouton absent.
+
+### 13.3 — L'agenda, et les trois règles qui l'empêchent d'être un doublon
+
+`/dashboard/rdv/agenda` — sous `rdv` et non à côté : l'URL dit elle-même
+« autre vue du même contenu ». Trois règles, vérifiées en recette :
+
+1. **elle ne crée rien** — pas de modale ; un jour vide renvoie sur la liste ;
+2. **elle ne filtre rien** — statut, agent, recherche restent sur la liste ;
+3. **même source, même fiche** — `GET /api/v1/appointments`, chaque rendez-vous
+   mène à `/dashboard/rdv/{id}`.
+
+Bascule « Liste · Agenda » en tête des deux pages. « Voir l'agenda » remplace
+« Tout voir » sur la carte « Rendez-vous à venir » : à cet endroit on cherche un
+planning, pas un tableau trié par date.
+
+Le piège du fuseau est réel ici plus qu'ailleurs : un rendez-vous de **23 h**
+relu comme de l'UTC passerait au **lendemain** — il changerait de case. Vérifié
+sur un cas à 23:00 : il reste au bon jour.
+
+---
+
+## 14. Backlog — ajout du 14/08/2026
+
+### 0. 🔴 PRIORITAIRE — jeton court à usage unique pour l'OAuth (0,5 j)
+
+`GET /api/v1/oauth/google/authorize` attend le JWT **dans l'URL** (`?token=`).
+Depuis le bouton « Connecter ma boîte Gmail », un jeton de **30 jours** part
+donc dans l'historique du navigateur, dans les journaux de tout intermédiaire,
+et dans l'en-tête `Referer` envoyé à Google.
+
+C'est le contrat existant du backend, antérieur à ce chantier — mais le bouton
+le met en pratique. **Ce n'est pas un confort, c'est une dette de sécurité.**
+
+Remplacement : une route authentifiée par en-tête qui rend un jeton à usage
+unique et de courte durée (60 s), le `authorize` n'acceptant plus que celui-là.
+Passe devant les entrées 1 à 5 des sections 10 et 12.
