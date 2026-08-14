@@ -186,8 +186,34 @@ export default function DashboardPage() {
     );
   }
 
+  const essaiEnCours = sub?.status === 'trialing'
+    && sub.trial_days_remaining !== null && sub.trial_days_remaining > 0;
+
   return (
     <div className="p-6 space-y-6">
+      {/* ── Bandeau d'essai ──
+          Il occupait un bloc de 64 px au MILIEU de la page, entre la checklist
+          et les chiffres, là où il coupait la lecture sans être lu. C'est un
+          compte à rebours : il doit se voir sans se chercher, et ne rien
+          prendre. Un bandeau fin en tête fait les deux.
+          La pastille « Essai 11 j » du bas de la barre latérale a été retirée
+          en même temps : deux compteurs pour un même chiffre, dont un en bas
+          d'une colonne où l'œil ne va qu'en dernier. */}
+      {essaiEnCours && (
+        <Link
+          href="/dashboard/billing"
+          className="flex items-center justify-center gap-3 -mx-6 -mt-6 mb-0 px-6 py-2.5 bg-[#efeeeb] border-b border-[#e2e2de] hover:bg-[#e8e7e3] transition-colors"
+        >
+          <Clock className="w-4 h-4 text-gray-600 flex-shrink-0" />
+          <span className="text-sm text-gray-700">
+            Essai gratuit — {sub!.trial_days_remaining} jour{sub!.trial_days_remaining! > 1 ? 's' : ''} restant{sub!.trial_days_remaining! > 1 ? 's' : ''}
+          </span>
+          <span className="text-sm font-medium text-gray-900 underline underline-offset-2">
+            Choisir une formule
+          </span>
+        </Link>
+      )}
+
       {/* Titre */}
       <div className="pl-10 lg:pl-0">
         <h1 className="text-2xl font-bold text-gray-900">Mon activité</h1>
@@ -199,20 +225,8 @@ export default function DashboardPage() {
       {/* Checklist de demarrage — se masque seule une fois les 5 etapes faites */}
       <SetupChecklist />
 
-      {/* Banniere abonnement */}
-      {sub && sub.status === 'trialing' && sub.trial_days_remaining !== null && sub.trial_days_remaining > 0 && (
-        <Link href="/dashboard/billing" className="block">
-          <div className="flex items-center justify-between p-4 bg-gray-100 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">
-                Essai gratuit — {sub.trial_days_remaining} jour{sub.trial_days_remaining > 1 ? 's' : ''} restant{sub.trial_days_remaining > 1 ? 's' : ''}
-              </span>
-            </div>
-            <span className="text-sm font-medium text-gray-900">Choisir un plan &rarr;</span>
-          </div>
-        </Link>
-      )}
+      {/* L'essai TERMINÉ garde son bloc pleine largeur : ce n'est plus un
+          compte à rebours mais un compte qui ne fonctionne plus. */}
       {sub && (sub.status === 'trialing') && (sub.trial_days_remaining === null || sub.trial_days_remaining <= 0) && (
         <Link href="/dashboard/billing" className="block">
           <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors">

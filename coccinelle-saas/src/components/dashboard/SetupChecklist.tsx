@@ -45,10 +45,40 @@ function getToken(): string | null {
   }
 }
 
+/** Préférence d'affichage, par appareil. */
+const CLE_REPLI = 'checklist_repliee';
+
 export default function SetupChecklist() {
   const [checklist, setChecklist] = useState<ChecklistData | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * Repli persisté (14/08/2026). L'état existait déjà mais se perdait à chaque
+   * navigation : le bloc se rouvrait en pleine hauteur en tête du tableau de
+   * bord, à chaque visite. Et le bouton « masquer définitivement » n'apparaît
+   * qu'aux 5 étapes faites — un compte à 4/5 restait donc coincé avec le bloc
+   * ouvert, sans aucun moyen de le réduire durablement.
+   *
+   * localStorage et non la base : c'est une préférence d'AFFICHAGE, propre à
+   * l'appareil. Le masquage définitif, lui, reste en base
+   * (`users.checklist_dismissed_at`) — sinon il ne suivrait pas le client d'un
+   * poste à l'autre, ce qui est tout l'inverse du besoin.
+   */
   const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    setExpanded(localStorage.getItem(CLE_REPLI) !== '1');
+  }, []);
+
+  const basculerRepli = useCallback(() => {
+    setExpanded((ouvert) => {
+      const suivant = !ouvert;
+      try {
+        if (suivant) localStorage.removeItem(CLE_REPLI);
+        else localStorage.setItem(CLE_REPLI, '1');
+      } catch { /* navigation privée : le repli vaut pour la session */ }
+      return suivant;
+    });
+  }, []);
   const [hidden, setHidden] = useState(false);
 
   const fetchChecklist = useCallback(async () => {
@@ -115,7 +145,7 @@ export default function SetupChecklist() {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-6 overflow-hidden">
       {/* En-tête + progression */}
-      <div className="p-4 border-b border-gray-100">
+      <div className={expanded ? 'p-4 border-b border-gray-100' : 'px-4 py-2.5'}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -124,25 +154,33 @@ export default function SetupChecklist() {
                 {completed}/{total}
               </span>
             </div>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {setup_completed
-                ? 'Tout est prêt. Votre assistant est opérationnel.'
-                : 'Quelques minutes pour que votre assistant réponde comme vous le souhaitez.'}
-            </p>
-            <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
-              <div
-                className="bg-gray-900 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${progress_percent}%` }}
-                role="progressbar"
-                aria-valuenow={completed}
-                aria-valuemin={0}
-                aria-valuemax={total}
-              />
-            </div>
+            {/* Repliée, la checklist tient sur UNE ligne : titre + compteur.
+                Garder la phrase et la barre de progression aurait laissé un
+                bloc de trois lignes en tête de page — le repli n'aurait rien
+                rendu. */}
+            {expanded && (
+              <>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {setup_completed
+                    ? 'Tout est prêt. Votre assistant est opérationnel.'
+                    : 'Quelques minutes pour que votre assistant réponde comme vous le souhaitez.'}
+                </p>
+                <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
+                  <div
+                    className="bg-gray-900 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${progress_percent}%` }}
+                    role="progressbar"
+                    aria-valuenow={completed}
+                    aria-valuemin={0}
+                    aria-valuemax={total}
+                  />
+                </div>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
-              onClick={() => setExpanded(!expanded)}
+              onClick={basculerRepli}
               className="p-1.5 hover:bg-gray-100 rounded transition-colors"
               aria-label={expanded ? 'Réduire' : 'Développer'}
             >

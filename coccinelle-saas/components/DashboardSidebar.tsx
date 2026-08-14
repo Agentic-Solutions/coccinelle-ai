@@ -39,8 +39,6 @@ export default function DashboardSidebar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);
-  const [statut, setStatut] = useState<string | null>(null);
-  const [joursEssai, setJoursEssai] = useState<number | null>(null);
 
   const active = entreeActive(pathname);
 
@@ -52,14 +50,7 @@ export default function DashboardSidebar() {
     fetch(`${API_URL}/api/v1/billing/subscription`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
-        if (data.success && data.subscription) {
-          setPlan(data.subscription.plan);
-          setStatut(data.subscription.status);
-          setJoursEssai(data.subscription.trial_days_remaining);
-        } else {
-          setPlan('trial');
-          setStatut('trialing');
-        }
+        setPlan(data.success && data.subscription ? data.subscription.plan : 'trial');
       })
       .catch(() => {});
   }, []);
@@ -119,21 +110,22 @@ export default function DashboardSidebar() {
         })}
       </nav>
 
-      {/* Essai — en bas, au-dessus du pied */}
+      {/* La formule, sans le compte à rebours (14/08/2026).
+          Le nombre de jours restants s'affichait ICI *et* en tête de « Mon
+          activité » : deux compteurs pour un même chiffre. Celui-ci a perdu —
+          il est en bas d'une colonne de 256 px, là où l'œil ne va qu'en
+          dernier. Le nom de la formule reste : ce n'est pas un compte à
+          rebours, c'est un rappel de ce qu'on paie, et il mène à la page qui
+          le change. */}
       {plan && (
         <div className="px-4 pt-[14px] pb-3 border-t border-[#f2f2ee]">
           <Link
-            href="/dashboard/settings"
+            href="/dashboard/billing"
             className="flex items-center justify-between gap-[10px] border border-[#ebebe7] rounded-full px-[13px] py-[7px] hover:border-[#dcdbd6] transition-colors"
           >
             <span className="text-[12.5px] text-[#6b6b66]">
               {PLAN_LABELS[plan] || plan}
             </span>
-            {statut === 'trialing' && joursEssai !== null && joursEssai > 0 && (
-              <span className="text-[12.5px] font-medium font-mono text-[#1a1a19]">
-                {joursEssai} j
-              </span>
-            )}
           </Link>
         </div>
       )}
