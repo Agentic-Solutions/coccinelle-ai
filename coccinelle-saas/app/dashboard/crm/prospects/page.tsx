@@ -8,6 +8,7 @@ import {
   Mail, Phone, MessageSquare, Tag, TrendingUp,
   Calendar, Euro, Upload, X, FileText, RefreshCw, AlertCircle
 } from 'lucide-react';
+import RendezVousAVenir from '@/components/cx2/RendezVousAVenir';
 import { useToast } from '@/hooks/useToast';
 import ActionToastContainer from '@/components/ActionToast';
 
@@ -403,7 +404,7 @@ export default function ProspectsPage() {
               <Logo size={48} />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Contacts</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Mes clients</h1>
               <p className="text-xs sm:text-sm text-gray-600">Gérez vos contacts</p>
             </div>
           </div>
@@ -446,6 +447,12 @@ export default function ProspectsPage() {
             <p className="text-sm text-gray-700">{error}</p>
           </div>
         )}
+
+        {/* Rendez-vous a venir — chantier NAVIGATION (14/08/2026).
+            « Rendez-vous » a quitte le menu : les rendez-vous vivent ici. Cette
+            carte est le filet, et elle doit rester VISIBLE SANS DEFILER — d'ou
+            sa place au-dessus des compteurs. */}
+        <RendezVousAVenir />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
