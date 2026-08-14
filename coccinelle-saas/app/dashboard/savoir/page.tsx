@@ -19,6 +19,7 @@ import { Loader2 } from 'lucide-react';
 import { CX2, LIEN_POLICES, POLICE_TEXTE, STYLE_CARTE } from '@/components/cx2/theme';
 import { BulleAssistant, BulleClient } from '@/components/cx2/Bulle';
 import ChipsSuggestions from '@/components/cx2/ChipsSuggestions';
+import OngletsAssistant from '@/components/cx2/OngletsAssistant';
 import { CarteAjouter, CarteHistorique, CarteInformations } from '@/components/cx2/CartesSavoir';
 import {
   ajouterDocument, chargerConfigAssistant, chargerSuggestions, corrigerFiche, demander,
@@ -277,10 +278,10 @@ export default function PageSavoir() {
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
             <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 600, letterSpacing: '-0.02em' }}>
-              Ce que sait votre assistant
+              Mon assistant
             </h1>
             <p style={{ margin: 0, fontSize: '14.5px', color: CX2.texteSecondaire }}>
-              Posez des questions, corrigez les réponses
+              Posez une question, corrigez la réponse
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -308,6 +309,11 @@ export default function PageSavoir() {
             </button>
           </div>
         </header>
+
+        {/* Voir OngletsAssistant : deux pages, deux URL, un habillage commun. */}
+        <div style={{ maxWidth: 1320, margin: '0 auto 20px' }}>
+          <OngletsAssistant />
+        </div>
 
         {message && (
           <div style={{

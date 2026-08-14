@@ -20,6 +20,7 @@ import { VOICE_OPTIONS } from '@/lib/voices';
 import { DAY_LABELS, type DayKey, type Horaires } from '@/lib/horaires';
 import { CX2, LIEN_POLICES, POLICE_MONO, POLICE_TEXTE, STYLE_CARTE, STYLE_VALEUR_HALO } from '@/components/cx2/theme';
 import PanneauAccordeon from '@/components/cx2/PanneauAccordeon';
+import OngletsAssistant from '@/components/cx2/OngletsAssistant';
 import {
   chargerCanaux, chargerConfigAssistant, ecouterVoix, enregistrerConfigAssistant,
   type Canal, type ConfigAssistant,
@@ -218,10 +219,10 @@ export default function PageAssistant() {
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
             <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 600, letterSpacing: '-0.02em' }}>
-              Mon Assistant
+              Mon assistant
             </h1>
             <p style={{ margin: 0, fontSize: '14.5px', color: CX2.texteSecondaire }}>
-              Cliquez sur un mot souligné dans la conversation pour le modifier
+              Cliquez sur un mot surligné pour le modifier
             </p>
           </div>
           <button
@@ -238,6 +239,12 @@ export default function PageAssistant() {
             {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
           </button>
         </header>
+
+        {/* Les deux faces de l'assistant — ce qu'il dit, ce qu'il sait.
+            Deux pages, deux URL, un seul habillage (chantier NAVIGATION). */}
+        <div style={{ maxWidth: 1280, margin: '0 auto 20px' }}>
+          <OngletsAssistant />
+        </div>
 
         {message && (
           <div style={{
