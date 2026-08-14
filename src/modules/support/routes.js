@@ -120,6 +120,25 @@ async function handleGetTicket(request, env, ticketId, corsHeaders) {
   return Response.json({ success: true, ticket }, { headers: corsHeaders });
 }
 
+/**
+ * Boite de reception des demandes d'aide. Adresse verifiee le 14/08/2026
+ * (routage Cloudflare vers la boite de Youssef, test recu).
+ */
+const SUPPORT_EMAIL = 'support@coccinelle.ai';
+
+/**
+ * Le sujet et le message viennent du client et partent dans un e-mail HTML que
+ * NOUS lisons. Sans echappement, un `<script>` ou une balise cassee traverse
+ * jusqu'a notre boite.
+ */
+function echapper(valeur) {
+  return String(valeur ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // ============================================
 // POST /api/v1/support/tickets
 // ============================================
@@ -151,8 +170,61 @@ async function handleCreateTicket(request, env, corsHeaders) {
     now, now
   ).run();
 
-  // Email notification si RESEND_API_KEY existe
+  // ─────────────────────────────────────────────────────────────────────
+  // Notification — DEUX envois distincts (14/08/2026)
+  //
+  // Avant, l'unique e-mail partait `to: [user.email]` : le client recevait un
+  // accuse de reception promettant « nous reviendrons vers vous dans les
+  // meilleurs delais », et PERSONNE chez Coccinelle n'etait prevenu.
+  // `support@coccinelle.ai` n'apparaissait que dans le `from`. Rattraper par la
+  // base etait impossible : `GET /support/tickets` filtre sur `tenant_id`, donc
+  // meme un admin ne voit que les tickets de son propre tenant, et aucune page
+  // back-office ne lit `support_tickets`. Zero ticket en base avait cache le
+  // defaut depuis le debut.
+  //
+  // Deux envois et non un `to` a deux adresses : sinon le client voit l'adresse
+  // interne, et un « repondre a tous » lui expedie nos echanges.
+  // ─────────────────────────────────────────────────────────────────────
+  const clientEmail = user.email || tenant.email;
+  const numero = ticketId.slice(-6);
+
   if (env.RESEND_API_KEY) {
+    // 1. Vers l'equipe. `reply_to` = le client : repondre part droit chez lui.
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Coccinelle.ai <support@coccinelle.ai>',
+          to: [SUPPORT_EMAIL],
+          reply_to: clientEmail,
+          subject: `[Ticket #${numero}] ${subject}`,
+          html: `
+            <p><strong>${echapper(tenant.name || tenant.id)}</strong> — ${echapper(clientEmail)}</p>
+            <p>Categorie : ${echapper(category || 'general')} &middot; Priorite : ${echapper(priority || 'normal')}</p>
+            <hr />
+            <p style="white-space:pre-wrap">${echapper(message)}</p>
+            <hr />
+            <p style="color:#888;font-size:12px">Ticket ${echapper(ticketId)} &middot; tenant ${echapper(tenant.id)}</p>
+          `,
+        }),
+      });
+      if (!res.ok) {
+        // Un ticket que personne ne recoit doit laisser une trace bruyante.
+        logger.error('Support ticket NOT delivered to team', {
+          ticketId, to: SUPPORT_EMAIL, status: res.status,
+        });
+      } else {
+        logger.info('Support ticket sent to team', { ticketId, to: SUPPORT_EMAIL });
+      }
+    } catch (e) {
+      logger.error('Support ticket NOT delivered to team', { ticketId, error: e.message });
+    }
+
+    // 2. Vers le client — l'accuse de reception, inchange sur le fond.
     try {
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -161,25 +233,32 @@ async function handleCreateTicket(request, env, corsHeaders) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Coccinelle.AI Support <support@coccinelle.ai>',
-          to: [user.email || tenant.email],
-          subject: `[Ticket #${ticketId.slice(-6)}] ${subject} - Confirmation`,
+          from: 'Coccinelle.ai <support@coccinelle.ai>',
+          to: [clientEmail],
+          reply_to: SUPPORT_EMAIL,
+          subject: `[Ticket #${numero}] ${subject} - Confirmation`,
           html: `
-            <h2>Votre ticket a bien ete cree</h2>
-            <p><strong>Sujet :</strong> ${subject}</p>
-            <p><strong>Categorie :</strong> ${category || 'general'}</p>
-            <p><strong>Priorite :</strong> ${priority || 'normal'}</p>
-            <p>Nous reviendrons vers vous dans les meilleurs delais.</p>
-            <p>— L'equipe Coccinelle.AI</p>
-          `
+            <h2>Votre demande est bien arrivee</h2>
+            <p><strong>Sujet :</strong> ${echapper(subject)}</p>
+            <p><strong>Categorie :</strong> ${echapper(category || 'general')}</p>
+            <p>Nous revenons vers vous des que possible. Vous pouvez repondre
+               directement a cet e-mail pour completer votre demande.</p>
+            <p>— L'equipe Coccinelle.ai</p>
+          `,
         }),
       });
-      logger.info('Support ticket email sent', { ticketId, to: user.email || tenant.email });
-    } catch (emailError) {
-      logger.error('Failed to send support ticket email', { error: emailError.message, ticketId });
+      logger.info('Support ticket confirmation sent', { ticketId, to: clientEmail });
+    } catch (e) {
+      // L'accuse est un confort ; son echec ne merite pas le meme niveau que
+      // le precedent, ou c'est la demande elle-meme qui se perd.
+      logger.warn('Support ticket confirmation failed', { ticketId, error: e.message });
     }
   } else {
-    logger.info('Support ticket created (no RESEND_API_KEY, email skipped)', { ticketId });
+    // WARN et non INFO : sans cle, le ticket est en base et PERSONNE ne le
+    // sait. Un ticket perdu en silence est pire qu'une erreur visible.
+    logger.warn('RESEND_API_KEY absente — ticket enregistre mais AUCUN e-mail envoye, personne n\'est prevenu', {
+      ticketId, tenant: tenant.id, subject,
+    });
   }
 
   return Response.json({
