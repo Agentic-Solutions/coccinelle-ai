@@ -19,6 +19,11 @@ export async function handleChannelsRoutes(request, env, path, method) {
       return await listChannels(env, tenantId);
     }
 
+    // GET /api/v1/channels/etat - Ce qui MARCHE, pas ce qui est coché
+    if (path === '/api/v1/channels/etat' && method === 'GET') {
+      return await etatDesCanaux(env, tenantId);
+    }
+
     // GET /api/v1/channels/:type - Récupère la config d'un canal
     const channelMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email)$/);
     if (channelMatch && method === 'GET') {
@@ -129,6 +134,81 @@ export async function handleChannelsRoutes(request, env, path, method) {
 }
 
 // Liste tous les canaux avec leur statut
+/**
+ * Etat REEL des canaux — un canal est actif s'il marche, pas s'il est coche.
+ *
+ * POURQUOI CETTE ROUTE EXISTE
+ * `listChannels()` (juste en dessous) lit `channel_configurations.enabled`.
+ * Cette table contient deux lignes dans toute la base, les deux a `enabled=0` :
+ * elle affichait donc « 0 canal actif » aux sept tenants, y compris a un garage
+ * qui avait recu dix appels. Rien, dans le chemin qui fait marcher le produit,
+ * ne l'ecrit — ni le signup, ni l'onboarding, ni la provision d'un numero — et
+ * rien ne la relit : ni `resolve-phone`, ni l'agent vocal, ni `sms-envoi.js`.
+ *
+ * Remplir cette table au signup n'aurait fait que deplacer le mensonge d'un
+ * cran, en inscrivant une intention la ou on veut constater un fait. On calcule
+ * donc depuis les preuves de fonctionnement, chacune propre a son canal.
+ *
+ * `listChannels()` reste en place et inchangee : les pages `channels/*` s'en
+ * servent pour editer une configuration. Ici on ne repond qu'a une question,
+ * « est-ce que ca marche ».
+ */
+async function etatDesCanaux(env, tenantId) {
+  // Telephone — deux chemins d'arrivee, tous deux legitimes :
+  //   1. un numero routé vers ce tenant (`omni_phone_mappings`, channel_type
+  //      'voice', actif) — le cas d'un client qui a son propre numero ;
+  //   2. un utilisateur au numero verifie — la branche « numero d'essai » de
+  //      `resolve-phone`, ou l'appelant est reconnu a SON numero. C'est le cas
+  //      de la plupart des inscrits, qui n'ont pas encore de ligne provisionnee
+  //      (bundle Regulation FR requis).
+  // La condition 2 est exactement celle que `resolve-phone` applique deja.
+  const tel = await env.DB.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM omni_phone_mappings
+        WHERE tenant_id = ? AND channel_type = 'voice' AND is_active = 1) AS mappings,
+      (SELECT COUNT(*) FROM users
+        WHERE tenant_id = ? AND phone_verified = 1) AS verifies
+  `).bind(tenantId, tenantId).first();
+
+  // E-mail — le seul canal qui ait un vrai etat par tenant : un jeton OAuth.
+  // Les trois tables sont interrogees separement plutot qu'en UNION : une table
+  // absente sur un environnement ne doit pas emporter la reponse entiere.
+  let email = false;
+  for (const table of ['oauth_google_tokens', 'oauth_outlook_tokens', 'oauth_yahoo_tokens']) {
+    try {
+      const r = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM ${table} WHERE tenant_id = ?`
+      ).bind(tenantId).first();
+      if ((r?.n || 0) > 0) { email = true; break; }
+    } catch (e) {
+      logger.warn('Table de jetons e-mail illisible', { table, error: e.message });
+    }
+  }
+
+  const canaux = [
+    {
+      type: 'phone',
+      actif: (tel?.mappings || 0) > 0 || (tel?.verifies || 0) > 0,
+      pourquoi: (tel?.mappings || 0) > 0 ? 'numero_dedie' : ((tel?.verifies || 0) > 0 ? 'numero_essai' : 'aucun_numero'),
+    },
+    // SMS — capacite plateforme. L'envoi part de `env.TWILIO_PHONE_NUMBER`,
+    // identique pour tous les tenants : il n'existe AUCUN reglage par tenant.
+    // Le presenter comme desactivable serait un troisieme mensonge.
+    { type: 'sms', actif: true, pourquoi: 'plateforme' },
+    { type: 'email', actif: email, pourquoi: email ? 'boite_reliee' : 'aucune_boite' },
+    // WhatsApp — gele depuis le lot 0 (cf. WHATSAPP_V2_PLAN.md). `bientot` et
+    // non `actif: false` : le front doit dire « bientot disponible » et non
+    // afficher une pastille d'alerte — il n'est pas en panne, il n'est pas
+    // ouvert.
+    { type: 'whatsapp', actif: false, bientot: true, pourquoi: 'gele' },
+  ];
+
+  return successResponse({
+    canaux,
+    actifs: canaux.filter((c) => c.actif).length,
+  });
+}
+
 async function listChannels(env, tenantId) {
   const channelTypes = ['phone', 'sms', 'email', 'whatsapp'];
 

@@ -22,7 +22,7 @@ import { CX2, LIEN_POLICES, POLICE_MONO, POLICE_TEXTE, STYLE_CARTE, STYLE_VALEUR
 import PanneauAccordeon from '@/components/cx2/PanneauAccordeon';
 import OngletsAssistant from '@/components/cx2/OngletsAssistant';
 import {
-  chargerCanaux, chargerConfigAssistant, ecouterVoix, enregistrerConfigAssistant,
+  chargerEtatCanaux, chargerConfigAssistant, ecouterVoix, enregistrerConfigAssistant,
   type Canal, type ConfigAssistant,
 } from '@/lib/cx2-api';
 
@@ -134,7 +134,7 @@ export default function PageAssistant() {
         setHorsHoraires(c.after_hours_behavior === 'horaires' ? 'horaires' : 'message');
         setHoraires(c.horaires as Horaires);
       } catch (e) { setMessage((e as Error).message); }
-      try { setCanaux((await chargerCanaux()).channels); } catch { /* pastilles absentes, page utilisable */ }
+      try { setCanaux((await chargerEtatCanaux()).canaux); } catch { /* pastilles absentes, page utilisable */ }
     })();
     return () => { audio.current?.pause(); };
   }, []);
@@ -529,7 +529,7 @@ export default function PageAssistant() {
 
             <PanneauAccordeon
               titre="Mes canaux"
-              resume={`${canaux.filter((c) => c.enabled).length} canal${canaux.filter((c) => c.enabled).length > 1 ? 'ux' : ''} actif${canaux.filter((c) => c.enabled).length > 1 ? 's' : ''}`}
+              resume={resumeCanaux(canaux)}
               ouvert={ouvert === 'canaux'}
               onBasculer={() => setOuvert(ouvert === 'canaux' ? null : 'canaux')}
             >
@@ -538,13 +538,21 @@ export default function PageAssistant() {
                   <span key={c.type} style={{
                     display: 'flex', alignItems: 'center', gap: '7px',
                     border: `1px solid ${CX2.bordureFine}`, borderRadius: 999,
-                    padding: '6px 12px', fontSize: '12.5px', color: CX2.encreSurvol,
+                    padding: '6px 12px', fontSize: '12.5px',
+                    color: c.bientot ? CX2.texteDiscret : CX2.encreSurvol,
                   }}>
-                    <span style={{
-                      width: 7, height: 7, borderRadius: 999, display: 'block',
-                      background: c.enabled ? CX2.vert : CX2.orange,
-                    }} />
+                    {/* Gelé : aucun point. Un point orange dit « en panne », or
+                        WhatsApp n'est pas en panne — il n'est pas ouvert. */}
+                    {!c.bientot && (
+                      <span style={{
+                        width: 7, height: 7, borderRadius: 999, display: 'block',
+                        background: c.actif ? CX2.vert : CX2.orange,
+                      }} />
+                    )}
                     {NOM_CANAL[c.type] || c.type}
+                    {c.bientot && (
+                      <span style={{ fontSize: '11.5px', color: CX2.texteDiscret }}>· bientôt</span>
+                    )}
                   </span>
                 ))}
               </div>
@@ -606,8 +614,18 @@ export default function PageAssistant() {
 }
 
 const NOM_CANAL: Record<string, string> = {
-  phone: 'Téléphone', sms: 'SMS', email: 'Email', whatsapp: 'WhatsApp',
+  phone: 'Téléphone', sms: 'SMS', email: 'E-mail', whatsapp: 'WhatsApp',
 };
+
+/**
+ * « 2 canaux actifs » — au singulier quand il n'y en a qu'un, et sans compter
+ * WhatsApp, qui est annoncé « bientôt » et non désactivé.
+ */
+function resumeCanaux(canaux: Canal[]): string {
+  const n = canaux.filter((c) => c.actif).length;
+  if (n === 0) return 'Aucun canal actif';
+  return n === 1 ? '1 canal actif' : `${n} canaux actifs`;
+}
 
 function majuscule(t: string) {
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;

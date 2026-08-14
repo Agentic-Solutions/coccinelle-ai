@@ -198,12 +198,27 @@ export interface ConfigAssistant {
 
 export interface Canal {
   type: 'phone' | 'sms' | 'email' | 'whatsapp' | string;
-  enabled: boolean;
-  configured: boolean;
+  /** Le canal FONCTIONNE — constaté, jamais déclaré. */
+  actif: boolean;
+  /** Gelé et annoncé comme tel : ni actif, ni en panne. */
+  bientot?: boolean;
+  /** `numero_dedie` · `numero_essai` · `plateforme` · `boite_reliee` · … */
+  pourquoi?: string;
 }
 
-export async function chargerCanaux() {
-  return lire<{ channels: Canal[] }>('/api/v1/channels');
+/**
+ * État réel des canaux.
+ *
+ * L'ancienne route `/api/v1/channels` lit `channel_configurations.enabled` —
+ * une table à deux lignes dans toute la base, les deux à zéro, que rien dans le
+ * chemin fonctionnel n'écrit ni ne relit. Elle affichait « 0 canal actif » à un
+ * garage qui avait reçu dix appels. `/etat` constate au lieu de déclarer.
+ *
+ * `/api/v1/channels` reste utilisée par les pages `channels/*`, qui éditent une
+ * configuration : ce n'est pas la même question.
+ */
+export async function chargerEtatCanaux() {
+  return lire<{ canaux: Canal[]; actifs: number }>('/api/v1/channels/etat');
 }
 
 /**
