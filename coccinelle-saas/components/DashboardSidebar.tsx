@@ -1,23 +1,28 @@
 'use client';
 
+/**
+ * Barre latérale du dashboard — chantier NAVIGATION (14/08/2026).
+ *
+ * Trois entrées, un pied à trois lignes, rien d'autre. Ce qui a disparu et
+ * pourquoi :
+ *
+ *   - le bouton « Nouvel appel » : l'appel sortant n'existe pas dans le
+ *     produit. Le bouton lançait /voixia/orchestrate avec une action que
+ *     l'orchestrateur ne connaît pas, sur un numéro écrit en dur ;
+ *   - la bascule Simple/Avancé : une seule navigation pour tous désormais ;
+ *   - les 6 groupes accordéon : leurs 24 entrées sont rangées dans les trois
+ *     destinations, ou atteignables par la recherche de Réglages ;
+ *   - le repli en colonne étroite (68 px) : il n'avait plus d'objet avec trois
+ *     entrées, et coûtait un état de plus.
+ *
+ * La pastille d'essai descend EN BAS, au-dessus du pied — elle était en haut.
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  Settings, LogOut, Menu, X, PhoneCall,
-  ChevronLeft, ChevronRight, ChevronDown, CreditCard,
-  SlidersHorizontal
-} from 'lucide-react';
-import CoccinelleIcon from '@/components/CoccinelleIcon';
-import {
-  ADVANCED_NAV as navigation,
-  SIMPLE_NAV,
-  isActive,
-  getActiveGroupLabel,
-} from '@/lib/navigation';
-import { useUiMode, clearUiModeHint } from '@/hooks/useUiMode';
-
-// ── Composant ────────────────────────────────────────
+import { LogOut, Menu, X } from 'lucide-react';
+import { NAV, NAV_PIED, entreeActive } from '@/lib/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -32,386 +37,181 @@ const PLAN_LABELS: Record<string, string> = {
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { mode, toggle: toggleUiMode } = useUiMode();
-  const simple = mode === 'simple';
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [subPlan, setSubPlan] = useState<string | null>(null);
-  const [subStatus, setSubStatus] = useState<string | null>(null);
-  const [trialDays, setTrialDays] = useState<number | null>(null);
-  const [urgentTasks, setUrgentTasks] = useState(0);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [statut, setStatut] = useState<string | null>(null);
+  const [joursEssai, setJoursEssai] = useState<number | null>(null);
+
+  const active = entreeActive(pathname);
 
   useEffect(() => {
     const token = typeof window !== 'undefined'
       ? localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
       : null;
     if (!token) return;
-    const headers = { Authorization: `Bearer ${token}` };
-    fetch(`${API_URL}/api/v1/billing/subscription`, { headers })
-      .then(r => r.json())
-      .then(data => {
+    fetch(`${API_URL}/api/v1/billing/subscription`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
         if (data.success && data.subscription) {
-          setSubPlan(data.subscription.plan);
-          setSubStatus(data.subscription.status);
-          setTrialDays(data.subscription.trial_days_remaining);
+          setPlan(data.subscription.plan);
+          setStatut(data.subscription.status);
+          setJoursEssai(data.subscription.trial_days_remaining);
         } else {
-          setSubPlan('trial');
-          setSubStatus('trialing');
-        }
-      })
-      .catch(() => {});
-    fetch(`${API_URL}/api/v1/tasks/stats`, { headers })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.stats) {
-          setUrgentTasks(data.stats.urgent || 0);
+          setPlan('trial');
+          setStatut('trialing');
         }
       })
       .catch(() => {});
   }, []);
 
-  // Accordéons : un Set de labels ouverts
-  const activeGroupLabel = getActiveGroupLabel(pathname);
-  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
-    return activeGroupLabel ? new Set([activeGroupLabel]) : new Set<string>();
-  });
-
-  // Auto-ouvrir le groupe actif quand la route change
-  useEffect(() => {
-    const label = getActiveGroupLabel(pathname);
-    if (label) {
-      setOpenGroups((prev) => {
-        const next = new Set(prev);
-        next.add(label);
-        return next;
-      });
-    }
-  }, [pathname]);
-
-  // Fermer le mobile à chaque changement de route
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  // Bloquer le scroll sur mobile quand ouvert
-  useEffect(() => {
-    document.body.style.overflow = mobileOpen ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [mobileOpen]);
-
-  const toggleGroup = useCallback((label: string) => {
-    setOpenGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) {
-        next.delete(label);
-      } else {
-        next.add(label);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleLogout = useCallback(async () => {
+  const deconnexion = useCallback(async () => {
     try {
       const token = localStorage.getItem('auth_token');
       if (token) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/logout`, {
+        await fetch(`${API_URL}/api/v1/auth/logout`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         });
       }
     } catch {
-      // Déconnexion même si l'API échoue
+      // On déconnecte même si l'API ne répond pas : rester connecté malgré un
+      // clic sur « Déconnexion » serait pire qu'une session orpheline côté serveur.
     }
     localStorage.removeItem('auth_token');
-    // L'indice d'affichage ne doit pas fuiter d'un compte à l'autre.
-    clearUiModeHint();
     router.push('/login');
   }, [router]);
 
-  // ── Contenu sidebar ──
+  const contenu = (
+    <>
+      {/* Marque */}
+      <div className="flex items-center gap-[11px] px-5 pt-[22px] pb-[18px]">
+        <span className="w-[30px] h-[30px] rounded-[9px] bg-[#1a1a19] block flex-shrink-0" />
+        <span className="text-[16px] font-semibold tracking-[-0.01em] text-[#1a1a19]">
+          Coccinelle.ai
+        </span>
+      </div>
 
-  function renderContent() {
-    return (
-      <div className="flex flex-col h-full">
-        {/* En-tête logo */}
-        <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-200">
-          <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center flex-shrink-0">
-            <CoccinelleIcon size={18} color="white" />
-          </div>
-          {!collapsed && (
-            <span className="text-lg font-bold text-gray-900 whitespace-nowrap">
-              Coccinelle.ai
-            </span>
-          )}
-        </div>
+      {/* Les trois destinations */}
+      <nav className="flex-1 px-3 flex flex-col gap-[3px]">
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const actif = active === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileOpen(false)}
+              aria-current={actif ? 'page' : undefined}
+              className={`flex items-center gap-[11px] px-3 py-[10px] rounded-[9px] text-[15px] font-medium whitespace-nowrap transition-colors ${
+                actif
+                  ? 'bg-[#f2f2ee] text-[#1a1a19]'
+                  : 'text-[#6b6b66] hover:bg-[#fafaf9] hover:text-[#1a1a19]'
+              }`}
+            >
+              <Icon
+                className="w-[18px] h-[18px] flex-shrink-0"
+                strokeWidth={1.7}
+                color={actif ? '#1a1a19' : '#a3a39c'}
+              />
+              {item.name}
+            </Link>
+          );
+        })}
+      </nav>
 
-        {/* Bouton nouvel appel */}
-        <div className="px-3 py-3">
-          {collapsed ? (
-            <button className="w-full flex items-center justify-center py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">
-              <PhoneCall className="w-5 h-5" />
-            </button>
-          ) : (
-            <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
-              <PhoneCall className="w-4 h-4" />
-              Nouvel appel
-            </button>
-          )}
-        </div>
-
-        {/* Badge abonnement */}
-        {subPlan && !collapsed && (
-          <Link
-            href="/dashboard/billing"
-            className="mx-3 mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-          >
-            <CreditCard className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <span className="text-xs font-medium text-gray-700">
-                {PLAN_LABELS[subPlan] || subPlan}
-              </span>
-              {subStatus === 'trialing' && trialDays !== null && trialDays > 0 && (
-                <span className="ml-1.5 text-xs text-gray-400">{trialDays}j</span>
-              )}
-              {subStatus === 'trialing' && (trialDays === null || trialDays <= 0) && (
-                <span className="ml-1.5 text-xs text-gray-400">expire</span>
-              )}
-            </div>
-            {subStatus === 'active' && (
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-            )}
-            {subStatus === 'trialing' && (
-              <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 flex-shrink-0" />
-            )}
-            {(subStatus === 'past_due' || subStatus === 'canceled') && (
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
-            )}
-          </Link>
-        )}
-        {subPlan && collapsed && (
-          <Link
-            href="/dashboard/billing"
-            title={`${PLAN_LABELS[subPlan] || subPlan}${subStatus === 'trialing' && trialDays ? ` — ${trialDays}j` : ''}`}
-            className="mx-3 mb-2 flex items-center justify-center py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-          >
-            <CreditCard className="w-4 h-4 text-gray-400" />
-          </Link>
-        )}
-
-        {/* Navigation — mode Simple : liste plate, sans accordéon */}
-        {simple ? (
-          <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
-            {SIMPLE_NAV.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={collapsed ? item.name : undefined}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    active
-                      ? 'bg-gray-100 text-gray-900 font-medium'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  } ${collapsed ? 'justify-center px-0' : ''}`}
-                >
-                  <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${
-                    active ? 'text-gray-900' : 'text-gray-400'
-                  }`} />
-                  {!collapsed && <span>{item.name}</span>}
-                </Link>
-              );
-            })}
-          </nav>
-        ) : (
-        /* Navigation avec accordéons */
-        <nav className="flex-1 overflow-y-auto px-3 pb-3">
-          {navigation.map((group) => {
-            const isOpen = openGroups.has(group.label);
-            const hasActiveItem = group.items.some((item) => isActive(pathname, item.href));
-
-            return (
-              <div key={group.label} className="mb-1">
-                {/* Label groupe cliquable */}
-                {!collapsed ? (
-                  <button
-                    onClick={() => toggleGroup(group.label)}
-                    className={`flex items-center justify-between w-full px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                      hasActiveItem
-                        ? 'hover:bg-gray-100'
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className={`text-xs font-semibold uppercase tracking-wider ${
-                      hasActiveItem ? 'text-gray-600' : 'text-gray-400'
-                    }`}>
-                      {group.label}
-                    </span>
-                    <ChevronDown
-                      className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${
-                        isOpen ? '' : '-rotate-90'
-                      }`}
-                    />
-                  </button>
-                ) : (
-                  <div className="w-6 mx-auto border-t border-gray-200 my-2" />
-                )}
-
-                {/* Items du groupe (avec animation) */}
-                <div
-                  className={`space-y-0.5 overflow-hidden transition-all duration-200 ease-in-out ${
-                    collapsed || isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-                  }`}
-                >
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = isActive(pathname, item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        title={collapsed ? item.name : undefined}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                          active
-                            ? 'bg-gray-100 text-gray-900 font-medium'
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                        } ${collapsed ? 'justify-center px-0' : ''}`}
-                      >
-                        <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${
-                          active ? 'text-gray-900' : 'text-gray-400'
-                        }`} />
-                        {!collapsed && (
-                          <>
-                            <span>{item.name}</span>
-                            {item.name === 'WhatsApp' && (
-                              <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full ml-auto leading-none">
-                                Bientot
-                              </span>
-                            )}
-                            {item.name === 'Tâches' && urgentTasks > 0 && (
-                              <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full ml-auto leading-none font-medium min-w-[18px] text-center">
-                                {urgentTasks}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </nav>
-        )}
-
-        {/* Bascule affichage simplifié / complet */}
-        <div className="border-t border-gray-200 px-3 py-2">
-          <button
-            onClick={toggleUiMode}
-            title={collapsed ? (simple ? 'Affichage avancé' : 'Affichage simplifié') : undefined}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm w-full text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors ${
-              collapsed ? 'justify-center px-0' : ''
-            }`}
-          >
-            <SlidersHorizontal className="w-[18px] h-[18px] flex-shrink-0 text-gray-400" />
-            {!collapsed && (
-              <span>{simple ? 'Affichage avancé' : 'Affichage simplifié'}</span>
-            )}
-          </button>
-        </div>
-
-        {/* Bas de sidebar */}
-        <div className="border-t border-gray-200 px-3 py-3 space-y-0.5">
+      {/* Essai — en bas, au-dessus du pied */}
+      {plan && (
+        <div className="px-4 pt-[14px] pb-3 border-t border-[#f2f2ee]">
           <Link
             href="/dashboard/settings"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              isActive(pathname, '/dashboard/settings')
-                ? 'bg-gray-100 text-gray-900 font-medium'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            } ${collapsed ? 'justify-center px-0' : ''}`}
-            title={collapsed ? 'Paramètres' : undefined}
+            className="flex items-center justify-between gap-[10px] border border-[#ebebe7] rounded-full px-[13px] py-[7px] hover:border-[#dcdbd6] transition-colors"
           >
-            <Settings className={`w-[18px] h-[18px] flex-shrink-0 ${
-              isActive(pathname, '/dashboard/settings') ? 'text-gray-900' : 'text-gray-400'
-            }`} />
-            {!collapsed && <span>Paramètres</span>}
-          </Link>
-          <button
-            onClick={handleLogout}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors w-full text-gray-600 hover:bg-gray-50 hover:text-gray-900 ${
-              collapsed ? 'justify-center px-0' : ''
-            }`}
-            title={collapsed ? 'Déconnexion' : undefined}
-          >
-            <LogOut className="w-[18px] h-[18px] flex-shrink-0 text-gray-400" />
-            {!collapsed && <span>Déconnexion</span>}
-          </button>
-        </div>
-
-        {/* Bouton collapse (desktop uniquement) */}
-        <div className="hidden lg:flex border-t border-gray-200 px-3 py-2">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center justify-center w-full py-1.5 rounded-lg text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors"
-          >
-            {collapsed ? (
-              <ChevronRight className="w-4 h-4" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
+            <span className="text-[12.5px] text-[#6b6b66]">
+              {PLAN_LABELS[plan] || plan}
+            </span>
+            {statut === 'trialing' && joursEssai !== null && joursEssai > 0 && (
+              <span className="text-[12.5px] font-medium font-mono text-[#1a1a19]">
+                {joursEssai} j
+              </span>
             )}
-          </button>
+          </Link>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // ── Rendu principal ──
+      {/* Pied : Réglages · Aide · Déconnexion */}
+      <div className="px-3 pt-0.5 pb-[18px] flex flex-col gap-0.5">
+        {NAV_PIED.map((item) => {
+          const Icon = item.icon;
+          const actif = active === null && pathname.replace(/\/$/, '') === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-[11px] px-3 py-[10px] rounded-[9px] text-[14px] whitespace-nowrap transition-colors ${
+                actif
+                  ? 'bg-[#f2f2ee] text-[#1a1a19] font-medium'
+                  : 'text-[#6b6b66] hover:bg-[#fafaf9] hover:text-[#1a1a19]'
+              }`}
+            >
+              <Icon
+                className="w-[18px] h-[18px] flex-shrink-0"
+                strokeWidth={1.7}
+                color={actif ? '#1a1a19' : '#a3a39c'}
+              />
+              {item.name}
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={deconnexion}
+          className="flex items-center gap-[11px] px-3 py-[10px] rounded-[9px] text-[14px] text-[#6b6b66] hover:bg-[#fafaf9] hover:text-[#1a1a19] transition-colors w-full text-left"
+        >
+          <LogOut className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.7} color="#a3a39c" />
+          Déconnexion
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <>
-      {/* Bouton hamburger mobile */}
+      {/* Ouverture mobile */}
       <button
+        type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-50 p-2 bg-white border border-gray-200 rounded-lg shadow-sm lg:hidden"
+        className="lg:hidden fixed top-3 left-3 z-40 p-2 bg-white border border-[#e2e2de] rounded-lg"
         aria-label="Ouvrir le menu"
       >
-        <Menu className="w-6 h-6 text-gray-700" />
+        <Menu className="w-5 h-5 text-[#3a3a37]" />
       </button>
 
-      {/* Overlay mobile */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="lg:hidden fixed inset-0 bg-black/30 z-40"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar mobile */}
       <aside
-        className={`fixed inset-y-0 left-0 w-[260px] bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-[#e2e2de] flex flex-col transition-transform duration-200 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Bouton fermer mobile */}
         <button
+          type="button"
           onClick={() => setMobileOpen(false)}
-          className="absolute top-3 right-3 p-1.5 hover:bg-gray-100 rounded-lg z-10"
+          className="absolute top-3 right-3 p-1.5 hover:bg-[#f2f2ee] rounded-lg z-10"
           aria-label="Fermer"
         >
-          <X className="w-5 h-5 text-gray-500" />
+          <X className="w-5 h-5 text-[#6b6b66]" />
         </button>
-        {renderContent()}
+        {contenu}
       </aside>
 
-      {/* Sidebar desktop */}
-      <aside
-        className={`hidden lg:flex flex-col flex-shrink-0 bg-white border-r border-gray-200 h-full transition-all duration-300 ${
-          collapsed ? 'w-[68px]' : 'w-[260px]'
-        }`}
-      >
-        {renderContent()}
+      <aside className="hidden lg:flex flex-col flex-shrink-0 w-64 bg-white border-r border-[#e2e2de] h-full">
+        {contenu}
       </aside>
     </>
   );
