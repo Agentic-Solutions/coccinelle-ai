@@ -619,3 +619,101 @@ le met en pratique. **Ce n'est pas un confort, c'est une dette de sécurité.**
 Remplacement : une route authentifiée par en-tête qui rend un jeton à usage
 unique et de courte durée (60 s), le `authorize` n'acceptant plus que celui-là.
 Passe devant les entrées 1 à 5 des sections 10 et 12.
+
+---
+
+## 15. Chantier NAVIGATION 4 (14/08/2026)
+
+### 15.1 — Le canal e-mail : deux états, pas un interrupteur
+
+La page affichait « Inactif » et proposait « Activer ». Testé en production :
+
+```
+POST /api/v1/channels/email/enable
+→ 400 {"error":"Canal non configuré. Veuillez d'abord configurer le canal."}
+```
+
+`enableChannel` exige une ligne `channel_configurations` avec `configured = 1`.
+**Cinq tenants sur sept n'en ont aucune.** Et le frontend ne testait que
+`res.ok`, sans `else` : le client cliquait, rien ne bougeait, **aucun message**
+n'apparaissait. Ce n'était donc pas « un bouton qui ne change rien de réel »,
+c'était un bouton qui échoue sans le dire.
+
+Pendant ce temps `resend_configured: true` — **l'envoi fonctionnait**. La page
+annonçait « Inactif » sur un canal qui marche.
+
+Un badge unique ne pouvait pas dire la vérité, parce que les deux sens ne
+s'activent pas de la même façon :
+
+| Sens | Dépend de | Portée |
+|---|---|---|
+| Envoi | clé Resend | plateforme |
+| Réception | jeton OAuth (`/channels/etat`) | par tenant |
+
+Deux lignes d'état, aucun interrupteur — il n'y a rien à basculer. La réception
+s'active en reliant une boîte, ce que fait le bouton Gmail livré au chantier 3.
+Les routes `enable`/`disable` restent : d'autres pages `channels/*` s'en servent.
+
+### 15.2 — La page calendrier était une maquette, entièrement
+
+`CalendarIntegration` (504 lignes) ne faisait **aucun appel réseau** — ni
+`fetch`, ni `buildApiUrl`. Son contenu vivait dans son état initial :
+`manager@entreprise.com`, `eventsCount: 42`, `lastSync` calculé à « il y a
+15 min », et deux événements d'agence immobilière (« Visite appartement 3
+pièces ») affichés à un garage.
+
+Les boutons simulaient : `handleConnect` portait le commentaire
+`// Simulate OAuth flow` et ajoutait une ligne après un `setTimeout` ;
+« Déconnecter » retirait une ligne en mémoire, et `manager@entreprise.com`
+revenait au rechargement.
+
+**Le danger n'était pas cosmétique** : un client qui croit son agenda
+synchronisé cesse de vérifier ses créneaux, et laisse l'assistant poser des
+rendez-vous sur des heures où il est déjà pris.
+
+Côté serveur, rien à brancher : aucune route `calendar`, et les trois tables
+(`calendar_blocks`, `integration_sync_logs`, `integration_sync_queue`) sont
+vides — `calendar_blocks` n'est écrite par aucune ligne de code.
+
+La page reste (elle est liée depuis `/dashboard/rdv`) et dit désormais la
+vérité, en renvoyant vers `Disponibilités` qui, elle, fonctionne. Composant
+supprimé. **`tsc` passe de 142 à 141** : une erreur de la baseline vivait dans
+ce fichier.
+
+### 15.3 — Le glisser-déposer fonctionnait : c'est la promesse qui était trop large
+
+Vérifié en navigateur : déposer `tarifs.csv` colle bien son contenu dans le
+champ ; déposer un `.pdf` est refusé. Le dépôt lit le fichier **côté navigateur**
+(`f.text()`) — aucun réseau, donc ni le 501 de `/documents/upload` ni le blocage
+multipart n'entrent en jeu.
+
+La limite est le **format**, pas le transport. Le placeholder disait « glissez un
+fichier » sans dire lequel, et le refus se contentait d'énoncer une liste
+d'extensions. Désormais le placeholder nomme `.txt` et `.csv`, et le refus d'un
+PDF donne la marche à suivre : ouvrir, copier, coller.
+
+---
+
+## 16. Backlog — ordre arrêté le 14/08/2026
+
+1. 🔴 **Jeton OAuth court à usage unique** (0,5 j) — cf. § 14. Un JWT de 30 jours
+   part aujourd'hui dans l'URL, l'historique et le `Referer` vers Google.
+2. **Synchronisation calendrier réelle** (5–7 j). C'est la brique qui a le plus
+   de valeur métier : sans elle, l'agent vocal peut poser un rendez-vous sur un
+   créneau déjà occupé. Elle suppose : le scope `calendar` ajouté à l'OAuth
+   Google (**reconsentement obligatoire** — le jeton actuel ne couvre que
+   Gmail), la lecture des événements, l'écriture des RDV vers Google,
+   l'alimentation de `calendar_blocks`, le croisement avec `check_availability`
+   de l'agent vocal, et un cron de synchronisation (le seul cron déclaré
+   aujourd'hui est le rappel J-1).
+3. **Upload et lecture de PDF** (3–4 j). ⚠️ **Exigence UE : aucun service hors
+   Europe pour l'extraction de texte.** Cela exclut les API d'extraction
+   américaines et impose une bibliothèque WASM exécutée dans le Worker, ou un
+   traitement sur le serveur Hetzner. Le transport est déjà résolu par ailleurs
+   (corps JSON base64, comme `compliance/documents`) ; c'est l'extraction qui
+   porte le coût.
+4. Rappel J-1 paramétrable par tenant — cf. § 10.
+5. Récapitulatif hebdomadaire envoyé, ou promesse retirée — cf. § 10.
+6. Les quatre `notification_preferences`, lues ou masquées — cf. § 10.
+7. Vraie vue agenda… **livrée au chantier 3**, cette entrée est close.
+8. `channel_configurations` — lue, ou supprimée avec ses écrans. cf. § 12.
