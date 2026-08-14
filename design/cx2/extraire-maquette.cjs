@@ -4,7 +4,7 @@
 // depuis deux blocs <script>. Le rendu approximatif du fichier brut ne fait donc
 // PAS foi — c'est le template qui décrit la maquette, au caractère près.
 //
-//   node design/cx2/extraire-maquette.js design/cx2/mon-assistant.html /tmp/sortie.html
+//   node design/cx2/extraire-maquette.cjs design/cx2/mon-assistant.html /tmp/sortie.html
 //
 // Sortie : le template <x-dc> + la classe DCLogic (états, styles, libellés),
 // mis en forme une balise par ligne pour être relisible.

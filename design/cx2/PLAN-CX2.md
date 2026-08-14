@@ -6,7 +6,7 @@
 
 Les maquettes sont des pages « bundled » : le contenu réel n'est pas dans le HTML
 lisible mais dans le `<script type="__bundler/template">`. Extraction :
-`design/cx2/extraire-maquette.js` (versionné avec le chantier), qui régénère
+`design/cx2/extraire-maquette.cjs` (versionné avec le chantier), qui régénère
 `mon-assistant.tpl.html` et `ce-que-sait.tpl.html`. **C'est ce template qui fait foi**,
 pas le rendu approximatif du fichier brut.
 
@@ -475,7 +475,7 @@ l'appliquer (`PRAGMA table_info` + comptages).
 | `components/cx2/cartes/{Ajouter,Informations,Historique}.tsx` | colonne droite p. 2 |
 | `hooks/useAssistantConfig.ts`, `hooks/useSavoir.ts` | chargement + écriture |
 | `lib/navigation.ts` | `SIMPLE_NAV` recâblé (lot D) |
-| `design/cx2/extraire-maquette.js` | outil d'extraction des templates |
+| `design/cx2/extraire-maquette.cjs` | outil d'extraction des templates |
 
 ---
 

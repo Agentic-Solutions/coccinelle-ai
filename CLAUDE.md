@@ -1311,7 +1311,7 @@ node design/cx2/serveur-recette.mjs      # puis http://localhost:3000/_session
 
 ⚠️ Les maquettes de `design/cx2/` sont des pages « bundled » : leur contenu vit dans un
 `<script type="__bundler/template">`, pas dans le HTML lisible. Utiliser
-`design/cx2/extraire-maquette.js` — le rendu du fichier brut ne fait pas foi.
+`design/cx2/extraire-maquette.cjs` — le rendu du fichier brut ne fait pas foi.
 
 ### Migration 0084 (additive, appliquée le 12/08)
 
