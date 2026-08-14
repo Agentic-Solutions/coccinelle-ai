@@ -87,6 +87,15 @@ interface SubInfo {
   trial_days_remaining: number | null;
 }
 
+/** « mardi 13 août » — le jour, en toutes lettres, sans bibliothèque. */
+function dateDuJour(): string {
+  const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const d = new Date();
+  return `${jours[d.getDay()]} ${d.getDate()} ${mois[d.getMonth()]}`;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<CallStats | null>(null);
   const [calls, setCalls] = useState<Call[]>([]);
@@ -134,11 +143,25 @@ export default function DashboardPage() {
   const completedCalls = stats?.completed_calls || 0;
   const responseRate = totalCalls > 0 ? Math.round((completedCalls / totalCalls) * 100) : 0;
 
+  // Les trois blocs de la maquette. On ne garde plus « taux de reponse » ni
+  // « duree moyenne » en vedette : ce sont des indicateurs d'outil, pas des
+  // faits de la journee. Ils restent dans Analytics.
   const metrics = [
-    { label: "Appels aujourd'hui", value: String(totalCalls), icon: Phone },
-    { label: 'Appels entrants', value: String(inboundCalls), icon: PhoneIncoming },
-    { label: 'Duree moyenne', value: formatDuration(avgDuration), icon: Clock },
-    { label: 'Taux de reponse', value: `${responseRate}%`, icon: TrendingUp },
+    {
+      label: 'Appels reçus',
+      value: String(totalCalls),
+      note: inboundCalls > 0 ? `${inboundCalls} entrants` : 'aucun appel entrant',
+    },
+    {
+      label: 'Durée moyenne',
+      value: formatDuration(avgDuration),
+      note: `${completedCalls} appel${completedCalls > 1 ? 's' : ''} traité${completedCalls > 1 ? 's' : ''}`,
+    },
+    {
+      label: 'Taux de réponse',
+      value: `${responseRate}%`,
+      note: 'appels menés à leur terme',
+    },
   ];
 
   // La checklist ne dépend PAS du chargement des KPI : elle a son propre état
@@ -150,8 +173,10 @@ export default function DashboardPage() {
     return (
       <div className="p-6 space-y-6">
         <div className="pl-10 lg:pl-0">
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activite</p>
+          <h1 className="text-2xl font-bold text-gray-900">Mon activité</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Ce que votre assistant a fait aujourd&apos;hui, {dateDuJour()}
+          </p>
         </div>
         <SetupChecklist />
         <div className="flex items-center justify-center h-64">
@@ -165,8 +190,10 @@ export default function DashboardPage() {
     <div className="p-6 space-y-6">
       {/* Titre */}
       <div className="pl-10 lg:pl-0">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Vue d&apos;ensemble de votre activite</p>
+        <h1 className="text-2xl font-bold text-gray-900">Mon activité</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Ce que votre assistant a fait aujourd&apos;hui, {dateDuJour()}
+        </p>
       </div>
 
       {/* Checklist de demarrage — se masque seule une fois les 5 etapes faites */}
@@ -238,22 +265,21 @@ export default function DashboardPage() {
       )}
 
       {/* Metriques */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <div
-              key={metric.label}
-              className="bg-white border border-gray-200 rounded-xl p-5"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-gray-500">{metric.label}</p>
-                <Icon className="w-5 h-5 text-gray-400" />
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{metric.value}</p>
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        {metrics.map((metric) => (
+          <div
+            key={metric.label}
+            className="bg-white border border-[#e2e2de] rounded-[14px] px-[22px] py-5 flex flex-col gap-3.5"
+          >
+            <span className="flex items-baseline justify-between gap-3">
+              <span className="text-sm text-[#6b6b66]">{metric.label}</span>
+              <span className="text-[30px] font-semibold tracking-[-0.02em] font-mono text-[#1a1a19]">
+                {metric.value}
+              </span>
+            </span>
+            <span className="text-[12.5px] text-[#a3a39c]">{metric.note}</span>
+          </div>
+        ))}
       </div>
 
       {/* Appels recents */}
