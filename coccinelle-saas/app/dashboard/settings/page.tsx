@@ -1,996 +1,649 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import {
-  User, Building2, CreditCard, Bell,
-  Save, Loader2, Trash2, Eye, EyeOff,
-  ChevronDown, ExternalLink,
-} from 'lucide-react';
+/**
+ * « Réglages » — une seule page (chantier NAVIGATION, 14/08/2026).
+ *
+ * Remplace l'ancienne page à onglets. Trois principes tenus de la maquette :
+ *   1. tout est sur une page, sections déjà ouvertes ;
+ *   2. la VALEUR de chaque réglage est lisible sans cliquer — un réglage qu'il
+ *      faut ouvrir pour connaître est un réglage qu'on ne vérifie jamais ;
+ *   3. l'édition se fait en place, sans changer de page.
+ *
+ * La recherche indexe les réglages ET les pages : ~40 pages ne figurent plus
+ * dans aucun menu depuis le retrait du mode Avancé, et c'est ici qu'on les
+ * retrouve. C'est une exigence, pas un bonus.
+ *
+ * Les horaires et le transfert ne sont PAS ici : ils vivent dans « Mon
+ * assistant », là où on voit leur effet sur ce que l'assistant dit.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { SECTORS } from '@/lib/sectors';
-import { DEFAULT_HORAIRES, DAY_LABELS, HEURES, type Horaires } from '@/lib/horaires';
+import { ChevronRight, Loader2, Search } from 'lucide-react';
+import { buildApiUrl, getAuthHeaders } from '@/lib/config';
+import { CX2, LIEN_POLICES, POLICE_MONO, POLICE_TEXTE } from '@/components/cx2/theme';
+import {
+  PAGES_INDEXEES, plier,
+  type LigneReglage, type SectionReglages,
+} from '@/components/cx2/reglages/types';
+import BlocsArret from '@/components/cx2/reglages/BlocsArret';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
+const SECTEURS = [
+  'automobile', 'artisan', 'immobilier', 'syndic', 'sante', 'dentiste',
+  'restaurant', 'beaute', 'fitness', 'ecommerce', 'juridique', 'education',
+  'generaliste', 'autre',
+];
 
-// ── Types ──────────────────────────────────────────────────
+export default function PageReglages() {
+  const [chargement, setChargement] = useState(true);
+  const [recherche, setRecherche] = useState('');
+  const [enEdition, setEnEdition] = useState<string | null>(null);
+  const [brouillon, setBrouillon] = useState('');
+  /** Deuxième champ, utilisé par le seul réglage qui en demande deux. */
+  const [second, setSecond] = useState('');
+  const [enregistrement, setEnregistrement] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-interface AccountData {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  phone_verified: number;
-}
+  const [societe, setSociete] = useState<Record<string, string>>({});
+  const [compte, setCompte] = useState<Record<string, string>>({});
+  const [abo, setAbo] = useState<Record<string, string>>({});
+  const [equipe, setEquipe] = useState<number | null>(null);
 
-interface CompanyData {
-  name: string;
-  sector: string;
-  address: string;
-  phone: string;
-  email_pro: string;
-  horaires: Horaires | null;
-}
-
-interface NotificationPrefs {
-  email_after_call: number;
-  sms_reminder_j1: number;
-  weekly_summary: number;
-  quota_alerts: number;
-}
-
-interface UsageData {
-  minutes_used: number;
-  minutes_included: number;
-  sms_used: number;
-  sms_included: number;
-  plan: string;
-  status: string;
-  trial_ends_at: string | null;
-  current_period_end: string | null;
-}
-
-// ── Helpers ──────────────────────────────────────────────────
-
-function getAuthHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return headers;
-}
-
-function getPlanLabel(plan: string): string {
-  const labels: Record<string, string> = {
-    trial: 'Essai gratuit',
-    essentiel: 'Essentiel',
-    starter: 'Essentiel',
-    pro: 'Pro',
-    business: 'Business',
-  };
-  return labels[plan] || plan;
-}
-
-function getStatusBadge(status: string): { label: string; className: string } {
-  const badges: Record<string, { label: string; className: string }> = {
-    trial: { label: 'Essai', className: 'bg-gray-100 text-gray-700' },
-    active: { label: 'Actif', className: 'bg-gray-900 text-white' },
-    past_due: { label: 'Impaye', className: 'bg-gray-200 text-gray-800' },
-    canceled: { label: 'Annule', className: 'bg-gray-200 text-gray-600' },
-    expired: { label: 'Expire', className: 'bg-gray-200 text-gray-600' },
-  };
-  return badges[status] || { label: status, className: 'bg-gray-100 text-gray-700' };
-}
-
-// ── Toggle Component ──────────────────────────────────────────
-
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
-        enabled ? 'bg-gray-900' : 'bg-gray-200'
-      }`}
-    >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-          enabled ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
-  );
-}
-
-// ── Tab definitions ──────────────────────────────────────────
-
-const TABS = [
-  { id: 'account', label: 'Mon compte', icon: User },
-  { id: 'company', label: 'Mon entreprise', icon: Building2 },
-  { id: 'subscription', label: 'Abonnement', icon: CreditCard },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-] as const;
-
-type TabId = typeof TABS[number]['id'];
-
-// ── Composant principal ──────────────────────────────────────
-
-export default function SettingsPage() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabId>('account');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
-
-  // Account
-  const [account, setAccount] = useState<AccountData>({
-    first_name: '', last_name: '', email: '', phone: '', phone_verified: 0,
-  });
-  const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-
-  // Company
-  const [company, setCompany] = useState<CompanyData>({
-    name: '', sector: '', address: '', phone: '', email_pro: '',
-    horaires: DEFAULT_HORAIRES,
-  });
-
-  // Notifications
-  const [notifications, setNotifications] = useState<NotificationPrefs>({
-    email_after_call: 1, sms_reminder_j1: 1, weekly_summary: 1, quota_alerts: 1,
-  });
-
-  // Usage / Subscription
-  const [usage, setUsage] = useState<UsageData | null>(null);
-  const [usageLoading, setUsageLoading] = useState(false);
-
-  // Delete account
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState('');
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
-
-  // ── Load settings ──────────────────────────────────────
-
-  const loadSettings = useCallback(async () => {
+  const charger = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) return;
+      // `/settings` porte déjà le compte, la société ET les notifications :
+      // pas besoin d'un appel de plus pour l'utilisateur courant.
+      const lire = (url: string) => fetch(buildApiUrl(url), { headers: getAuthHeaders() })
+        .then((r) => r.json()).catch(() => null);
+      const [reglages, abonnement, membres] = await Promise.all([
+        lire('/api/v1/settings'),
+        lire('/api/v1/billing/subscription'),
+        lire('/api/v1/team/members-with-skills'),
+      ]);
 
-      const res = await fetch(`${API_URL}/api/v1/settings`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const c = reglages?.company || {};
+      setSociete({
+        name: c.name || '',
+        sector: c.sector || '',
+        address: c.address || '',
+        phone: c.phone || '',
+        email_pro: c.email_pro || '',
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setAccount(data.account || {
-            first_name: '', last_name: '', email: '', phone: '', phone_verified: 0,
-          });
-          setCompany({
-            name: data.company?.name || '',
-            sector: data.company?.sector || '',
-            address: data.company?.address || '',
-            phone: data.company?.phone || '',
-            email_pro: data.company?.email_pro || '',
-            horaires: data.company?.horaires || DEFAULT_HORAIRES,
-          });
-          setNotifications(data.notifications || {
-            email_after_call: 1, sms_reminder_j1: 1, weekly_summary: 1, quota_alerts: 1,
-          });
-        }
-      }
-    } catch {
-      // Graceful degradation — use defaults
+      const a = reglages?.account || {};
+      setCompte({
+        name: [a.first_name, a.last_name].filter(Boolean).join(' '),
+        email: a.email || '',
+        phone: a.phone || '',
+        phone_verified: a.phone_verified ? 'oui' : 'non',
+      });
+
+      const s = abonnement?.subscription || {};
+      setAbo({
+        plan: s.plan || '',
+        statut: s.status || '',
+        jours: s.trial_days_remaining != null ? String(s.trial_days_remaining) : '',
+      });
+      setEquipe(Array.isArray(membres?.members) ? membres.members.length : null);
+    } catch (e) {
+      setMessage((e as Error).message);
     } finally {
-      setLoading(false);
+      setChargement(false);
     }
   }, []);
 
-  const loadUsage = useCallback(async () => {
-    setUsageLoading(true);
+  useEffect(() => { charger(); }, [charger]);
+
+  /** Écrit un champ société, puis relit — on affiche ce qui est en base. */
+  const enregistrerSociete = async (cle: string, valeur: string) => {
+    setEnregistrement(true);
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) return;
-
-      const res = await fetch(`${API_URL}/api/v1/settings/usage`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setUsage(data.usage);
-        }
-      }
-    } catch {
-      // Graceful degradation
-    } finally {
-      setUsageLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
-
-  useEffect(() => {
-    if (activeTab === 'subscription') {
-      loadUsage();
-    }
-  }, [activeTab, loadUsage]);
-
-  // ── Save handlers ──────────────────────────────────────
-
-  const handleSaveAccount = async () => {
-    setSaving(true);
-    setSaved(false);
-    setError('');
-
-    // Validate password match
-    if (showPasswordSection && newPassword) {
-      if (newPassword !== confirmPassword) {
-        setError('Les mots de passe ne correspondent pas');
-        setSaving(false);
-        return;
-      }
-      if (!currentPassword) {
-        setError('Le mot de passe actuel est requis');
-        setSaving(false);
-        return;
-      }
-    }
-
-    try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) return;
-
-      const body: Record<string, string> = {
-        first_name: account.first_name,
-        last_name: account.last_name,
-      };
-
-      if (showPasswordSection && newPassword) {
-        body.current_password = currentPassword;
-        body.new_password = newPassword;
-      }
-
-      const res = await fetch(`${API_URL}/api/v1/settings/account`, {
+      const res = await fetch(buildApiUrl('/api/v1/settings/company'), {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(body),
+        body: JSON.stringify({ [cle]: valeur }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Erreur lors de la sauvegarde');
-        return;
-      }
-
-      setSaved(true);
-      setShowPasswordSection(false);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setTimeout(() => setSaved(false), 3000);
-    } catch {
-      setError('Erreur reseau. Verifiez votre connexion.');
-    } finally {
-      setSaving(false);
-    }
+      if (!res.ok) throw new Error('Enregistrement refusé par le serveur');
+      setSociete((s) => ({ ...s, [cle]: valeur }));
+      setMessage('Enregistré.');
+      setEnEdition(null);
+    } catch (e) { setMessage((e as Error).message); } finally { setEnregistrement(false); }
   };
 
-  const handleSaveCompany = async () => {
-    setSaving(true);
-    setSaved(false);
-    setError('');
-
+  /**
+   * Le nom ET le mot de passe passent par la même route. Le nom est découpé en
+   * prénom / nom sur le premier espace, comme le fait le serveur en lecture.
+   */
+  const enregistrerCompte = async (cle: string, valeur: string, second?: string) => {
+    setEnregistrement(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/settings/company`, {
+      let corps: Record<string, string>;
+      if (cle === 'nom') {
+        const morceaux = valeur.trim().split(/\s+/);
+        corps = { first_name: morceaux[0] || '', last_name: morceaux.slice(1).join(' ') };
+      } else {
+        // Un mot de passe peut contenir n'importe quoi, espaces compris : les
+        // deux valeurs voyagent séparément, jamais concaténées.
+        corps = { current_password: valeur, new_password: second || '' };
+      }
+      const res = await fetch(buildApiUrl('/api/v1/settings/account'), {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(company),
+        body: JSON.stringify(corps),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Erreur lors de la sauvegarde');
-        return;
+      const retour = await res.json().catch(() => ({}));
+      if (!res.ok || retour?.success === false) {
+        throw new Error(retour?.error || 'Enregistrement refusé par le serveur');
       }
-
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch {
-      setError('Erreur reseau. Verifiez votre connexion.');
-    } finally {
-      setSaving(false);
-    }
+      if (cle === 'nom') setCompte((c) => ({ ...c, name: valeur.trim() }));
+      setMessage(cle === 'nom' ? 'Enregistré.' : 'Mot de passe modifié.');
+      setEnEdition(null);
+    } catch (e) { setMessage((e as Error).message); } finally { setEnregistrement(false); }
   };
 
-  const handleSaveNotifications = async () => {
-    setSaving(true);
-    setSaved(false);
-    setError('');
-
-    try {
-      const res = await fetch(`${API_URL}/api/v1/settings/notifications`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(notifications),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Erreur lors de la sauvegarde');
-        return;
-      }
-
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch {
-      setError('Erreur reseau. Verifiez votre connexion.');
-    } finally {
-      setSaving(false);
-    }
+  const PLANS: Record<string, string> = {
+    trial: 'Essai', essentiel: 'Essentiel', starter: 'Essentiel', pro: 'Pro', business: 'Business',
   };
 
-  const handleDelete = async () => {
-    setDeleteError('');
-    if (deleteConfirmation !== 'SUPPRIMER') {
-      setDeleteError('Tapez exactement SUPPRIMER pour confirmer');
-      return;
-    }
-    if (!deletePassword) {
-      setDeleteError('Le mot de passe est requis');
-      return;
-    }
-
-    setDeleteLoading(true);
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_URL}/api/v1/auth/account`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+  const sections: SectionReglages[] = useMemo(() => [
+    {
+      id: 'atelier',
+      titre: 'Mon entreprise',
+      aide: 'Ce que votre assistant annonce à vos clients',
+      lignes: [
+        {
+          id: 'nom', label: 'Nom de l\'entreprise', aide: 'Prononcé à chaque appel',
+          valeur: societe.name || '—',
+          edition: { type: 'texte', cle: 'name' },
+          motsCles: ['raison sociale', 'société', 'garage'],
         },
-        body: JSON.stringify({ password: deletePassword, confirmation: deleteConfirmation }),
-      });
+        {
+          id: 'adresse', label: 'Adresse', aide: 'Donnée aux clients qui la demandent',
+          valeur: societe.address || '—',
+          edition: { type: 'texte', cle: 'address' },
+          motsCles: ['où', 'localisation', 'accès'],
+        },
+        {
+          id: 'secteur', label: 'Métier', aide: 'Détermine la façon de parler de votre assistant',
+          valeur: societe.sector || '—',
+          edition: { type: 'choix', cle: 'sector', options: SECTEURS.map((s) => ({ valeur: s, libelle: s })) },
+          motsCles: ['activité', 'secteur'],
+        },
+        {
+          id: 'horaires', label: 'Horaires d\'ouverture',
+          aide: 'Se règlent là où l\'on voit ce qu\'ils changent',
+          valeur: 'Dans Mon assistant',
+          lien: { href: '/dashboard/assistant', libelle: 'Ouvrir' },
+          motsCles: ['ouverture', 'fermeture', 'jours'],
+        },
+      ],
+    },
+    {
+      id: 'joindre',
+      titre: 'Comment vos clients vous joignent',
+      aide: 'Vos lignes et vos messages',
+      lignes: [
+        {
+          id: 'tel', label: 'Téléphone de l\'entreprise', aide: 'Celui que composent vos clients',
+          valeur: societe.phone || '—',
+          edition: { type: 'texte', cle: 'phone', placeholder: '+33…' },
+          motsCles: ['numéro', 'ligne'],
+        },
+        {
+          id: 'emailpro', label: 'E-mail de l\'entreprise', valeur: societe.email_pro || '—',
+          edition: { type: 'texte', cle: 'email_pro' },
+          motsCles: ['mail', 'contact'],
+        },
+        {
+          id: 'numeros', label: 'Mes numéros', aide: 'Lignes rattachées à votre compte',
+          valeur: 'Voir la liste',
+          lien: { href: '/dashboard/channels/numbers', libelle: 'Ouvrir' },
+          motsCles: ['numéro', 'twilio', 'ligne'],
+        },
+        {
+          id: 'boite', label: 'Boîte e-mail reliée', aide: 'Pour lire et répondre aux e-mails',
+          valeur: 'Voir la connexion',
+          lien: { href: '/dashboard/channels/email', libelle: 'Ouvrir' },
+          motsCles: ['gmail', 'outlook', 'yahoo', 'oauth'],
+        },
+      ],
+    },
+    {
+      id: 'equipe',
+      titre: 'Mon équipe',
+      aide: 'Qui accède au tableau de bord',
+      lignes: [
+        {
+          id: 'membres', label: 'Personnes autorisées',
+          aide: 'Chacune avec ses propres droits',
+          valeur: equipe != null ? `${equipe} personne${equipe > 1 ? 's' : ''}` : '—',
+          lien: { href: '/dashboard/teams', libelle: 'Gérer' },
+          motsCles: ['équipe', 'utilisateurs', 'droits', 'rôles', 'collaborateurs'],
+        },
+      ],
+    },
+    {
+      id: 'abonnement',
+      titre: 'Abonnement et documents',
+      aide: 'Votre formule et vos copies de données',
+      lignes: [
+        {
+          id: 'plan', label: 'Formule',
+          valeur: abo.statut === 'trialing' && abo.jours
+            ? `${PLANS[abo.plan] || abo.plan}, ${abo.jours} jours restants`
+            : (PLANS[abo.plan] || abo.plan || '—'),
+          lien: { href: '/dashboard/billing', libelle: 'Gérer' },
+          motsCles: ['plan', 'prix', 'formule', 'essai'],
+        },
+        {
+          id: 'paiement', label: 'Moyen de paiement', valeur: 'Voir',
+          lien: { href: '/dashboard/billing/payment', libelle: 'Ouvrir' },
+          motsCles: ['carte', 'prélèvement', 'stripe'],
+        },
+        {
+          id: 'factures', label: 'Factures', valeur: 'Voir',
+          lien: { href: '/dashboard/billing/invoices', libelle: 'Ouvrir' },
+          motsCles: ['facture', 'comptable', 'document'],
+        },
+        {
+          id: 'export', label: 'Exporter mes données', aide: 'Appels et clients, en tableur',
+          valeur: 'Télécharger',
+          lien: { href: '/dashboard/analytics/export', libelle: 'Ouvrir' },
+          motsCles: ['export', 'csv', 'tableur', 'sauvegarde'],
+        },
+      ],
+    },
+    {
+      id: 'compte',
+      titre: 'Mon compte',
+      aide: 'Vos informations personnelles',
+      lignes: [
+        {
+          id: 'moi-nom', label: 'Mon nom', valeur: compte.name || '—',
+          edition: { type: 'texte', cle: 'nom', placeholder: 'Prénom Nom' },
+          motsCles: ['prénom', 'identité'],
+        },
+        { id: 'moi-mail', label: 'Adresse e-mail de connexion', valeur: compte.email || '—', motsCles: ['identifiant', 'login'] },
+        {
+          id: 'moi-tel', label: 'Mon téléphone',
+          aide: compte.phone_verified === 'oui'
+            ? 'Vérifié — c\'est lui qui vous identifie quand vous appelez votre assistant pour l\'essayer'
+            : 'Non vérifié — votre assistant ne vous reconnaîtra pas si vous l\'appelez',
+          valeur: compte.phone || '—',
+          motsCles: ['portable', 'mobile', 'vérification'],
+        },
+        {
+          id: 'motdepasse', label: 'Mot de passe',
+          aide: 'Au moins 8 caractères, une majuscule, une minuscule et un chiffre',
+          valeur: '••••••••',
+          edition: { type: 'motdepasse', cle: 'password' },
+          motsCles: ['sécurité', 'connexion', 'changer'],
+        },
+      ],
+    },
+  ], [societe, abo, compte, equipe]);
 
-      if (!response.ok) {
-        const data = await response.json();
-        setDeleteError(data.error || 'Erreur lors de la suppression');
-        return;
-      }
+  // ── Recherche : réglages ET pages ──
+  const q = plier(recherche.trim());
+  const sectionsFiltrees = q
+    ? sections
+      .map((s) => ({
+        ...s,
+        lignes: s.lignes.filter((l) =>
+          plier(l.label).includes(q)
+          || plier(l.aide || '').includes(q)
+          || plier(l.valeur).includes(q)
+          || (l.motsCles || []).some((m) => plier(m).includes(q))),
+      }))
+      .filter((s) => s.lignes.length > 0)
+    : sections;
 
-      localStorage.clear();
-      router.push('/login');
-    } catch {
-      setDeleteError('Erreur reseau. Verifiez votre connexion.');
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
+  const pagesTrouvees = q
+    ? PAGES_INDEXEES.filter((p) => plier(p.titre).includes(q) || p.motsCles.some((m) => plier(m).includes(q)))
+    : [];
 
-  // ── Loading state ──────────────────────────────────────
+  const nbReglages = sectionsFiltrees.reduce((n, s) => n + s.lignes.length, 0);
 
-  if (loading) {
+  if (chargement) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
+        <Loader2 className="animate-spin" color={CX2.texteDiscret} />
       </div>
     );
   }
 
-  // ── Render ──────────────────────────────────────────────
-
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Parametres</h1>
-        <p className="text-sm text-gray-500 mt-1">Gerez votre compte, votre entreprise et vos preferences</p>
-      </div>
+    <>
+      <link rel="stylesheet" href={LIEN_POLICES} />
+      <div style={{
+        fontFamily: POLICE_TEXTE, color: CX2.encre, background: CX2.fond,
+        minHeight: '100%', padding: '32px 36px 64px',
+      }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-8">
-        <nav className="flex gap-8">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setError('');
-                  setSaved(false);
-                }}
-                className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors ${
-                  isActive
-                    ? 'border-gray-900 text-gray-900'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Error / Success message */}
-      {error && (
-        <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 p-4">
-          <p className="text-sm text-gray-800">{error}</p>
-        </div>
-      )}
-      {saved && (
-        <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 p-4">
-          <p className="text-sm text-gray-700">Parametres sauvegardes avec succes</p>
-        </div>
-      )}
-
-      {/* ──────────── TAB 1 : Mon compte ──────────── */}
-      {activeTab === 'account' && (
-        <div className="space-y-6">
-          {/* Identite */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">Informations personnelles</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prenom</label>
-                <input
-                  type="text"
-                  value={account.first_name}
-                  onChange={(e) => setAccount({ ...account, first_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                  placeholder="Votre prenom"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                <input
-                  type="text"
-                  value={account.last_name}
-                  onChange={(e) => setAccount({ ...account, last_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                  placeholder="Votre nom"
-                />
-              </div>
+          <header style={{
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+            gap: 20, flexWrap: 'wrap', marginBottom: 24,
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em' }}>Réglages</h1>
+              <p style={{ margin: 0, fontSize: 14.5, color: CX2.texteSecondaire }}>
+                Tout est sur cette page. Cliquez sur une ligne pour la modifier.
+              </p>
             </div>
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <span style={{
+              display: 'flex', alignItems: 'center', gap: 9,
+              border: `1px solid ${recherche ? CX2.encre : CX2.bordure}`,
+              borderRadius: 10, background: CX2.surface, padding: '0 13px',
+            }}>
+              <Search size={15} color={CX2.texteSecondaire} strokeWidth={1.8} />
               <input
-                type="email"
-                value={account.email}
-                disabled
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
-              />
-              <p className="text-xs text-gray-400 mt-1">L&apos;email ne peut pas etre modifie</p>
-            </div>
-          </div>
-
-          {/* Mot de passe */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <button
-              type="button"
-              onClick={() => setShowPasswordSection(!showPasswordSection)}
-              className="flex items-center justify-between w-full"
-            >
-              <h3 className="text-base font-semibold text-gray-900">Modifier le mot de passe</h3>
-              <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showPasswordSection ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showPasswordSection && (
-              <div className="mt-4 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe actuel</label>
-                  <div className="relative">
-                    <input
-                      type={showCurrentPassword ? 'text' : 'password'}
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none pr-10"
-                      placeholder="Votre mot de passe actuel"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nouveau mot de passe</label>
-                  <div className="relative">
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none pr-10"
-                      placeholder="Minimum 8 caracteres, 1 majuscule, 1 chiffre"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirmer le nouveau mot de passe</label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                    placeholder="Retapez le nouveau mot de passe"
-                  />
-                  {confirmPassword && newPassword !== confirmPassword && (
-                    <p className="text-xs text-gray-500 mt-1">Les mots de passe ne correspondent pas</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Save button */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveAccount}
-              disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Sauvegarde...' : 'Sauvegarder'}
-            </button>
-          </div>
-
-          {/* Zone dangereuse */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mt-8">
-            <h3 className="text-base font-semibold text-red-600 mb-2">Zone dangereuse</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Les actions ci-dessous sont irreversibles. Procedez avec prudence.
-            </p>
-            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-800">Supprimer mon compte</h4>
-                  <p className="text-sm text-gray-600 mt-0.5">
-                    Supprime definitivement toutes vos donnees
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ──────────── TAB 2 : Mon entreprise ──────────── */}
-      {activeTab === 'company' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">Informations de l&apos;entreprise</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l&apos;entreprise</label>
-                <input
-                  type="text"
-                  value={company.name}
-                  onChange={(e) => setCompany({ ...company, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                  placeholder="Nom de votre entreprise"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Secteur d&apos;activite</label>
-                <div className="relative">
-                  <select
-                    value={company.sector}
-                    onChange={(e) => setCompany({ ...company, sector: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none appearance-none bg-white"
-                  >
-                    <option value="">Selectionnez un secteur</option>
-                    {SECTORS.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                <input
-                  type="text"
-                  value={company.address}
-                  onChange={(e) => setCompany({ ...company, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                  placeholder="Adresse de l'entreprise"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Telephone professionnel</label>
-                  <input
-                    type="tel"
-                    value={company.phone}
-                    onChange={(e) => setCompany({ ...company, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                    placeholder="+33 1 23 45 67 89"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email professionnel</label>
-                  <input
-                    type="email"
-                    value={company.email_pro}
-                    onChange={(e) => setCompany({ ...company, email_pro: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none"
-                    placeholder="contact@entreprise.fr"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Horaires */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">Horaires d&apos;ouverture</h3>
-
-            {/* Horaires par jour */}
-            <div className="space-y-2">
-              {DAY_LABELS.map(({ key, label }) => {
-                const cur = company.horaires || DEFAULT_HORAIRES;
-                const d = cur[key];
-                return (
-                  <div key={key} className="flex items-center gap-2 text-sm">
-                    <span className="w-24 text-gray-700">{label}</span>
-                    <button
-                      type="button"
-                      onClick={() => setCompany({ ...company, horaires: { ...cur, [key]: { ...d, ouvert: !d.ouvert } } })}
-                      className={`w-20 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        d.ouvert ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      {d.ouvert ? 'Ouvert' : 'Fermé'}
-                    </button>
-                    {d.ouvert ? (
-                      <>
-                        <div className="relative">
-                          <select
-                            value={d.debut}
-                            onChange={(e) => setCompany({ ...company, horaires: { ...cur, [key]: { ...d, debut: e.target.value } } })}
-                            className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none appearance-none bg-white pr-7"
-                          >
-                            {HEURES.map((h) => <option key={h} value={h}>{h}</option>)}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
-                        <span className="text-gray-400">–</span>
-                        <div className="relative">
-                          <select
-                            value={d.fin}
-                            onChange={(e) => setCompany({ ...company, horaires: { ...cur, [key]: { ...d, fin: e.target.value } } })}
-                            className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none appearance-none bg-white pr-7"
-                          >
-                            {HEURES.map((h) => <option key={h} value={h}>{h}</option>)}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
-                      </>
-                    ) : (
-                      <span className="text-xs text-gray-400">Fermé</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Save button */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveCompany}
-              disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Sauvegarde...' : 'Sauvegarder'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ──────────── TAB 3 : Abonnement ──────────── */}
-      {activeTab === 'subscription' && (
-        <div className="space-y-6">
-          {usageLoading ? (
-            <div className="flex items-center justify-center h-40">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-            </div>
-          ) : (
-            <>
-              {/* Plan actuel */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="text-base font-semibold text-gray-900 mb-4">Plan actuel</h3>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-lg font-bold text-gray-900">
-                    {getPlanLabel(usage?.plan || 'trial')}
-                  </span>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusBadge(usage?.status || 'trial').className}`}>
-                    {getStatusBadge(usage?.status || 'trial').label}
-                  </span>
-                </div>
-
-                {usage?.status === 'trial' && usage.trial_ends_at && (
-                  <p className="text-sm text-gray-500 mb-4">
-                    Essai gratuit jusqu&apos;au{' '}
-                    {new Date(usage.trial_ends_at).toLocaleDateString('fr-FR', {
-                      day: 'numeric', month: 'long', year: 'numeric',
-                    })}
-                  </p>
-                )}
-
-                {usage?.current_period_end && usage.status === 'active' && (
-                  <p className="text-sm text-gray-500 mb-4">
-                    Prochain renouvellement le{' '}
-                    {new Date(usage.current_period_end).toLocaleDateString('fr-FR', {
-                      day: 'numeric', month: 'long', year: 'numeric',
-                    })}
-                  </p>
-                )}
-              </div>
-
-              {/* Usage */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="text-base font-semibold text-gray-900 mb-4">Utilisation ce mois</h3>
-                <div className="space-y-5">
-                  {/* Minutes vocales */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">Minutes vocales</span>
-                      <span className="text-sm text-gray-500">
-                        {usage?.minutes_used || 0} / {usage?.minutes_included || 0} min
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gray-900 h-2 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(
-                            ((usage?.minutes_used || 0) / Math.max(usage?.minutes_included || 1, 1)) * 100,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    {(usage?.minutes_used || 0) > (usage?.minutes_included || 0) && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Depassement de {(usage?.minutes_used || 0) - (usage?.minutes_included || 0)} minutes
-                      </p>
-                    )}
-                  </div>
-
-                  {/* SMS */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">SMS envoyes</span>
-                      <span className="text-sm text-gray-500">
-                        {usage?.sms_used || 0} / {usage?.sms_included || 0}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gray-900 h-2 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${Math.min(
-                            ((usage?.sms_used || 0) / Math.max(usage?.sms_included || 1, 1)) * 100,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    {usage?.sms_included === 0 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        SMS non inclus dans votre plan actuel
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="text-base font-semibold text-gray-900 mb-4">Gestion</h3>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Link
-                    href="/dashboard/billing/upgrade"
-                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
-                  >
-                    Changer de plan
-                  </Link>
-                  <Link
-                    href="/dashboard/billing"
-                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Gerer la facturation
-                  </Link>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ──────────── TAB 4 : Notifications ──────────── */}
-      {activeTab === 'notifications' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-6">Preferences de notifications</h3>
-            <div className="space-y-6">
-              {/* Email recap */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Email recapitulatif apres chaque appel</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Recevez un resume par email a la fin de chaque appel traite par l&apos;assistant</p>
-                </div>
-                <Toggle
-                  enabled={!!notifications.email_after_call}
-                  onChange={(v) => setNotifications({ ...notifications, email_after_call: v ? 1 : 0 })}
-                />
-              </div>
-
-              <div className="border-t border-gray-100" />
-
-              {/* SMS rappel J-1 */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">SMS rappel J-1 active</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Envoi automatique d&apos;un SMS de rappel 24h avant chaque rendez-vous</p>
-                </div>
-                <Toggle
-                  enabled={!!notifications.sms_reminder_j1}
-                  onChange={(v) => setNotifications({ ...notifications, sms_reminder_j1: v ? 1 : 0 })}
-                />
-              </div>
-
-              <div className="border-t border-gray-100" />
-
-              {/* Weekly summary */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Resume hebdomadaire par email</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Un bilan chaque lundi avec vos statistiques de la semaine</p>
-                </div>
-                <Toggle
-                  enabled={!!notifications.weekly_summary}
-                  onChange={(v) => setNotifications({ ...notifications, weekly_summary: v ? 1 : 0 })}
-                />
-              </div>
-
-              <div className="border-t border-gray-100" />
-
-              {/* Quota alerts */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Alertes depassement quota</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Soyez prevenu quand vous approchez de votre limite de minutes ou SMS</p>
-                </div>
-                <Toggle
-                  enabled={!!notifications.quota_alerts}
-                  onChange={(v) => setNotifications({ ...notifications, quota_alerts: v ? 1 : 0 })}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Save button */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveNotifications}
-              disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Sauvegarde...' : 'Sauvegarder'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ──────────── Modal suppression ──────────── */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-red-600 mb-2">Confirmer la suppression</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Cette action est irreversible. Toutes vos donnees seront supprimees definitivement.
-            </p>
-
-            {deleteError && (
-              <div className="rounded-lg bg-gray-100 p-3 border border-gray-200 mb-4">
-                <p className="text-sm text-gray-800">{deleteError}</p>
-              </div>
-            )}
-
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tapez SUPPRIMER pour confirmer
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmation}
-                  onChange={(e) => setDeleteConfirmation(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                  placeholder="SUPPRIMER"
-                  disabled={deleteLoading}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mot de passe
-                </label>
-                <input
-                  type="password"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                  placeholder="Votre mot de passe"
-                  disabled={deleteLoading}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteConfirmation('');
-                  setDeletePassword('');
-                  setDeleteError('');
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                placeholder="Rechercher un réglage ou une page"
+                style={{
+                  border: 'none', background: 'transparent', padding: '11px 0',
+                  fontSize: 14, color: CX2.encre, width: 240, outline: 'none',
                 }}
-                className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
-                disabled={deleteLoading}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteLoading || deleteConfirmation !== 'SUPPRIMER' || !deletePassword}
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deleteLoading ? 'Suppression...' : 'Supprimer definitivement'}
-              </button>
+              />
+              {recherche && (
+                <span style={{ fontSize: 12.5, color: CX2.texteDiscret, fontFamily: POLICE_MONO, whiteSpace: 'nowrap' }}>
+                  {nbReglages + pagesTrouvees.length}
+                </span>
+              )}
+            </span>
+          </header>
+
+          {message && (
+            <div style={{
+              marginBottom: 14, padding: '11px 15px', border: `1px solid ${CX2.bordure}`,
+              background: CX2.surface, borderRadius: 10, fontSize: 13.5,
+            }}>
+              {message}
+              <button type="button" onClick={() => setMessage(null)} style={{
+                float: 'right', border: 'none', background: 'transparent', cursor: 'pointer',
+                fontSize: 13, color: CX2.texteSecondaire, textDecoration: 'underline',
+              }}>Fermer</button>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 200px) minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
+
+            {/* Sommaire collant — un repère, pas une obligation */}
+            <nav style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 4 }}>
+              {sections.map((s) => (
+                <a
+                  key={s.id}
+                  href={`#${s.id}`}
+                  style={{
+                    padding: '8px 10px', borderRadius: 8, fontSize: 13.5,
+                    color: CX2.texteSecondaire, textDecoration: 'none',
+                  }}
+                >
+                  {s.titre}
+                </a>
+              ))}
+              <span style={{ marginTop: 10, padding: '8px 10px', fontSize: 12.5, color: '#c2c1ba' }}>
+                Le sommaire suit votre défilement
+              </span>
+            </nav>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Pages trouvées — la contrepartie du retrait du mode Avancé */}
+              {pagesTrouvees.length > 0 && (
+                <section style={{ background: CX2.surface, border: `1px solid ${CX2.bordure}`, borderRadius: 14, padding: '24px 26px' }}>
+                  <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>Pages</h2>
+                  <p style={{ margin: '0 0 8px', fontSize: 13, color: CX2.texteTertiaire }}>
+                    Ces écrans ne sont pas dans le menu, mais ils existent.
+                  </p>
+                  {pagesTrouvees.map((p) => (
+                    <Link
+                      key={p.href}
+                      href={p.href}
+                      style={{
+                        display: 'grid', gridTemplateColumns: '1fr 15px', alignItems: 'center', gap: 18,
+                        padding: '15px 0', borderTop: `1px solid ${CX2.separateur}`,
+                        textDecoration: 'none', color: CX2.encre, fontSize: 15,
+                      }}
+                    >
+                      {p.titre}
+                      <ChevronRight size={14} color="#c2c1ba" strokeWidth={1.8} />
+                    </Link>
+                  ))}
+                </section>
+              )}
+
+              {sectionsFiltrees.map((s) => (
+                <section
+                  key={s.id}
+                  id={s.id}
+                  style={{ background: CX2.surface, border: `1px solid ${CX2.bordure}`, borderRadius: 14, padding: '24px 26px', scrollMarginTop: 24 }}
+                >
+                  <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>{s.titre}</h2>
+                  <p style={{ margin: '0 0 8px', fontSize: 13, color: CX2.texteTertiaire }}>{s.aide}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {s.lignes.map((l) => (
+                      <Ligne
+                        key={l.id}
+                        ligne={l}
+                        edition={enEdition === l.id}
+                        brouillon={brouillon}
+                        setBrouillon={setBrouillon}
+                        second={second}
+                        setSecond={setSecond}
+                        occupe={enregistrement}
+                        onOuvrir={() => {
+                          setEnEdition(l.id);
+                          setSecond('');
+                          setBrouillon(
+                            l.edition?.type === 'texte' && l.valeur !== '—' ? l.valeur : '',
+                          );
+                        }}
+                        onAnnuler={() => { setEnEdition(null); setSecond(''); }}
+                        onEnregistrer={(valeur, deuxieme) => {
+                          if (!l.edition) return;
+                          if (s.id === 'compte') return enregistrerCompte(l.edition.cle, valeur, deuxieme);
+                          return enregistrerSociete(l.edition.cle, valeur);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+
+              {q && nbReglages === 0 && pagesTrouvees.length === 0 && (
+                <p style={{ fontSize: 14, color: CX2.texteDiscret, padding: '8px 2px' }}>
+                  Rien ne correspond à « {recherche} ».
+                </p>
+              )}
+
+              {!q && <BlocsArret />}
             </div>
           </div>
         </div>
-      )}
+      </div>
+    </>
+  );
+}
+
+/** Une ligne : en lecture, ou dépliée en édition. */
+function Ligne({
+  ligne, edition, brouillon, setBrouillon, second, setSecond,
+  occupe, onOuvrir, onAnnuler, onEnregistrer,
+}: {
+  ligne: LigneReglage;
+  edition: boolean;
+  brouillon: string;
+  setBrouillon: (v: string) => void;
+  second: string;
+  setSecond: (v: string) => void;
+  occupe: boolean;
+  onOuvrir: () => void;
+  onAnnuler: () => void;
+  onEnregistrer: (valeur: string, second?: string) => void;
+}) {
+  const bordure = { borderTop: `1px solid ${CX2.separateur}`, padding: '15px 0' };
+
+  if (ligne.lien) {
+    return (
+      <Link href={ligne.lien.href} style={{ ...bordure, textDecoration: 'none', color: CX2.encre, display: 'block' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 15px', gap: 18, alignItems: 'center' }}>
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            <span style={{ fontSize: 15 }}>{ligne.label}</span>
+            {ligne.aide && <span style={{ fontSize: 12.5, color: CX2.texteDiscret }}>{ligne.aide}</span>}
+          </span>
+          <span style={{ fontSize: 13.5, color: CX2.texteSecondaire, whiteSpace: 'nowrap' }}>{ligne.valeur}</span>
+          <ChevronRight size={14} color="#c2c1ba" strokeWidth={1.8} />
+        </div>
+      </Link>
+    );
+  }
+
+  if (!ligne.edition) {
+    return (
+      <div style={bordure}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 18, alignItems: 'center' }}>
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            <span style={{ fontSize: 15 }}>{ligne.label}</span>
+            {ligne.aide && <span style={{ fontSize: 12.5, color: CX2.texteDiscret }}>{ligne.aide}</span>}
+          </span>
+          <span style={{ fontSize: 13.5, color: CX2.texteSecondaire, fontFamily: POLICE_MONO }}>{ligne.valeur}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!edition) {
+    return (
+      <div
+        style={{ ...bordure, cursor: 'pointer' }}
+        onClick={onOuvrir}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter') onOuvrir(); }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 15px', gap: 18, alignItems: 'center' }}>
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            <span style={{ fontSize: 15 }}>{ligne.label}</span>
+            {ligne.aide && <span style={{ fontSize: 12.5, color: CX2.texteDiscret }}>{ligne.aide}</span>}
+          </span>
+          <span style={{ fontSize: 13.5, color: CX2.texteSecondaire, fontFamily: POLICE_MONO }}>{ligne.valeur}</span>
+          <ChevronRight size={14} color="#c2c1ba" strokeWidth={1.8} />
+        </div>
+      </div>
+    );
+  }
+
+  const champ = ligne.edition;
+  // Le mot de passe exige ses deux champs ; les autres, leur unique valeur.
+  const pret = champ.type === 'motdepasse' ? Boolean(brouillon && second) : Boolean(brouillon);
+  return (
+    <div style={{ ...bordure, background: CX2.champFond, borderRadius: 10, padding: '16px 14px', margin: '4px 0' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ fontSize: 15, fontWeight: 500 }}>{ligne.label}</span>
+          <span style={{ fontSize: 12, color: CX2.texteDiscret }}>Modification en cours</span>
+        </span>
+
+        {champ.type === 'choix' ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {champ.options.map((o) => {
+              const actif = brouillon === o.valeur;
+              return (
+                <button
+                  key={o.valeur}
+                  type="button"
+                  onClick={() => setBrouillon(o.valeur)}
+                  style={{
+                    padding: '9px 14px', borderRadius: 999, fontSize: 13.5, fontWeight: 500,
+                    cursor: 'pointer',
+                    border: `1px solid ${actif ? CX2.encre : CX2.bordure}`,
+                    background: actif ? CX2.encre : CX2.surface,
+                    color: actif ? CX2.surface : CX2.encreSurvol,
+                  }}
+                >
+                  {o.libelle}
+                </button>
+              );
+            })}
+          </div>
+        ) : champ.type === 'motdepasse' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input
+              autoFocus
+              type="password"
+              autoComplete="current-password"
+              value={brouillon}
+              placeholder="Mot de passe actuel"
+              onChange={(e) => setBrouillon(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') onAnnuler(); }}
+              style={styleChamp}
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={second}
+              placeholder="Nouveau mot de passe"
+              onChange={(e) => setSecond(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onEnregistrer(brouillon, second);
+                if (e.key === 'Escape') onAnnuler();
+              }}
+              style={styleChamp}
+            />
+          </div>
+        ) : (
+          <input
+            autoFocus
+            value={brouillon}
+            placeholder={champ.placeholder}
+            onChange={(e) => setBrouillon(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onEnregistrer(brouillon); if (e.key === 'Escape') onAnnuler(); }}
+            style={styleChamp}
+          />
+        )}
+
+        {ligne.aide && <span style={{ fontSize: 13, color: CX2.texteSecondaire }}>{ligne.aide}</span>}
+
+        <span style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            disabled={occupe || !pret}
+            onClick={() => onEnregistrer(brouillon, second)}
+            style={{
+              padding: '9px 16px', border: 'none', borderRadius: 9, background: CX2.encre,
+              color: CX2.surface, fontSize: 13.5, fontWeight: 500,
+              cursor: occupe || !pret ? 'default' : 'pointer',
+              opacity: occupe || !pret ? 0.45 : 1,
+            }}
+          >
+            {occupe ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <button
+            type="button"
+            onClick={onAnnuler}
+            style={{
+              padding: '9px 16px', border: `1px solid ${CX2.bordure}`, borderRadius: 9,
+              background: CX2.surface, fontSize: 13.5, fontWeight: 500,
+              color: CX2.encreSurvol, cursor: 'pointer',
+            }}
+          >
+            Annuler
+          </button>
+        </span>
+      </div>
     </div>
   );
 }
+
+/** Un seul style de champ pour toute la page. */
+const styleChamp: React.CSSProperties = {
+  border: `1px solid ${CX2.bordure}`,
+  borderRadius: 9,
+  padding: '11px 13px',
+  fontSize: 14.5,
+  background: CX2.surface,
+  color: CX2.encre,
+  width: '100%',
+};
