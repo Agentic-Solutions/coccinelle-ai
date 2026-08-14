@@ -414,3 +414,125 @@ quota), ou à supprimer avec leur route.
 corps. Envoyer la seule case modifiée réactive silencieusement les trois autres.
 Toute interface qui les réaffichera devra poster l'état complet des quatre —
 c'est ce que fait déjà le code retiré, conservé dans l'historique du chantier.
+
+---
+
+## 11. Chantier NAVIGATION 2 (14/08/2026) — retours de recette en production
+
+### 11.1 — « 0 canal actif » : le 13ᵉ réglage fictif
+
+La pastille « Mes canaux » lisait `channel_configurations.enabled`. Cette table
+contient **deux lignes dans toute la base**, les deux à `enabled=0` : elle
+affichait donc « 0 canal actif » aux sept tenants, dont un garage ayant reçu
+**dix appels**.
+
+Rien, dans le chemin qui fait marcher le produit, ne l'écrit — ni le signup, ni
+l'onboarding, ni la provision d'un numéro. Et rien ne la relit : ni
+`resolve-phone`, ni l'agent vocal, ni `shared/sms-envoi.js`. Deux requêtes de
+`twilio/routes.js` joignent bien sur `cc.enabled = 1`, mais ne peuvent donc
+rien remonter : ce sont des chemins hérités, supplantés par
+`omni_phone_mappings` et `resolve-phone`.
+
+**`channel_configurations` rejoint donc les douze de la section 10 comme 13ᵉ
+réglage fictif** — avec une circonstance aggravante : les douze autres ne
+faisaient rien, celui-ci affirmait au client que rien ne marchait alors que tout
+marchait.
+
+**Correctif** : `GET /api/v1/channels/etat` constate au lieu de déclarer.
+
+| Canal | Actif si | Vérifié en base |
+|---|---|---|
+| Téléphone | mapping voice actif **ou** un utilisateur `phone_verified=1` | 5 tenants sur 7 |
+| SMS | toujours — `env.TWILIO_PHONE_NUMBER`, aucun réglage tenant | 7/7 |
+| E-mail | un jeton dans `oauth_google/outlook/yahoo_tokens` | 1 tenant |
+| WhatsApp | jamais — gelé, annoncé « bientôt » | 0 |
+
+Garage Toulouse passe de « 0 canal actif » à « **2 canaux actifs** ».
+`GET /api/v1/channels` reste inchangée : les pages `channels/*` éditent une
+configuration, ce n'est pas la même question.
+
+### 11.2 — Réglages : une rubrique à la fois
+
+La page unique s'est révélée trop longue en conditions réelles. Le sommaire
+**commande** désormais l'affichage au lieu de le suivre : une seule rubrique
+montée, « Mon entreprise » par défaut.
+
+Deux détails qui ne se voient qu'à l'usage :
+
+- **`hashchange` en plus du montage.** Sans lui, coller `#compte` dans la barre
+  d'adresse d'un onglet DÉJÀ ouvert ne fait rien — la page ne se remonte pas.
+- **La recherche balaie toutes les rubriques**, pas seulement l'ouverte. C'est
+  la contrepartie du repliement : on cherche justement un réglage dont on ne
+  sait plus où il est rangé. Elle rend une liste plate, chaque résultat portant
+  le nom de sa rubrique, et un clic l'ouvre.
+
+Les trois blocs d'arrêt vivent dans « Mon compte ».
+
+### 11.3 — « Bien démarrer » : le repli existait, mais ne survivait pas
+
+L'état replié existait déjà (`expanded`) mais **n'était pas persisté** : chaque
+navigation rouvrait le bloc en pleine hauteur. Et le bouton « masquer
+définitivement » n'apparaît qu'aux 5 étapes faites — un compte à **4/5**, comme
+Garage Toulouse, restait donc coincé avec le bloc ouvert, sans aucun moyen de le
+réduire durablement.
+
+Repli persisté en `localStorage` (préférence d'affichage, par appareil) ; le
+masquage définitif reste en base (`users.checklist_dismissed_at`), sinon il ne
+suivrait pas le client d'un poste à l'autre. Repliée, la checklist tient sur une
+ligne : sous-titre et barre de progression sont masqués avec le reste — les
+garder aurait laissé trois lignes et le repli n'aurait rien rendu.
+
+### 11.4 — L'essai : un seul compteur
+
+Le nombre de jours restants s'affichait en bloc de 64 px au **milieu** de « Mon
+activité » **et** en pastille au bas de la barre latérale. Deux compteurs pour un
+même chiffre. Le bloc du milieu devient un bandeau fin en tête ; la pastille perd
+son compteur et ne garde que le nom de la formule. Le bandeau d'essai **expiré**
+est conservé pleine largeur : ce n'est plus un compte à rebours mais un compte
+qui ne fonctionne plus.
+
+### 11.5 — La « vue agenda » n'existait pas
+
+`/dashboard/appointments/calendar` n'avait **aucune grille** malgré son URL :
+c'était un doublon quasi exact de `/dashboard/rdv`, en plus pauvre (pas de
+synchronisation Google/Outlook). Redirigée par meta refresh. Détail dans
+l'en-tête du fichier.
+
+### 11.6 — Les tickets d'aide n'arrivaient nulle part
+
+`POST /support/tickets` envoyait un unique e-mail — **au client**, en accusé de
+réception promettant « nous reviendrons vers vous ». Personne chez Coccinelle
+n'était prévenu : `support@coccinelle.ai` n'apparaissait que dans le `from`.
+Rattraper par la base était impossible, `GET /support/tickets` filtrant sur
+`tenant_id` — même un admin ne voit que les tickets de son propre tenant, et
+aucune page back-office ne lit `support_tickets`. **Zéro ticket en base** avait
+caché le défaut depuis le début.
+
+Désormais **deux envois distincts** : vers `support@coccinelle.ai` avec
+`reply_to` sur le client, puis l'accusé de réception. Deux envois et non un `to`
+à deux adresses, sinon le client voit l'adresse interne et un « répondre à tous »
+lui expédie nos échanges. Sans `RESEND_API_KEY`, un **WARN explicite** est
+journalisé : un ticket perdu en silence est pire qu'une erreur visible.
+Les valeurs venant du client sont échappées — elles partent dans un e-mail HTML
+que nous lisons.
+
+---
+
+## 12. Backlog — ajouts du 14/08/2026
+
+Ces deux entrées viennent après les trois de la section 10.
+
+### 4. Vraie vue agenda — grille mensuelle (1,5–2 j)
+
+Aucune vue calendaire n'existe dans le produit : `/dashboard/rdv` est une liste,
+et `appointments/calendar` n'en était pas une malgré son nom. Un garagiste pense
+son planning en semaine, pas en liste triée par date. À écrire quand les
+premiers clients arriveront.
+
+### 5. `channel_configurations` — lue, ou supprimée
+
+La table est écrite par trois écrans de configuration et relue par deux requêtes
+héritées de `twilio/routes.js` qui ne peuvent plus rien remonter. Soit les pages
+`channels/*` deviennent la source d'un vrai réglage par tenant — ce qui suppose
+de décider ce que « désactiver le SMS » signifie quand l'envoi est une capacité
+plateforme — soit la table et ses écrans disparaissent.
