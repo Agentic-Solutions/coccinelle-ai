@@ -28,6 +28,12 @@ import {
 } from '@/components/cx2/reglages/types';
 import BlocsArret from '@/components/cx2/reglages/BlocsArret';
 
+/**
+ * Les rubriques, dans l'ordre. Sert à valider une ancre : `#atelier` ouvre la
+ * bonne, `#nimportequoi` retombe sur la première plutôt que sur du vide.
+ */
+const ID_RUBRIQUES = ['atelier', 'joindre', 'equipe', 'abonnement', 'compte'];
+
 const SECTEURS = [
   'automobile', 'artisan', 'immobilier', 'syndic', 'sante', 'dentiste',
   'restaurant', 'beaute', 'fitness', 'ecommerce', 'juridique', 'education',
@@ -37,6 +43,12 @@ const SECTEURS = [
 export default function PageReglages() {
   const [chargement, setChargement] = useState(true);
   const [recherche, setRecherche] = useState('');
+  /**
+   * Une seule rubrique montée à la fois — la page unique s'était révélée trop
+   * longue en conditions réelles. « Mon entreprise » par défaut : on n'arrive
+   * jamais sur un écran vide.
+   */
+  const [rubrique, setRubrique] = useState('atelier');
   const [enEdition, setEnEdition] = useState<string | null>(null);
   const [brouillon, setBrouillon] = useState('');
   /** Deuxième champ, utilisé par le seul réglage qui en demande deux. */
@@ -93,6 +105,33 @@ export default function PageReglages() {
   }, []);
 
   useEffect(() => { charger(); }, [charger]);
+
+  /**
+   * Les liens directs (#atelier, #joindre, #equipe, #abonnement, #compte)
+   * ouvrent la bonne rubrique. Écouter `hashchange` en plus du montage n'est
+   * pas du zèle : sans lui, coller une ancre dans la barre d'adresse d'un
+   * onglet DÉJÀ ouvert ne fait rien — la page ne se remonte pas.
+   * Une ancre inconnue retombe sur « Mon entreprise » plutôt que sur du vide.
+   */
+  useEffect(() => {
+    const lireAncre = () => {
+      const id = window.location.hash.replace('#', '');
+      if (id && ID_RUBRIQUES.includes(id)) setRubrique(id);
+    };
+    lireAncre();
+    window.addEventListener('hashchange', lireAncre);
+    return () => window.removeEventListener('hashchange', lireAncre);
+  }, []);
+
+  /** Ouvre une rubrique et inscrit l'ancre, pour que l'URL reste partageable. */
+  const ouvrirRubrique = useCallback((id: string) => {
+    setRubrique(id);
+    setRecherche('');
+    setEnEdition(null);
+    if (typeof window !== 'undefined' && window.location.hash !== `#${id}`) {
+      window.history.replaceState(null, '', `#${id}`);
+    }
+  }, []);
 
   /** Écrit un champ société, puis relit — on affiche ce qui est en base. */
   const enregistrerSociete = async (cle: string, valeur: string) => {
@@ -283,26 +322,32 @@ export default function PageReglages() {
     },
   ], [societe, abo, compte, equipe]);
 
-  // ── Recherche : réglages ET pages ──
+  // ── Recherche : elle balaie TOUTES les rubriques, pas seulement l'ouverte ──
+  //
+  // C'est la contrepartie du repliement : si la recherche ne voyait que la
+  // rubrique affichée, elle ne servirait plus à rien — on cherche justement un
+  // réglage dont on ne sait plus où il est rangé. Le résultat est donc une
+  // liste plate, chaque ligne portant le nom de sa rubrique.
   const q = plier(recherche.trim());
-  const sectionsFiltrees = q
-    ? sections
-      .map((s) => ({
-        ...s,
-        lignes: s.lignes.filter((l) =>
+
+  const resultats = q
+    ? sections.flatMap((sec) =>
+      sec.lignes
+        .filter((l) =>
           plier(l.label).includes(q)
           || plier(l.aide || '').includes(q)
           || plier(l.valeur).includes(q)
-          || (l.motsCles || []).some((m) => plier(m).includes(q))),
-      }))
-      .filter((s) => s.lignes.length > 0)
-    : sections;
+          || (l.motsCles || []).some((m) => plier(m).includes(q)))
+        .map((ligne) => ({ ligne, section: sec.id, titre: sec.titre })))
+    : [];
 
   const pagesTrouvees = q
     ? PAGES_INDEXEES.filter((p) => plier(p.titre).includes(q) || p.motsCles.some((m) => plier(m).includes(q)))
     : [];
 
-  const nbReglages = sectionsFiltrees.reduce((n, s) => n + s.lignes.length, 0);
+  // Une rubrique inconnue (donnée partiellement chargée, ancre erronée) ne doit
+  // pas produire un écran vide : on retombe sur la première.
+  const sectionOuverte = sections.find((sec) => sec.id === rubrique) || sections[0];
 
   if (chargement) {
     return (
@@ -328,7 +373,7 @@ export default function PageReglages() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <h1 style={{ margin: 0, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em' }}>Réglages</h1>
               <p style={{ margin: 0, fontSize: 14.5, color: CX2.texteSecondaire }}>
-                Tout est sur cette page. Cliquez sur une ligne pour la modifier.
+                Choisissez une rubrique à gauche. Cliquez sur une ligne pour la modifier.
               </p>
             </div>
             <span style={{
@@ -348,7 +393,7 @@ export default function PageReglages() {
               />
               {recherche && (
                 <span style={{ fontSize: 12.5, color: CX2.texteDiscret, fontFamily: POLICE_MONO, whiteSpace: 'nowrap' }}>
-                  {nbReglages + pagesTrouvees.length}
+                  {resultats.length + pagesTrouvees.length}
                 </span>
               )}
             </span>
@@ -369,61 +414,111 @@ export default function PageReglages() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 200px) minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
 
-            {/* Sommaire collant — un repère, pas une obligation */}
+            {/* Sommaire — il COMMANDE l'affichage, il ne le suit plus. */}
             <nav style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 4 }}>
-              {sections.map((s) => (
-                <a
-                  key={s.id}
-                  href={`#${s.id}`}
-                  style={{
-                    padding: '8px 10px', borderRadius: 8, fontSize: 13.5,
-                    color: CX2.texteSecondaire, textDecoration: 'none',
-                  }}
-                >
-                  {s.titre}
-                </a>
-              ))}
-              <span style={{ marginTop: 10, padding: '8px 10px', fontSize: 12.5, color: '#c2c1ba' }}>
-                Le sommaire suit votre défilement
-              </span>
+              {sections.map((sec) => {
+                const actif = sec.id === rubrique && !q;
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => ouvrirRubrique(sec.id)}
+                    style={{
+                      textAlign: 'left', border: 'none', cursor: 'pointer',
+                      padding: '9px 11px', borderRadius: 8, fontSize: 13.5,
+                      fontWeight: actif ? 600 : 400,
+                      background: actif ? CX2.bulleAssistant : 'transparent',
+                      color: actif ? CX2.encre : CX2.texteSecondaire,
+                    }}
+                  >
+                    {sec.titre}
+                  </button>
+                );
+              })}
             </nav>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {/* Pages trouvées — la contrepartie du retrait du mode Avancé */}
-              {pagesTrouvees.length > 0 && (
-                <section style={{ background: CX2.surface, border: `1px solid ${CX2.bordure}`, borderRadius: 14, padding: '24px 26px' }}>
-                  <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>Pages</h2>
-                  <p style={{ margin: '0 0 8px', fontSize: 13, color: CX2.texteTertiaire }}>
-                    Ces écrans ne sont pas dans le menu, mais ils existent.
-                  </p>
-                  {pagesTrouvees.map((p) => (
-                    <Link
-                      key={p.href}
-                      href={p.href}
-                      style={{
-                        display: 'grid', gridTemplateColumns: '1fr 15px', alignItems: 'center', gap: 18,
-                        padding: '15px 0', borderTop: `1px solid ${CX2.separateur}`,
-                        textDecoration: 'none', color: CX2.encre, fontSize: 15,
-                      }}
-                    >
-                      {p.titre}
-                      <ChevronRight size={14} color="#c2c1ba" strokeWidth={1.8} />
-                    </Link>
-                  ))}
-                </section>
+              {/* ── EN RECHERCHE : une liste plate de résultats ──
+                  La recherche balaie TOUTES les rubriques, pas seulement celle
+                  ouverte : c'est le seul moyen de trouver un réglage dont on ne
+                  sait plus où il est rangé — la raison d'être du champ. Chaque
+                  résultat porte le nom de sa rubrique, et un clic l'ouvre. */}
+              {q && (
+                <>
+                  {resultats.length > 0 && (
+                    <section style={{ background: CX2.surface, border: `1px solid ${CX2.bordure}`, borderRadius: 14, padding: '24px 26px' }}>
+                      <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>Réglages</h2>
+                      <p style={{ margin: '0 0 8px', fontSize: 13, color: CX2.texteTertiaire }}>
+                        Cliquez pour ouvrir la rubrique qui le contient.
+                      </p>
+                      {resultats.map((r) => (
+                        <button
+                          key={`${r.section}-${r.ligne.id}`}
+                          type="button"
+                          onClick={() => ouvrirRubrique(r.section)}
+                          style={{
+                            width: '100%', textAlign: 'left', border: 'none', background: 'transparent',
+                            cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto 15px',
+                            alignItems: 'center', gap: 18, padding: '15px 0',
+                            borderTop: `1px solid ${CX2.separateur}`,
+                          }}
+                        >
+                          <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                            <span style={{ fontSize: 15, color: CX2.encre }}>{r.ligne.label}</span>
+                            <span style={{ fontSize: 12.5, color: CX2.texteDiscret }}>{r.titre}</span>
+                          </span>
+                          <span style={{ fontSize: 13.5, color: CX2.texteSecondaire, whiteSpace: 'nowrap' }}>
+                            {r.ligne.valeur}
+                          </span>
+                          <ChevronRight size={14} color="#c2c1ba" strokeWidth={1.8} />
+                        </button>
+                      ))}
+                    </section>
+                  )}
+
+                  {/* Pages — la contrepartie du retrait du mode Avancé */}
+                  {pagesTrouvees.length > 0 && (
+                    <section style={{ background: CX2.surface, border: `1px solid ${CX2.bordure}`, borderRadius: 14, padding: '24px 26px' }}>
+                      <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>Pages</h2>
+                      <p style={{ margin: '0 0 8px', fontSize: 13, color: CX2.texteTertiaire }}>
+                        Ces écrans ne sont pas dans le menu, mais ils existent.
+                      </p>
+                      {pagesTrouvees.map((pg) => (
+                        <Link
+                          key={pg.href}
+                          href={pg.href}
+                          style={{
+                            display: 'grid', gridTemplateColumns: '1fr 15px', alignItems: 'center', gap: 18,
+                            padding: '15px 0', borderTop: `1px solid ${CX2.separateur}`,
+                            textDecoration: 'none', color: CX2.encre, fontSize: 15,
+                          }}
+                        >
+                          {pg.titre}
+                          <ChevronRight size={14} color="#c2c1ba" strokeWidth={1.8} />
+                        </Link>
+                      ))}
+                    </section>
+                  )}
+
+                  {resultats.length === 0 && pagesTrouvees.length === 0 && (
+                    <p style={{ fontSize: 14, color: CX2.texteDiscret, padding: '8px 2px' }}>
+                      Rien ne correspond à « {recherche} ».
+                    </p>
+                  )}
+                </>
               )}
 
-              {sectionsFiltrees.map((s) => (
+              {/* ── HORS RECHERCHE : la rubrique ouverte, et elle seule ── */}
+              {!q && sectionOuverte && (
                 <section
-                  key={s.id}
-                  id={s.id}
-                  style={{ background: CX2.surface, border: `1px solid ${CX2.bordure}`, borderRadius: 14, padding: '24px 26px', scrollMarginTop: 24 }}
+                  id={sectionOuverte.id}
+                  style={{ background: CX2.surface, border: `1px solid ${CX2.bordure}`, borderRadius: 14, padding: '24px 26px' }}
                 >
-                  <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>{s.titre}</h2>
-                  <p style={{ margin: '0 0 8px', fontSize: 13, color: CX2.texteTertiaire }}>{s.aide}</p>
+                  <h2 style={{ margin: '0 0 3px', fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em' }}>{sectionOuverte.titre}</h2>
+                  <p style={{ margin: '0 0 8px', fontSize: 13, color: CX2.texteTertiaire }}>{sectionOuverte.aide}</p>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {s.lignes.map((l) => (
+                    {sectionOuverte.lignes.map((l) => (
                       <Ligne
                         key={l.id}
                         ligne={l}
@@ -443,22 +538,18 @@ export default function PageReglages() {
                         onAnnuler={() => { setEnEdition(null); setSecond(''); }}
                         onEnregistrer={(valeur, deuxieme) => {
                           if (!l.edition) return;
-                          if (s.id === 'compte') return enregistrerCompte(l.edition.cle, valeur, deuxieme);
+                          if (sectionOuverte.id === 'compte') return enregistrerCompte(l.edition.cle, valeur, deuxieme);
                           return enregistrerSociete(l.edition.cle, valeur);
                         }}
                       />
                     ))}
                   </div>
                 </section>
-              ))}
-
-              {q && nbReglages === 0 && pagesTrouvees.length === 0 && (
-                <p style={{ fontSize: 14, color: CX2.texteDiscret, padding: '8px 2px' }}>
-                  Rien ne correspond à « {recherche} ».
-                </p>
               )}
 
-              {!q && <BlocsArret />}
+              {/* Les trois niveaux d'arrêt vivent dans « Mon compte » : c'est
+                  là qu'on décide de partir, pas au bas de chaque rubrique. */}
+              {!q && rubrique === 'compte' && <BlocsArret />}
             </div>
           </div>
         </div>
