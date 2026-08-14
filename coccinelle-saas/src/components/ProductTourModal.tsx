@@ -7,23 +7,12 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ArrowRightIcon,
-  HomeIcon,
   PhoneIcon,
-  InboxIcon,
-  CalendarIcon,
   UsersIcon,
-  ShoppingBagIcon,
-  BookOpenIcon,
   BarChartIcon,
   SettingsIcon,
   CheckIcon,
 } from './landing/icons';
-import {
-  UserCheck,
-  Radio,
-  UsersRound,
-  CreditCard,
-} from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -36,6 +25,8 @@ type IconComponent = (props: IconComponentProps) => ReactNode;
 interface SidebarItem {
   label: string;
   icon: IconComponent;
+  /** Rendu dans le pied du menu, comme dans le vrai produit. */
+  pied?: boolean;
 }
 
 interface TourScreen {
@@ -99,39 +90,26 @@ function StatusBadge({
   );
 }
 
-// ─── Sidebar Items (14) ─────────────────────────────────────────────────────
+// ─── Menu simulé — le MÊME que le vrai produit ──────────────────────────────
+//
+// Il en comptait treize entrées quand le produit en a désormais trois. Un tour
+// qui montre un menu que le client ne retrouvera pas à l'inscription vend un
+// autre logiciel que le sien : les treize écrans restent, mais ils se rangent
+// sous les trois entrées réelles (voir lib/navigation.ts).
 
 const sidebarItems: SidebarItem[] = [
-  { label: 'Vue d\'ensemble', icon: HomeIcon },
-  { label: 'Appels', icon: PhoneIcon },
-  { label: 'Messages', icon: InboxIcon },
-  { label: 'Rendez-vous', icon: CalendarIcon },
-  { label: 'Prospects', icon: UsersIcon },
-  { label: 'Clients', icon: UserCheck as IconComponent },
-  { label: 'Produits', icon: ShoppingBagIcon },
-  { label: 'Connaissances', icon: BookOpenIcon },
-  { label: 'Canaux', icon: Radio as IconComponent },
-  { label: 'Analytics', icon: BarChartIcon },
-  { label: 'Équipes', icon: UsersRound as IconComponent },
-  { label: 'Facturation', icon: CreditCard as IconComponent },
-  { label: 'Paramètres', icon: SettingsIcon },
+  { label: 'Mon activité', icon: BarChartIcon },
+  { label: 'Mon assistant', icon: PhoneIcon },
+  { label: 'Mes clients', icon: UsersIcon },
+  { label: 'Réglages', icon: SettingsIcon, pied: true },
 ];
 
-// Map sidebar index to tour screen index for click navigation
+// Cliquer une entrée mène au PREMIER écran qu'elle contient.
 const sidebarToScreen: Record<number, number> = {
-  0: 0,   // Vue d'ensemble -> screen 0'
-  1: 1,   // Appels -> screen 1
-  2: 2,   // Messages -> screen 2
-  3: 3,   // Rendez-vous -> screen 3
-  4: 4,   // Prospects -> screen 4
-  5: 5,   // Clients -> screen 5
-  6: 6,   // Produits -> screen 6
-  7: 7,   // Connaissances -> screen 7
-  8: 8,   // Canaux -> screen 8
-  9: 9,   // Analytics -> screen 9
-  10: 10,  // Équipes -> screen 10
-  11: 11,  // Facturation -> screen 11
-  12: 12,  // Paramètres -> screen 12
+  0: 0,   // Mon activité  -> Bonjour, Marie
+  1: 6,   // Mon assistant  -> Ce qu'il sait
+  2: 3,   // Mes clients    -> Agenda (la carte en haut de la page)
+  3: 12,  // Réglages       -> Réglages
 };
 
 // ─── Screen 1: Vue d'ensemble ────────────────────────────────────────────────'
@@ -1519,8 +1497,8 @@ const tourScreens: TourScreen[] = [
   },
   {
     title: 'Historique des appels',
-    url: '/dashboard/conversations/appels',
-    sidebarIndex: 1,
+    url: '/dashboard/analytics/calls',
+    sidebarIndex: 0,
     value:
       'Chaque appel est transcrit et analys\u00e9 automatiquement. Vous voyez qui a appel\u00e9, le r\u00e9sultat et le niveau de satisfaction.',
     content: <CallHistoryScreen />,
@@ -1528,23 +1506,23 @@ const tourScreens: TourScreen[] = [
   {
     title: 'Bo\u00eete de r\u00e9ception',
     url: '/dashboard/conversations',
-    sidebarIndex: 2,
+    sidebarIndex: 0,
     value:
       'Tous vos \u00e9changes avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications.',
     content: <MessagesScreen />,
   },
   {
     title: 'Agenda',
-    url: '/dashboard/rdv',
-    sidebarIndex: 3,
+    url: '/dashboard/crm/prospects',
+    sidebarIndex: 2,
     value:
       'Les RDV sont pris automatiquement avec rappels SMS la veille et 1h avant. Vos clients re\u00e7oivent une confirmation imm\u00e9diate.',
     content: <AppointmentsScreen />,
   },
   {
     title: 'Gestion des prospects',
-    url: '/dashboard/crm',
-    sidebarIndex: 4,
+    url: '/dashboard/crm/prospects',
+    sidebarIndex: 2,
     value:
       'Chaque contact est automatiquement enregistr\u00e9, d\u00e9dupliqu\u00e9 et class\u00e9. Vous savez imm\u00e9diatement qui relancer en priorit\u00e9.',
     content: <ProspectsScreen />,
@@ -1552,31 +1530,31 @@ const tourScreens: TourScreen[] = [
   {
     title: 'Gestion des clients',
     url: '/dashboard/customers',
-    sidebarIndex: 5,
+    sidebarIndex: 2,
     value:
       'Vos prospects convertis deviennent clients. Historique complet des RDV, pr\u00e9f\u00e9rences et interactions. Export en un clic.',
     content: <ClientsScreen />,
   },
   {
     title: 'Catalogue de services',
-    url: '/dashboard/products',
-    sidebarIndex: 6,
+    url: '/dashboard/savoir',
+    sidebarIndex: 1,
     value:
       'Votre assistant conna\u00eet vos services, dur\u00e9es et prix. Il r\u00e9pond imm\u00e9diatement aux clients et propose des cr\u00e9neaux adapt\u00e9s \u00e0 la dur\u00e9e.',
     content: <ProductsScreen />,
   },
   {
     title: 'Base de connaissances',
-    url: '/dashboard/knowledge',
-    sidebarIndex: 7,
+    url: '/dashboard/savoir',
+    sidebarIndex: 1,
     value:
       'Indiquez l\u2019adresse de votre site et l\u2019assistant apprend tout seul. Ajoutez des PDF ou des questions-r\u00e9ponses pour affiner.',
     content: <KnowledgeScreen />,
   },
   {
     title: 'Canaux de communication',
-    url: '/dashboard/channels',
-    sidebarIndex: 8,
+    url: '/dashboard/settings',
+    sidebarIndex: 3,
     value:
       'Vos clients vous contactent par le canal de leur choix. L\u2019assistant g\u00e8re tout et peut basculer d\u2019un canal \u00e0 l\u2019autre pendant un appel.',
     content: <ChannelsScreen />,
@@ -1584,7 +1562,7 @@ const tourScreens: TourScreen[] = [
   {
     title: 'Tableau de bord analytique',
     url: '/dashboard/analytics',
-    sidebarIndex: 9,
+    sidebarIndex: 0,
     value:
       'Un r\u00e9capitulatif est envoy\u00e9 par email chaque lundi. Tableaux de bord, tendances et export CSV en un clic.',
     content: <AnalyticsScreen />,
@@ -1592,7 +1570,7 @@ const tourScreens: TourScreen[] = [
   {
     title: 'Gestion de l\u2019\u00e9quipe',
     url: '/dashboard/teams',
-    sidebarIndex: 10,
+    sidebarIndex: 3,
     value:
       'Invitez vos collaborateurs et d\u00e9finissez ce que chacun peut voir et faire. R\u00f4les admin, manager et employ\u00e9 avec 10 permissions configurables.',
     content: <TeamsScreen />,
@@ -1600,7 +1578,7 @@ const tourScreens: TourScreen[] = [
   {
     title: 'Facturation et abonnement',
     url: '/dashboard/billing',
-    sidebarIndex: 11,
+    sidebarIndex: 3,
     value:
       'Facturation transparente, sans engagement. Changez de plan ou annulez \u00e0 tout moment. Toutes vos factures t\u00e9l\u00e9chargeables.',
     content: <BillingScreen />,
@@ -1608,7 +1586,7 @@ const tourScreens: TourScreen[] = [
   {
     title: 'Param\u00e8tres',
     url: '/dashboard/settings',
-    sidebarIndex: 12,
+    sidebarIndex: 3,
     value:
       'Personnalisez votre profil, vos notifications et vos acc\u00e8s. Tout se configure en quelques clics.',
     content: <SettingsScreen />,
@@ -1624,6 +1602,35 @@ const tourScreens: TourScreen[] = [
 ];
 
 // ─── Sidebar Component ───────────────────────────────────────────────────────
+
+function EntreeMenu({
+  item, index, actif, onNavigate,
+}: {
+  item: SidebarItem;
+  index: number;
+  actif: boolean;
+  onNavigate: (screenIndex: number) => void;
+}) {
+  const Icon = item.icon;
+  const ecran = sidebarToScreen[index];
+  const cliquable = ecran !== undefined;
+
+  return (
+    <button
+      onClick={() => { if (cliquable) onNavigate(ecran); }}
+      className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-[13px] transition-colors ${
+        actif
+          ? 'bg-white/10 text-white border-l-[3px] border-[#D85A30] -ml-px'
+          : cliquable
+            ? 'text-gray-400 hover:text-white hover:bg-white/5'
+            : 'text-gray-400 cursor-default'
+      }`}
+    >
+      <Icon className="w-4 h-4 flex-shrink-0" />
+      <span>{item.label}</span>
+    </button>
+  );
+}
 
 function TourSidebar({
   activeSidebarIndex,
@@ -1644,36 +1651,34 @@ function TourSidebar({
         </span>
       </div>
 
-      {/* Nav items */}
+      {/* Trois entrées, puis Réglages en pied — comme le vrai menu. */}
       <nav className="flex-1 min-h-0 px-2 space-y-0.5 overflow-y-auto">
-        {sidebarItems.map((item, i) => {
-          const Icon = item.icon;
-          const isActive = i === activeSidebarIndex;
-          const screenIndex = sidebarToScreen[i];
-          const isClickable = screenIndex !== undefined;
-
-          return (
-            <button
+        {sidebarItems.map((item, i) =>
+          item.pied ? null : (
+            <EntreeMenu
               key={item.label}
-              onClick={() => {
-                if (isClickable) {
-                  onNavigate(screenIndex);
-                }
-              }}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-[13px] transition-colors ${
-                isActive
-                  ? 'bg-white/10 text-white border-l-[3px] border-[#D85A30] -ml-px'
-                  : isClickable
-                    ? 'text-gray-400 hover:text-white hover:bg-white/5'
-                    : 'text-gray-400 cursor-default'
-              }`}
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+              item={item}
+              index={i}
+              actif={i === activeSidebarIndex}
+              onNavigate={onNavigate}
+            />
+          ),
+        )}
       </nav>
+
+      <div className="px-2 pb-1 flex-shrink-0">
+        {sidebarItems.map((item, i) =>
+          item.pied ? (
+            <EntreeMenu
+              key={item.label}
+              item={item}
+              index={i}
+              actif={i === activeSidebarIndex}
+              onNavigate={onNavigate}
+            />
+          ) : null,
+        )}
+      </div>
 
       {/* Avatar */}
       <div className="px-3 py-2.5 border-t border-white/10 flex-shrink-0">
