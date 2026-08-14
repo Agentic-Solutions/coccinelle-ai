@@ -27,7 +27,12 @@ export default function EmailPage() {
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [resendOk, setResendOk] = useState(false);
-  const [channelActive, setChannelActive] = useState(false);
+  /**
+   * Réception : une boîte est-elle reliée ? Vient de /channels/etat, qui
+   * CONSTATE (un jeton OAuth en base) au lieu de lire `channel_configurations`
+   * — table fantôme dont on a établi qu'elle ne pilote rien (chantier 2).
+   */
+  const [receptionActive, setReceptionActive] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -38,9 +43,10 @@ export default function EmailPage() {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const [configRes, logsRes] = await Promise.all([
+      const [configRes, logsRes, etatRes] = await Promise.all([
         fetch(buildApiUrl('/api/v1/email/config'), { headers }),
         fetch(buildApiUrl('/api/v1/email/logs'), { headers }),
+        fetch(buildApiUrl('/api/v1/channels/etat'), { headers }),
       ]);
 
       if (configRes.ok) {
@@ -52,12 +58,17 @@ export default function EmailPage() {
           signature: data.config?.signature || '',
         });
         setResendOk(!!data.resend_configured);
-        setChannelActive(!!data.channel_active);
       }
 
       if (logsRes.ok) {
         const data = await logsRes.json();
         setLogs(data.logs || []);
+      }
+
+      if (etatRes.ok) {
+        const data = await etatRes.json();
+        const mail = (data.canaux || []).find((c: { type: string }) => c.type === 'email');
+        setReceptionActive(!!mail?.actif);
       }
     } catch {
       showError('Erreur de chargement');
@@ -90,21 +101,21 @@ export default function EmailPage() {
     }
   };
 
-  const handleToggleChannel = async () => {
-    try {
-      const endpoint = channelActive ? '/api/v1/channels/email/disable' : '/api/v1/channels/email/enable';
-      const res = await fetch(buildApiUrl(endpoint), {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        setChannelActive(!channelActive);
-        showSuccess(channelActive ? 'Canal email désactivé' : 'Canal email activé');
-      }
-    } catch {
-      showError('Erreur réseau');
-    }
-  };
+  // `handleToggleChannel` a été retiré le 14/08/2026.
+  //
+  // Il appelait POST /channels/email/enable, qui exige une ligne
+  // `channel_configurations` avec `configured = 1`. Cinq tenants sur sept n'en
+  // ont aucune : la route répondait 400 « Canal non configuré » — et le code
+  // ne testait que `res.ok`, sans `else`. Le client cliquait, rien ne bougeait,
+  // AUCUN message n'apparaissait.
+  //
+  // Même en cas de succès, la colonne ne pilote rien : ni `sms-envoi.js`, ni
+  // `resolve-phone`, ni l'agent vocal ne la lisent. Il n'y a donc rien à
+  // activer ici — l'envoi marche au niveau plateforme (Resend), et la réception
+  // s'active en reliant une boîte, ce que fait le bouton Gmail plus bas.
+  //
+  // Les routes enable/disable restent en place : d'autres pages `channels/*`
+  // s'en servent, et ce lot ne touche qu'à l'e-mail.
 
   const handleTestSend = async () => {
     if (!testEmail.trim()) { showError('Saisissez une adresse email'); return; }
@@ -182,39 +193,34 @@ export default function EmailPage() {
           </div>
         )}
 
-        {/* SECTION 1 — Statut canal */}
+        {/* SECTION 1 — Statut, en DEUX SENS (14/08/2026)
+            ─────────────────────────────────────────────
+            Un badge unique « Actif / Inactif » ne pouvait pas dire la vérité :
+            l'envoi et la réception ne s'activent pas de la même façon et
+            n'étaient pas dans le même état. La page affichait « Inactif » sur
+            un canal dont l'ENVOI fonctionnait — et proposait un bouton qui
+            échouait en 400 sans le moindre message.
+
+            L'envoi dépend de Resend, au niveau plateforme. La réception dépend
+            d'un jeton OAuth par tenant, lu par /channels/etat. Deux faits, deux
+            lignes — et aucun interrupteur, puisqu'il n'y a rien à basculer. */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Statut du canal</h2>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            {/* Badge actif/inactif */}
-            <div className="flex items-center gap-3">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-                channelActive ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'
-              }`}>
-                {channelActive ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                {channelActive ? 'Actif' : 'Inactif'}
-              </span>
-              <button
-                onClick={handleToggleChannel}
-                className="text-sm text-gray-600 hover:text-gray-900 underline transition-colors"
-              >
-                {channelActive ? 'Désactiver' : 'Activer'}
-              </button>
-            </div>
-
-            {/* Statut Resend */}
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500">Resend API :</span>
-              {resendOk ? (
-                <span className="flex items-center gap-1 text-gray-800 font-medium">
-                  <CheckCircle className="w-3.5 h-3.5" /> Configuré
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-gray-500">
-                  <XCircle className="w-3.5 h-3.5" /> Non configuré
-                </span>
-              )}
-            </div>
+          <div className="space-y-3">
+            <EtatCanal
+              titre="Envoi"
+              actif={resendOk}
+              detail={resendOk
+                ? 'Vos e-mails partent normalement.'
+                : 'Clé Resend absente — aucun e-mail ne peut partir.'}
+            />
+            <EtatCanal
+              titre="Réception"
+              actif={receptionActive}
+              detail={receptionActive
+                ? 'Une boîte est reliée : votre assistant lit les messages qui vous arrivent.'
+                : 'Aucune boîte reliée. Connectez-en une ci-dessous pour que votre assistant lise vos e-mails.'}
+            />
           </div>
         </div>
 
@@ -422,4 +428,25 @@ function urlConnexionGmail(): string {
     : '';
   const retour = encodeURIComponent('/dashboard/channels/email');
   return buildApiUrl(`/api/v1/oauth/google/authorize?token=${encodeURIComponent(jeton)}&redirect=${retour}`);
+}
+
+/**
+ * Une ligne d'état : un fait, sa conséquence pour le client.
+ *
+ * On ne dit pas « configuré » (mot d'administrateur) mais ce que ça change :
+ * « vos e-mails partent normalement ». Un statut que le client ne sait pas
+ * traduire ne lui apprend rien.
+ */
+function EtatCanal({ titre, actif, detail }: { titre: string; actif: boolean; detail: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
+        actif ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'
+      }`}>
+        {actif ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+        {titre}
+      </span>
+      <p className="text-sm text-gray-600 pt-1">{detail}</p>
+    </div>
+  );
 }
