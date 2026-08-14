@@ -80,6 +80,7 @@ export default function SetupChecklist() {
     });
   }, []);
   const [hidden, setHidden] = useState(false);
+  const [confirmation, setConfirmation] = useState(false);
 
   const fetchChecklist = useCallback(async () => {
     const token = getToken();
@@ -122,6 +123,19 @@ export default function SetupChecklist() {
     };
   }, [fetchChecklist]);
 
+  /**
+   * Masquage définitif, possible à TOUT MOMENT depuis le 14/08/2026.
+   *
+   * Le bouton n'apparaissait qu'aux 5 étapes faites, et l'API refusait le reste
+   * par un 409 : un compte bloqué à 4/5 — parce qu'il n'a personne à inviter,
+   * par exemple — gardait le bloc ouvert en tête de son tableau de bord,
+   * définitivement. La garde serveur a sauté avec le bouton ; l'un sans l'autre
+   * aurait produit un clic qui échoue en silence.
+   *
+   * Le masquage est persisté en base (`users.checklist_dismissed_at`) et non en
+   * localStorage : il doit suivre le client d'un appareil à l'autre. Le
+   * localStorage ne gouverne que le repli.
+   */
   const handleDismiss = useCallback(async () => {
     const token = getToken();
     if (!token) return;
@@ -136,6 +150,7 @@ export default function SetupChecklist() {
       setHidden(false);
     }
   }, []);
+
 
   if (loading || hidden || !checklist) return null;
   if (checklist.dismissed) return null;
@@ -188,8 +203,10 @@ export default function SetupChecklist() {
                 ? <ChevronUp className="w-4 h-4 text-gray-500" />
                 : <ChevronDown className="w-4 h-4 text-gray-500" />}
             </button>
-            {/* Masquage possible uniquement une fois les 5 étapes terminées */}
-            {setup_completed && (
+            {/* « Passer » — discret, mais toujours là. Un bloc d'aide qu'on ne
+                peut pas ranger cesse d'être une aide. Aux 5 étapes faites, la
+                croix reste : à ce stade le mot « Passer » n'a plus de sens. */}
+            {setup_completed ? (
               <button
                 onClick={handleDismiss}
                 className="p-1.5 hover:bg-gray-100 rounded transition-colors"
@@ -198,10 +215,41 @@ export default function SetupChecklist() {
               >
                 <X className="w-4 h-4 text-gray-500" />
               </button>
+            ) : (
+              <button
+                onClick={() => setConfirmation(true)}
+                className="text-xs text-gray-400 hover:text-gray-700 underline underline-offset-2 px-1.5 py-1 transition-colors"
+              >
+                Passer
+              </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Confirmation en ligne. Le masquage est irréversible depuis l'interface
+          et le bloc porte des étapes non faites : on demande, une fois. */}
+      {confirmation && (
+        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-gray-600">
+            Masquer définitivement ? Vous pourrez toujours régler ces points depuis les Réglages.
+          </p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleDismiss}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+            >
+              Masquer
+            </button>
+            <button
+              onClick={() => setConfirmation(false)}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Étapes */}
       {expanded && (

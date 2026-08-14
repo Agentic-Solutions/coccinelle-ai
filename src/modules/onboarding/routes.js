@@ -436,10 +436,11 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
       try {
         const checklist = await computeStartupChecklist(env, tenantId, user);
 
-        // Masquage : uniquement possible une fois les 5 étapes terminées
-        // (garde côté API sur POST /checklist/dismiss). Persisté en DB, jamais
-        // en localStorage — l'ancien composant utilisait localStorage, ce qui
-        // faisait réapparaître la checklist sur un autre appareil.
+        // Masquage : possible à tout moment depuis le 14/08/2026. Persisté en
+        // DB et jamais en localStorage — l'ancien composant utilisait
+        // localStorage, ce qui faisait réapparaître la checklist sur un autre
+        // appareil. (Le localStorage ne gouverne que le REPLI, qui est autre
+        // chose : une préférence d'affichage, par appareil.)
         let dismissed = false;
         try {
           const row = await env.DB.prepare(
@@ -477,7 +478,7 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
 
     // ========================================
     // POST /api/v1/onboarding/checklist/dismiss
-    // Masque définitivement la checklist de démarrage (une fois 5/5).
+    // Masque définitivement la checklist de démarrage, à tout moment.
     // ========================================
     if (path === '/api/v1/onboarding/checklist/dismiss' && method === 'POST') {
       const authResult = await requireAuth(request, env);
@@ -489,21 +490,21 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
       }
 
       try {
-        const checklist = await computeStartupChecklist(env, authResult.tenant.id, authResult.user);
-
-        // On recalcule côté serveur : le client ne décide pas seul qu'il a fini.
-        if (!checklist.setup_completed) {
-          return new Response(JSON.stringify({
-            success: false,
-            error: 'Checklist incomplete',
-            completed: checklist.completed,
-            total: checklist.total
-          }), {
-            status: 409,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
+        // GARDE RETIRÉE le 14/08/2026 — elle refusait le masquage tant que les
+        // 5 étapes n'étaient pas faites (409 « Checklist incomplete »).
+        //
+        // Elle confondait deux choses : AVOIR TERMINÉ est un fait que le
+        // serveur calcule, VOULOIR MASQUER est une décision du client. On ne
+        // lui interdit pas de ranger un bloc d'aide.
+        //
+        // L'effet en production était l'inverse du but recherché : un compte
+        // bloqué à 4/5 — parce qu'il n'a pas d'équipe à inviter, par exemple —
+        // gardait le bloc ouvert en tête de son tableau de bord, définitivement,
+        // sans aucun recours. C'est ce qu'a signalé la recette.
+        //
+        // Le masquage reste réversible côté serveur (remettre la colonne à NULL)
+        // et n'efface rien : la checklist continue d'être calculée, elle n'est
+        // simplement plus affichée.
         await env.DB.prepare(
           `UPDATE users SET checklist_dismissed_at = datetime('now') WHERE id = ?`
         ).bind(authResult.user.id).run();
