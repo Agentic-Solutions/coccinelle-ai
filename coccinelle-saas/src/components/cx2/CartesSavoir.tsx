@@ -42,17 +42,31 @@ export function CarteAjouter({
   const [survol, setSurvol] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  // Le dépôt de fichier est lu CÔTÉ NAVIGATEUR et collé dans le champ : la
-  // route d'upload répond 501 et le multipart est bloqué avant même d'atteindre
-  // le Worker (mémoire multipart-post-edge-block). Le client voit son contenu
-  // avant de l'enregistrer, ce qui vaut mieux qu'un envoi opaque.
+  // Le dépôt est lu CÔTÉ NAVIGATEUR (`f.text()`) et collé dans le champ :
+  // aucun réseau n'est impliqué. C'est pourquoi il fonctionne alors même que
+  // `/knowledge/documents/upload` répond 501 et que le multipart est bloqué
+  // avant d'atteindre le Worker (mémoire multipart-post-edge-block). Le client
+  // voit son contenu avant de l'enregistrer, ce qui vaut mieux qu'un envoi
+  // opaque.
+  //
+  // La limite est donc le FORMAT, pas le transport : un PDF n'est pas du texte,
+  // et l'extraire demanderait une bibliothèque WASM ou un service externe —
+  // ce dernier étant exclu par l'exigence de souveraineté. D'où un message de
+  // rejet qui donne la marche à suivre plutôt que d'énoncer un refus.
+  // Upload PDF : backlog (3–4 j, PLAN-NAVIGATION.md § 16).
   const lireFichier = async (fichiers: FileList | null) => {
     setErreur(null);
     const f = fichiers?.[0];
     if (!f) return;
     const ok = EXTENSIONS.some((e) => f.name.toLowerCase().endsWith(e));
     if (!ok) {
-      setErreur(`Formats acceptés : ${EXTENSIONS.join(', ')}. Vous pouvez aussi coller le texte.`);
+      // Un refus qui n'indique pas la sortie est un cul-de-sac. Le PDF et le
+      // Word sont les deux formats que tout le monde essaie en premier : ils
+      // méritent une consigne, pas une liste d'extensions.
+      const pdf = /\.(pdf|docx?|pages)$/i.test(f.name);
+      setErreur(pdf
+        ? 'Ce format ne peut pas être lu automatiquement. Ouvrez le document, sélectionnez le texte, copiez-le et collez-le ici — cela fonctionne aussi bien.'
+        : `Fichiers texte uniquement (${EXTENSIONS.join(', ')}). Vous pouvez aussi copier le contenu et le coller ici.`);
       return;
     }
     const texte = await f.text();
@@ -70,7 +84,7 @@ export function CarteAjouter({
         onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
         onDragLeave={() => setSurvol(false)}
         onDrop={(e) => { e.preventDefault(); setSurvol(false); lireFichier(e.dataTransfer.files); }}
-        placeholder="Collez un texte, glissez un fichier ou tapez une info"
+        placeholder="Collez un texte, tapez une info, ou glissez un fichier .txt ou .csv"
         style={{
           width: '100%', resize: 'none',
           border: `1px solid ${survol ? CX2.encre : CX2.bordure}`,
