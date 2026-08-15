@@ -716,6 +716,26 @@ PDF donne la marche à suivre : ouvrir, copier, coller.
 
 1. 🔴 **Jeton OAuth court à usage unique** (0,5 j) — cf. § 14. Un JWT de 30 jours
    part aujourd'hui dans l'URL, l'historique et le `Referer` vers Google.
+   ⚠️ **Moins urgent depuis le 15/08** : la page qui déclenchait ce flux a perdu
+   son bouton (l'e-mail est hors périmètre). La route `authorize` existe toujours
+   et garde le défaut ; plus rien ne la mène.
+
+1bis. **`/api/v1/oauth/google/disconnect` affirme « Gmail déconnecté » sans rien
+   déconnecter** (0,5 j) — ajouté le 15/08/2026.
+
+   La route fait un `DELETE FROM oauth_google_tokens` et répond
+   `{ success: true, message: 'Gmail déconnecté' }`. Elle **n'appelle jamais**
+   `POST https://oauth2.googleapis.com/revoke`. L'autorisation reste donc active
+   dans le compte Google du client, listée dans ses applications tierces — et un
+   `refresh_token` qui aurait fuité par une sauvegarde resterait utilisable.
+
+   Le message est donc faux : le client croit avoir coupé l'accès, il a seulement
+   fait oublier le jeton à Coccinelle.
+
+   **À corriger quand l'e-mail reviendra avec MailIA** : révoquer chez Google
+   AVANT de supprimer la ligne — l'ordre inverse perd le seul moyen de révoquer.
+   C'est exactement la manœuvre faite à la main le 15/08 sur les deux jetons
+   existants (un `200`, un `400 invalid_token` = déjà mort).
 2. **Synchronisation calendrier réelle** (5–7 j). C'est la brique qui a le plus
    de valeur métier : sans elle, l'agent vocal peut poser un rendez-vous sur un
    créneau déjà occupé. Elle suppose : le scope `calendar` ajouté à l'OAuth
