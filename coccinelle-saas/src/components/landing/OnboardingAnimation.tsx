@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Link2, Upload, Phone, MessageSquare, Mail, Calendar, BarChart3, CheckCircle, Zap, Clock, Users, FileText, ChevronLeft, ChevronRight, Pause, Play, PlayCircle } from 'lucide-react';
+import { Link2, Upload, Phone, MessageSquare, Calendar, BarChart3, CheckCircle, Zap, Clock, Users, FileText, ChevronLeft, ChevronRight, Pause, Play, PlayCircle } from 'lucide-react';
 
 const onboardingSteps = [
   {
@@ -373,14 +373,10 @@ export default function OnboardingAnimation() {
                       <p className="text-2xl font-bold text-gray-900">28</p>
                       <p className="text-xs text-gray-500">Conversations</p>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Mail className="w-5 h-5 text-gray-700" />
-                        <span className="font-medium text-gray-900">Email</span>
-                      </div>
-                      <p className="text-2xl font-bold text-gray-900">15</p>
-                      <p className="text-xs text-gray-500">Emails traités</p>
-                    </div>
+                    {/* Tuile « Emails traités » retirée le 15/08/2026 — l'e-mail
+                        est hors périmètre de lancement. C'est une animation de
+                        landing : elle montre ce que le produit fait, elle ne doit
+                        donc pas montrer un canal qu'on ne livre pas. */}
                   </div>
                 </div>
               )}

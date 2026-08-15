@@ -41,14 +41,12 @@ export default function ChannelsPage() {
             <p className="text-xs sm:text-sm text-gray-600">Conversations</p>
           </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-3 mb-2">
-              <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
-              <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Email</h3>
-            </div>
-            <p className="text-2xl sm:text-3xl font-bold text-gray-900">15</p>
-            <p className="text-xs sm:text-sm text-gray-600">Emails traités</p>
-          </div>
+          {/* Tuile « Emails traités » retirée le 15/08/2026 : l'e-mail est hors
+              périmètre de lancement, et ce compteur annonçait « 15 emails traités »
+              sur un canal qui ne recevait rien.
+              ⚠️ Les trois compteurs voisins sont eux aussi ÉCRITS EN DUR
+              (47, 34, 28) et cette page ne fait AUCUN appel serveur. C'est une
+              maquette entière, pas une tuile à corriger — voir le backlog. */}
         </div>
 
         {/* Configuration des canaux */}

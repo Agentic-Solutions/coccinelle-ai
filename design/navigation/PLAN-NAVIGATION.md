@@ -714,6 +714,21 @@ PDF donne la marche à suivre : ouvrir, copier, coller.
    L'inverse coupe tous les appels entrants — le Worker retomberait sur
    l'ancienne clé pendant que l'agent tourne sur la nouvelle.
 
+0bis. **`/dashboard/channels` est une maquette entière** (0,5 j) — ajouté le
+   15/08/2026, trouvé en retirant les promesses d'e-mail.
+
+   Quatre compteurs **écrits en dur** — 47 appels, 34 SMS, 28 WhatsApp, 15
+   e-mails — et **aucun appel serveur** dans toute la page. C'est la famille de
+   `CalendarIntegration` (§ 15.2) : un client y lit des chiffres qui ne sont pas
+   les siens. La tuile e-mail a été retirée (canal hors périmètre) ; les trois
+   autres restent, et retirer un quart d'un mensonge ne le corrige pas.
+
+   ⚠️ Aucun lien de l'interface n'y mène. Ses seules références entrantes étaient
+   les redirections par défaut de l'OAuth Google (`modules/oauth/google.js`), un
+   flux devenu inatteignable depuis le retrait du bouton Gmail. À trancher :
+   la brancher sur `/analytics/overview`, ou la supprimer comme les sept pages de
+   `app/client/`.
+
 1. 🔴 **Jeton OAuth court à usage unique** (0,5 j) — cf. § 14. Un JWT de 30 jours
    part aujourd'hui dans l'URL, l'historique et le `Referer` vers Google.
    ⚠️ **Moins urgent depuis le 15/08** : la page qui déclenchait ce flux a perdu

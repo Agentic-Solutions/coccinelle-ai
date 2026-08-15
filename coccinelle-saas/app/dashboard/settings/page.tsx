@@ -240,10 +240,15 @@ export default function PageReglages() {
           motsCles: ['numéro', 'twilio', 'ligne'],
         },
         {
-          id: 'boite', label: 'Boîte e-mail reliée', aide: 'Pour lire et répondre aux e-mails',
-          valeur: 'Voir la connexion',
-          lien: { href: '/dashboard/channels/email', libelle: 'Ouvrir' },
-          motsCles: ['gmail', 'outlook', 'yahoo', 'oauth'],
+          // Hors périmètre de lancement (15/08/2026) : la RÉCEPTION et la réponse
+          // automatique reviendront avec MailIA. L'entrée reste — la recherche de
+          // Réglages doit répondre à qui tape « gmail » — mais elle dit « pas
+          // encore » au lieu de « voir la connexion ».
+          id: 'boite', label: 'Boîte e-mail reliée',
+          aide: 'Pas encore ouvert — votre assistant ne lit pas vos e-mails',
+          valeur: 'Bientôt disponible',
+          lien: { href: '/dashboard/channels/email', libelle: 'En savoir plus' },
+          motsCles: ['gmail', 'outlook', 'yahoo', 'oauth', 'e-mail', 'mailia'],
         },
       ],
     },
