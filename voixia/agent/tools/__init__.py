@@ -15,7 +15,7 @@ Authentification par cle API (X-VoixIA-Key + X-VoixIA-Tenant).
 from .appointments import book_appointment, check_availability
 from .products import search_products
 from .knowledge import search_knowledge
-from .messaging import send_sms, send_email
+from .messaging import send_sms  # send_email retire le 15/08/2026
 from .crm import create_prospect
 from .transfer import transfer_to_human
 
@@ -28,7 +28,6 @@ __all__ = [
     "search_products",
     "search_knowledge",
     "send_sms",
-    "send_email",
     "create_prospect",
     "transfer_to_human",
 ]

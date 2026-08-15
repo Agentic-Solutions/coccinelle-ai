@@ -503,8 +503,28 @@ Propose un entretien d'orientation gratuit.
 Confirme la date, l'heure et le format, présentiel ou visioconférence.
 
 6. FIN
-Confirme le rendez-vous, propose l'envoi du programme par email
-et précise les documents à préparer.`,
+Confirme le rendez-vous et précise les documents à préparer.`,
+    // « propose l'envoi du programme par email » retiré le 15/08/2026.
+    //
+    // L'assistant proposait, À L'ORAL, d'envoyer le programme par e-mail. Il
+    // disposait bien d'un outil `send_email` — mais celui-ci appelait
+    // `/api/v1/email/send`, qui exige un JWT, alors que l'agent s'authentifie
+    // par `X-VoixIA-Key`. Vérifié en production : 401 « Authorization required ».
+    // La promesse échouait donc systématiquement, et l'appelant ne pouvait pas
+    // la relire pour douter — c'est ce qui rend une promesse orale plus grave
+    // qu'une promesse écrite.
+    //
+    // L'outil a été retiré de l'agent en même temps (`pipeline.py`,
+    // `tools/messaging.py`) : laisser l'un sans l'autre, c'est soit un outil que
+    // le LLM peut appeler de sa propre initiative, soit une consigne sans outil.
+    //
+    // L'e-mail sort du périmètre de lancement (décision du 15/08) : Coccinelle
+    // se lance en voix, SMS et WhatsApp. La réception et la réponse automatique
+    // reviendront avec MailIA, brique séparée. L'ENVOI transactionnel (Resend)
+    // n'est pas concerné et continue.
+    //
+    // Aucun rattrapage en base : aucun tenant n'est en secteur `education`, et
+    // aucun `ai_prompt_versions.system_prompt` ne contenait cette phrase.
   },
 
   autre: {

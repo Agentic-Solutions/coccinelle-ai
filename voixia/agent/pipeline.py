@@ -99,17 +99,24 @@ class VoixIAAgent(Agent):
         logger.info("Tool : send_sms — %s", to)
         return await messaging.send_sms(to, message)
 
-    @function_tool
-    async def send_email(self, to: str, subject: str, body: str) -> str:
-        """Envoyer un e-mail au destinataire.
-
-        Args:
-            to: Adresse e-mail du destinataire.
-            subject: Objet de l'e-mail.
-            body: Corps du message.
-        """
-        logger.info("Tool : send_email — %s", to)
-        return await messaging.send_email(to, subject, body)
+    # `send_email` retire le 15/08/2026 — il ne pouvait PAS fonctionner.
+    #
+    # L'outil etait expose au LLM, qui pouvait donc l'appeler de sa propre
+    # initiative et annoncer un envoi a l'appelant. Il visait
+    # `POST /api/v1/email/send`, une route qui exige un JWT, alors que l'agent
+    # s'authentifie par `X-VoixIA-Key`. Verifie en production le 15/08 :
+    # 401 « Authorization required ». Aucun e-mail n'est jamais parti par ce
+    # chemin.
+    #
+    # Le prompt du secteur `education` demandait en plus de le proposer
+    # (« propose l'envoi du programme par email ») : retire au meme moment dans
+    # `src/modules/shared/sector-prompts.js`. Les deux ensemble, jamais l'un sans
+    # l'autre — sinon il reste soit un outil appelable sans consigne, soit une
+    # consigne sans outil.
+    #
+    # L'e-mail sort du perimetre de lancement (decision du 15/08). L'ENVOI
+    # transactionnel par Resend (confirmations, devis) n'est pas concerne : il ne
+    # passe pas par l'agent vocal.
 
     @function_tool
     async def create_prospect(self, name: str, phone: str, email: str) -> str:

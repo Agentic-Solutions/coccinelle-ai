@@ -96,7 +96,20 @@ async function handleOrchestrate(request, env) {
         result = await handleSMS(env, tenantId, from, content, context, prospect);
         break;
       case 'email':
-        result = await handleEmail(env, tenantId, from, to, content, context, prospect, metadata);
+        // RÉPONSE AUTOMATIQUE AUX E-MAILS — hors périmètre (15/08/2026).
+        //
+        // `handleEmail` générait une réponse par LLM et l'envoyait par Resend :
+        // c'est exactement la « réponse automatique » que la décision produit
+        // écarte du lancement. Elle reviendra avec MailIA.
+        //
+        // Neutralisé et non laissé béant, comme WhatsApp au Lot 1 : la réponse
+        // dit que le canal est indisponible plutôt que de laisser un `result`
+        // `undefined` remonter en succès silencieux.
+        //
+        // ⚠️ Rien ne l'appelait en pratique — `email/inbound.js` stocke l'e-mail
+        // entrant et s'arrête là. Mais la route l'acceptait : un appelant
+        // authentifié pouvait déclencher une réponse automatique.
+        result = { success: false, error: 'Canal e-mail indisponible' };
         break;
       case 'whatsapp':
         // Canal supprimé au Lot 1 ; la V2 (Twilio BSP) le réintroduira.
@@ -451,20 +464,12 @@ async function handleSMS(env, tenantId, from, content, context, prospect) {
   return { response: envoi.corps || response, sent: envoi.envoye };
 }
 
-/**
- * Canal EMAIL — Generer reponse LLM + envoyer via Resend
- */
-async function handleEmail(env, tenantId, from, to, content, context, prospect, metadata) {
-  const response = await generateLLMResponse(env, context.system_prompt, content, 'email', context);
-
-  const subject = metadata?.subject
-    ? `Re: ${metadata.subject.replace(/^Re:\s*/i, '')}`
-    : 'Reponse de Sara — Coccinelle.ai';
-
-  const sent = await sendResendEmail(env, from, subject, response);
-
-  return { response, sent };
-}
+// `handleEmail` retiree le 15/08/2026 avec la reponse automatique aux e-mails.
+// Elle portait aussi un sujet « Reponse de Sara — Coccinelle.ai » : « Sara » est
+// banni des surfaces publiques (regle i.14), et ce sujet partait chez un client.
+// `sendResendEmail` disparait avec elle — c'etait son unique appelant ; l'envoi
+// transactionnel passe par `utils/notifications.js` et `modules/email/routes.js`,
+// qui ne sont pas concernes.
 
 // ═══════════════════════════════════════════════════════════════
 // ENVOI MESSAGES (Twilio, Resend)
@@ -474,51 +479,6 @@ async function handleEmail(env, tenantId, from, to, content, context, prospect, 
 // direct, sans trace en conversation. `handleSMS` passe par
 // `shared/sms-envoi.js`, qui envoie ET trace. Garder les deux, c'etait garder
 // un chemin par lequel un SMS part sans laisser d'historique.
-
-async function sendResendEmail(env, to, subject, htmlBody) {
-  const apiKey = env.RESEND_API_KEY;
-  const fromEmail = env.RESEND_FROM_EMAIL || 'sara@coccinelle.ai';
-
-  if (!apiKey) {
-    logger.error('RESEND_API_KEY manquante');
-    return false;
-  }
-
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: `Sara <${fromEmail}>`,
-        to: [to],
-        subject,
-        html: formatEmailHTML(htmlBody)
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      logger.error('Resend email error', { status: response.status, error: err });
-      return false;
-    }
-
-    const data = await response.json();
-    logger.info('Email sent via orchestrator', { emailId: data.id, to });
-    return true;
-  } catch (error) {
-    logger.error('sendResendEmail error', { error: error.message });
-    return false;
-  }
-}
-
-// sendWhatsApp() supprimé au Lot 1 (3e des 5 chemins d'envoi V1).
-
-// ═══════════════════════════════════════════════════════════════
-// LOGGING INTERACTIONS
-// ═══════════════════════════════════════════════════════════════
 
 async function logInteraction(env, tenantId, canal, durationMs, success, contactId, contentIn, contentOut, prospectId) {
   try {

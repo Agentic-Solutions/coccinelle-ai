@@ -3,7 +3,6 @@ Outils d'envoi de messages (SMS et e-mail) via l'API VoixIA Coccinelle.
 
 Ce module fournit deux fonctions :
 - ``send_sms`` : envoie un SMS via POST /api/v1/voixia/sms
-- ``send_email`` : envoie un e-mail (POST /api/v1/email/send)
 
 Authentification par cle API (X-VoixIA-Key + X-VoixIA-Tenant).
 """
@@ -95,52 +94,16 @@ async def send_sms(to: str, message: str) -> str:
         return f"Erreur inattendue lors de l'envoi du SMS : {exc}"
 
 
-async def send_email(to: str, subject: str, body: str) -> str:
-    """
-    Envoie un e-mail au destinataire indique via POST /api/v1/email/send.
-
-    Note : l'endpoint e-mail n'a pas encore de route VoixIA dediee,
-    cet appel utilise donc l'ancien endpoint avec les headers VoixIA.
-    Si l'API retourne 401/404, un endpoint VoixIA e-mail devra etre ajoute.
-
-    Instrumente avec New Relic pour le suivi des performances.
-
-    Args:
-        to: Adresse e-mail du destinataire.
-        subject: Objet de l'e-mail.
-        body: Corps du message e-mail.
-
-    Returns:
-        Message de confirmation d'envoi en francais ou message d'erreur.
-    """
-    # Instrumentation New Relic (import lazy)
-    try:
-        import newrelic.agent
-        newrelic.agent.add_custom_parameter("tool", "send_email")
-        newrelic.agent.add_custom_parameter("email_to", to)
-    except Exception:
-        pass
-
-    logger.info("Envoi d'un e-mail a %s (objet : \u00ab %s \u00bb)", to, subject)
-    try:
-        async with _get_client() as client:
-            reponse = await client.post(
-                "/api/v1/email/send",
-                json={"to": to, "subject": subject, "body": body},
-            )
-            reponse.raise_for_status()
-            donnees = reponse.json()
-            logger.info("E-mail envoye avec succes a %s : %s", to, donnees)
-            return f"E-mail envoye avec succes a {to} (objet : \u00ab {subject} \u00bb)."
-    except httpx.HTTPStatusError as exc:
-        logger.error("Erreur HTTP lors de l'envoi de l'e-mail : %s", exc.response.text)
-        return (
-            f"Erreur lors de l'envoi de l'e-mail : "
-            f"{exc.response.status_code} — {exc.response.text}"
-        )
-    except httpx.TimeoutException:
-        logger.error("Timeout lors de l'envoi de l'e-mail a %s", to)
-        return "Erreur : le serveur n'a pas repondu a temps pour l'envoi de l'e-mail."
-    except Exception as exc:
-        logger.exception("Erreur inattendue lors de l'envoi de l'e-mail")
-        return f"Erreur inattendue lors de l'envoi de l'e-mail : {exc}"
+# `send_email` retire le 15/08/2026 — il ne pouvait PAS fonctionner.
+#
+# Il visait `POST /api/v1/email/send`, qui exige un JWT, alors que ce module
+# s'authentifie par `X-VoixIA-Key`. Sa propre docstring le pressentait :
+# « Si l'API retourne 401/404, un endpoint VoixIA e-mail devra etre ajoute ».
+# Verifie en production le 15/08 : 401 « Authorization required ». Aucun e-mail
+# n'est jamais parti par ce chemin, et l'assistant l'annoncait pourtant a l'oral.
+#
+# Retire en meme temps de `pipeline.py` (l'outil expose au LLM) et du prompt du
+# secteur `education` (la consigne de le proposer).
+#
+# L'e-mail sort du perimetre de lancement (decision du 15/08). L'envoi
+# transactionnel par Resend n'est pas concerne : il ne passe pas par l'agent.

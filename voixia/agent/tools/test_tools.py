@@ -191,22 +191,6 @@ async def test_send_sms() -> None:
         _afficher_resultat("send_sms", False, str(e))
 
 
-async def test_send_email() -> None:
-    """Teste l'envoi d'un e-mail."""
-    print("\n=== Test 6 : send_email ===")
-
-    try:
-        from tools.messaging import send_email
-        resultat = await send_email(
-            to="test@coccinelle.ai",
-            subject="Test VoixIA",
-            body="Ceci est un e-mail de test envoye par l'agent VoixIA.",
-        )
-        _afficher_resultat("send_email", True, resultat[:100])
-    except Exception as e:
-        _afficher_resultat("send_email", False, str(e))
-
-
 async def test_create_prospect() -> None:
     """Teste la creation d'un prospect dans le CRM."""
     print("\n=== Test 7 : create_prospect ===")
@@ -270,7 +254,6 @@ async def main() -> None:
     await test_check_availability()
     await test_book_appointment()
     await test_send_sms()
-    await test_send_email()
     await test_create_prospect()
     await test_search_products()
     await test_search_knowledge()
