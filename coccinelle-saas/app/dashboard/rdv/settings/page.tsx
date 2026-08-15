@@ -30,7 +30,6 @@ interface AppointmentSettings {
   minAdvanceBooking: number; // en heures
   availability: AvailabilitySlot[];
   notifications: {
-    emailReminder: boolean;
     smsReminder: boolean;
     whatsappReminder: boolean;
     reminderHours: number; // heures avant le RDV
@@ -55,7 +54,6 @@ export default function RdvSettingsPage() {
       { day: 'Dimanche', enabled: false, startTime: '10:00', endTime: '13:00' },
     ],
     notifications: {
-      emailReminder: true,
       smsReminder: true,
       whatsappReminder: false,
       reminderHours: 24
@@ -243,24 +241,7 @@ export default function RdvSettingsPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <Mail className="w-5 h-5 text-gray-700" />
-                <div>
-                  <p className="font-medium text-gray-900">Rappel par email</p>
-                  <p className="text-sm text-gray-600">Envoyer un email de rappel aux clients</p>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.notifications.emailReminder}
-                onChange={(e) => setSettings({
-                  ...settings,
-                  notifications: { ...settings.notifications, emailReminder: e.target.checked }
-                })}
-                className="w-5 h-5 text-gray-900 rounded focus:ring-2 focus:ring-gray-900"
-              />
-            </div>
+
 
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">

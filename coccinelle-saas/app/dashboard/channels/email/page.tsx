@@ -27,12 +27,10 @@ export default function EmailPage() {
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [resendOk, setResendOk] = useState(false);
-  /**
-   * Réception : une boîte est-elle reliée ? Vient de /channels/etat, qui
-   * CONSTATE (un jeton OAuth en base) au lieu de lire `channel_configurations`
-   * — table fantôme dont on a établi qu'elle ne pilote rien (chantier 2).
-   */
-  const [receptionActive, setReceptionActive] = useState(false);
+  // `receptionActive` retiré le 15/08 : la réception est hors périmètre, donc
+  // l'état est un fait connu, pas quelque chose à constater. L'appel à
+  // /channels/etat qui l'alimentait est retiré avec lui — garder une requête
+  // dont plus personne ne lit le résultat, c'est le début d'une divergence.
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -43,10 +41,9 @@ export default function EmailPage() {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const [configRes, logsRes, etatRes] = await Promise.all([
+      const [configRes, logsRes] = await Promise.all([
         fetch(buildApiUrl('/api/v1/email/config'), { headers }),
         fetch(buildApiUrl('/api/v1/email/logs'), { headers }),
-        fetch(buildApiUrl('/api/v1/channels/etat'), { headers }),
       ]);
 
       if (configRes.ok) {
@@ -65,11 +62,6 @@ export default function EmailPage() {
         setLogs(data.logs || []);
       }
 
-      if (etatRes.ok) {
-        const data = await etatRes.json();
-        const mail = (data.canaux || []).find((c: { type: string }) => c.type === 'email');
-        setReceptionActive(!!mail?.actif);
-      }
     } catch {
       showError('Erreur de chargement');
     } finally {
@@ -112,7 +104,7 @@ export default function EmailPage() {
   // Même en cas de succès, la colonne ne pilote rien : ni `sms-envoi.js`, ni
   // `resolve-phone`, ni l'agent vocal ne la lisent. Il n'y a donc rien à
   // activer ici — l'envoi marche au niveau plateforme (Resend), et la réception
-  // s'active en reliant une boîte, ce que fait le bouton Gmail plus bas.
+  // n'est pas livrée : la rubrique dit « bientôt disponible », sans bouton.
   //
   // Les routes enable/disable restent en place : d'autres pages `channels/*`
   // s'en servent, et ce lot ne touche qu'à l'e-mail.
@@ -214,57 +206,54 @@ export default function EmailPage() {
                 ? 'Vos e-mails partent normalement.'
                 : 'Clé Resend absente — aucun e-mail ne peut partir.'}
             />
+            {/* La réception n'est plus un état à constater mais une brique non
+                livrée : `actif={false}` sans invitation à l'activer. */}
             <EtatCanal
               titre="Réception"
-              actif={receptionActive}
-              detail={receptionActive
-                ? 'Une boîte est reliée : votre assistant lit les messages qui vous arrivent.'
-                : 'Aucune boîte reliée. Connectez-en une ci-dessous pour que votre assistant lise vos e-mails.'}
+              actif={false}
+              detail="Pas encore ouvert — votre assistant ne lit pas vos e-mails."
             />
           </div>
         </div>
 
-        {/* SECTION 1bis — RÉCEPTION : connecter une boîte (14/08/2026)
-            ────────────────────────────────────────────────────────────
-            Cette page ne réglait que l'ENVOI (expéditeur Resend, test, logs).
-            Relier une boîte pour LIRE les e-mails n'existait nulle part dans
-            l'interface : aucune page n'appelait /api/v1/oauth/google/authorize,
-            alors que la route fonctionne (GOOGLE_CLIENT_ID et REDIRECT_URI en
-            vars, CLIENT_SECRET en secret, 302 vérifié en production). Le canal
-            e-mail était donc inactivable depuis le produit.
+        {/* SECTION 1bis — RÉCEPTION : hors périmètre de lancement (15/08/2026)
+            ──────────────────────────────────────────────────────────────────
+            Le bouton « Connecter ma boîte Gmail » est retiré. L'e-mail sort du
+            périmètre de lancement : Coccinelle se lance en voix, SMS et
+            WhatsApp. La réception et la réponse automatique reviendront avec
+            MailIA, brique séparée partagée avec leoo.io.
 
-            Gmail seul : Outlook et Yahoo ne sont pas fonctionnels à 100 %
-            (CLAUDE.md § b), et un bouton qui mène à une déception coûte plus
-            cher qu'un bouton absent.
+            Forme reprise de WhatsApp (lot 0) : visible, honnête, inerte. On ne
+            masque pas la rubrique — un client qui cherche « est-ce que ça lit
+            mes e-mails ? » doit trouver la réponse, et c'est non, pas encore.
+            Aucun bouton, aucun interrupteur : il n'y a rien à activer.
 
-            ⚠️ DETTE — la route attend le JWT dans l'URL (`?token=`). Un jeton de
-            30 jours atterrit donc dans l'historique du navigateur, dans les
-            journaux de tout intermédiaire, et dans le `Referer` envoyé à Google.
-            C'est le contrat existant du backend, pas un choix de cette page.
-            Remplacement par un jeton court à usage unique : backlog, PRIORITAIRE
-            (0,5 j, cf. PLAN-NAVIGATION.md § 13). */}
+            Les deux jetons Gmail qui existaient ont été révoqués chez Google et
+            supprimés de la base le 15/08. */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Recevoir les e-mails</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Reliez votre boîte pour que votre assistant lise les messages qui vous arrivent.
-          </p>
-          <a
-            href={urlConnexionGmail()}
-            onClick={(e) => {
-              // Recalculé au clic : `useAuth` rafraîchit le jeton en arrière-plan,
-              // et une URL figée au montage partirait avec l'ancien — donc un 401
-              // silencieux au retour de Google.
-              e.preventDefault();
-              window.location.href = urlConnexionGmail();
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
-          >
-            <Mail className="w-4 h-4" />
-            Connecter ma boîte Gmail
-          </a>
-          <p className="text-xs text-gray-400 mt-3">
-            Vous serez redirigé vers Google, puis ramené ici.
-          </p>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-5 h-5 text-gray-500" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-semibold text-gray-900">Recevoir les e-mails</h2>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                  Bientôt disponible
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mt-1.5">
+                Votre assistant ne lit pas encore les e-mails qui vous arrivent, et ne
+                répond pas automatiquement. Cette brique arrive après le lancement.
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                Aujourd&apos;hui, votre assistant répond au téléphone et par SMS. Les e-mails
+                que <strong>vous</strong> envoyez depuis Coccinelle — confirmations de
+                rendez-vous, devis — partent normalement : c&apos;est l&apos;envoi, réglé
+                ci-dessous.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* SECTION 2 — Configuration expéditeur */}
@@ -277,7 +266,7 @@ export default function EmailPage() {
                 type="text"
                 value={config.from_name}
                 onChange={(e) => setConfig({ ...config, from_name: e.target.value })}
-                placeholder="Sara — Coccinelle.ai"
+                placeholder="Votre entreprise"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
@@ -409,25 +398,6 @@ export default function EmailPage() {
       </div>
     </div>
   );
-}
-
-/**
- * URL de connexion Gmail.
- *
- * Le jeton voyage en paramètre parce que la route l'attend ainsi : c'est une
- * navigation de page, pas un `fetch` — aucun en-tête `Authorization` ne peut
- * l'accompagner. Le `redirect` ramène ici après le passage chez Google.
- *
- * Appelée au rendu (pour l'attribut `href`, qui garde le lien réel) ET au clic,
- * qui seul fait foi : `useAuth` rafraîchit le jeton en arrière-plan, et une URL
- * figée au montage partirait avec l'ancien.
- */
-function urlConnexionGmail(): string {
-  const jeton = typeof window !== 'undefined'
-    ? (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '')
-    : '';
-  const retour = encodeURIComponent('/dashboard/channels/email');
-  return buildApiUrl(`/api/v1/oauth/google/authorize?token=${encodeURIComponent(jeton)}&redirect=${retour}`);
 }
 
 /**

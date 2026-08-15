@@ -16,7 +16,7 @@ const steps = [
   { icon: HelpCircle, num: '2', title: 'Votre client pose une question', desc: "L'agent consulte votre base de connaissances" },
   { icon: ShoppingBag, num: '3', title: 'Votre client veut un produit', desc: "L'agent connaît votre catalogue et vos prix" },
   { icon: Calendar, num: '4', title: 'Votre client veut un RDV', desc: 'Réservation en direct dans votre agenda' },
-  { icon: MessageSquare, num: '5', title: 'Il raccroche', desc: 'Confirmation SMS, WhatsApp ou email automatique' },
+  { icon: MessageSquare, num: '5', title: 'Il raccroche', desc: 'Confirmation SMS ou WhatsApp automatique' },
   { icon: BarChart3, num: '6', title: 'Vous recevez tout', desc: "Prospect dans le CRM, RDV dans l'agenda, résumé dans le dashboard" },
 ];
 
@@ -25,7 +25,7 @@ const modules = [
   { icon: BookOpen, title: 'Base de connaissances', desc: 'Répond précisément à toutes vos questions clients' },
   { icon: Package, title: 'Catalogue produits', desc: 'Présente vos offres, prix et disponibilités' },
   { icon: Calendar, title: 'Agenda & RDV', desc: 'Prend et confirme les rendez-vous en direct' },
-  { icon: MessageSquare, title: 'Multicanal', desc: 'Voix, SMS, WhatsApp, Email — tout en un' },
+  { icon: MessageSquare, title: 'Multicanal', desc: 'Voix, SMS, WhatsApp — tout en un' },
   { icon: Users, title: 'CRM intégré', desc: 'Chaque appel crée un contact et un historique' },
 ];
 
@@ -338,7 +338,7 @@ export default function LandingPage() {
                   '1 000 minutes vocales IA',
                   '250 SMS inclus',
                   'Tout Essentiel +',
-                  'Email automatique inclus',
+                  
                   'CRM complet + export',
                   'Catalogue produits',
                   'Analytics avancés',

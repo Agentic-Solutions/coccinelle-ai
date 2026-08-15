@@ -91,8 +91,9 @@ export default function ChannelsPage() {
         }
       }
 
-      // Email
-      const emailConfig = localStorage.getItem('email_client_config');
+      // Email — hors périmètre : plus rien à lire. Cet état venait du
+      // localStorage, donc d'une invention du navigateur, jamais du serveur.
+      const emailConfig = null;
       if (emailConfig) {
         try {
           const parsed = JSON.parse(emailConfig);
@@ -270,7 +271,7 @@ export default function ChannelsPage() {
             <p className="text-gray-900 font-medium mb-1">Comment ça fonctionne ?</p>
             <ul className="text-sm text-gray-800 space-y-1">
               <li>• <strong>Téléphone & SMS :</strong> Configurés par Coccinelle.AI, vous activez simplement leur utilisation</li>
-              <li>• <strong>Email & WhatsApp :</strong> Vous devez connecter vos propres comptes pour les utiliser</li>
+              <li>• <strong>Email & WhatsApp :</strong> pas encore ouverts — ils arriveront après le lancement</li>
             </ul>
           </div>
         </div>

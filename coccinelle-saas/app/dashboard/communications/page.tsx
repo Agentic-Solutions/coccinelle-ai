@@ -77,8 +77,12 @@ const POURQUOI: Record<string, string> = {
   numero_essai: 'Numéro d’essai partagé',
   aucun_numero: 'Aucun numéro rattaché',
   plateforme: 'Inclus, rien à activer',
+  // `boite_reliee` / `aucune_boite` ne sont plus renvoyés depuis le 15/08 (l'e-mail
+  // est hors périmètre) mais restent lus : un tenant dont la page est en cache
+  // verrait sinon la clé brute.
   boite_reliee: 'Boîte reliée',
   aucune_boite: 'Aucune boîte reliée',
+  hors_perimetre: 'Pas encore ouvert',
   gele: 'Pas encore ouvert',
 };
 
@@ -87,7 +91,9 @@ function cibleCanal(c: Canal): string | null {
   switch (c.type) {
     case 'phone': return '/dashboard/channels/numbers';
     case 'sms': return '/dashboard/channels/sms';
-    case 'email': return '/dashboard/channels/email';
+    // L'e-mail est hors périmètre depuis le 15/08 : aucune cible, la pastille
+    // est inerte (comme WhatsApp). `c.bientot` le rend déjà non cliquable, mais
+    // laisser une cible ici la rendrait cliquable au premier oubli.
     default: return null;
   }
 }
@@ -374,7 +380,7 @@ export default function PageCommunications() {
                 {frise.email && (
                   <>
                     <div style={{ marginTop: '30px' }}>
-                      <Separateur titre="S’il écrit un e-mail" />
+                      <Separateur titre="E-mails que vous avez envoyés" />
                     </div>
                     <div style={{ display: 'flex', gap: '14px', paddingLeft: '6px' }}>
                       <span style={{

@@ -61,7 +61,6 @@ const features: { category: string; rows: FeatureRow[] }[] = [
     category: 'Canaux',
     rows: [
       { label: 'SMS inclus', essentiel: '50', pro: '250', business: 'Sur mesure' },
-      { label: 'Email', essentiel: true, pro: true, business: true },
       { label: 'WhatsApp', essentiel: false, pro: true, business: true },
     ],
   },
@@ -321,7 +320,7 @@ export default function PricingPage() {
           <div className="flex items-center gap-4 mb-4">
             <div className="flex-1 h-px bg-gray-200" />
             <p className="text-sm font-medium text-gray-500 whitespace-nowrap text-center">
-              Vous communiquez d&eacute;j&agrave; par SMS et Email ?
+              Vous communiquez d&eacute;j&agrave; par SMS et WhatsApp ?
             </p>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
@@ -332,7 +331,7 @@ export default function PricingPage() {
           <div className="bg-gray-50 rounded-xl border border-gray-100 p-8">
             <div className="text-center mb-8">
               <h3 className="text-lg font-bold text-gray-900 mb-1">Plans Digital &mdash; Sans agent vocal</h3>
-              <p className="text-sm text-gray-500">SMS, Email et WhatsApp uniquement</p>
+              <p className="text-sm text-gray-500">SMS et WhatsApp uniquement</p>
             </div>
             <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
               {/* Digital SMS */}
@@ -348,7 +347,6 @@ export default function PricingPage() {
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Support email</span></li>
-                  <li className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-300 flex-shrink-0" /><span className="text-gray-400">Email</span></li>
                   <li className="flex items-center gap-2"><Minus className="w-4 h-4 text-gray-300 flex-shrink-0" /><span className="text-gray-400">WhatsApp</span></li>
                 </ul>
                 <p className="text-xs text-gray-400 mb-3">0,15&#8239;&#8364;/SMS au-del&agrave;</p>
@@ -360,14 +358,13 @@ export default function PricingPage() {
               {/* Digital Pro */}
               <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
                 <h4 className="text-base font-bold text-gray-900 mb-1">Digital Pro</h4>
-                <p className="text-xs text-gray-500 mb-4">SMS + Email</p>
+                <p className="text-xs text-gray-500 mb-4">SMS + WhatsApp</p>
                 <div className="mb-6">
                   <span className="text-3xl font-bold text-gray-900">69&#8239;&#8364;</span>
                   <span className="text-gray-500 text-sm">/mois HT</span>
                 </div>
                 <ul className="space-y-2.5 mb-6 flex-1 text-sm">
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">100 SMS/mois</span></li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Email inclus</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Insights basiques</span></li>
@@ -389,7 +386,6 @@ export default function PricingPage() {
                 </div>
                 <ul className="space-y-2.5 mb-6 flex-1 text-sm">
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">300 SMS/mois</span></li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Email inclus</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">WhatsApp</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>

@@ -98,7 +98,7 @@ const DATA: SectorPageData = {
     badges: [
       { text: 'Dossier FAC-2026-0892 identifié', delay: 6000 },
       { text: 'Pierre (Comptable) alerté', delay: 6500 },
-      { text: 'Email récapitulatif envoyé', delay: 7000 },
+      { text: 'SMS récapitulatif envoyé', delay: 7000 },
     ],
   },
   painTitle: 'Votre standard déborde. Vos copropriétaires le savent.',

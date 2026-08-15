@@ -170,21 +170,25 @@ async function etatDesCanaux(env, tenantId) {
         WHERE tenant_id = ? AND phone_verified = 1) AS verifies
   `).bind(tenantId, tenantId).first();
 
-  // E-mail — le seul canal qui ait un vrai etat par tenant : un jeton OAuth.
-  // Les trois tables sont interrogees separement plutot qu'en UNION : une table
-  // absente sur un environnement ne doit pas emporter la reponse entiere.
-  let email = false;
-  for (const table of ['oauth_google_tokens', 'oauth_outlook_tokens', 'oauth_yahoo_tokens']) {
-    try {
-      const r = await env.DB.prepare(
-        `SELECT COUNT(*) AS n FROM ${table} WHERE tenant_id = ?`
-      ).bind(tenantId).first();
-      if ((r?.n || 0) > 0) { email = true; break; }
-    } catch (e) {
-      logger.warn('Table de jetons e-mail illisible', { table, error: e.message });
-    }
-  }
-
+  // E-MAIL — HORS PERIMETRE DE LANCEMENT (decision du 15/08/2026).
+  //
+  // Coccinelle se lance en voix, SMS et WhatsApp. La RECEPTION et la reponse
+  // automatique reviendront avec MailIA, brique separee partagee avec leoo.io.
+  //
+  // La lecture des jetons OAuth est supprimee : elle rendait `actif: true` des
+  // qu'une boite etait reliee, ce qui comptait l'e-mail parmi les « N canaux
+  // actifs » et allumait une pastille verte sur un canal qu'on ne livre pas. Les
+  // deux jetons Google existants ont ete revoques chez Google et supprimes de la
+  // base le 15/08 ; les trois tables sont vides.
+  //
+  // Meme forme que WhatsApp : `bientot: true` et non `actif: false`. Un canal
+  // « inactif » invite a l'activer et affiche une pastille d'alerte ; celui-ci
+  // n'est pas en panne, il n'est pas ouvert.
+  //
+  // ⚠️ L'ENVOI transactionnel par Resend n'est PAS concerne et continue :
+  // confirmations de rendez-vous, devis, verification d'adresse, mot de passe
+  // oublie. Il ne dependait d'aucun jeton par tenant — c'est une capacite
+  // plateforme, sans rapport avec ce canal.
   const canaux = [
     {
       type: 'phone',
@@ -195,7 +199,7 @@ async function etatDesCanaux(env, tenantId) {
     // identique pour tous les tenants : il n'existe AUCUN reglage par tenant.
     // Le presenter comme desactivable serait un troisieme mensonge.
     { type: 'sms', actif: true, pourquoi: 'plateforme' },
-    { type: 'email', actif: email, pourquoi: email ? 'boite_reliee' : 'aucune_boite' },
+    { type: 'email', actif: false, bientot: true, pourquoi: 'hors_perimetre' },
     // WhatsApp — gele depuis le lot 0 (cf. WHATSAPP_V2_PLAN.md). `bientot` et
     // non `actif: false` : le front doit dire « bientot disponible » et non
     // afficher une pastille d'alerte — il n'est pas en panne, il n'est pas

@@ -25,13 +25,12 @@ const modules = [
     label: 'Tous vos canaux',
     content: {
       title: 'Un seul endroit pour tous vos échanges clients',
-      subtitle: 'Téléphone, SMS, WhatsApp, Email : tout est centralisé',
+      subtitle: 'Téléphone, SMS, WhatsApp : tout est centralisé',
       visual: 'omnichannel',
       channels: [
         { name: 'Téléphone', count: 47, label: 'appels aujourd\'hui', status: 'Tous répondus automatiquement' },
         { name: 'WhatsApp', count: 28, label: 'conversations actives', status: '12 messages en attente' },
         { name: 'SMS', count: 15, label: 'messages envoyés', status: 'Taux d\'ouverture 94%' },
-        { name: 'Email', count: 8, label: 'emails reçus', status: 'Tous traités' }
       ],
       insight: 'Vos clients vous contactent par 4 canaux différents, vous gérez tout au même endroit'
     }
@@ -64,12 +63,11 @@ const modules = [
     label: 'Messages',
     content: {
       title: 'Tous vos messages au même endroit',
-      subtitle: 'SMS, WhatsApp, emails : fini de chercher dans 5 apps différentes',
+      subtitle: 'SMS, WhatsApp : fini de chercher dans 5 apps différentes',
       visual: 'inbox',
       conversations: [
         { name: 'Thomas Dubois', channel: 'WhatsApp', preview: 'Merci pour le devis, quand pouvez...', time: 'Il y a 5 min', unread: true },
         { name: 'Marie Legrand', channel: 'SMS', preview: 'Je confirme le RDV de demain', time: 'Il y a 1h', unread: false },
-        { name: 'Pierre Martin', channel: 'Email', preview: 'Question sur la facturation', time: 'Hier', unread: true }
       ],
       suggestion: 'Réponse suggérée: "Bonjour Thomas, je peux vous rappeler demain matin ?"'
     }
@@ -102,7 +100,7 @@ const modules = [
       leads: [
         { name: 'Sophie Martin', score: 95, status: 'Très intéressée', lastContact: 'Appel hier 20h35', nextAction: 'RDV demain 14h30', color: 'green' },
         { name: 'Thomas Dubois', score: 78, status: 'Intéressé', lastContact: 'WhatsApp il y a 5min', nextAction: 'Envoyer devis', color: 'yellow' },
-        { name: 'Marie Legrand', score: 45, status: 'À recontacter', lastContact: 'Email la semaine dernière', nextAction: 'Relance dans 3 jours', color: 'gray' }
+        { name: 'Marie Legrand', score: 45, status: 'À recontacter', lastContact: 'SMS la semaine dernière', nextAction: 'Relance dans 3 jours', color: 'gray' }
       ],
       totalLeads: 47,
       hotLeads: 12

@@ -31,9 +31,8 @@ const onboardingSteps = [
     details: [
       { icon: Phone, text: '47 appels aujourd\'hui' },
       { icon: MessageSquare, text: '28 conversations WhatsApp' },
-      { icon: Mail, text: '15 emails traités' }
     ],
-    narrative: 'Téléphone, SMS, WhatsApp, Email : tous vos canaux de communication client centralisés en un seul endroit.',
+    narrative: 'Téléphone, SMS, WhatsApp : tous vos canaux de communication client centralisés en un seul endroit.',
     explanation: 'Plus besoin de jongler entre applications, tout est au même endroit',
   },
   {
@@ -49,7 +48,7 @@ const onboardingSteps = [
       { icon: MessageSquare, text: 'Switch automatique SMS/WhatsApp' },
       { icon: Calendar, text: 'Prise de RDV intégrée' }
     ],
-    narrative: 'L\'IA comprend chaque demande, répond avec le bon niveau de détail, et peut basculer de canal si nécessaire (appel → SMS, WhatsApp → Email...).',
+    narrative: 'L\'IA comprend chaque demande, répond avec le bon niveau de détail, et peut basculer de canal si nécessaire (appel → SMS, SMS → WhatsApp...).',
     explanation: 'Chaque client est unique, l\'IA s\'adapte automatiquement',
   },
   {
@@ -79,9 +78,9 @@ const onboardingSteps = [
     details: [
       { icon: Calendar, text: '23 RDV confirmés' },
       { icon: MessageSquare, text: 'Rappels automatiques' },
-      { icon: CheckCircle, text: 'Confirmations SMS/Email' }
+      { icon: CheckCircle, text: 'Confirmations SMS' }
     ],
-    narrative: 'L\'IA planifie les rendez-vous selon vos disponibilités, envoie les rappels automatiques 24h avant, et confirme par SMS ou Email.',
+    narrative: 'L\'IA planifie les rendez-vous selon vos disponibilités, envoie les rappels automatiques 24h avant, et confirme par SMS.',
     explanation: 'Fini les no-show et les rendez-vous oubliés',
   },
   {

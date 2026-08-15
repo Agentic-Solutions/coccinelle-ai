@@ -29,7 +29,7 @@ export default function DigitalPlans() {
           <div className="bg-gray-50 rounded-xl border border-gray-100 p-6">
             <div className="text-center mb-6">
               <h3 className="text-xl font-bold text-gray-900 mb-1">Plans Digitaux — Sans agent vocal</h3>
-              <p className="text-sm text-gray-400">SMS et Email uniquement</p>
+              <p className="text-sm text-gray-400">SMS et WhatsApp uniquement</p>
             </div>
             <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
               {/* Digital SMS */}
@@ -55,14 +55,13 @@ export default function DigitalPlans() {
               {/* Digital Pro */}
               <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
                 <h4 className="text-base font-bold text-gray-900 mb-1">Digital Pro</h4>
-                <p className="text-xs text-gray-400 mb-4">SMS + Email</p>
+                <p className="text-xs text-gray-400 mb-4">SMS + WhatsApp</p>
                 <div className="mb-6">
                   <span className="text-3xl font-bold text-gray-900">69&#8239;&#8364;</span>
                   <span className="text-gray-400 text-sm">/mois HT</span>
                 </div>
                 <ul className="space-y-2.5 mb-6 flex-1 text-sm">
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">100 SMS/mois</span></li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Email inclus</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Insights basiques</span></li>
@@ -76,14 +75,13 @@ export default function DigitalPlans() {
               {/* Digital Omnicanal */}
               <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
                 <h4 className="text-base font-bold text-gray-900 mb-1">Digital Omnicanal</h4>
-                <p className="text-xs text-gray-400 mb-4">SMS + Email</p>
+                <p className="text-xs text-gray-400 mb-4">SMS + WhatsApp</p>
                 <div className="mb-6">
                   <span className="text-3xl font-bold text-gray-900">129&#8239;&#8364;</span>
                   <span className="text-gray-400 text-sm">/mois HT</span>
                 </div>
                 <ul className="space-y-2.5 mb-6 flex-1 text-sm">
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">300 SMS/mois</span></li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Email inclus</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Base de connaissances</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Insights complets</span></li>

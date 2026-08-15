@@ -657,9 +657,11 @@ function cibleCanal(c: Canal): string | null {
     case 'sms':
       return '/dashboard/channels/sms';
     case 'email':
-      // Actif comme inactif : la même page. C'est elle qui porte désormais le
-      // bouton de connexion d'une boîte.
-      return '/dashboard/channels/email';
+      // `null` depuis le 15/08 : l'e-mail est hors périmètre de lancement. La
+      // pastille est déjà rendue non cliquable par `c.bientot`, mais laisser une
+      // cible ici la rendrait cliquable au premier oubli — et une pastille qui
+      // mène à une page « bientôt disponible » promet deux fois.
+      return null;
     default:
       return null;
   }

@@ -99,13 +99,13 @@ const featureGroups: FeatureGroup[] = [
         icon: InboxIcon,
         title: 'Boîte de réception unifiée',
         description:
-          'Retrouvez tous vos échanges avec un client dans un seul fil : appels, SMS, emails, WhatsApp. Plus besoin de chercher dans 5 applications différentes.',
+          'Retrouvez tous vos échanges avec un client dans un seul fil : appels, SMS, WhatsApp. Plus besoin de chercher dans 5 applications différentes.',
       },
       {
         icon: MessageCircleIcon,
         title: '6 canaux intégrés',
         description:
-          'Téléphone, SMS, Email (Gmail, Outlook), WhatsApp. Activez chaque canal en quelques clics. Vos clients vous contactent comme ils préfèrent.',
+          'Téléphone, SMS, WhatsApp. Vos clients vous contactent comme ils préfèrent.',
       },
       {
         icon: BellIcon,
@@ -163,9 +163,9 @@ const featureGroups: FeatureGroup[] = [
       },
       {
         icon: SwitchIcon,
-        title: 'Envoi de SMS ou email pendant l\'appel',
+        title: 'Envoi de SMS pendant l\'appel',
         description:
-          'L\'assistant peut envoyer un récapitulatif, un lien de réservation ou des informations complémentaires par SMS ou email pendant la conversation téléphonique.',
+          'L\'assistant peut envoyer un récapitulatif, un lien de réservation ou des informations complémentaires par SMS pendant la conversation téléphonique.',
       },
     ],
   },
