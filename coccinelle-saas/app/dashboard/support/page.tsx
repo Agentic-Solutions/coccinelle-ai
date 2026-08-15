@@ -7,6 +7,7 @@ import {
   Check, Clock, Search
 } from 'lucide-react';
 import Link from 'next/link';
+import { ListeEtapes, useEtapesDemarrage } from '@/components/dashboard/EtapesDemarrage';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -69,6 +70,38 @@ const FAQ_CATEGORY_LABELS: Record<string, string> = {
   support: 'Support',
   general: 'General',
 };
+
+/**
+ * Bloc « Bien démarrer » (chantier CHECKLIST, 15/08/2026).
+ *
+ * C'est l'endroit stable que promet la confirmation de masquage de la carte de
+ * « Mon activité » : « Vous retrouverez ces étapes dans Aide. » La carte ne
+ * montre qu'une étape à la fois et peut être masquée pour de bon ; sans ce bloc,
+ * la liste complète disparaîtrait avec elle.
+ *
+ * Volontairement au-dessus des onglets, et non dans la FAQ : la FAQ est une base
+ * éditoriale globale (`/api/v1/faq`), ces étapes sont l'état du compte.
+ *
+ * Aucun masquage ici — c'est le recours. Il ne s'affiche que s'il reste quelque
+ * chose à faire : une fois les cinq étapes faites, il n'a plus rien à rattraper.
+ */
+function BlocDemarrage() {
+  const { checklist, chargement } = useEtapesDemarrage();
+
+  if (chargement || !checklist || checklist.setup_completed) return null;
+
+  return (
+    <div className="bg-white border border-[#e2e2de] rounded-xl p-4 sm:p-5 mb-6">
+      <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
+        <h2 className="text-[15px] font-semibold text-[#1a1a19]">Bien démarrer</h2>
+        <span className="text-[13px] text-[#8a8a83]">
+          {checklist.completed} sur {checklist.total} faites
+        </span>
+      </div>
+      <ListeEtapes steps={checklist.steps} />
+    </div>
+  );
+}
 
 export default function SupportPage() {
   const [activeTab, setActiveTab] = useState<TabId>('faq');
@@ -219,6 +252,9 @@ export default function SupportPage() {
             <p className="text-sm text-gray-500">FAQ, contact et suivi de vos demandes</p>
           </div>
         </div>
+
+        {/* Bien démarrer — le recours quand la carte de « Mon activité » a été masquée */}
+        <BlocDemarrage />
 
         {/* Tabs */}
         <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 mb-6">

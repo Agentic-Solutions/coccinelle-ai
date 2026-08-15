@@ -2,295 +2,243 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { buildApiUrl } from '@/lib/config';
+import {
+  ListeEtapes,
+  rangEtapeCourante,
+  useEtapesDemarrage,
+} from './EtapesDemarrage';
 
 /**
- * Checklist de démarrage — 5 étapes (Chantier CX 1, 28/07/2026).
+ * Carte « Bien démarrer » — motif pas-à-pas (chantier CHECKLIST, 15/08/2026).
  *
- * États calculés côté serveur DEPUIS LA DB (GET /api/v1/onboarding/checklist).
- * Aucun état de progression en localStorage : le masquage lui-même est persisté
- * en base (`users.checklist_dismissed_at`), sinon la checklist réapparaît dès
- * qu'on change de navigateur.
+ * UNE étape à la fois : son titre, deux ou trois lignes qui disent pourquoi, un
+ * seul bouton. La liste des cinq étapes n'a pas disparu, elle est repliée
+ * derrière « Voir toutes les étapes ».
  *
- * Rafraîchissement : au retour sur l'onglet (focus + visibilitychange). Un
- * utilisateur qui part vérifier son numéro puis revient voit l'étape cochée
- * sans avoir à recharger la page.
+ * CE QUI CHANGE : la présentation, et elle seule. Les états des cinq étapes, le
+ * calcul de l'avancement, le « Passer » persisté en base
+ * (`users.checklist_dismissed_at`) et le rechargement au retour sur l'onglet
+ * sont ceux d'avant — le chargement est simplement passé dans
+ * `useEtapesDemarrage`, partagé avec le bloc d'Aide.
+ *
+ * CE QUI DISPARAÎT : la barre de progression (remplacée par les pastilles) et le
+ * repli de la carte entière. Ce repli existait parce que la carte occupait trois
+ * lignes plus cinq étapes en tête du tableau de bord ; elle en fait maintenant
+ * le tiers. Sa clé `checklist_repliee` n'est plus lue : ce qui se replie
+ * désormais, c'est la liste, sous sa propre clé.
+ *
+ * CE QUI N'EST PAS ÉCRIT : la maquette annonçait « Deux minutes environ » sous le
+ * bouton. Une durée n'est pas un fait mesuré ; on ne la promet pas.
  */
 
-interface Step {
-  id: string;
-  title: string;
-  hint?: string;
-  completed: boolean;
-  href: string | null;
-}
-
-interface ChecklistData {
-  steps: Step[];
-  completed: number;
-  total: number;
-  progress_percent: number;
-  setup_completed: boolean;
-  dismissed: boolean;
-}
-
-// try/catch : un getItem peut lever (navigation privée stricte, stockage bloqué).
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-  } catch {
-    return null;
-  }
-}
-
-/** Préférence d'affichage, par appareil. */
-const CLE_REPLI = 'checklist_repliee';
+/** Liste dépliée ou non — préférence d'affichage, donc par appareil. */
+const CLE_LISTE = 'checklist_etapes_ouvertes';
 
 export default function SetupChecklist() {
-  const [checklist, setChecklist] = useState<ChecklistData | null>(null);
-  const [loading, setLoading] = useState(true);
-  /**
-   * Repli persisté (14/08/2026). L'état existait déjà mais se perdait à chaque
-   * navigation : le bloc se rouvrait en pleine hauteur en tête du tableau de
-   * bord, à chaque visite. Et le bouton « masquer définitivement » n'apparaît
-   * qu'aux 5 étapes faites — un compte à 4/5 restait donc coincé avec le bloc
-   * ouvert, sans aucun moyen de le réduire durablement.
-   *
-   * localStorage et non la base : c'est une préférence d'AFFICHAGE, propre à
-   * l'appareil. Le masquage définitif, lui, reste en base
-   * (`users.checklist_dismissed_at`) — sinon il ne suivrait pas le client d'un
-   * poste à l'autre, ce qui est tout l'inverse du besoin.
-   */
-  const [expanded, setExpanded] = useState(true);
+  const { checklist, chargement } = useEtapesDemarrage();
+  const [masquee, setMasquee] = useState(false);
+  const [confirmation, setConfirmation] = useState(false);
+  const [listeOuverte, setListeOuverte] = useState(false);
 
   useEffect(() => {
-    setExpanded(localStorage.getItem(CLE_REPLI) !== '1');
+    try {
+      setListeOuverte(localStorage.getItem(CLE_LISTE) === '1');
+    } catch { /* stockage bloqué : la liste s'ouvre à la demande, sans mémoire */ }
   }, []);
 
-  const basculerRepli = useCallback(() => {
-    setExpanded((ouvert) => {
-      const suivant = !ouvert;
+  const basculerListe = useCallback(() => {
+    setListeOuverte((ouverte) => {
+      const suivant = !ouverte;
       try {
-        if (suivant) localStorage.removeItem(CLE_REPLI);
-        else localStorage.setItem(CLE_REPLI, '1');
-      } catch { /* navigation privée : le repli vaut pour la session */ }
+        if (suivant) localStorage.setItem(CLE_LISTE, '1');
+        else localStorage.removeItem(CLE_LISTE);
+      } catch { /* navigation privée : l'état vaut pour la session */ }
       return suivant;
     });
   }, []);
-  const [hidden, setHidden] = useState(false);
-  const [confirmation, setConfirmation] = useState(false);
-
-  const fetchChecklist = useCallback(async () => {
-    const token = getToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await fetch(buildApiUrl('/api/v1/onboarding/checklist'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data?.success && data.checklist) {
-        setChecklist(data.checklist);
-      }
-    } catch {
-      // Silencieux : la checklist est un accompagnement, pas une fonction
-      // critique. Une panne réseau ne doit pas polluer le dashboard.
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchChecklist();
-  }, [fetchChecklist]);
-
-  // Rafraîchit au retour sur l'onglet — c'est ce qui coche l'étape « sans F5 ».
-  useEffect(() => {
-    const onFocus = () => fetchChecklist();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') fetchChecklist();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [fetchChecklist]);
 
   /**
-   * Masquage définitif, possible à TOUT MOMENT depuis le 14/08/2026.
-   *
-   * Le bouton n'apparaissait qu'aux 5 étapes faites, et l'API refusait le reste
-   * par un 409 : un compte bloqué à 4/5 — parce qu'il n'a personne à inviter,
-   * par exemple — gardait le bloc ouvert en tête de son tableau de bord,
-   * définitivement. La garde serveur a sauté avec le bouton ; l'un sans l'autre
-   * aurait produit un clic qui échoue en silence.
-   *
-   * Le masquage est persisté en base (`users.checklist_dismissed_at`) et non en
-   * localStorage : il doit suivre le client d'un appareil à l'autre. Le
-   * localStorage ne gouverne que le repli.
+   * Masquage définitif, possible à tout moment (garde serveur retirée le
+   * 14/08/2026 : un compte bloqué à 4/5 gardait la carte pour toujours).
+   * Persisté en base et non en localStorage — il doit suivre le client d'un
+   * appareil à l'autre.
    */
-  const handleDismiss = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
-    setHidden(true); // masquage optimiste
+  const masquer = useCallback(async () => {
+    const jeton = (() => {
+      try {
+        return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+      } catch {
+        return null;
+      }
+    })();
+    if (!jeton) return;
+    setMasquee(true); // masquage optimiste
     try {
       const res = await fetch(buildApiUrl('/api/v1/onboarding/checklist/dismiss'), {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${jeton}` },
       });
-      if (!res.ok) setHidden(false);
+      if (!res.ok) setMasquee(false);
     } catch {
-      setHidden(false);
+      setMasquee(false);
     }
   }, []);
 
-
-  if (loading || hidden || !checklist) return null;
+  if (chargement || masquee || !checklist) return null;
   if (checklist.dismissed) return null;
 
-  const { steps, completed, total, progress_percent, setup_completed } = checklist;
+  const { steps, completed, total, setup_completed } = checklist;
+  const rangCourant = rangEtapeCourante(steps);
+  const etapeCourante = rangCourant === null ? null : steps[rangCourant - 1];
+  const restantes = total - completed;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-6 overflow-hidden">
-      {/* En-tête + progression */}
-      <div className={expanded ? 'p-4 border-b border-gray-100' : 'px-4 py-2.5'}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-gray-900 text-sm">Bien démarrer</h2>
-              <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">
-                {completed}/{total}
-              </span>
-            </div>
-            {/* Repliée, la checklist tient sur UNE ligne : titre + compteur.
-                Garder la phrase et la barre de progression aurait laissé un
-                bloc de trois lignes en tête de page — le repli n'aurait rien
-                rendu. */}
-            {expanded && (
-              <>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {setup_completed
-                    ? 'Tout est prêt. Votre assistant est opérationnel.'
-                    : 'Quelques minutes pour que votre assistant réponde comme vous le souhaitez.'}
-                </p>
-                <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className="bg-gray-900 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${progress_percent}%` }}
-                    role="progressbar"
-                    aria-valuenow={completed}
-                    aria-valuemin={0}
-                    aria-valuemax={total}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
+    <section className="bg-white border border-[#e2e2de] rounded-[14px] px-6 py-6 sm:px-7 mb-6">
+      {/* ── L'étape du moment ── */}
+      <div className="flex items-start justify-between gap-7 flex-wrap">
+        <div className="flex flex-col gap-2.5 max-w-[520px]">
+          <span className="text-[11.5px] font-medium tracking-[0.08em] uppercase text-[#a3a39c]">
+            {etapeCourante
+              ? `Bien démarrer · étape ${rangCourant} sur ${total}`
+              : 'Bien démarrer · terminé'}
+          </span>
+          <h2 className="text-[19px] sm:text-[21px] font-semibold tracking-[-0.01em] text-[#1a1a19]">
+            {etapeCourante ? etapeCourante.title : 'Tout est prêt'}
+          </h2>
+          <p className="text-[15px] text-[#3a3a37] leading-[1.6]">
+            {etapeCourante
+              // `explication` peut manquer si le backend est plus ancien que
+              // cette page : on retombe sur le `hint`, jamais sur du vide.
+              ? (etapeCourante.explication || etapeCourante.hint || '')
+              : 'Votre assistant est configuré, il sait quoi répondre et il décroche. Vous pouvez ranger cette carte.'}
+          </p>
+        </div>
+
+        {/* Un seul bouton d'action. */}
+        {etapeCourante && etapeCourante.href ? (
+          <Link
+            href={etapeCourante.href}
+            className="px-6 py-3.5 rounded-[10px] bg-[#1a1a19] text-white text-[15px] font-medium whitespace-nowrap hover:bg-[#3a3a37] transition-colors"
+          >
+            {etapeCourante.title}
+          </Link>
+        ) : !etapeCourante ? (
+          <button
+            type="button"
+            onClick={masquer}
+            className="px-6 py-3.5 rounded-[10px] bg-[#1a1a19] text-white text-[15px] font-medium whitespace-nowrap hover:bg-[#3a3a37] transition-colors"
+          >
+            Masquer cette carte
+          </button>
+        ) : null}
+      </div>
+
+      {/* ── Pastilles, dépli, Passer ── */}
+      <div className="mt-6 border-t border-[#f2f2ee] pt-4 flex items-center justify-between gap-5 flex-wrap">
+        <div className="flex items-center gap-2">
+          {/* Les pastilles sont décoratives : le compte est dit en clair juste
+              après, et le rang de l'étape courante en tête de carte. */}
+          <span className="flex items-center gap-2" aria-hidden="true">
+            {steps.map((step, index) => {
+              const courante = index + 1 === rangCourant;
+              return (
+                <span
+                  key={step.id}
+                  className={`w-[26px] h-[26px] rounded-full flex items-center justify-center text-[12.5px] font-medium ${
+                    step.completed
+                      ? 'bg-[#1a1a19] text-white border border-[#1a1a19]'
+                      : courante
+                        ? 'bg-white text-[#1a1a19] border-2 border-[#1a1a19]'
+                        : 'bg-white text-[#c2c1ba] border border-[#e2e2de]'
+                  }`}
+                >
+                  {step.completed ? <Check className="w-3 h-3" strokeWidth={2.5} /> : index + 1}
+                </span>
+              );
+            })}
+          </span>
+          <span className="ml-1.5 text-[13px] text-[#8a8a83]">
+            {restantes === 0
+              ? `${total} étapes faites`
+              : `${completed} faite${completed > 1 ? 's' : ''}, ${restantes} restante${restantes > 1 ? 's' : ''}`}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-[18px]">
+          {/* Le dépli porte son libellé en clair, pas un chevron seul : c'est lui
+              qui rend l'ordre libre trouvable. */}
+          <button
+            type="button"
+            onClick={basculerListe}
+            aria-expanded={listeOuverte}
+            className="flex items-center gap-[7px] text-[13.5px] font-medium text-[#3a3a37] hover:text-[#1a1a19] transition-colors"
+          >
+            Voir toutes les étapes
+            {listeOuverte
+              ? <ChevronUp className="w-[13px] h-[13px]" strokeWidth={2} />
+              : <ChevronDown className="w-[13px] h-[13px]" strokeWidth={2} />}
+          </button>
+          {/* Aux cinq étapes faites, « Passer » n'a plus de sens et la
+              confirmation n'a plus rien à protéger : le bouton principal est
+              déjà « Masquer cette carte ». Le laisser ici produirait un clic
+              sans effet visible. */}
+          {!confirmation && !setup_completed && (
             <button
-              onClick={basculerRepli}
-              className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-              aria-label={expanded ? 'Réduire' : 'Développer'}
+              type="button"
+              onClick={() => setConfirmation(true)}
+              className="text-[13px] text-[#8a8a83] hover:text-[#1a1a19] underline underline-offset-[3px] transition-colors"
             >
-              {expanded
-                ? <ChevronUp className="w-4 h-4 text-gray-500" />
-                : <ChevronDown className="w-4 h-4 text-gray-500" />}
+              Passer
             </button>
-            {/* « Passer » — discret, mais toujours là. Un bloc d'aide qu'on ne
-                peut pas ranger cesse d'être une aide. Aux 5 étapes faites, la
-                croix reste : à ce stade le mot « Passer » n'a plus de sens. */}
-            {setup_completed ? (
-              <button
-                onClick={handleDismiss}
-                className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                aria-label="Masquer définitivement"
-                title="Masquer définitivement"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            ) : (
-              <button
-                onClick={() => setConfirmation(true)}
-                className="text-xs text-gray-400 hover:text-gray-700 underline underline-offset-2 px-1.5 py-1 transition-colors"
-              >
-                Passer
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Confirmation en ligne. Le masquage est irréversible depuis l'interface
-          et le bloc porte des étapes non faites : on demande, une fois. */}
-      {confirmation && (
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-xs text-gray-600">
-            Masquer définitivement ? Vous pourrez toujours régler ces points depuis les Réglages.
+      {/* ── Liste dépliée ── */}
+      {listeOuverte && (
+        <>
+          {/* La phrase ne s'affiche que s'il reste quelque chose à faire : aux
+              cinq étapes faites, elle inviterait à choisir dans une liste vide. */}
+          {!setup_completed && (
+            <p className="mt-3 text-[13px] text-[#8a8a83]">
+              Vous pouvez les faire dans l&apos;ordre que vous voulez.
+            </p>
+          )}
+          <div className="mt-3">
+            <ListeEtapes steps={steps} />
+          </div>
+        </>
+      )}
+
+      {/* ── Confirmation ──
+          Le masquage est irréversible depuis l'interface, et la carte porte des
+          étapes non faites : on demande, une fois, et on dit où les retrouver.
+          L'endroit existe : le bloc « Bien démarrer » en tête d'Aide. */}
+      {confirmation && !setup_completed && (
+        <div className="mt-4 border-t border-[#f2f2ee] pt-4 flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-[13.5px] text-[#6b6b66] leading-[1.5]">
+            Masquer définitivement cette carte ? Vous retrouverez ces étapes dans Aide.
           </p>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex gap-2 flex-shrink-0">
             <button
-              onClick={handleDismiss}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+              type="button"
+              onClick={masquer}
+              className="px-4 py-2.5 rounded-[9px] border border-[#1a1a19] bg-white text-[13.5px] font-medium text-[#1a1a19] hover:bg-[#1a1a19] hover:text-white transition-colors"
             >
               Masquer
             </button>
             <button
+              type="button"
               onClick={() => setConfirmation(false)}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors"
+              className="px-4 py-2.5 rounded-[9px] border border-[#e2e2de] text-[13.5px] font-medium text-[#6b6b66] hover:bg-[#fafaf9] transition-colors"
             >
-              Annuler
+              Garder
             </button>
           </div>
         </div>
       )}
-
-      {/* Étapes */}
-      {expanded && (
-        <ol className="p-4 space-y-1.5">
-          {steps.map((step, index) => (
-            <li
-              key={step.id}
-              className={`flex items-center gap-3 p-2.5 rounded-lg ${
-                step.completed ? 'bg-gray-50' : 'bg-white hover:bg-gray-50 transition-colors'
-              }`}
-            >
-              <span
-                className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-medium ${
-                  step.completed
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-300 text-gray-400'
-                }`}
-                aria-hidden="true"
-              >
-                {step.completed ? <Check className="w-3.5 h-3.5" /> : index + 1}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm ${step.completed ? 'text-gray-400 line-through' : 'text-gray-900 font-medium'}`}>
-                  {step.title}
-                </p>
-                {step.hint && !step.completed && (
-                  <p className="text-xs text-gray-500 mt-0.5">{step.hint}</p>
-                )}
-              </div>
-              {!step.completed && step.href && (
-                <Link
-                  href={step.href}
-                  className="text-xs font-medium text-gray-900 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors whitespace-nowrap flex-shrink-0"
-                >
-                  Compléter
-                </Link>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
+    </section>
   );
 }

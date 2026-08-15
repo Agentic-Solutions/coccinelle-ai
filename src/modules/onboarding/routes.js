@@ -134,11 +134,28 @@ async function computeStartupChecklist(env, tenantId, user) {
 
   // Libellés : formulation « je », vocabulaire métier, zéro terme technique
   // (règle i.15 : pas de RAG / knowledge base / crawl / embedding dans l'UI).
+  //
+  // `explication` (chantier CHECKLIST, 15/08/2026) : le paragraphe de deux ou
+  // trois lignes du motif pas-à-pas, qui ne montre qu'UNE étape à la fois. Le
+  // `hint` d'une ligne ne suffisait plus — il servait de sous-titre dans une
+  // liste, il devient ici le seul texte lu avant d'agir. Il reste utilisé par
+  // le dépli « Voir toutes les étapes », où l'on a besoin d'une ligne courte.
+  //
+  // Chaque phrase décrit un MÉCANISME EXISTANT, jamais une intention :
+  //   — le prénom est bien prononcé au décrochage (fix greeting du 13/08) ;
+  //   — le numéro vérifié est la seule condition de la branche `caller` de
+  //     resolve-phone, donc du numéro d'essai partagé (QW8) ;
+  //   — les 3 modes d'ajout cités existent dans /dashboard/knowledge ;
+  //   — c'est l'utilisateur qui APPELLE : aucun appel sortant n'existe
+  //     (invariant CX-2 n° 6) ;
+  //   — l'étape équipe est facultative, et on le dit plutôt que de laisser un
+  //     artisan seul bloqué devant la dernière étape.
   const steps = [
     {
       id: 'assistant',
       title: 'Configurer mon assistant',
       hint: 'Son prénom, sa voix, sa façon de répondre',
+      explication: 'Donnez-lui un prénom et choisissez sa voix. C\'est ce prénom qu\'il annonce en décrochant, et cette voix que vos clients entendent au téléphone.',
       completed: assistantDone,
       href: '/dashboard/agents/configuration'
     },
@@ -146,6 +163,7 @@ async function computeStartupChecklist(env, tenantId, user) {
       id: 'phone',
       title: 'Vérifier mon numéro de téléphone',
       hint: 'Indispensable pour que votre assistant décroche',
+      explication: 'Nous vous envoyons un code par SMS. C\'est à ce numéro que votre assistant vous reconnaît quand vous appelez pour l\'essayer, avant que vous ayez votre propre ligne.',
       completed: phoneDone,
       href: '/dashboard/settings'
     },
@@ -153,6 +171,7 @@ async function computeStartupChecklist(env, tenantId, user) {
       id: 'knowledge',
       title: 'Ajouter mes informations',
       hint: 'Horaires, tarifs, prestations — ce que votre assistant doit savoir',
+      explication: 'Vos tarifs, vos horaires, vos prestations. Sans eux, votre assistant ne peut pas répondre au client qui demande un prix ou une heure d\'ouverture. Importez votre site, déposez un fichier, ou saisissez-les à la main.',
       completed: knowledgeDone,
       href: '/dashboard/knowledge'
     },
@@ -160,6 +179,7 @@ async function computeStartupChecklist(env, tenantId, user) {
       id: 'call',
       title: 'Appeler mon assistant',
       hint: 'Le meilleur moyen de vérifier qu\'il répond bien',
+      explication: 'Composez le numéro d\'essai depuis votre numéro vérifié : votre assistant décroche, et vous l\'entendez exactement comme vos clients l\'entendront.',
       completed: callDone,
       href: '/dashboard/channels/numbers'
     },
@@ -167,6 +187,7 @@ async function computeStartupChecklist(env, tenantId, user) {
       id: 'team',
       title: 'Inviter mon équipe',
       hint: 'Vos collaborateurs reçoivent les demandes et les rendez-vous',
+      explication: 'Vos collaborateurs reçoivent les demandes et les rendez-vous que votre assistant enregistre. Facultatif : si vous travaillez seul, cette étape ne vous concerne pas.',
       completed: teamDone,
       href: '/dashboard/teams'
     }
