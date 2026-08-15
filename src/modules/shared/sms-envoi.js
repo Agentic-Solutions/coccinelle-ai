@@ -21,11 +21,32 @@ import { enrichirSmsAvecLien } from './sms-booking-link.js';
 import { compterSms } from './sms-format.js';
 
 /**
+ * FORME DE RETOUR — une seule, et elle porte du sens.
+ *
+ * Il en existait deux : `sendSMSViaTwilio` rendait `{success}`, ce module rend
+ * `{envoye}`. Le 11/08/2026, une version deployee entre les deux appelait ce
+ * module en testant encore `.success` : `undefined` etant faux, le SMS partait,
+ * la trace s'ecrivait, et `reminder_sent` n'etait jamais pose — donc le passage
+ * suivant renvoyait un second rappel au meme client. La couture avait ete
+ * refermee par un pont (`smsResult.success = smsResult.envoye`) ; le pont est
+ * supprime le 15/08 au profit d'une forme unique, et `scripts/test_rappels.mjs`
+ * echoue si elle change.
+ *
+ * `refuse` distingue les deux echecs, et cette distinction est ce qui permet a
+ * un appelant de decider s'il peut reessayer :
+ *   `refuse: true`  — Twilio a explicitement rejete, ou l'envoi n'a meme pas ete
+ *                     tente (numero absent, Twilio non configure). L'issue est
+ *                     CERTAINE : rien n'est parti, on peut reessayer sans risque
+ *                     de doublon.
+ *   `refuse` absent avec `envoye: false` — issue INCONNUE (exception reseau) :
+ *                     Twilio a peut-etre accepte le message. Reessayer peut
+ *                     produire un doublon chez le client.
+ *
  * @param {object} env
  * @param {{tenantId: string, to: string, message: string, type: string,
  *          prospectId?: string|null, nomContact?: string|null}} options
- * @returns {Promise<{envoye: boolean, sid?: string, erreur?: string,
- *                    segments?: number, corps?: string}>}
+ * @returns {Promise<{envoye: boolean, corps?: string, segments?: number,
+ *                    sid?: string, erreur?: string, refuse?: boolean}>}
  *   `corps` est le texte REELLEMENT parti — enrichi du lien et compacte en
  *   GSM-7. Les appelants qui le renvoient ou le journalisent doivent utiliser
  *   celui-la, jamais le `message` d'entree : c'est precisement l'ecart qui
@@ -33,7 +54,10 @@ import { compterSms } from './sms-format.js';
  */
 export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospectId, nomContact }) {
   const destinataire = String(to || '').trim();
-  if (!destinataire) return { envoye: false, erreur: 'Numéro destinataire manquant' };
+  // Rien n'a ete tente : l'issue est certaine.
+  if (!destinataire) {
+    return { envoye: false, refuse: true, erreur: 'Numéro destinataire manquant' };
+  }
 
   const accountSid = env.TWILIO_ACCOUNT_SID;
   const authToken = env.TWILIO_AUTH_TOKEN;
@@ -44,7 +68,7 @@ export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospe
   const expediteur = env.TWILIO_PHONE_NUMBER || '+33939035760';
   if (!accountSid || !authToken) {
     logger.warn('[SMS] Twilio non configuré — envoi ignoré', { tenantId, type });
-    return { envoye: false, erreur: 'Twilio non configuré' };
+    return { envoye: false, refuse: true, erreur: 'Twilio non configuré' };
   }
 
   // La regle du lien vit dans sms-booking-link.js ; on ne la redecide pas ici.
@@ -70,13 +94,19 @@ export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospe
         tenantId, type, code: donnees?.code, message: donnees?.message,
       });
       return {
-        envoye: false, erreur: donnees?.message || 'Envoi refusé',
+        envoye: false, refuse: true, erreur: donnees?.message || 'Envoi refusé',
         segments: mesure.segments, corps,
       };
     }
     sid = donnees.sid;
   } catch (error) {
-    logger.warn('[SMS] Envoi impossible', { tenantId, type, erreur: error.message });
+    // `refuse` volontairement ABSENT : la requete est partie, la reponse non
+    // recue. Twilio a peut-etre accepte le message — un appelant qui reessaie
+    // enverrait alors un doublon au client. C'est a lui d'arbitrer, avec cette
+    // information.
+    logger.warn('[SMS] Envoi impossible, issue inconnue', {
+      tenantId, type, erreur: error.message,
+    });
     return { envoye: false, erreur: error.message, segments: mesure.segments, corps };
   }
 

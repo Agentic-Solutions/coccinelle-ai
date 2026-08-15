@@ -27,7 +27,10 @@ import { handleTeamsRoutes } from './modules/teams/routes.js';
 import { handleCustomersRoutes } from './modules/customers/routes.js';
 import { handleOAuthRoutes } from './modules/oauth/routes.js';
 import { handleCheckEmails, handleGetInbox, handleGetHistory, handleGetStatus, handleProcessAll, handleAutoReply, handleGetConversation, handleGetStats, handleSendEmail, handleMarkAsRead, handleGetEmailConfig, handleUpdateEmailConfig, handleTestEmailSend, handleGetEmailLogs } from './modules/email/routes.js';
-import { verifyToken } from './modules/auth/helpers.js';
+// `requireAuth` et non `verifyToken` seul pour les routes qui agissent sur les
+// donnees d'un tenant : lui seul verifie la session en base et charge le tenant.
+import { verifyToken, requireAuth } from './modules/auth/helpers.js';
+import { hasPermission } from './utils/permissions.js';
 import { handleBillingSubscriptionRoutes } from './modules/billing/routes.js';
 import { handleAvailabilityRoutes } from './modules/availability/routes.js';
 import { handleAppointmentTypesRoutes } from './modules/appointment-types/routes.js';
@@ -225,20 +228,62 @@ export default {
         if (response) return response;
       }
 
-      // Route manuelle — Envoyer les rappels SMS J-1 (tous tenants)
+      // ── Route manuelle — Envoyer les rappels SMS J-1 ──
+      //
+      // CORRIGE LE 15/08/2026 — FAILLE D'ISOLATION INTER-TENANT.
+      //
+      // Elle appelait `sendTomorrowReminders(env)` SANS portee, donc pour TOUS
+      // les tenants, et elle est cablee sur le bouton « Envoyer les rappels » du
+      // dashboard (`app/dashboard/rdv/page.tsx`). Un garagiste qui cliquait
+      // envoyait les rappels des six autres entreprises, depuis notre compte
+      // Twilio, avec des messages disant « chez {l'autre societe} » et un lien
+      // vers LEUR page de reservation. Pas une fuite en lecture : un ENVOI au nom
+      // d'autrui. Meme classe que la fuite LightRAG.
+      //
+      // Deuxieme defaut, dans les memes lignes : l'authentification appelait
+      // `verifyToken` DIRECTEMENT — la session n'etait pas verifiee en base, le
+      // tenant n'etait pas charge, et le `payload` decode n'etait meme pas
+      // utilise. Un jeton revoque mais non expire passait.
+      //
+      // Deux chemins, deux droits :
+      //   — JWT (dashboard)   → SON tenant uniquement, et permission requise ;
+      //   — `x-cron-secret`   → toute la plateforme. FERME PAR DEFAUT : le secret
+      //     n'existe pas en production, donc ce chemin refuse. Le cron, lui, ne
+      //     passe pas par HTTP (`handleScheduled`), donc rien ne casse.
       if (path === '/api/v1/reminders/send-tomorrow' && method === 'POST') {
         const corsHeaders = getCorsHeaders(request);
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader) {
-          return Response.json({ error: 'Authorization required' }, { status: 401, headers: corsHeaders });
+
+        // Chemin INTERNE : balayage de la plateforme. Comparaison faite en
+        // premier, mais un secret absent en env ne peut jamais matcher (undefined
+        // n'est egal a aucune chaine) — c'est le fail-safe voulu.
+        const secretFourni = request.headers.get('x-cron-secret');
+        if (secretFourni) {
+          if (!env.CRON_SECRET || secretFourni !== env.CRON_SECRET) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+          }
+          const result = await sendTomorrowReminders(env, { tenantId: null });
+          return Response.json({ success: true, portee: 'plateforme', ...result }, { headers: corsHeaders });
         }
-        const token = authHeader.replace('Bearer ', '');
-        const payload = await verifyToken(token, env.JWT_SECRET);
-        if (!payload) {
-          return Response.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
+
+        // Chemin DASHBOARD : session verifiee, tenant charge.
+        const authResult = await requireAuth(request, env);
+        if (authResult.error) {
+          return Response.json({ error: authResult.error }, { status: authResult.status, headers: corsHeaders });
         }
-        const result = await sendTomorrowReminders(env);
-        return Response.json({ success: true, ...result }, { headers: corsHeaders });
+        const { user, tenant } = authResult;
+
+        // Envoyer des SMS a tous les clients du cabinet n'est pas un geste
+        // d'agent : c'est la meme portee que `modify_all_appointments`, qui
+        // gouverne deja les rendez-vous des autres agents.
+        const autorise = await hasPermission(env, tenant.id, user.role, 'modify_all_appointments');
+        if (!autorise) {
+          return Response.json({
+            error: 'Vous n\'avez pas le droit d\'envoyer les rappels de toute l\'équipe',
+          }, { status: 403, headers: corsHeaders });
+        }
+
+        const result = await sendTomorrowReminders(env, { tenantId: tenant.id });
+        return Response.json({ success: true, portee: 'tenant', ...result }, { headers: corsHeaders });
       }
 
       // Reminders & followups
