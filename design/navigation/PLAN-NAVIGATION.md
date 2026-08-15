@@ -696,23 +696,15 @@ PDF donne la marche à suivre : ouvrir, copier, coller.
 
 ## 16. Backlog — ordre arrêté le 14/08/2026
 
-0. 🔴🔴 **Fermer la fenêtre de rotation `VOIXIA_API_KEY`** (10 min) — ajouté le
-   15/08/2026, constaté en listant les secrets du Worker.
+0. ✅ ~~**Fermer la fenêtre de rotation `VOIXIA_API_KEY`**~~ — **FAIT le 15/08/2026.**
+   Contrôle final : `401` sur l'ancienne clé, `200` sur la nouvelle,
+   `VOIXIA_API_KEY_ROTATION` supprimé, sauvegarde serveur purgée. La clé publiée
+   dans 23 commits n'ouvre plus rien. Détail et procédure réutilisable :
+   CLAUDE.md § r.1 et § j.
 
-   **`VOIXIA_API_KEY_ROTATION` est TOUJOURS présent** dans les 43 secrets de
-   production. Les deux clés sont donc encore acceptées par `requireVoixIAAuth`
-   — dont l'ancienne, celle qui est **en clair dans 20 commits publics**
-   (02/04 → 09/05). La rotation engagée le 11/08 n'est pas terminée : elle a
-   basculé l'agent sur la nouvelle valeur, mais n'a jamais refermé la porte.
-
-   Tant que ce secret existe, la fuite est ouverte — et le dépôt est public.
-   C'est l'écart le plus court entre un risque connu et sa fermeture : deux
-   commandes, et le contrôle du § r.1 doit renvoyer **401 sur l'ancienne clé**.
-
-   ⚠️ **Ordre impératif** (§ r.1, étapes 4 puis 5) : écrire la nouvelle valeur
-   dans `VOIXIA_API_KEY` **avant** de supprimer `VOIXIA_API_KEY_ROTATION`.
-   L'inverse coupe tous les appels entrants — le Worker retomberait sur
-   l'ancienne clé pendant que l'agent tourne sur la nouvelle.
+   Reste sur le même sujet, **non planifié** : la clé est **unique et globale**, le
+   tenant venant d'un en-tête fourni par l'appelant. Quiconque la détient agit sur
+   n'importe quel tenant. La rotation a fermé la fuite, pas le modèle.
 
 0bis. **`/dashboard/channels` est une maquette entière** (0,5 j) — ajouté le
    15/08/2026, trouvé en retirant les promesses d'e-mail.

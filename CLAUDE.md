@@ -597,7 +597,7 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | Priorité | Bug | Détail |
 |----------|-----|--------|
 | 🔴 Critique | **Funnel onboarding** | 8/145 complétions, 0 depuis 25 jours — instrumenter + simplifier |
-| 🔴 Critique | **Clé API VoixIA exposée — rotation ENGAGÉE, PAS TERMINÉE** | `VOIXIA_API_KEY` (`813f88…1cc9`) est en clair dans **20 commits publics** (02/04→09/05) et **répond toujours 200 au 12/08 15h50**. L'agent est passé à la nouvelle clé (`/opt/voixia/.env`, sauvegarde `.env.avant-rotation`), mais côté Worker `VOIXIA_API_KEY` porte encore l'ANCIENNE valeur et `VOIXIA_API_KEY_ROTATION` (la nouvelle) existe toujours : **les deux clés sont acceptées**. ⚠️ Supprimer `VOIXIA_API_KEY_ROTATION` **sans** avoir d'abord écrit la nouvelle valeur dans `VOIXIA_API_KEY` couperait tous les appels. Procédure et contrôle robuste en § r.1. Tant que le contrôle ne renvoie pas **401 sur l'ancienne**, la fuite est ouverte |
+| ✅ Clos | ~~Clé API VoixIA exposée — rotation TERMINÉE le 15/08/2026~~ | **Contrôle final : `401` sur l'ancienne clé, `200` sur la nouvelle**, et `wrangler secret list` ne montre plus que `VOIXIA_API_KEY` — `VOIXIA_API_KEY_ROTATION` est supprimé, la fenêtre est fermée. La clé publiée reste lisible dans **23 commits accessibles** (mesuré, 20/03→16/05) mais **n'ouvre plus rien** : c'est exactement ce que la rotation garantit, et pourquoi elle est le seul remède réel à une fuite d'historique. ⚠️ Elle vivait dans **TROIS** fichiers, pas seulement la doc : `CLAUDE.md`, `dashboard/proactive/page.tsx` et `dashboard/voixia/page.tsx` — donc **en clair dans le bundle JavaScript** servi aux visiteurs de ces pages à l'époque. Une clé dans un composant front n'est pas « exposée par le dépôt », elle est publiée par le produit. Sauvegarde serveur `/opt/voixia/.env.avant-rotation` purgée (elle portait encore l'ancienne). Procédure réutilisable en § r.1 |
 | ✅ Clos | ~~Régénérer clés Meta~~ | **Vérifié le 11/08** : `META_WHATSAPP_ACCESS_TOKEN` expiré le 28/01 (Graph API code 190), `META_APP_SECRET` invalidé par la réinitialisation du 19/07 (« Invalid OAuth access token signature »), `META_WEBHOOK_VERIFY_TOKEN` bien tourné (la valeur publique renvoie 403 sur le handshake). `WHATSAPP_ACCESS_TOKEN` **n'a jamais été dans le dépôt**. Les 3 valeurs Meta restent lisibles dans `wrangler.toml` à 3 commits publics (01/03→09/05) mais n'ouvrent plus rien |
 | 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
 | 🟠 Haute | **Webhook SMS entrant : tenant en dur** | `omnichannel/webhooks/sms.js:49` crée toute nouvelle conversation avec `'tenant_mihmuebzieaxehi7qv'` **écrit en dur** — un tenant purgé le 10/08, donc inexistant. Même antipattern que la faille WhatsApp (fallback « premier tenant actif »). À résoudre par `omni_phone_mappings` sur le numéro appelé, comme `resolve-phone`. En attendant, le lien de réservation est omis sur ce chemin plutôt que fabriqué au hasard |
@@ -1224,12 +1224,35 @@ de l'arbre n'est que de l'hygiène. Corollaire vécu : l'audit du 16/05 a retir�
 `CLAUDE.md` et l'a crue traitée — elle était encore valide et publique le 11/08, trois mois plus
 tard.
 
-### r.1 — `VOIXIA_API_KEY` (🔴 urgent, vérifiée vivante le 11/08)
+### r.1 — `VOIXIA_API_KEY` (✅ ROTATION TERMINÉE le 15/08/2026)
 
-**Où elle vit** (inventaire du 11/08) : le secret Worker, `/opt/voixia/.env` ligne 32,
-`.credentials.md` (local, gitignored), et **20 commits publics** (02/04→09/05). Quatre
-sauvegardes `tenant.py.bak-*` la portaient aussi sur le serveur — **supprimées**. Les scripts,
-la doc et le portail revendeur ne la contiennent pas.
+**État final, vérifié** : `401` sur l'ancienne clé, `200` sur la nouvelle, et `wrangler secret
+list` ne montre plus que `VOIXIA_API_KEY`. La fenêtre `VOIXIA_API_KEY_ROTATION` est fermée. La
+clé publiée n'ouvre plus rien — **la procédure ci-dessous reste valable pour la prochaine
+rotation**, quelle que soit la clé.
+
+**Où elle vivait** — inventaire du 11/08 CORRIGÉ le 15/08, il était incomplet sur deux points :
+
+| Endroit | Mesure du 15/08 |
+|---|---|
+| Secret Worker | remplacé, ancien secret supprimé |
+| `/opt/voixia/.env` ligne 32 | porte la nouvelle depuis le 11/08 (vérifié par empreinte) |
+| `/opt/voixia/.env.avant-rotation` | portait encore l'ANCIENNE — **purgé le 15/08** |
+| Historique Git | **23 commits accessibles** (et non 20), du 20/03 au 16/05 |
+| Fichiers porteurs | **TROIS**, et non la seule doc : `CLAUDE.md`, `dashboard/proactive/page.tsx`, `dashboard/voixia/page.tsx` |
+| `.credentials.md` | local, gitignored — à jour |
+
+⚠️ **La leçon la plus coûteuse de cet inventaire** : la clé était codée en dur dans **deux pages
+du dashboard**, donc compilée dans le bundle JavaScript et servie à **tout visiteur** de ces pages.
+Une clé dans un composant front n'est pas « exposée par le dépôt » — elle est **publiée par le
+produit**, à chaque chargement, y compris à des gens qui n'ont jamais vu le dépôt. Chercher une
+clé fuitée uniquement dans la doc et la config, c'est en manquer la pire occurrence.
+
+⚠️ **Ce qu'une rotation NE fait pas** : elle ne retire pas la clé de l'historique. Les 23 commits
+la portent toujours et la porteront toujours — dans les forks, les clones, les caches
+d'indexation. Elle la rend **inoffensive**, et c'est le seul remède atteignable ; la purge de
+l'arbre n'est que de l'hygiène. Corollaire vécu : l'audit du 16/05 a retiré la clé de `CLAUDE.md`
+et l'a crue traitée — elle était encore valide et publique **trois mois** plus tard.
 
 ⚠️ **La clé vit à DEUX endroits actifs** : le Worker la lit dans ses secrets, l'agent Python
 dans `/opt/voixia/.env` (`resolve_tenant` ne transmet pas de clé par appel, les outils retombent
@@ -1276,9 +1299,11 @@ echo -n "ancienne (doit être 401) : "; curl -s -o /dev/null -w "%{http_code}\n"
 echo -n "nouvelle (doit être 200) : "; curl -s -o /dev/null -w "%{http_code}\n" -A "Mozilla/5.0" "$API" -H "X-VoixIA-Key: $NOUVELLE" -H "X-VoixIA-Tenant: $T"
 ```
 
-> **Défaut de conception à corriger ensuite** : une clé **unique et globale**, avec le tenant
+> **Défaut de conception — c'est désormais LE point ouvert sur ce sujet** : une clé **unique et
+> globale**, avec le tenant
 > choisi par un en-tête que l'appelant fournit (`src/modules/voixia/auth.js`). La rotation ferme
-> la fuite mais pas le modèle. À noter au passage : le portail revendeur expose une clé **par
+> la fuite mais pas le modèle : quiconque détient la clé peut agir sur **n'importe quel**
+> tenant en changeant un en-tête. À noter au passage : le portail revendeur expose une clé **par
 > tenant** (`tenants.api_key`, page `/settings/api-key`) que `requireVoixIAAuth` **n'accepte
 > pas** — vérifié le 11/08, elle renvoie 401. La page promet donc aux revendeurs une
 > authentification qui n'existe pas ; c'est aussi la brique qui manque pour supprimer la clé
