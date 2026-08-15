@@ -3,6 +3,7 @@
  */
 
 import { fetchNewEmails, sendEmail, markAsRead, getConnectedEmailInfo } from './email-service.js';
+import { refuserEmailClient } from '../shared/email-client-coupe.js';
 
 /**
  * GET /api/v1/email/check - Vérifie les nouveaux emails
@@ -149,6 +150,12 @@ export async function handleProcessAll(request, env, ctx) {
  * POST /api/v1/email/send - Envoie un email
  */
 export async function handleSendEmail(request, env, ctx, tenantId) {
+  // ── BARRIERE (15/08/2026) : plus d'e-mail vers un client ──
+  // Cette route etait la cible de l'outil vocal `send_email` (retire) et de
+  // l'envoi manuel du dashboard. Aucune page ne l'appelle aujourd'hui, mais elle
+  // repondait. Motif et perimetre : shared/email-client-coupe.js.
+  return refuserEmailClient({ route: '/api/v1/email/send', tenantId });
+
   try {
     const body = await request.json();
     const { to, subject, message, provider, replyToId } = body;

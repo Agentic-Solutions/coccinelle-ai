@@ -104,40 +104,16 @@ async function handleSendReminders(request, env, corsHeaders) {
       }
     }
 
-    // Email via Resend
-    if (email && env.RESEND_API_KEY) {
-      try {
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            from: env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai',
-            to: [email],
-            subject: 'Rappel de votre rendez-vous',
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2 style="color: #E53E3E;">Rappel de rendez-vous</h2>
-                <p>Bonjour ${contactName},</p>
-                <p>Nous vous rappelons que vous avez un rendez-vous prevu :</p>
-                <div style="background: #F7FAFC; border-left: 4px solid #E53E3E; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                  <p style="margin: 5px 0;"><strong>Date :</strong> ${dateFormatted}</p>
-                  <p style="margin: 5px 0;"><strong>Heure :</strong> ${heureFormatted}</p>
-                </div>
-                <p>A bientot !</p>
-                <hr style="margin-top: 30px; border: none; border-top: 1px solid #E2E8F0;" />
-                <p style="font-size: 12px; color: #A0AEC0;">Cet email a ete envoye automatiquement par Coccinelle.ai</p>
-              </div>
-            `
-          })
-        });
-        logger.info('Email reminder sent', { email, appointmentId: rdv.id });
-      } catch (emailErr) {
-        logger.error('Email reminder error', { error: emailErr.message, appointmentId: rdv.id });
-      }
-    }
+// ── LE RAPPEL PAR E-MAIL AU CONTACT EST SUPPRIME (15/08/2026) ──
+    //
+    // Ce bloc envoyait « Rappel de votre rendez-vous » en HTML a l'adresse du
+    // contact. Coccinelle ne parle jamais d'e-mail a ses clients : le rappel part
+    // en SMS, juste au-dessus.
+    //
+    // A ne pas confondre avec le rappel J-1 de `cron/reminders.js`, qui est le
+    // rappel REEL du produit et n'a jamais envoye d'e-mail. Celui-ci vit derriere
+    // `POST /api/v1/appointments/send-reminders`, qu'aucune page n'appelle — mais
+    // la route repondait, et l'e-mail partait.
 
     // Marquer comme rappele
     await env.DB.prepare(
@@ -153,86 +129,41 @@ async function handleSendReminders(request, env, corsHeaders) {
 // ============================================
 // POST /api/v1/appointments/send-followups
 // ============================================
+/**
+ * POST /api/v1/appointments/send-followups — NEUTRALISEE le 15/08/2026.
+ *
+ * Elle demandait un avis au CONTACT par e-mail apres un rendez-vous termine,
+ * avec un lien `/feedback?token=…`. Coccinelle ne parle jamais d'e-mail a ses
+ * clients : cette demande ne part plus.
+ *
+ * Pourquoi neutraliser la route ENTIERE plutot que le seul envoi : elle creait
+ * d'abord une ligne `feedback` porteuse du jeton, PUIS envoyait l'e-mail. Retirer
+ * l'envoi seul aurait produit des jetons que personne n'est invite a remplir —
+ * des lignes orphelines, et un compteur `followups_sent` qui compte des envois
+ * qui n'ont pas lieu.
+ *
+ * ⚠️ CONSEQUENCE A CONNAITRE : toute la fonction « avis apres rendez-vous » ne
+ * vivait QUE par cet e-mail. `feedback` compte 0 ligne, son unique ecrivain etait
+ * ici, et le seul chemin vers la page publique `/feedback` etait le lien de ce
+ * message. La page reste en ligne mais ne recevra plus de jeton. A trancher au
+ * backlog : la faire revivre par SMS, ou la retirer avec sa page.
+ */
 async function handleSendFollowups(request, env, corsHeaders) {
   const authResult = await auth.requireAuth(request, env);
   if (authResult.error) {
     return Response.json({ success: false, error: authResult.error }, { status: authResult.status, headers: corsHeaders });
   }
 
-  const { tenant } = authResult;
-
-  // RDV termines sans feedback
-  const appointments = await env.DB.prepare(`
-    SELECT a.*, p.first_name, p.last_name, p.email as contact_email
-    FROM appointments a
-    LEFT JOIN prospects p ON a.prospect_id = p.id
-    WHERE a.tenant_id = ?
-      AND a.status = 'completed'
-      AND NOT EXISTS (SELECT 1 FROM feedback WHERE appointment_id = a.id)
-  `).bind(tenant.id).all();
-
-  const rdvs = appointments.results || [];
-  let followupsSent = 0;
-
-  for (const rdv of rdvs) {
-    const email = rdv.contact_email;
-    if (!email || !env.RESEND_API_KEY) continue;
-
-    const feedbackToken = crypto.randomUUID();
-    const feedbackId = auth.generateId('fb');
-    const contactName = `${rdv.first_name || ''} ${rdv.last_name || ''}`.trim() || 'Client';
-
-    // Creer l'entree feedback avec le token
-    await env.DB.prepare(`
-      INSERT INTO feedback (id, appointment_id, tenant_id, token, created_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
-    `).bind(feedbackId, rdv.id, tenant.id, feedbackToken).run();
-
-    // Envoyer l'email de suivi
-    const feedbackUrl = `${env.FRONTEND_URL || 'https://coccinelle.ai'}/feedback?token=${feedbackToken}`;
-
-    try {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai',
-          to: [email],
-          subject: 'Comment s\'est passe votre rendez-vous ?',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h2 style="color: #E53E3E;">Votre avis nous interesse</h2>
-              <p>Bonjour ${contactName},</p>
-              <p>Nous esperons que votre rendez-vous s'est bien passe. Votre avis est precieux pour nous aider a ameliorer nos services.</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <p style="font-size: 36px; margin: 10px 0;">&#11088;&#11088;&#11088;&#11088;&#11088;</p>
-                <a href="${feedbackUrl}" style="display: inline-block; background: #E53E3E; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: bold;">
-                  Donner mon avis
-                </a>
-              </div>
-              <p>Cela ne prend que 30 secondes !</p>
-              <hr style="margin-top: 30px; border: none; border-top: 1px solid #E2E8F0;" />
-              <p style="font-size: 12px; color: #A0AEC0;">Cet email a ete envoye automatiquement par Coccinelle.ai</p>
-            </div>
-          `
-        })
-      });
-      logger.info('Followup email sent', { email, appointmentId: rdv.id });
-      followupsSent++;
-    } catch (emailErr) {
-      logger.error('Followup email error', { error: emailErr.message, appointmentId: rdv.id });
-    }
-  }
-
-  return Response.json({ success: true, followups_sent: followupsSent }, { headers: corsHeaders });
+  // 200 et non 404 : la route existe, elle ne fait simplement plus rien. Un 404
+  // laisserait croire a une erreur de chemin ; `followups_sent: 0` avec un motif
+  // explicite dit ce qui se passe.
+  return Response.json({
+    success: true,
+    followups_sent: 0,
+    indisponible: 'La demande d\'avis par e-mail est suspendue : Coccinelle ne contacte plus les clients par e-mail.',
+  }, { headers: corsHeaders });
 }
 
-// ============================================
-// POST /api/v1/feedback (public, pas d'auth)
-// ============================================
 async function handleSubmitFeedback(request, env, corsHeaders) {
   const body = await request.json();
   const { token, rating, comment } = body;

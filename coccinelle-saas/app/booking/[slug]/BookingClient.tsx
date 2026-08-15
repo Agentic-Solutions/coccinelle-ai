@@ -72,7 +72,6 @@ export default function BookingClient() {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
-    email: '',
     phone: '',
     notes: ''
   });
@@ -402,16 +401,12 @@ export default function BookingClient() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm"
-                  placeholder="jean.dupont@email.com"
-                />
-              </div>
+              {/* Champ e-mail retiré le 15/08/2026.
+                  Le client vient de donner son numéro, et la confirmation part par
+                  SMS : l'adresse était un doublon sans usage. Collecter une donnée
+                  dont la finalité n'est pas présente est contraire au RGPD — et une
+                  case de plus sur un formulaire de réservation coûte des
+                  réservations. */}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
@@ -480,7 +475,6 @@ export default function BookingClient() {
                 <span className="text-sm text-gray-500">Contact</span>
                 <p className="font-medium text-gray-900">{formData.first_name} {formData.last_name}</p>
                 <p className="text-sm text-gray-600">{formData.phone}</p>
-                {formData.email && <p className="text-sm text-gray-600">{formData.email}</p>}
               </div>
               {tenant?.name && (
                 <div>

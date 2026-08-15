@@ -79,9 +79,14 @@ export async function handleChannelsRoutes(request, env, path, method) {
     }
 
     // POST /api/v1/channels/email/send — Envoyer un email via Resend
+    // BARRIERE (15/08/2026) : plus d'e-mail vers un client.
+    // Voir shared/email-client-coupe.js pour le perimetre exact — nos propres
+    // e-mails (inscription, invitation, support) ne passent pas par ici.
     if (path === '/api/v1/channels/email/send' && method === 'POST') {
-      return await sendResendEmail(request, env, tenantId);
+      return refuserEmailClient({ route: path, tenantId });
     }
+    // `sendResendEmail` reste dans ce module : c'est la plomberie que MailIA
+    // reutilisera. Seule la route qui y menait est barree, ci-dessus.
 
     // POST /api/v1/channels/email/test — Envoyer un email de test
     // (déjà géré par testChannel('email') ci-dessus, mais on ajoute aussi un endpoint dédié)

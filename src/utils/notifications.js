@@ -52,9 +52,21 @@ export async function createNotification(env, { tenant_id, user_id, type, title,
  * Vérifie confirmation_sent pour éviter les doublons.
  * Logue dans omni_messages.
  *
+ * ⚠️ SMS UNIQUEMENT depuis le 15/08/2026 — décision produit.
+ *
+ * Coccinelle ne parle jamais d'e-mail à ses clients : le produit, c'est la voix
+ * et le SMS après appel. Un contact ne doit donc pas recevoir un message d'un
+ * canal dont le produit ne parle nulle part — il ne saurait ni d'où il vient, ni
+ * comment s'en désabonner, et le garagiste ne le verrait pas dans son historique.
+ *
+ * Le paramètre `channel` est CONSERVÉ dans la signature mais n'influe plus que
+ * sur l'absence d'envoi : `'email'` seul ne produit plus rien. Le supprimer
+ * aurait cassé quatre appelants sans nécessité, et le garder documenté explique
+ * pourquoi un appel avec `'email'` ne fait rien.
+ *
  * @param {object} env - Cloudflare env bindings
  * @param {string} appointmentId - ID du RDV
- * @param {string} channel - 'email', 'sms', ou 'both'
+ * @param {string} channel - `'sms'` ou `'both'` : identiques. `'email'` : aucun envoi.
  * @returns {object} { sent: boolean, channels: string[], errors: string[] }
  */
 export async function sendAppointmentConfirmation(env, appointmentId, channel = 'both') {
@@ -87,7 +99,10 @@ export async function sendAppointmentConfirmation(env, appointmentId, channel = 
 
     const customerName = appointment.customer_name || appointment.prospect_name || 'Client';
     const customerPhone = appointment.customer_phone || appointment.prospect_phone;
-    const customerEmail = appointment.prospect_email;
+    // `prospect_email` n'est plus lu : 27 contacts sur 34 en ont une en base, et
+    // aucun ne doit recevoir d'e-mail. L'adresse est CONSERVÉE (la finalité est
+    // suspendue, pas disparue — le canal reviendra avec MailIA), simplement plus
+    // utilisée pour envoyer.
     const scheduledAt = appointment.scheduled_at;
     const typeName = appointment.type_name || appointment.service_type || 'Rendez-vous';
     const duration = appointment.type_duration || appointment.duration_minutes || 30;
@@ -95,31 +110,19 @@ export async function sendAppointmentConfirmation(env, appointmentId, channel = 
     const dateStr = formatDateFR(scheduledAt);
     const channelsUsed = [];
 
-    // Envoi Email
-    if ((channel === 'email' || channel === 'both') && customerEmail && env.RESEND_API_KEY) {
-      try {
-        const emailResult = await sendConfirmationEmailInternal(env, {
-          to: customerEmail,
-          name: customerName,
-          date: dateStr,
-          typeName,
-          duration,
-          appointmentId
-        });
-        if (emailResult.success) {
-          channelsUsed.push('email');
-          // Log dans omni_messages
-          await logOmniMessage(env, appointment, 'email', `Confirmation RDV : ${typeName} le ${dateStr}`, emailResult.id);
-        } else {
-          result.errors.push('Email: ' + emailResult.error);
-        }
-      } catch (emailErr) {
-        result.errors.push('Email: ' + emailErr.message);
-      }
-    }
+    // ── L'ENVOI E-MAIL AU CONTACT EST SUPPRIMÉ (15/08/2026) ──
+    //
+    // Ce bloc envoyait la confirmation de rendez-vous à `prospect_email` dès que
+    // `channel` valait `'email'` ou `'both'` — et `'both'` est le DÉFAUT de la
+    // fonction. `retell/routes.js:874` le passe même explicitement. Un contact
+    // avec une adresse en base recevait donc un e-mail que rien, dans le produit,
+    // n'annonce ni ne montre.
+    //
+    // `sendConfirmationEmailInternal` est supprimée avec lui : ce bloc était son
+    // unique appelant.
 
-    // Envoi SMS
-    if ((channel === 'sms' || channel === 'both') && customerPhone && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
+    // Envoi SMS — le seul canal vers les contacts.
+    if (channel !== 'email' && customerPhone && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
       try {
         const smsBody = `Bonjour ${customerName}, votre ${typeName} est confirmé pour le ${dateStr} (${duration} min). A bientot ! - Coccinelle.ai`;
         const smsResult = await sendConfirmationSMSInternal(env, customerPhone, smsBody);
@@ -155,62 +158,18 @@ export async function sendAppointmentConfirmation(env, appointmentId, channel = 
 
 // --- Helpers internes ---
 
-async function sendConfirmationEmailInternal(env, { to, name, date, typeName, duration, appointmentId }) {
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: #1f2937; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 22px;">coccinelle.ai</h1>
-        <p style="color: #9ca3af; margin: 8px 0 0 0; font-size: 14px;">Confirmation de rendez-vous</p>
-      </div>
-      <div style="padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-        <p style="font-size: 16px; color: #374151;">Bonjour ${name},</p>
-        <p style="color: #374151; line-height: 1.6;">Votre rendez-vous est bien confirmé.</p>
-        <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0;">
-          <table style="width: 100%;">
-            <tr>
-              <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Type</td>
-              <td style="padding: 6px 0; color: #1f2937; font-weight: 600; text-align: right;">${typeName}</td>
-            </tr>
-            <tr>
-              <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Date</td>
-              <td style="padding: 6px 0; color: #1f2937; font-weight: 600; text-align: right;">${date}</td>
-            </tr>
-            <tr>
-              <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Duree</td>
-              <td style="padding: 6px 0; color: #1f2937; font-weight: 600; text-align: right;">${duration} min</td>
-            </tr>
-          </table>
-        </div>
-        <p style="color: #374151; line-height: 1.6;">A bientot !</p>
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-        <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-          Coccinelle.ai — Assistant intelligent<br/>
-          <a href="mailto:contact@agenticsolutions.fr" style="color: #6b7280;">contact@agenticsolutions.fr</a>
-        </p>
-      </div>
-    </div>
-  `;
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + env.RESEND_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: env.RESEND_FROM_EMAIL || 'Sara - coccinelle.ai <sara@coccinelle.ai>',
-      to: [to],
-      subject: `Confirmation : ${typeName} le ${date}`,
-      html
-    })
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    return { success: false, error: data.message || 'Email send failed' };
-  }
-  return { success: true, id: data.id };
-}
+/*
+ * `sendConfirmationEmailInternal` supprimee le 15/08/2026 (45 lignes) : elle
+ * composait le gabarit HTML de la confirmation de rendez-vous et l'envoyait par
+ * Resend au CONTACT. Son unique appelant a ete retire — Coccinelle ne parle
+ * jamais d'e-mail a ses clients, la confirmation part en SMS.
+ *
+ * A ne pas confondre avec les e-mails qui RESTENT, et qui sont les NOTRES :
+ * verification d'adresse a l'inscription (`auth/routes.js`), mot de passe
+ * oublie, invitation d'equipe (`users/routes.js`), tickets vers
+ * support@coccinelle.ai (`support/routes.js`), notifications de conformite
+ * (`compliance/notify.js`). Ceux-la ne sont pas une fonction vendue.
+ */
 
 async function sendConfirmationSMSInternal(env, to, body) {
   const accountSid = env.TWILIO_ACCOUNT_SID;

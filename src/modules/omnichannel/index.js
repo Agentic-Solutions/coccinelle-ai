@@ -34,6 +34,7 @@ import {
   getCloudflareInstructions
 } from './controllers/email-config.js';
 import { sendEmail } from './controllers/email-send.js';
+import { refuserEmailClient } from '../shared/email-client-coupe.js';
 import { listInboxConversations, getInboxConversation, linkConversationToProspect } from './controllers/inbox.js';
 
 // Webhooks
@@ -169,9 +170,12 @@ export async function handleOmnichannelRoutes(request, env, path, method) {
     // meta_access_token en clair). La V2 repartira d'Embedded Signup v4 via Twilio.
 
     // POST /api/v1/omnichannel/email/send
+    // BARRIERE (15/08/2026) : plus d'e-mail vers un client.
     if (path === '/api/v1/omnichannel/email/send' && method === 'POST') {
-      return await sendEmail(request, env);
+      return refuserEmailClient({ route: path });
     }
+    // `sendEmail` (controllers/email-send.js) reste importe : plomberie pour
+    // MailIA. Seule la route qui y menait est barree, ci-dessus.
 
     // ============================================
     // INBOX ROUTES — N7 Lien Inbox <-> Prospect

@@ -272,12 +272,29 @@ export async function handleCreatePublicBooking(request, env, slug) {
       logger.warn('Public booking conflict check failed', { error: checkErr.message });
     }
 
-    // Dedup prospect : chercher par phone ou email
+    // ── Dedup prospect : par TÉLÉPHONE, et par e-mail seulement s'il y en a un ──
+    //
+    // La requête était `(phone = ? OR (email = ? AND email IS NOT NULL))` avec
+    // `email || ''` en liaison. Le formulaire ne demandant plus d'adresse
+    // (15/08/2026), elle cherchait donc `email = ''` à chaque réservation. Aucun
+    // prospect n'a d'e-mail vide aujourd'hui — vérifié, 0 ligne — mais le premier
+    // créé avec une chaîne vide aurait capté TOUTES les réservations suivantes du
+    // tenant, et le rendez-vous serait allé sur la fiche d'un inconnu. Une bombe à
+    // retardement, désamorcée pendant qu'elle coûte une ligne.
+    //
+    // La branche e-mail est conservée : l'API publique accepte encore le champ (un
+    // intégrateur peut l'envoyer), et un rapprochement par adresse reste juste
+    // quand l'adresse existe vraiment.
+    const emailDedup = (email || '').trim() || null;
     let prospect = null;
     try {
-      prospect = await env.DB.prepare(
-        'SELECT id FROM prospects WHERE tenant_id = ? AND (phone = ? OR (email = ? AND email IS NOT NULL))'
-      ).bind(tenant.id, phone, email || '').first();
+      prospect = emailDedup
+        ? await env.DB.prepare(
+          'SELECT id FROM prospects WHERE tenant_id = ? AND (phone = ? OR email = ?)'
+        ).bind(tenant.id, phone, emailDedup).first()
+        : await env.DB.prepare(
+          'SELECT id FROM prospects WHERE tenant_id = ? AND phone = ?'
+        ).bind(tenant.id, phone).first();
     } catch (e) {
       // Fallback: just phone
       prospect = await env.DB.prepare(

@@ -117,40 +117,25 @@ async function executeRule(env, rule, tenant, tenantId, event) {
     }
 
     case 'send_email': {
-      // Email via Resend
-      const subject = resolveTemplate(rule.action_template);
-      const to = event.contact?.email;
-      if (!to) return { success: false, error: 'No email address' };
-      if (!env.RESEND_API_KEY) return { success: false, error: 'Resend non configure' };
-
-      const html = `
-        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px">
-          <h2 style="color:#111">Recapitulatif de votre appel</h2>
-          <p>Bonjour ${event.contact?.name || 'Cher client'},</p>
-          <p>Merci pour votre appel avec <strong>${tenant?.name || 'notre equipe'}</strong>.</p>
-          ${event.data?.summary ? `<p><strong>Resume :</strong> ${event.data.summary}</p>` : ''}
-          ${event.data?.rdv_date ? `<p><strong>Rendez-vous confirme :</strong> ${event.data.rdv_date}</p>` : ''}
-          <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
-          <p style="color:#666;font-size:12px">${tenant?.name || 'Coccinelle.ai'} — Agent IA omnicanal</p>
-        </div>`;
-
-      const resp = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: (env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai').includes('<')
-            ? (env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai')
-            : `Coccinelle.ai <${env.RESEND_FROM_EMAIL || 'noreply@coccinelle.ai'}>`,
-          to: [to],
-          subject,
-          html
-        })
-      });
-      const data = await resp.json();
-      return { success: resp.ok, channel: 'email', email_id: data.id, error: data.error?.message };
+      // ── SUPPRIME LE 15/08/2026 — Coccinelle n'ecrit plus aux contacts ──
+      //
+      // Cette action de regle omnicanal envoyait un « Recapitulatif de votre
+      // appel » en HTML a `event.contact.email`. C'est le dernier des trois
+      // chemins qui ecrivaient au client final ; les deux autres etaient la
+      // confirmation de rendez-vous (`utils/notifications.js`) et le rappel
+      // (`modules/reminders/routes.js`).
+      //
+      // La regle reste ACCEPTEE et repond une erreur explicite, plutot que de
+      // disparaitre du `switch` : une regle deja configuree par un tenant
+      // tomberait sinon dans le `default`, sans que rien ne dise pourquoi. Le
+      // motif remonte dans `omni_rule_executions`, donc lisible.
+      //
+      // L'equivalent SMS existe : `case 'send_message'`, juste au-dessus.
+      return {
+        success: false,
+        channel: 'email',
+        error: 'Canal e-mail indisponible : Coccinelle ne contacte plus les clients par e-mail.',
+      };
     }
 
     case 'ai_reply': {
