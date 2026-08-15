@@ -14,7 +14,10 @@ import {
   applyPromptVariables,
   normalizeSector,
 } from '../shared/sector-prompts.js';
-import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
+// L'envoi tracé remplace l'appel Twilio direct : il porte la règle du lien,
+// la compaction GSM-7 et la trace en conversation. `enrichirSmsAvecLien` n'est
+// plus importée ici — la redécider à ce niveau serait la dupliquer.
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 import {
   classerFiches,
   detecterAmbiguite,
@@ -573,85 +576,61 @@ async function handleSendSMS(request, env) {
   if (!to) return errorResponse('to (numéro destinataire) est requis', 400);
   if (!message) return errorResponse('message est requis', 400);
 
-  // Vérifier la configuration Twilio
-  const accountSid = env.TWILIO_ACCOUNT_SID;
-  const authToken = env.TWILIO_AUTH_TOKEN;
-  const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
-
-  if (!accountSid || !authToken) {
-    return errorResponse('Service SMS non configuré (Twilio)', 503);
-  }
-
-  // Lien de reservation quand le type de message le justifie (regle unique dans
-  // shared/sms-booking-link.js). L'agent vocal envoie ici ses devis, ses
-  // reponses tarifaires et ses recapitulatifs d'appel : c'est le chemin ou le
-  // client a le tarif en main et n'a plus qu'a prendre rendez-vous.
-  const corps = await enrichirSmsAvecLien(env, {
+  // ── Envoi TRACÉ (chantier CX-3, 15/08/2026) ──
+  //
+  // C'est le chemin du DEVIS : l'agent vocal envoie ici ses devis, ses réponses
+  // tarifaires et ses récapitulatifs d'appel. Le message le plus important du
+  // produit, et il n'était enregistré NULLE PART.
+  //
+  // Ce bloc faisait son propre appel Twilio puis un
+  // `INSERT INTO sms_messages` — une table qui N'EXISTE PAS dans
+  // `coccinelle-db-eu`. L'erreur était avalée par un `catch {}` commenté « Table
+  // peut ne pas exister — non bloquant ». Et même si elle avait existé, la ligne
+  // stockait `message` (le texte brut) et non le corps réellement parti : ni le
+  // lien de réservation, ni la compaction GSM-7. La trace aurait été fausse.
+  //
+  // `envoyerSmsTrace` fait les trois choses en une : la règle du lien
+  // (`shared/sms-booking-link.js`), l'envoi, et la trace dans
+  // omni_conversations / omni_messages — donc la visibilité dans la fiche du
+  // contact et dans « Mes communications ».
+  //
+  // ⚠️ `body.type` reste le type par défaut `information` : l'outil Python
+  // (`voixia/agent/tools/messaging.py:78`) n'envoie que `{to, message}`. Lui
+  // faire passer `devis` demande un déploiement de l'agent — hors de ce lot.
+  const envoi = await envoyerSmsTrace(env, {
     tenantId: tenant_id,
+    to,
     message,
     type: body.type || 'information',
+    nomContact: body.nom_contact || null,
   });
 
-  // Envoyer via l'API Twilio
-  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-  const formData = new URLSearchParams();
-  formData.append('From', from);
-  formData.append('To', to);
-  formData.append('Body', corps);
-
-  try {
-    const response = await fetch(twilioUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      logger.error('VoixIA — erreur envoi SMS Twilio', { error: data, tenant_id });
-      return errorResponse(data.message || 'Échec de l\'envoi du SMS', 400);
-    }
-
-    // Sauvegarder en DB
-    try {
-      await env.DB.prepare(`
-        INSERT INTO sms_messages (id, tenant_id, to_number, from_number, message, status, direction, twilio_sid, created_at)
-        VALUES (?, ?, ?, ?, ?, 'sent', 'outbound', ?, datetime('now'))
-      `).bind(
-        generateId('sms'), tenant_id, to, from, message, data.sid
-      ).run();
-    } catch {
-      // Table peut ne pas exister — non bloquant
-    }
-
-    await logAudit(env, {
-      tenant_id,
-      user_id: 'voixia-agent',
-      action: 'voixia.sms.send',
-      resource_type: 'sms',
-      resource_id: data.sid,
-      changes: { to, message_preview: message.substring(0, 50) }
-    });
-
-    logger.info('VoixIA — SMS envoyé', { messageSid: data.sid, to, tenant_id });
-
-    return successResponse({
-      message: `SMS envoyé à ${to}`,
-      sms: {
-        message_sid: data.sid,
-        to,
-        status: 'sent'
-      }
-    });
-
-  } catch (error) {
-    logger.error('VoixIA — erreur réseau envoi SMS', { error: error.message, tenant_id });
-    return errorResponse('Erreur lors de l\'envoi du SMS : ' + error.message, 500);
+  if (!envoi.envoye) {
+    logger.error('VoixIA — échec envoi SMS', { erreur: envoi.erreur, tenant_id });
+    return errorResponse(envoi.erreur || 'Échec de l\'envoi du SMS', 400);
   }
+
+  await logAudit(env, {
+    tenant_id,
+    user_id: 'voixia-agent',
+    action: 'voixia.sms.send',
+    resource_type: 'sms',
+    resource_id: envoi.sid,
+    // Le corps RÉEL, celui qui est parti — pas le brut reçu en entrée.
+    changes: { to, message_preview: (envoi.corps || message).substring(0, 50) }
+  });
+
+  logger.info('VoixIA — SMS envoyé', { messageSid: envoi.sid, to, tenant_id });
+
+  return successResponse({
+    message: `SMS envoyé à ${to}`,
+    sms: {
+      message_sid: envoi.sid,
+      to,
+      status: 'sent',
+      segments: envoi.segments,
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
 import { handleConversationWebSocket } from './websocket.js';
 import { TwilioSignatureValidator } from './validator.js';
-import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 export async function handleTwilioRoutes(request, env, path, method) {
   try {
@@ -777,97 +777,69 @@ async function handleSMSCancel(request, env, tenantId) {
 
 /**
  * GET /api/v1/sms/history - Historique des SMS
+ *
+ * Lisait `sms_messages`, table qui n'existe pas dans `coccinelle-db-eu` : la
+ * route répondait donc « SMS history table not configured » à tous les tenants,
+ * depuis toujours, avec un `messages: []` qui ressemblait à « aucun SMS ».
+ * Deux mensonges superposés — l'absence de table présentée comme une absence de
+ * message, et une route d'historique qui n'historisait rien.
+ *
+ * Elle lit désormais la source réelle : `omni_messages`, alimentée par
+ * `shared/sms-envoi.js`. Les champs gardent leurs anciens noms — aucun appelant
+ * connu (aucune page ne consomme cette route), mais la renommer n'apporterait
+ * rien et casserait un éventuel client hors dépôt.
  */
 async function handleSMSHistory(env, tenantId) {
   const limit = 50;
 
-  try {
-    const result = await env.DB.prepare(`
-      SELECT id, to_number, from_number, message, status, direction, created_at
-      FROM sms_messages
-      WHERE tenant_id = ?
-      ORDER BY created_at DESC
-      LIMIT ?
-    `).bind(tenantId, limit).all();
+  const result = await env.DB.prepare(`
+    SELECT m.id,
+           c.client_phone AS to_number,
+           m.content      AS message,
+           m.message_type AS type,
+           m.direction,
+           m.message_sid,
+           m.created_at
+      FROM omni_messages m
+      JOIN omni_conversations c ON c.id = m.conversation_id
+     WHERE c.tenant_id = ? AND m.channel = 'sms'
+     ORDER BY m.created_at DESC
+     LIMIT ?
+  `).bind(tenantId, limit).all();
 
-    return successResponse({
-      messages: result.results || [],
-      count: result.results?.length || 0
-    });
-  } catch (error) {
-    // Table might not exist yet
-    return successResponse({
-      messages: [],
-      count: 0,
-      note: 'SMS history table not configured'
-    });
-  }
+  return successResponse({
+    messages: result.results || [],
+    count: result.results?.length || 0
+  });
 }
 
 /**
  * Fonction commune pour envoyer un SMS via Twilio
  */
+/**
+ * Envoi de SMS depuis le dashboard — délégué à l'envoi tracé (CX-3, 15/08/2026).
+ *
+ * Cette fonction faisait son propre appel Twilio, puis un
+ * `INSERT INTO sms_messages` : une table qui n'existe pas dans
+ * `coccinelle-db-eu`. L'échec était journalisé en `warn` et ignoré. Résultat, un
+ * SMS écrit à la main depuis une fiche client ne laissait aucune trace — et la
+ * route d'historique juste au-dessus, qui lit la même table absente, répondait
+ * « SMS history table not configured » à tout le monde.
+ *
+ * Elle stockait par ailleurs `message` (le texte brut) et non le corps enrichi,
+ * et retombait sur un `tenant_demo_001` écrit en dur quand `tenantId` manquait.
+ *
+ * `envoyerSmsTrace` porte les trois responsabilités : règle du lien
+ * (`shared/sms-booking-link.js`), envoi, trace en conversation.
+ */
 async function sendTwilioSMS(env, to, message, tenantId, type = 'manuel') {
-  const accountSid = env.TWILIO_ACCOUNT_SID;
-  const authToken = env.TWILIO_AUTH_TOKEN;
-  const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
+  const envoi = await envoyerSmsTrace(env, { tenantId, to, message, type });
 
-  if (!accountSid || !authToken) {
-    logger.warn('Twilio credentials not configured');
-    return { success: false, error: 'SMS service not configured' };
+  if (!envoi.envoye) {
+    logger.warn('SMS non envoyé', { erreur: envoi.erreur, to });
+    return { success: false, error: envoi.erreur || 'SMS send failed' };
   }
 
-  // Lien de reservation quand le type de message le justifie. La regle vit dans
-  // shared/sms-booking-link.js — jamais ici.
-  const corps = await enrichirSmsAvecLien(env, { tenantId, message, type });
-
-  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-
-  const formData = new URLSearchParams();
-  formData.append('From', from);
-  formData.append('To', to);
-  formData.append('Body', corps);
-
-  try {
-    const response = await fetch(twilioUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      logger.error('Twilio SMS API error', { error: data });
-      return { success: false, error: data.message || 'SMS send failed' };
-    }
-
-    logger.info('SMS sent', { messageSid: data.sid, to });
-
-    // Sauvegarder en DB (optionnel)
-    try {
-      await env.DB.prepare(`
-        INSERT INTO sms_messages (id, tenant_id, to_number, from_number, message, status, direction, twilio_sid, created_at)
-        VALUES (?, ?, ?, ?, ?, 'sent', 'outbound', ?, datetime('now'))
-      `).bind(
-        `sms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        tenantId || 'tenant_demo_001',
-        to,
-        from,
-        message,
-        data.sid
-      ).run();
-    } catch (dbError) {
-      // Table might not exist, ignore
-      logger.warn('Could not save SMS to DB', { error: dbError.message });
-    }
-
-    return { success: true, messageSid: data.sid };
-  } catch (error) {
-    logger.error('Error sending SMS', { error: error.message });
-    return { success: false, error: error.message };
-  }
+  logger.info('SMS sent', { messageSid: envoi.sid, to, segments: envoi.segments });
+  return { success: true, messageSid: envoi.sid, corps: envoi.corps };
 }

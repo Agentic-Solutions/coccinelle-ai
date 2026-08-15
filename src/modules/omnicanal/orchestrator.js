@@ -10,7 +10,7 @@
 
 import { logger } from '../../utils/logger.js';
 import { phoneVariants } from '../prospects/dedup.js';
-import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 // Fonction principale — declenchee apres chaque evenement
 export async function handleOmniEvent(env, tenantId, event) {
@@ -100,32 +100,20 @@ async function executeRule(env, rule, tenant, tenantId, event) {
       const to = event.contact?.phone;
       if (!to) return { success: false, error: 'No phone number' };
 
-      if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN) {
-        return { success: false, error: 'Twilio non configure' };
-      }
-
-      const twilioAuth = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
-      const resp = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${twilioAuth}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({
-            From: env.TWILIO_PHONE_NUMBER || '+33939035760',
-            To: to,
-            Body: await enrichirSmsAvecLien(env, {
-              tenantId,
-              message,
-              type: rule.sms_type || 'suivi_appel',
-            })
-          })
-        }
-      );
-      const data = await resp.json();
-      return { success: resp.ok, channel: 'sms', message_sid: data.sid, error: data.message };
+      // Envoi TRACÉ (CX-3, 15/08/2026) : une règle omnicanal envoyait sans
+      // laisser de trace en conversation. La règle du lien reste dans
+      // shared/sms-booking-link.js, appelée par l'envoi.
+      const envoi = await envoyerSmsTrace(env, {
+        tenantId,
+        to,
+        message,
+        type: rule.sms_type || 'suivi_appel',
+        nomContact: event.contact?.name || null,
+      });
+      return {
+        success: envoi.envoye, channel: 'sms',
+        message_sid: envoi.sid, error: envoi.erreur,
+      };
     }
 
     case 'send_email': {
@@ -190,26 +178,26 @@ async function executeRule(env, rule, tenant, tenantId, event) {
       const data = await resp.json();
       const reply = data.content?.[0]?.text || 'Merci, un conseiller vous recontacte bientot.';
 
-      // Envoyer la reponse via SMS (Twilio)
-      if (event.contact?.phone && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
-        const twilioAuth = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
-        await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Basic ${twilioAuth}`,
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: new URLSearchParams({
-              From: env.TWILIO_PHONE_NUMBER || '+33939035760',
-              To: event.contact.phone,
-              Body: reply
-            })
-          }
-        );
+      // Envoi TRACÉ (CX-3, 15/08/2026). Ce chemin-ci était le plus abîmé des
+      // quatre : il envoyait `reply` BRUT, sans passer par
+      // `enrichirSmsAvecLien` — donc sans lien de réservation, et surtout sans
+      // compaction GSM-7. Une réponse générée par le LLM contenant un seul
+      // « ô » ou un « ç » tombait en UCS-2, capacité 70 par segment, et partait
+      // en deux ou trois SMS facturés sans que rien ne le signale.
+      let envoye = false;
+      let corpsParti = reply;
+      if (event.contact?.phone) {
+        const envoi = await envoyerSmsTrace(env, {
+          tenantId,
+          to: event.contact.phone,
+          message: reply,
+          type: 'reponse_sms',
+          nomContact: event.contact?.name || null,
+        });
+        envoye = envoi.envoye;
+        corpsParti = envoi.corps || reply;
       }
-      return { success: true, channel: 'ai_reply', reply };
+      return { success: true, channel: 'ai_reply', reply: corpsParti, sent: envoye };
     }
 
     case 'create_prospect': {

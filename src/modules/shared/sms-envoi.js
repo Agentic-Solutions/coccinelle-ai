@@ -24,7 +24,12 @@ import { compterSms } from './sms-format.js';
  * @param {object} env
  * @param {{tenantId: string, to: string, message: string, type: string,
  *          prospectId?: string|null, nomContact?: string|null}} options
- * @returns {Promise<{envoye: boolean, sid?: string, erreur?: string, segments?: number}>}
+ * @returns {Promise<{envoye: boolean, sid?: string, erreur?: string,
+ *                    segments?: number, corps?: string}>}
+ *   `corps` est le texte REELLEMENT parti — enrichi du lien et compacte en
+ *   GSM-7. Les appelants qui le renvoient ou le journalisent doivent utiliser
+ *   celui-la, jamais le `message` d'entree : c'est precisement l'ecart qui
+ *   rendait les historiques faux (cf. l'INSERT mort de voixia/routes.js).
  */
 export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospectId, nomContact }) {
   const destinataire = String(to || '').trim();
@@ -32,8 +37,12 @@ export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospe
 
   const accountSid = env.TWILIO_ACCOUNT_SID;
   const authToken = env.TWILIO_AUTH_TOKEN;
-  const expediteur = env.TWILIO_PHONE_NUMBER;
-  if (!accountSid || !authToken || !expediteur) {
+  // Repli sur la ligne Coccinelle.ai : `TWILIO_PHONE_NUMBER` vit dans les vars
+  // de wrangler.toml, mais les quatre chemins d'envoi absorbes par ce module
+  // portaient tous ce repli. Le retirer aurait change leur comportement en
+  // silence si la var venait a manquer sur un environnement.
+  const expediteur = env.TWILIO_PHONE_NUMBER || '+33939035760';
+  if (!accountSid || !authToken) {
     logger.warn('[SMS] Twilio non configuré — envoi ignoré', { tenantId, type });
     return { envoye: false, erreur: 'Twilio non configuré' };
   }
@@ -60,12 +69,15 @@ export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospe
       logger.warn('[SMS] Envoi refusé par Twilio', {
         tenantId, type, code: donnees?.code, message: donnees?.message,
       });
-      return { envoye: false, erreur: donnees?.message || 'Envoi refusé', segments: mesure.segments };
+      return {
+        envoye: false, erreur: donnees?.message || 'Envoi refusé',
+        segments: mesure.segments, corps,
+      };
     }
     sid = donnees.sid;
   } catch (error) {
     logger.warn('[SMS] Envoi impossible', { tenantId, type, erreur: error.message });
-    return { envoye: false, erreur: error.message, segments: mesure.segments };
+    return { envoye: false, erreur: error.message, segments: mesure.segments, corps };
   }
 
   logger.info('[SMS] Envoyé', {
@@ -74,17 +86,17 @@ export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospe
 
   // ── Trace, non bloquante : le SMS est parti, rien ne doit l'annuler ──
   await tracerDansConversation(env, {
-    tenantId, destinataire, corps, sid, prospectId, nomContact,
+    tenantId, destinataire, corps, sid, prospectId, nomContact, type,
   }).catch(() => {});
 
-  return { envoye: true, sid, segments: mesure.segments };
+  return { envoye: true, sid, segments: mesure.segments, corps };
 }
 
 /**
  * Rattache le message a la conversation du contact, en la creant au besoin.
  * C'est ce qui le rend visible dans la fiche client du dashboard.
  */
-async function tracerDansConversation(env, { tenantId, destinataire, corps, sid, prospectId, nomContact }) {
+async function tracerDansConversation(env, { tenantId, destinataire, corps, sid, prospectId, nomContact, type }) {
   if (!env?.DB || !tenantId) return;
 
   const conversation = await env.DB.prepare(
@@ -113,12 +125,27 @@ async function tracerDansConversation(env, { tenantId, destinataire, corps, sid,
     ).bind(conversationId).run();
   }
 
-  await env.DB.prepare(
-    `INSERT INTO omni_messages
-       (id, conversation_id, channel, direction, content, sender_role, message_sid, created_at)
-     VALUES (?, ?, 'sms', 'outbound', ?, 'assistant', ?, datetime('now'))`,
-  ).bind(
-    `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-    conversationId, corps, sid || null,
-  ).run();
+  // `message_type` (migration 0085) place le message a la bonne etape du voyage
+  // client dans « Mes communications ». On stocke le type TEL QU'IL A ETE PASSE :
+  // pas de reclassement, pas de valeur par defaut inventee — un type absent
+  // reste NULL et s'affiche « autre ».
+  //
+  // Si la colonne manque (migration non appliquee), on retombe sur l'insertion
+  // sans type : un historique sans etage vaut mieux qu'un SMS non trace.
+  const idMessage = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    await env.DB.prepare(
+      `INSERT INTO omni_messages
+         (id, conversation_id, channel, direction, content, sender_role, message_sid,
+          message_type, created_at)
+       VALUES (?, ?, 'sms', 'outbound', ?, 'assistant', ?, ?, datetime('now'))`,
+    ).bind(idMessage, conversationId, corps, sid || null, type || null).run();
+  } catch (e) {
+    logger.warn('[SMS] Trace sans type (colonne message_type absente ?)', { erreur: e.message });
+    await env.DB.prepare(
+      `INSERT INTO omni_messages
+         (id, conversation_id, channel, direction, content, sender_role, message_sid, created_at)
+       VALUES (?, ?, 'sms', 'outbound', ?, 'assistant', ?, datetime('now'))`,
+    ).bind(idMessage, conversationId, corps, sid || null).run();
+  }
 }

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import SetupChecklist from '@/components/dashboard/SetupChecklist';
+import MessagesRecents from '@/components/dashboard/MessagesRecents';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -366,6 +367,11 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Messages recents (CX-3) — les appels ne sont que la moitie de ce que
+          l'assistant fait. Composant autonome : il ne depend pas du garde
+          `loading` de cette page, et se masque seul s'il n'y a aucun message. */}
+      <MessagesRecents />
     </div>
   );
 }

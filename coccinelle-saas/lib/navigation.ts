@@ -63,6 +63,9 @@ const RATTACHEMENTS: Record<string, string[]> = {
   '/dashboard': [
     '/dashboard/analytics', '/dashboard/conversations', '/dashboard/tasks',
     '/dashboard/channels/inbox',
+    // « Mes communications » (CX-3) vit sous Mon activité et non dans une 4e
+    // entrée : c'est le même sujet que les appels — ce que l'assistant a fait.
+    '/dashboard/communications',
   ],
   '/dashboard/assistant': [
     '/dashboard/savoir', '/dashboard/knowledge', '/dashboard/services',

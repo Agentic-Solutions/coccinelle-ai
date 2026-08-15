@@ -10,7 +10,7 @@ import { requireVoixIAAuth } from './auth.js';
 import { generateId, logAudit } from '../auth/helpers.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
 import { buildSectorPrompt, applyPromptVariables } from '../shared/sector-prompts.js';
-import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 // ── Canaux supportes ──
 const CANAUX = ['voice', 'sms', 'email', 'whatsapp'];
@@ -434,16 +434,21 @@ async function handleSMS(env, tenantId, from, content, context, prospect) {
   // Generer la reponse
   const response = await generateLLMResponse(env, context.system_prompt, content, 'sms', context);
 
-  // Reponse de l'agent a un SMS client : s'il pose une question, il peut vouloir
-  // venir. Regle d'inclusion dans shared/sms-booking-link.js.
-  const corps = await enrichirSmsAvecLien(env, {
-    tenantId, message: response, type: 'reponse_sms',
+  // Envoi TRACÉ (CX-3, 15/08/2026) : enrichissait puis envoyait par `sendTwilioSMS`,
+  // sans laisser de trace. La réponse de l'assistant à un client qui écrit
+  // n'apparaissait donc ni dans la fiche du contact ni dans « Mes communications ».
+  // La règle du lien reste dans shared/sms-booking-link.js, appelée par l'envoi.
+  const envoi = await envoyerSmsTrace(env, {
+    tenantId,
+    to: from,
+    message: response,
+    type: 'reponse_sms',
+    prospectId: prospect?.id || null,
+    nomContact: prospect?.name || null,
   });
 
-  // Envoyer via Twilio
-  const sent = await sendTwilioSMS(env, from, corps);
-
-  return { response: corps, sent };
+  // On renvoie le corps RÉELLEMENT parti : c'est lui que l'appelant journalise.
+  return { response: envoi.corps || response, sent: envoi.envoye };
 }
 
 /**
@@ -465,48 +470,10 @@ async function handleEmail(env, tenantId, from, to, content, context, prospect, 
 // ENVOI MESSAGES (Twilio, Resend)
 // ═══════════════════════════════════════════════════════════════
 
-async function sendTwilioSMS(env, to, body) {
-  const accountSid = env.TWILIO_ACCOUNT_SID;
-  const authToken = env.TWILIO_AUTH_TOKEN;
-  const fromNumber = env.TWILIO_PHONE_NUMBER || '+33939035760';
-
-  if (!accountSid || !authToken) {
-    logger.error('Twilio credentials manquantes');
-    return false;
-  }
-
-  try {
-    const formData = new URLSearchParams();
-    formData.append('From', fromNumber);
-    formData.append('To', to);
-    formData.append('Body', body);
-
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: formData
-      }
-    );
-
-    if (!response.ok) {
-      const err = await response.text();
-      logger.error('Twilio SMS error', { status: response.status, error: err });
-      return false;
-    }
-
-    const data = await response.json();
-    logger.info('SMS sent via orchestrator', { sid: data.sid, to });
-    return true;
-  } catch (error) {
-    logger.error('sendTwilioSMS error', { error: error.message });
-    return false;
-  }
-}
+// `sendTwilioSMS` supprimee (CX-3, 15/08/2026) : 40 lignes d'appel Twilio
+// direct, sans trace en conversation. `handleSMS` passe par
+// `shared/sms-envoi.js`, qui envoie ET trace. Garder les deux, c'etait garder
+// un chemin par lequel un SMS part sans laisser d'historique.
 
 async function sendResendEmail(env, to, subject, htmlBody) {
   const apiKey = env.RESEND_API_KEY;

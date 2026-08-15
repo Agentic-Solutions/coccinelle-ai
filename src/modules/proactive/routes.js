@@ -7,7 +7,7 @@ import { successResponse, errorResponse } from '../../utils/response.js';
 import { logAudit } from '../auth/helpers.js';
 import { requireVoixIAAuth } from '../voixia/auth.js';
 import { requireAuth } from '../auth/helpers.js';
-import { enrichirSmsAvecLien } from '../shared/sms-booking-link.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 /**
  * Handler principal pour les routes /api/v1/proactive/*
@@ -109,43 +109,31 @@ async function handleProactiveTrigger(request, env, corsHeaders) {
     ? 'sms'
     : settings.preferred_channel;
 
-  // 6. Envoyer SMS via Twilio
+  // 6. Envoyer le SMS — envoi TRACÉ (CX-3, 15/08/2026).
+  //
+  // Le proactif enrichissait puis appelait Twilio lui-même, et ne journalisait
+  // que dans `proactive_logs` (conservé plus bas, étape 7). Le message
+  // n'apparaissait donc ni dans la fiche du contact, ni dans « Mes
+  // communications » : le commerçant ne voyait pas ce que sa relance avait dit.
+  //
+  // La règle du lien reste dans shared/sms-booking-link.js — appelée par l'envoi.
   let result = { success: false };
   const messageBrut = resolveVars(template.message_sms);
-  // Communication proactive : on relance un client, l'etape suivante est un
-  // rendez-vous. Regle d'inclusion dans shared/sms-booking-link.js.
-  const message = await enrichirSmsAvecLien(env, {
-    tenantId: tenant_id, message: messageBrut, type: 'prospection',
-  });
+  let message = messageBrut;
 
   if (channel === 'sms') {
-    try {
-      const twilioAuth = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
-      const resp = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${twilioAuth}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({
-            From: env.TWILIO_PHONE_NUMBER,
-            To: client_phone,
-            Body: message
-          })
-        }
-      );
-      const data = await resp.json();
-      result = {
-        success: resp.ok,
-        channel: 'sms',
-        message_sid: data.sid
-      };
-    } catch (error) {
-      logger.error('Proactive SMS error', { error: error.message });
-      result = { success: false, channel: 'sms', error: error.message };
-    }
+    const envoi = await envoyerSmsTrace(env, {
+      tenantId: tenant_id,
+      to: client_phone,
+      message: messageBrut,
+      type: 'prospection',
+      nomContact: client_name || null,
+    });
+    // Le corps réellement parti : c'est lui qu'on journalise en étape 7.
+    message = envoi.corps || messageBrut;
+    result = envoi.envoye
+      ? { success: true, channel: 'sms', message_sid: envoi.sid }
+      : { success: false, channel: 'sms', error: envoi.erreur };
   }
 
   // 7. Logger dans D1

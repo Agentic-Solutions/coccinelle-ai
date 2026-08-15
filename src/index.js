@@ -15,6 +15,7 @@ import { handleTwilioRoutes } from './modules/twilio/routes.js';
 import { handleOnboardingRoutes } from './modules/onboarding/routes.js';
 import { handleKnowledgeManualRoutes } from './modules/knowledge/manual.js';
 import { handleAssistantRoutes } from './modules/assistant/routes.js';
+import { handleCommunicationsRoutes } from './modules/communications/routes.js';
 import { handleChannelsRoutes } from './modules/channels/routes.js';
 import { handleIntegrationsRoutes } from './modules/integrations/routes.js';
 // Module Omnichannel (indépendant, activable via OMNICHANNEL_ENABLED)
@@ -328,6 +329,12 @@ export default {
       // Page « Mon Assistant » (CX-2) — config en un seul aller-retour.
       if (path.startsWith('/api/v1/assistant/')) {
         response = await handleAssistantRoutes(request, env, path, method);
+        if (response) return response;
+      }
+
+      // Page « Mes communications » (CX-3) — lecture seule de ce qui est parti.
+      if (path.startsWith('/api/v1/communications')) {
+        response = await handleCommunicationsRoutes(request, env, path, method);
         if (response) return response;
       }
 
