@@ -5,7 +5,6 @@
 
 import { queries } from '../db/queries.js';
 import { omniLogger } from '../utils/logger.js';
-import { ClaudeAIService } from '../services/claude-ai.js';
 
 /**
  * POST /webhooks/omnichannel/email
@@ -90,41 +89,13 @@ export async function handleIncomingEmail(request, env) {
     const tenantId = tenant.id;
     omniLogger.info('Tenant found', { tenantId, tenantName: tenant.name, tenantSlug });
 
-    // ============================================
-    // CHARGER LA CONFIGURATION DE L'AGENT
-    // ============================================
-    
-    // Chercher la config agent du tenant (ou utiliser défaut)
-    const agentConfigRow = await env.DB.prepare(`
-      SELECT * FROM omni_agent_configs WHERE tenant_id = ? LIMIT 1
-    `).bind(tenantId).first();
-    
-    const agentConfig = agentConfigRow ? {
-      agent_name: agentConfigRow.agent_name || 'Sara',
-      agent_personality: agentConfigRow.agent_personality || 'professional',
-      greeting_message: agentConfigRow.greeting_message || `Bonjour ! Je suis Sara, l'assistante de ${tenant.name}. Comment puis-je vous aider ?`
-    } : {
-      agent_name: 'Sara',
-      agent_personality: 'professional',
-      greeting_message: `Bonjour ! Je suis Sara, l'assistante de ${tenant.name}. Comment puis-je vous aider ?`
-    };
-
-    // ============================================
-    // CHARGER LA KNOWLEDGE BASE DU TENANT
-    // ============================================
-    
-    let knowledgeContext = '';
-    const knowledgeDocs = await env.DB.prepare(`
-      SELECT content FROM knowledge_documents WHERE tenant_id = ? LIMIT 5
-    `).bind(tenantId).all();
-    
-    if (knowledgeDocs.results && knowledgeDocs.results.length > 0) {
-      knowledgeContext = knowledgeDocs.results.map(doc => doc.content).join('\n\n');
-      omniLogger.info('Knowledge base loaded', { 
-        tenantId, 
-        docsCount: knowledgeDocs.results.length 
-      });
-    }
+    // ── LECTURE DE LA CONFIG AGENT ET DE LA KB SUPPRIMEE (15/08/2026) ──
+    //
+    // Ces deux blocs ne servaient QU'a ouvrir la session LLM qui produisait la
+    // reponse automatique, elle-meme supprimee. Ils interrogeaient
+    // `omni_agent_configs` et `knowledge_documents` a chaque e-mail entrant, pour
+    // un resultat que plus personne ne lisait — et fabriquaient au passage un
+    // repli « Sara », nom banni des surfaces publiques (regle i.14).
 
     // ============================================
     // GESTION CONVERSATION
@@ -178,46 +149,35 @@ export async function handleIncomingEmail(request, env) {
       ) VALUES (?, ?, 'email', 'inbound', ?, 'client', datetime('now'))
     `).bind(userMessageId, conversationId, emailBody).run();
 
-    // ============================================
-    // GÉNÉRER RÉPONSE IA AVEC CONTEXTE
-    // ============================================
-    
-    const ai = new ClaudeAIService(env.OPENAI_API_KEY);
+    // ── GENERATION DE LA REPONSE SUPPRIMEE (15/08/2026) ──
+    //
+    // Ce bloc appelait le LLM puis INSERAIT sa reponse en `direction: 'outbound'`
+    // dans `omni_messages`. Retirer le seul envoi aurait donc laisse pire que le
+    // silence : un e-mail sortant enregistre dans l'historique du garagiste,
+    // visible dans « Mes communications », et jamais parti. Exactement le genre de
+    // trace fausse que ce produit passe son temps a corriger.
+    //
+    // Ce qui reste, et qui est utile : l'e-mail ENTRANT est enregistre (plus haut,
+    // `direction: 'inbound'`). Le garagiste le voit dans la fiche du contact et
+    // peut rappeler ou envoyer un SMS. Aucune session LLM n'est plus ouverte,
+    // aucun jeton n'est consomme.
+    //
+    // ⚠️ `conversation_context` n'est plus mis a jour : il ne portait que la
+    // session IA de ce fil. Les contextes deja en base restent lisibles.
 
-    // Créer ou récupérer la session AI
-    let session;
-    if (conversation && conversation.conversation_context) {
-      try {
-        const context = JSON.parse(conversation.conversation_context);
-        session = context.aiSession || await ai.createSession(agentConfig, knowledgeContext);
-      } catch {
-        session = await ai.createSession(agentConfig, knowledgeContext);
-      }
-    } else {
-      session = await ai.createSession(agentConfig, knowledgeContext);
-    }
-
-    const response = await ai.streamResponse(session, emailBody);
-
-    // Enregistrer la réponse
-    const assistantMessageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await env.DB.prepare(`
-      INSERT INTO omni_messages (
-        id, conversation_id, channel, direction, content,
-        sender_role, created_at
-      ) VALUES (?, ?, 'email', 'outbound', ?, 'assistant', datetime('now'))
-    `).bind(assistantMessageId, conversationId, response).run();
-
-    // Sauvegarder la session AI dans le contexte
-    await env.DB.prepare(`
-      UPDATE omni_conversations
-      SET conversation_context = ?,
-          updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(JSON.stringify({ aiSession: session, subject }), conversationId).run();
-
-    // Envoyer la réponse par email via Resend
-    await sendResendEmail(env, senderEmail, `Re: ${subject}`, response, tenant.name);
+    // ── RÉPONSE AUTOMATIQUE SUPPRIMÉE (15/08/2026) ──
+    //
+    // Cette ligne répondait à l'expéditeur par e-mail, avec une signature
+    // « Sara - Assistante de {tenant} » : le nom est banni des surfaces publiques
+    // (règle i.14), et il partait chez un client.
+    //
+    // Coccinelle ne parle plus jamais d'e-mail à ses clients. L'e-mail entrant
+    // continue d'être ENREGISTRÉ dans la conversation, juste au-dessus — le
+    // garagiste le voit dans la fiche du contact et peut rappeler ou envoyer un
+    // SMS. Ce qui disparaît, c'est la réponse envoyée sans qu'il le sache.
+    //
+    // `sendResendEmail` est supprimée avec cette ligne : c'était son unique
+    // appelant.
 
     return new Response(JSON.stringify({ 
       success: true,
@@ -247,38 +207,3 @@ export async function handleIncomingEmail(request, env) {
 /**
  * Envoyer un email via l'API Resend
  */
-async function sendResendEmail(env, to, subject, text, tenantName) {
-  const apiKey = env.RESEND_API_KEY;
-  const from = env.RESEND_FROM_EMAIL || `Sara <sara@coccinelle.ai>`;
-
-  const url = 'https://api.resend.com/emails';
-
-  // Ajouter signature avec nom du tenant
-  const textWithSignature = `${text}\n\n--\nSara - Assistante de ${tenantName}\nPowered by Coccinelle.ai`;
-
-  const body = {
-    from: from,
-    to: [to],
-    subject,
-    text: textWithSignature
-  };
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Resend API error: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  omniLogger.info('Email sent via Resend', { emailId: data.id, to, tenantName });
-
-  return data;
-}
