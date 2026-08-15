@@ -26,6 +26,25 @@ export async function requireVoixIAAuth(request, env) {
       return { error: 'Service VoixIA non configuré', status: 503 };
     }
 
+    // ── RATE LIMIT AVANT la validation de la clé (chantier ANTI-ROBOT) ──
+    //
+    // Le 401 tombait AVANT tout rate limit : un balayage de clés était donc
+    // gratuit et illimité — mesuré le 15/08, une mauvaise clé répond en 0,25 s
+    // sans toucher la base. Le limiteur est indexé sur l'IP et non sur le tenant,
+    // parce qu'à ce stade aucun tenant n'est établi : c'est précisément ce qui
+    // rendait la protection impossible là où elle se trouvait.
+    //
+    // ⚠️ CE LIMITEUR RESTE UNE `Map` EN MÉMOIRE DU WORKER, donc un compteur PAR
+    // ISOLATE. Il élève le coût d'un balayage, il ne l'interdit pas. La protection
+    // réelle demande une zone Cloudflare (`api.coccinelle.ai`) ou un compteur
+    // partagé — backlog, avec la migration Scaleway. Ne pas confondre les deux.
+    const limiteCle = checkRateLimit(`voixia-cle:${getClientIP(request)}`, 20, 60000);
+    if (!limiteCle.allowed) {
+      logger.warn('VoixIA — trop de tentatives de clé', { ip: getClientIP(request) });
+      return { error: 'Trop de tentatives — réessayez dans une minute', status: 429 };
+    }
+
+
     // ── Fenêtre de rotation ──
     // La clé vit à DEUX endroits : les secrets du Worker et /opt/voixia/.env sur
     // le serveur de l'agent. Avec une seule valeur acceptée, les tourner l'une
@@ -37,12 +56,17 @@ export async function requireVoixIAAuth(request, env) {
     // ⚠️ Le laisser en place laisserait DEUX clés valides indéfiniment — c'est
     // exactement ce qu'une rotation cherche à supprimer. À effacer sitôt la
     // bascule vérifiée (procédure § r de CLAUDE.md).
+    // ÉTAT AU 15/08/2026 : fenêtre FERMÉE — le secret de rotation est supprimé,
+    // l'ancienne clé répond 401. Ce chemin reste pour la prochaine rotation.
     const cleValide = timingSafeEqual(apiKey, env.VOIXIA_API_KEY)
       || (env.VOIXIA_API_KEY_ROTATION
           && timingSafeEqual(apiKey, env.VOIXIA_API_KEY_ROTATION));
 
     if (!cleValide) {
       logger.warn('VoixIA auth failed — clé API invalide', { ip: getClientIP(request) });
+      // Comptage agrégé pour l'alerte quotidienne : non bloquant, et la table ne
+      // grossit que d'une ligne par jour quoi qu'il arrive.
+      compter401(env).catch(() => {});
       return { error: 'Clé API VoixIA invalide', status: 401 };
     }
 
@@ -147,4 +171,29 @@ function timingSafeEqual(a, b) {
   }
 
   return result === 0;
+}
+
+/**
+ * Compte les clés refusées, un agrégat par jour (chantier ANTI-ROBOT, 15/08/2026).
+ *
+ * POURQUOI EN BASE ET PAS DANS LES LOGS : `[observability.logs]` était désactivé —
+ * les logs du Worker n'étaient pas conservés, donc un balayage de clés était non
+ * seulement gratuit mais INVISIBLE. Les logs sont activés au même lot, mais un
+ * compteur en base reste ce que le cron peut lire pour alerter.
+ *
+ * `INSERT … ON CONFLICT DO UPDATE` : une seule ligne par jour. Un attaquant nous
+ * fait écrire une fois par tentative, mais la table ne grossit pas — compromis
+ * assumé, faute de KV ou de Durable Object dans les liaisons déclarées.
+ *
+ * Ne lève jamais : l'authentification ne doit pas dépendre de la télémétrie.
+ */
+async function compter401(env) {
+  if (!env?.DB) return;
+  const jour = new Date().toISOString().slice(0, 10);
+  await env.DB.prepare(`
+    INSERT INTO voixia_401_jour (jour, tentatives, updated_at)
+    VALUES (?, 1, datetime('now'))
+    ON CONFLICT (jour) DO UPDATE
+      SET tentatives = tentatives + 1, updated_at = datetime('now')
+  `).bind(jour).run();
 }
