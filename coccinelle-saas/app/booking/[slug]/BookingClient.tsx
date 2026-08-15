@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import TurnstileWidget from '@/components/TurnstileWidget';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -76,7 +77,16 @@ export default function BookingClient() {
     notes: ''
   });
   const [submitting, setSubmitting] = useState(false);
-  const [confirmation, setConfirmation] = useState<{ datetime: string; type_name: string | null } | null>(null);
+  // Jeton Turnstile (chantier ANTI-ROBOT). '' = pas de jeton, et c'est un cas
+  // NORMAL : le script tiers peut ne pas avoir chargé. Le formulaire reste
+  // envoyable — voir `components/TurnstileWidget.tsx` pour le pourquoi.
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [confirmation, setConfirmation] = useState<{
+    datetime: string;
+    type_name: string | null;
+    /** Faux quand le SMS n'est pas parti — plafond quotidien, ou Twilio en refus. */
+    confirmation_sent: boolean;
+  } | null>(null);
 
   // Load tenant info
   useEffect(() => {
@@ -134,7 +144,10 @@ export default function BookingClient() {
           ...formData,
           datetime: selectedSlot.datetime,
           type_id: selectedType?.id || null,
-          agent_id: selectedSlot.agent_id || null
+          agent_id: selectedSlot.agent_id || null,
+          // Absent volontairement quand il n'y a pas de jeton : le serveur
+          // distingue « absent » (accepté, panne plausible) de « invalide » (refusé).
+          ...(turnstileToken ? { turnstile_token: turnstileToken } : {}),
         })
       });
 
@@ -143,7 +156,8 @@ export default function BookingClient() {
       if (data.success) {
         setConfirmation({
           datetime: data.datetime,
-          type_name: data.type_name
+          type_name: data.type_name,
+          confirmation_sent: data.confirmation_sent === true,
         });
         setStep('confirmation');
       } else {
@@ -430,6 +444,10 @@ export default function BookingClient() {
                   placeholder="Informations complementaires..."
                 />
               </div>
+
+              {/* Filtre anti-robot. Le bouton ci-dessous ne dépend PAS de son état :
+                  un script tiers absent ne doit jamais empêcher une réservation. */}
+              <TurnstileWidget onToken={setTurnstileToken} />
 
               <button
                 type="submit"
