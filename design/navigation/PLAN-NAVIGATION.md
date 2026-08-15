@@ -729,6 +729,33 @@ PDF donne la marche à suivre : ouvrir, copier, coller.
    la brancher sur `/analytics/overview`, ou la supprimer comme les sept pages de
    `app/client/`.
 
+0ter. **Les 27 adresses e-mail de contacts : purger ou documenter la conservation**
+   (0,5 j) — échéance **fin 2026**, ajouté le 15/08/2026.
+
+   L'e-mail vers les clients est coupé (lot `chantier-email-invisible`) mais les
+   **27 adresses sur 34 prospects** sont conservées : ces contacts les ont données
+   pour être contactés, la finalité est **suspendue, pas disparue**, et le canal
+   revient avec MailIA. Une purge serait irréversible pour une décision produit
+   qui peut changer.
+
+   ⚠️ Cet arbitrage a une date de péremption. **Si l'e-mail n'est pas revenu d'ici
+   la fin de l'année**, la conservation n'a plus de finalité présente et il faut
+   trancher : purger `prospects.email` (+ `appointments.customer_email`), ou
+   documenter formellement la conservation dans la politique de confidentialité
+   avec sa durée et sa base légale. Laisser courir sans décision, c'est le défaut
+   que le retrait du champ de réservation corrigeait au même moment.
+
+0quater. **L'avis après rendez-vous ne vit plus** (0,5 j) — ajouté le 15/08/2026.
+
+   `POST /appointments/send-followups` est neutralisée : elle demandait l'avis par
+   e-mail. Or **toute la fonction ne vivait que par cet e-mail** — `feedback`
+   compte 0 ligne, son unique écrivain était cette route, et le seul chemin vers la
+   page publique `/feedback` était le lien de ce message.
+
+   La page reste en ligne mais ne recevra plus jamais de jeton. À trancher : la
+   faire revivre par SMS (le lien tiendrait dans un segment), ou la retirer avec sa
+   page — comme les sept pages de `app/client/`.
+
 1. 🔴 **Jeton OAuth court à usage unique** (0,5 j) — cf. § 14. Un JWT de 30 jours
    part aujourd'hui dans l'URL, l'historique et le `Referer` vers Google.
    ⚠️ **Moins urgent depuis le 15/08** : la page qui déclenchait ce flux a perdu
