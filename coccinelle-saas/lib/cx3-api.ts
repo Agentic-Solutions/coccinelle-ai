@@ -71,6 +71,64 @@ export async function chargerFrise() {
   return lire<Frise>('/api/v1/communications/frise');
 }
 
+/** Résultat de la validation d'un gabarit, côté serveur. */
+export interface ControleModele {
+  valide: boolean;
+  /** Bloque l'enregistrement. */
+  erreurs: string[];
+  /** Ne bloque pas : dit ce qui va changer sans que le client l'ait demandé. */
+  avertissements: string[];
+  apercu: string;
+  /** Le texte tel qu'il PARTIRA, après translittération GSM-7. */
+  apercuEnvoye: string;
+  segments: number;
+  unites: number;
+  encodage: 'GSM-7' | 'UCS-2';
+}
+
+export interface ModeleMessage {
+  type: string;
+  libelle: string;
+  explication: string;
+  corps: string;
+  defaut: string;
+  /** Faux = le tenant a le texte d'origine. Permet d'offrir « revenir au défaut ». */
+  personnalise: boolean;
+  jetons: string[];
+  jetons_facultatifs: string[];
+  controle: ControleModele;
+}
+
+/** Les gabarits modifiables, avec leur état actuel. */
+export async function chargerModeles() {
+  return lire<{ modeles: ModeleMessage[] }>('/api/v1/communications/modeles');
+}
+
+/**
+ * Contrôle à blanc, pour le retour en direct pendant la frappe.
+ *
+ * N'écrit rien. La MÊME validation est rejouée au moment d'enregistrer : ce
+ * contrôle sert le confort, pas la sécurité — le serveur ne fait jamais
+ * confiance à un client qui affirme « c'est valide ».
+ */
+export async function verifierModele(type: string, corps: string) {
+  return lire<ControleModele>(`/api/v1/communications/modeles/${type}/verifier`, {
+    method: 'POST',
+    body: JSON.stringify({ corps }),
+  });
+}
+
+/** Enregistre un gabarit, ou revient au texte d'origine. */
+export async function enregistrerModele(
+  type: string,
+  options: { corps?: string; reinitialiser?: boolean },
+) {
+  return lire<{ corps: string; personnalise: boolean; controle: ControleModele }>(
+    `/api/v1/communications/modeles/${type}`,
+    { method: 'PUT', body: JSON.stringify(options) },
+  );
+}
+
 /** Les messages, du plus récent au plus ancien. */
 export async function chargerMessages(options?: { canal?: 'sms' | 'email'; limite?: number }) {
   const p = new URLSearchParams();

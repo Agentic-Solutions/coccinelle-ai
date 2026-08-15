@@ -23,6 +23,7 @@ import { logger } from '../../utils/logger.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
 import * as auth from '../auth/helpers.js';
 import { TYPES_SMS } from '../shared/sms-booking-link.js';
+import { MODELES, lireModele, validerModele } from '../shared/sms-modeles.js';
 
 /**
  * Etapes du voyage client, dans l'ordre de la maquette.
@@ -95,6 +96,24 @@ export async function handleCommunicationsRoutes(request, env, path, method) {
     if (path === '/api/v1/communications/frise' && method === 'GET') {
       return await construireFrise(env, tenant);
     }
+
+    // ── Gabarits modifiables (lot 2) ──
+    if (path === '/api/v1/communications/modeles' && method === 'GET') {
+      return await listerModeles(env, tenant);
+    }
+    const verif = path.match(/^\/api\/v1\/communications\/modeles\/([a-z_]+)\/verifier$/);
+    if (verif && method === 'POST') {
+      // Contrôle à blanc, pour le retour en direct pendant la frappe. Il n'écrit
+      // rien : la même validation est REJOUÉE côté serveur au PUT, on ne fait
+      // jamais confiance à un client qui affirme « c'est valide ».
+      const corps = await request.json().catch(() => ({}));
+      return successResponse(validerModele(verif[1], corps?.corps || ''));
+    }
+    const ecriture = path.match(/^\/api\/v1\/communications\/modeles\/([a-z_]+)$/);
+    if (ecriture && method === 'PUT') {
+      return await ecrireModele(request, env, tenant, authResult.user, ecriture[1]);
+    }
+
     return null;
   } catch (error) {
     logger.error('Communications error', { error: error.message, path });
@@ -210,6 +229,85 @@ async function listerMessages(request, env, tenant) {
       email: messages.filter((m) => m.canal === 'email').length,
     },
   });
+}
+
+/**
+ * Les gabarits modifiables, avec leur etat actuel.
+ *
+ * `personnalise` distingue « le tenant a ecrit son texte » de « il a le defaut ».
+ * Sans ce drapeau, la page ne pourrait pas proposer « revenir au message
+ * d'origine » — et un client qui a bricole son message sans s'en souvenir ne
+ * saurait pas d'ou vient ce qu'il lit.
+ */
+async function listerModeles(env, tenant) {
+  const modeles = [];
+  for (const [type, def] of Object.entries(MODELES)) {
+    const corps = await lireModele(env, tenant.id, type);
+    modeles.push({
+      type,
+      libelle: def.libelle,
+      explication: def.explication,
+      corps,
+      defaut: def.defaut,
+      personnalise: corps !== def.defaut,
+      jetons: def.jetons,
+      jetons_facultatifs: def.jetonsFacultatifs || [],
+      // L'apercu et la mesure du gabarit ACTIF : la page affiche tout de suite
+      // ce que le client recevra, sans avoir a taper quoi que ce soit.
+      controle: validerModele(type, corps),
+    });
+  }
+  return successResponse({ modeles });
+}
+
+/**
+ * Enregistre un gabarit. Refuse plutot que d'avertir : les jetons obligatoires
+ * et la limite d'un segment ne sont pas des conseils.
+ */
+async function ecrireModele(request, env, tenant, user, type) {
+  if (!MODELES[type]) return errorResponse('Ce message ne se modifie pas', 404);
+
+  const body = await request.json().catch(() => ({}));
+  const corps = String(body?.corps || '').trim();
+
+  // Revenir au defaut = SUPPRIMER la ligne, pas y ecrire le texte par defaut.
+  // Sinon un tenant se retrouve fige sur la formulation du jour ou il a clique,
+  // et ne beneficie plus des corrections apportees au defaut.
+  if (body?.reinitialiser === true) {
+    await env.DB.prepare('DELETE FROM message_modeles WHERE tenant_id = ? AND type = ?')
+      .bind(tenant.id, type).run();
+    const def = MODELES[type];
+    logger.info('[Modeles] Retour au defaut', { tenantId: tenant.id, type });
+    return successResponse({
+      corps: def.defaut, personnalise: false, controle: validerModele(type, def.defaut),
+    });
+  }
+
+  // La MEME validation que le contrôle à blanc — rejouée ici, parce que le
+  // client peut l'avoir contournée.
+  const controle = validerModele(type, corps);
+  if (!controle.valide) {
+    return errorResponse(controle.erreurs.join(' '), 400);
+  }
+
+  // UPSERT sur (tenant_id, type) : l'INDEX UNIQUE de la migration 0086 fait que
+  // deux clics rapprochés mettent à jour la même ligne au lieu d'en créer deux.
+  await env.DB.prepare(`
+    INSERT INTO message_modeles (id, tenant_id, type, corps, modifie_par)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (tenant_id, type) DO UPDATE
+      SET corps = excluded.corps,
+          modifie_par = excluded.modifie_par,
+          updated_at = datetime('now')
+  `).bind(
+    `modele_${tenant.id.slice(-8)}_${type}`, tenant.id, type, corps, user?.id || null,
+  ).run();
+
+  logger.info('[Modeles] Gabarit enregistre', {
+    tenantId: tenant.id, type, segments: controle.segments,
+  });
+
+  return successResponse({ corps, personnalise: corps !== MODELES[type].defaut, controle });
 }
 
 /**

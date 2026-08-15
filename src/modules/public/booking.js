@@ -2,6 +2,7 @@
 import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { envoyerSmsTrace } from '../shared/sms-envoi.js';
+import { composerMessage } from '../shared/sms-modeles.js';
 
 /**
  * GET /api/v1/public/booking/:tenantSlug
@@ -366,9 +367,27 @@ export async function handleCreatePublicBooking(request, env, slug) {
     let confirmationEnvoyee = false;
     let canalConfirmation = null;
     try {
-      const quand = _formaterDateHeureFr(datetime);
-      const libelle = typeName ? `${typeName} ` : '';
-      const texte = `Votre RDV ${libelle}chez ${tenant.name} est confirmé : ${quand}.`;
+      // ── Le texte vient du GABARIT du tenant (CX-3 lot 2, 15/08/2026) ──
+      //
+      // Il etait en dur ici : un garagiste ne pouvait pas le formuler autrement.
+      // `composerMessage` lit son gabarit s'il en a un, sinon le defaut — qui est
+      // mot pour mot la phrase precedente. Aucun tenant ne voit son message
+      // changer aujourd'hui.
+      //
+      // ⚠️ La date et l'heure sont passees SEPAREMENT, chacune deja formatee
+      // ici : `scheduled_at` est une date-heure NAIVE et deja LOCALE (regle
+      // 10quinquies), et le seul endroit qui le sait correctement est
+      // `_formaterDateHeureFr`. Laisser le module de gabarits formater une date
+      // ferait renaitre le decalage de deux heures, dans un troisieme fichier.
+      const { jour, heure } = _separerDateHeureFr(datetime);
+      const texte = await composerMessage(env, tenant.id, 'confirmation_rdv', {
+        '{entreprise}': tenant.name,
+        '{date}': jour,
+        '{heure}': heure,
+        // Espace inclus : le gabarit ecrit « RDV {prestation}chez … », donc le
+        // jeton porte son propre separateur. Vide, la phrase se referme d'elle-meme.
+        '{prestation}': typeName ? `${typeName} ` : '',
+      });
 
       if (phone) {
         const envoi = await envoyerSmsTrace(env, {
@@ -427,19 +446,29 @@ export async function handleCreatePublicBooking(request, env, slug) {
  * pris a 14h30 etait confirme pour 16h30 (constate en recette le 11/08/2026).
  * On lit donc les composantes telles quelles, sans jamais convertir.
  */
-function _formaterDateHeureFr(valeur) {
+/**
+ * Les deux composantes, separement — le gabarit les place ou il veut.
+ *
+ * Meme lecture NAIVE que ci-dessus : on prend les composantes du texte telles
+ * quelles et on ne convertit jamais. `_formaterDateHeureFr` s'appuie desormais
+ * sur cette fonction plutot que de refaire le decoupage, pour qu'il n'existe
+ * qu'UN endroit ou cette date est lue.
+ */
+function _separerDateHeureFr(valeur) {
   try {
     const m = String(valeur).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-    if (!m) return String(valeur);
+    if (!m) return { jour: String(valeur), heure: '' };
     const [, annee, mois, jour, heures, minutes] = m;
     // Le jour de la semaine se calcule en UTC pour n'introduire aucun decalage.
     const reference = new Date(Date.UTC(+annee, +mois - 1, +jour));
-    const libelle = reference.toLocaleDateString('fr-FR', {
-      timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long',
-    });
-    return `${libelle} à ${heures}:${minutes}`;
+    return {
+      jour: reference.toLocaleDateString('fr-FR', {
+        timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long',
+      }),
+      heure: `${heures}:${minutes}`,
+    };
   } catch {
-    return String(valeur);
+    return { jour: String(valeur), heure: '' };
   }
 }
 

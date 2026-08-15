@@ -45,10 +45,24 @@ import Link from 'next/link';
 import { Loader2, Mail, MessageSquare, Phone } from 'lucide-react';
 import { CX2, LIEN_POLICES, POLICE_MONO, POLICE_TEXTE, STYLE_CARTE } from '@/components/cx2/theme';
 import { useEcranLarge } from '@/components/cx2/useEcranLarge';
+import PanneauModele from '@/components/cx3/PanneauModele';
 import {
-  chargerEtatCanaux, chargerFrise, chargerMessages,
-  type Canal, type EtapeFrise, type Frise, type Message,
+  chargerEtatCanaux, chargerFrise, chargerMessages, chargerModeles,
+  type Canal, type EtapeFrise, type Frise, type Message, type ModeleMessage,
 } from '@/lib/cx3-api';
+
+/**
+ * Quelle étape porte un gabarit modifiable.
+ *
+ * Une seule au lot 2 : la confirmation. Le rappel J-1 part par CRON, sans
+ * personne pour relire — un gabarit cassé y échouerait en silence à 17 h pour
+ * tous les rendez-vous du lendemain. Et le devis n'est PAS un gabarit : son
+ * corps est composé par le LLM pendant l'appel, donc ce qui se règle pour lui
+ * est le prompt, sur « Mon assistant ».
+ */
+const MODELE_PAR_ETAPE: Record<string, string> = {
+  reservation: 'confirmation_rdv',
+};
 
 const NOM_CANAL: Record<string, string> = {
   phone: 'Téléphone', sms: 'SMS', email: 'E-mail', whatsapp: 'WhatsApp',
@@ -115,8 +129,25 @@ function Separateur({ titre }: { titre: string }) {
   );
 }
 
-/** Un étage de la frise : la puce, le fil, la bulle. */
-function Etage({ etape, dernier }: { etape: EtapeFrise; dernier: boolean }) {
+/**
+ * Un étage de la frise : la puce, le fil, la bulle.
+ *
+ * `modele` = le gabarit qui régit cette étape, s'il en existe un. Il sert deux
+ * choses distinctes, et la distinction compte :
+ *   — quand un message est PARTI, on affiche le message réel et on offre de
+ *     régler le gabarit pour les suivants ;
+ *   — quand rien n'est parti, on affiche le gabarit en disant explicitement que
+ *     c'est ce qui PARTIRA. Ce n'est pas un spécimen de message envoyé : c'est
+ *     une affirmation sur le futur, et elle est vraie.
+ */
+function Etage({
+  etape, dernier, modele, onModifier,
+}: {
+  etape: EtapeFrise;
+  dernier: boolean;
+  modele?: ModeleMessage;
+  onModifier?: () => void;
+}) {
   return (
     <>
       <Separateur titre={etape.titre} />
@@ -154,10 +185,59 @@ function Etage({ etape, dernier }: { etape: EtapeFrise; dernier: boolean }) {
               </div>
               <span style={{ fontSize: '12.5px', color: CX2.texteDiscret }}>
                 Envoyé à {etape.message.contact || etape.message.adresse || 'un client'}
+                {modele && onModifier && (
+                  <>
+                    {' · '}
+                    <button
+                      type="button"
+                      onClick={onModifier}
+                      style={{
+                        border: 'none', background: 'transparent', padding: 0,
+                        font: 'inherit', color: CX2.texteSecondaire, cursor: 'pointer',
+                        textDecoration: 'underline', textUnderlineOffset: '3px',
+                      }}
+                    >
+                      Modifier ce message
+                    </button>
+                  </>
+                )}
+              </span>
+            </>
+          ) : modele ? (
+            /* Rien n'est parti, mais le gabarit existe : on montre ce qui
+               PARTIRA, et on le dit — ce n'est pas un message déjà envoyé. */
+            <>
+              <div style={{
+                maxWidth: 460, background: CX2.surface, border: `1px dashed ${CX2.bordure}`,
+                borderRadius: '16px', borderBottomLeftRadius: '5px', padding: '14px 17px',
+                fontSize: '15px', lineHeight: 1.6, color: CX2.texteSecondaire,
+                overflowWrap: 'anywhere',
+              }}>
+                {modele.controle.apercuEnvoye}
+              </div>
+              <span style={{ fontSize: '12.5px', color: CX2.texteDiscret }}>
+                Aucun encore envoyé. Voici ce qui partira, avec une date d’exemple.
+                {onModifier && (
+                  <>
+                    {' · '}
+                    <button
+                      type="button"
+                      onClick={onModifier}
+                      style={{
+                        border: 'none', background: 'transparent', padding: 0,
+                        font: 'inherit', color: CX2.texteSecondaire, cursor: 'pointer',
+                        textDecoration: 'underline', textUnderlineOffset: '3px',
+                      }}
+                    >
+                      Modifier
+                    </button>
+                  </>
+                )}
               </span>
             </>
           ) : (
-            /* Pas de spécimen. Le vide est l'information : rien n'est parti. */
+            /* Pas de gabarit, pas de message : pas de spécimen. Le vide est
+               l'information — rien n'est parti, et rien ne préexiste. */
             <div style={{
               maxWidth: 460, border: `1px dashed ${CX2.bordure}`, borderRadius: '14px',
               padding: '14px 17px', fontSize: '14px', color: CX2.texteTertiaire,
@@ -179,13 +259,16 @@ export default function PageCommunications() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const [filtre, setFiltre] = useState<'tous' | 'sms' | 'email'>('tous');
+  const [modeles, setModeles] = useState<ModeleMessage[]>([]);
+  /** Le gabarit ouvert à l'édition, par son type. */
+  const [edition, setEdition] = useState<string | null>(null);
   // Une colonne sur téléphone : les artisans consultent d'abord là.
   const large = useEcranLarge();
 
   const charger = useCallback(async () => {
     try {
-      // Les trois en parallèle : aucune ne dépend des autres, et « Mes canaux »
-      // ne doit pas attendre la frise pour s'afficher.
+      // En parallèle : aucune ne dépend des autres, et « Mes canaux » ne doit pas
+      // attendre la frise pour s'afficher.
       const [f, m] = await Promise.all([chargerFrise(), chargerMessages({ limite: 50 })]);
       setFrise(f);
       setMessages(m.messages);
@@ -197,6 +280,9 @@ export default function PageCommunications() {
     }
     // Les pastilles absentes ne doivent pas rendre la page inutilisable.
     try { setCanaux((await chargerEtatCanaux()).canaux); } catch { /* page utilisable sans */ }
+    // Idem pour les gabarits : sans eux la frise reste lisible, elle perd juste
+    // l'aperçu de ce qui partira et le bouton « Modifier ».
+    try { setModeles((await chargerModeles()).modeles); } catch { /* lecture seule */ }
   }, []);
 
   useEffect(() => { charger(); }, [charger]);
@@ -270,9 +356,19 @@ export default function PageCommunications() {
 
             {frise && !chargement && (
               <>
-                {frise.etapes.map((e, i) => (
-                  <Etage key={e.cle} etape={e} dernier={i === frise.etapes.length - 1 && !frise.email} />
-                ))}
+                {frise.etapes.map((e, i) => {
+                  const typeModele = MODELE_PAR_ETAPE[e.cle];
+                  const modele = modeles.find((m) => m.type === typeModele);
+                  return (
+                    <Etage
+                      key={e.cle}
+                      etape={e}
+                      dernier={i === frise.etapes.length - 1 && !frise.email}
+                      modele={modele}
+                      onModifier={modele ? () => setEdition(modele.type) : undefined}
+                    />
+                  );
+                })}
 
                 {/* ── L'e-mail : étage à part, source différente, pas de type ── */}
                 {frise.email && (
@@ -325,6 +421,33 @@ export default function PageCommunications() {
 
           {/* ══ DROITE ══ */}
           <aside style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+            {/* ── Édition du gabarit, en tête quand elle est ouverte ──
+                En tête et non en bas : c'est l'objet de l'attention au moment où
+                on clique « Modifier », et sur téléphone la colonne de droite
+                passe SOUS la frise — un panneau en troisième position y serait
+                hors de l'écran. */}
+            {(() => {
+              const ouvert = modeles.find((m) => m.type === edition);
+              if (!ouvert) return null;
+              return (
+                <PanneauModele
+                  key={ouvert.type}
+                  modele={ouvert}
+                  large={large}
+                  onEnregistre={(r) => {
+                    // On remplace le gabarit en mémoire plutôt que de tout
+                    // recharger : la frise doit refléter le nouveau texte, et un
+                    // rechargement complet ferait clignoter la page entière.
+                    setModeles((liste) => liste.map((m) => (
+                      m.type === ouvert.type
+                        ? { ...m, corps: r.corps, personnalise: r.personnalise, controle: r.controle }
+                        : m
+                    )));
+                  }}
+                />
+              );
+            })()}
 
             {/* ── Mes canaux : CONSTAT, aucun interrupteur ── */}
             <section style={{ ...STYLE_CARTE, padding: large ? '22px' : '18px 16px' }}>
