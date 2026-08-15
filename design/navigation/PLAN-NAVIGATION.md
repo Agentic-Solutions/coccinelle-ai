@@ -717,3 +717,27 @@ PDF donne la marche à suivre : ouvrir, copier, coller.
 6. Les quatre `notification_preferences`, lues ou masquées — cf. § 10.
 7. Vraie vue agenda… **livrée au chantier 3**, cette entrée est close.
 8. `channel_configurations` — lue, ou supprimée avec ses écrans. cf. § 12.
+9. 🔴 **Les deux pages CX-2 sont illisibles sur téléphone** (0,5 j) — ajouté le
+   15/08/2026, trouvé en construisant « Mes communications ».
+
+   `/dashboard/assistant` et `/dashboard/savoir` portent leur grille en style
+   **inline** (`gridTemplateColumns: 'minmax(0, 65fr) minmax(0, 35fr)'` et
+   `'60fr / 40fr'`), pour rester au hex près sur les maquettes Claude Design. Or
+   **un style inline ne peut pas porter de `@media`** : la grille reste donc à
+   deux colonnes quelle que soit la largeur, et donne sur un téléphone deux
+   colonnes d'environ 170 px où chaque mot part à la ligne. Constaté en
+   navigateur à 390 px sur la page CX-3 avant correction — les deux pages CX-2
+   n'ont pas été retouchées.
+
+   **Ce n'est pas cosmétique, et c'est là que le classement se joue** : les
+   clients sont des artisans, ils consultent leur tableau de bord au téléphone,
+   entre deux interventions. C'est leur écran PRINCIPAL, pas la version dégradée
+   — et « Mon assistant » est la page qui porte le prénom, la voix et les
+   horaires de l'agent. Une page de réglage qu'on ne peut pas lire là où on la
+   consulte n'est pas une page de réglage.
+
+   Le correctif existe déjà et est livré : `src/components/cx2/useEcranLarge.ts`
+   (`matchMedia`, premier rendu à UNE colonne — se tromper vers une colonne donne
+   une page lisible partout, se tromper vers deux donne un instant d'illisible
+   sur mobile). Il reste à l'appliquer aux deux pages : la grille, le `padding`
+   du conteneur (`36px 40px` → `24px 16px`) et celui des cartes.
