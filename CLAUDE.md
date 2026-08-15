@@ -527,6 +527,63 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    dépôt décrivaient une architecture LiveKit 0.x qui n'a jamais tourné, et trois fichiers réels
    — dont `llm_factory.py` et `tools/tasks.py` — n'y figuraient pas du tout. Lire le dépôt pour
    comprendre la prod menait alors droit à un faux diagnostic. Ne jamais versionner de `.pyc`.
+20bis. 🔴 **`rsync --delete` vers `/opt/voixia/` est INTERDIT. Déployer l'agent par `scp`,
+   fichier par fichier.** Payé par une **panne totale de l'agent vocal d'environ 10 minutes**
+   le 15/08/2026.
+
+   `rsync -av --delete voixia/agent/ root@51.15.130.204:/opt/voixia/agent/` a supprimé
+   **`/opt/voixia/agent/venv/`**, qui n'est pas dans le dépôt. `--delete` efface tout ce que
+   la cible contient et que la source n'a pas ; le venv vit précisément **dans** le répertoire
+   synchronisé. Or `voixia.service` lance `ExecStart=/opt/voixia/agent/venv/bin/python main.py` :
+   l'interpréteur disparu, systemd a bouclé en **203/EXEC**, `Restart=on-failure` toutes les 10 s.
+
+   La leçon n'est pas « rsync est dangereux », c'est : **la règle 20 dit que le serveur fait foi,
+   donc on ne calque jamais le dépôt sur le serveur par une opération destructive.** Le miroir
+   md5 porte sur les `.py`, pas sur l'arborescence : `/opt/voixia/agent/` contient légitimement
+   des choses que le dépôt n'a pas — le venv, et `/opt/voixia/` porte en plus `.env`,
+   `livekit.yaml`, `sip/`, `VoixIA/`, `rollback-*`. **Regarder la cible avant d'écrire dedans.**
+
+   ```bash
+   # ── Déploiement de l'agent : les fichiers, et RIEN d'autre ──
+   cd ~/Projects/saas/coccinelle-ai/voixia/agent
+   scp *.py root@51.15.130.204:/opt/voixia/agent/
+   scp tools/*.py root@51.15.130.204:/opt/voixia/agent/tools/
+   ssh root@51.15.130.204 "systemctl restart voixia && sleep 5 && systemctl is-active voixia"
+
+   # ── Contrôle : le miroir md5 de la règle 20 ──
+   # ⚠️ EXCLURE `venv/` : il vit DANS /opt/voixia/agent/ et pèse ~8 500 fichiers .py
+   # de bibliothèques. Sans l'exclusion, le diff est illisible — constaté le 15/08.
+   find . -name '*.py' -not -path '*/__pycache__/*' -not -path './venv/*' | sort | xargs md5 -r
+   ssh root@51.15.130.204 "cd /opt/voixia/agent && find . -name '*.py' -not -path '*/__pycache__/*' -not -path './venv/*' | sort | xargs md5sum"
+   ```
+
+   ```bash
+   # ── Reconstruction du venv, si un jour il disparaît encore ──
+   ssh root@51.15.130.204
+   cd /opt/voixia/agent
+   python3 -m venv venv
+   ./venv/bin/pip install --upgrade pip
+   ./venv/bin/pip install -r requirements.txt
+   systemctl restart voixia && systemctl is-active voixia
+   # L'agent doit ensuite apparaître comme worker enregistré dans les logs :
+   journalctl -u voixia -n 30 --no-pager | grep -i "registered worker"
+   ```
+
+   ⚠️ **EFFET DE BORD À SURVEILLER — dérive de versions du 15/08/2026.** La reconstruction a
+   réinstallé les bibliothèques **plus récentes** que celles d'origine. **Si un comportement
+   change à l'oral (latence, coupures, qualité TTS, appels d'outils), c'est la PREMIÈRE piste
+   à examiner, avant le prompt et avant la KB.** État après reconstruction :
+   `livekit-agents 1.4.6`, les 6 plugins `1.4.6`, `livekit-plugins-anthropic 1.4.6`,
+   `transformers 4.57.1`, `numpy 2.5.2`, `openai 3.1.0`, `httpx 0.28.1`.
+
+   **Le mécanisme exact de la dérive**, parce qu'il conditionne le correctif : `requirements.txt`
+   contraint bien ses 4 lignes en `~=` (`livekit-agents~=1.4.6` autorise 1.4.x, pas 1.5), mais
+   **aucune dépendance transitive n'y figure** — `transformers`, `numpy`, `openai`, `httpx2` se
+   sont installées au dernier compatible. Un `~=` sur quatre paquets ne fige pas un
+   environnement. ⇒ **À faire : `./venv/bin/pip freeze > requirements.lock.txt` sur le serveur,
+   versionné dans le dépôt**, et reconstruire depuis le lock. Sans lui, chaque reconstruction
+   produit un agent différent, et une régression vocale devient inexplicable.
+
 21. **Un outil VoixIA ne lit JAMAIS le tenant dans l'environnement** : `get_tenant_id()` /
    `get_api_key()` de `tools/context.py`, alimentés par `set_call_context()` au début de l'appel.
    `VOIXIA_TENANT_ID` du `.env` est un secours, pas une source (voir § j, 11/08/2026).
