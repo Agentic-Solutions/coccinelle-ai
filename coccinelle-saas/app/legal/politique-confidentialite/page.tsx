@@ -66,7 +66,7 @@ export default function PolitiqueConfidentialitePage() {
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900">Representant legal</td><td className="py-2.5">Youssef Amrouche, President</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900">DPO</td><td className="py-2.5">Youssef Amrouche</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900">Email DPO</td><td className="py-2.5"><a href="mailto:privacy@coccinelle.ai" className="text-gray-900 underline">privacy@coccinelle.ai</a></td></tr>
-                <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900">Telephone</td><td className="py-2.5">+33 7 60 76 21 53</td></tr>
+                <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900">Téléphone</td><td className="py-2.5">+33 7 60 76 21 53</td></tr>
                 <tr className="bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900">Adresse</td><td className="py-2.5">57B Chemin des Etroits, 31400 Toulouse, France</td></tr>
               </tbody>
             </table>
@@ -98,7 +98,7 @@ export default function PolitiqueConfidentialitePage() {
           <ul className="list-disc pl-6 space-y-1 text-gray-600 mb-4">
             <li>Nom, prenom, adresse email professionnelle</li>
             <li>Nom de l&apos;entreprise, secteur d&apos;activite</li>
-            <li>Numero de telephone professionnel</li>
+            <li>Numéro de téléphone professionnel</li>
           </ul>
           <p className="text-gray-600 leading-relaxed mb-2 font-medium">Utilisation du service :</p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600 mb-4">
@@ -115,7 +115,7 @@ export default function PolitiqueConfidentialitePage() {
 
           <h3 className="text-base font-semibold text-gray-900 mt-6 mb-3">3.2 Donnees des tiers appelants</h3>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>Numero de telephone de l&apos;appelant</li>
+            <li>Numéro de téléphone de l&apos;appelant</li>
             <li>Date, heure et duree de l&apos;appel</li>
             <li>Transcription textuelle de la conversation</li>
             <li>Resume genere par l&apos;IA</li>
@@ -141,7 +141,7 @@ export default function PolitiqueConfidentialitePage() {
                 <tr className="border-b border-gray-100"><td className="py-2.5 px-4">Facturation</td><td className="py-2.5 px-4">Paiement</td><td className="py-2.5 px-4">Art. 6.1.b &mdash; Contrat</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 px-4">Support client</td><td className="py-2.5 px-4">Assistance technique</td><td className="py-2.5 px-4">Art. 6.1.b &mdash; Contrat</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 px-4">Amelioration du service</td><td className="py-2.5 px-4">Analytics anonymes</td><td className="py-2.5 px-4">Art. 6.1.f &mdash; Interet legitime</td></tr>
-                <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 px-4">Securite</td><td className="py-2.5 px-4">Prevention fraude</td><td className="py-2.5 px-4">Art. 6.1.f &mdash; Interet legitime</td></tr>
+                <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 px-4">Sécurité</td><td className="py-2.5 px-4">Prevention fraude</td><td className="py-2.5 px-4">Art. 6.1.f &mdash; Interet legitime</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 px-4">Conservation legale</td><td className="py-2.5 px-4">Obligation fiscale</td><td className="py-2.5 px-4">Art. 6.1.c &mdash; Obligation legale</td></tr>
                 <tr><td className="py-2.5 px-4">Communication commerciale</td><td className="py-2.5 px-4">Newsletter</td><td className="py-2.5 px-4">Art. 6.1.a &mdash; Consentement</td></tr>
               </tbody>
@@ -273,7 +273,7 @@ export default function PolitiqueConfidentialitePage() {
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 px-4">Compte resilie</td><td className="py-2.5 px-4">3 ans</td><td className="py-2.5 px-4">Interet legitime</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 px-4">Transcriptions d&apos;appels</td><td className="py-2.5 px-4">12 mois glissants</td><td className="py-2.5 px-4">Politique interne</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 px-4">Donnees des appelants</td><td className="py-2.5 px-4">12 mois maximum</td><td className="py-2.5 px-4">Minimisation RGPD</td></tr>
-                <tr className="border-b border-gray-100"><td className="py-2.5 px-4">Logs techniques</td><td className="py-2.5 px-4">90 jours</td><td className="py-2.5 px-4">Securite</td></tr>
+                <tr className="border-b border-gray-100"><td className="py-2.5 px-4">Logs techniques</td><td className="py-2.5 px-4">90 jours</td><td className="py-2.5 px-4">Sécurité</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 px-4">Donnees de facturation</td><td className="py-2.5 px-4">10 ans</td><td className="py-2.5 px-4">Code de commerce</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 px-4">Emails support</td><td className="py-2.5 px-4">3 ans</td><td className="py-2.5 px-4">Service client</td></tr>
                 <tr><td className="py-2.5 px-4">Cookies analytics</td><td className="py-2.5 px-4">25 mois</td><td className="py-2.5 px-4">Recommandation CNIL</td></tr>

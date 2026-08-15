@@ -937,7 +937,7 @@ export default function TeamsPage() {
               </div>
               {/* Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telephone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
                 <input
                   type="tel"
                   value={formPhone}

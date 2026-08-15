@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
             </h2>
             <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4">
               <p className="text-sm text-green-800">
-                Si un compte existe avec cette adresse email, un lien de reinitialisation a ete envoye.
+                Si un compte existe avec cette adresse email, un lien de reinitialisation a été envoyé.
                 Verifiez votre boite de reception et vos spams.
               </p>
             </div>

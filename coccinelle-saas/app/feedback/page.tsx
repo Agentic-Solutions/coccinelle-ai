@@ -125,10 +125,10 @@ function FeedbackForm() {
             </svg>
           </div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">
-            Feedback deja envoye
+            Feedback déjà envoyé
           </h2>
           <p className="text-gray-600">
-            Vous avez deja donne votre avis pour ce rendez-vous. Merci !
+            Vous avez déjà donne votre avis pour ce rendez-vous. Merci !
           </p>
         </div>
       </div>

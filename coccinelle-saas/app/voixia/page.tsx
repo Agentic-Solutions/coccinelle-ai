@@ -416,7 +416,7 @@ export default function VoixIAPage() {
             <span>par <Link href="/" className="text-gray-400 hover:text-white transition-colors">Coccinelle.ai</Link></span>
           </div>
           <div className="flex items-center gap-6">
-            <Link href="/legal/mentions-legales" className="hover:text-white transition-colors">Mentions legales</Link>
+            <Link href="/legal/mentions-legales" className="hover:text-white transition-colors">Mentions légales</Link>
             <Link href="/legal/cgu" className="hover:text-white transition-colors">CGU</Link>
             <Link href="/legal/politique-confidentialite" className="hover:text-white transition-colors">Confidentialite</Link>
           </div>

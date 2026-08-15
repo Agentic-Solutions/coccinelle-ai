@@ -311,7 +311,7 @@ export default function CgvPage() {
             <p>SIREN : 944 504 679 &mdash; RCS Toulouse</p>
             <p>Email : <a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a></p>
             <p>Support : <a href="mailto:support@coccinelle.ai" className="text-gray-900 underline">support@coccinelle.ai</a></p>
-            <p>Telephone : +33 7 60 76 21 53</p>
+            <p>Téléphone : +33 7 60 76 21 53</p>
           </div>
         </section>
       </div>

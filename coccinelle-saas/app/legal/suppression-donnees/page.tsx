@@ -234,7 +234,7 @@ export default function SuppressionDonneesPage() {
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <td className="py-2.5 pr-4">Logs techniques</td>
                   <td className="py-2.5 pr-4">90 jours</td>
-                  <td className="py-2.5">Securite</td>
+                  <td className="py-2.5">Sécurité</td>
                 </tr>
                 <tr className="bg-gray-50">
                   <td className="py-2.5 pr-4">Emails de support</td>

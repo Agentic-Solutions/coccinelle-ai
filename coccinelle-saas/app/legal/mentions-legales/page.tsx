@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Mentions legales - Coccinelle.ai',
-  description: 'Mentions legales de la plateforme Coccinelle.ai, editee par Agentic Solutions SASU. LCEN, RGPD, hebergement.',
+  title: 'Mentions légales - Coccinelle.ai',
+  description: 'Mentions légales de la plateforme Coccinelle.ai, editee par Agentic Solutions SASU. LCEN, RGPD, hebergement.',
 };
 
 const tocItems = [
@@ -28,7 +28,7 @@ export default function MentionsLegalesPage() {
       {/* Header */}
       <div className="mb-10">
         <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">Mentions legales</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">Mentions légales</h1>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
             v2.0
           </span>
@@ -74,7 +74,7 @@ export default function MentionsLegalesPage() {
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Directeur de la publication</td><td className="py-2.5">Youssef Amrouche</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">DPO</td><td className="py-2.5">Youssef Amrouche &mdash; <a href="mailto:privacy@coccinelle.ai" className="text-gray-900 underline">privacy@coccinelle.ai</a></td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Email</td><td className="py-2.5"><a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a></td></tr>
-                <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Telephone</td><td className="py-2.5">+33 7 60 76 21 53</td></tr>
+                <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Téléphone</td><td className="py-2.5">+33 7 60 76 21 53</td></tr>
                 <tr className="bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Site web</td><td className="py-2.5"><a href="https://coccinelle.ai" className="text-gray-900 underline">https://coccinelle.ai</a></td></tr>
               </tbody>
             </table>

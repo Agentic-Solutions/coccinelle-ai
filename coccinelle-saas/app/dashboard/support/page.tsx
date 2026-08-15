@@ -359,7 +359,7 @@ export default function SupportPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-800">Ticket cree avec succes</p>
                   <p className="text-xs text-gray-700 mt-0.5">
-                    Un email de confirmation vous a ete envoye. Suivez votre ticket dans l&apos;onglet &quot;Mes tickets&quot;.
+                    Un email de confirmation vous a été envoyé. Suivez votre ticket dans l&apos;onglet &quot;Mes tickets&quot;.
                   </p>
                 </div>
                 <button onClick={() => setFormSuccess(false)} className="ml-auto text-gray-700 hover:text-gray-700 text-sm">

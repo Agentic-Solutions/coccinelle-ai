@@ -292,7 +292,6 @@ export default function SectorPageLayout({ data }: { data: SectorPageData }) {
                   'Email automatique inclus',
                   'CRM complet + export',
                   'Catalogue produits',
-                  'Analytics avancés',
                   'Rôles et permissions',
                   'Support prioritaire (24h)',
                 ].map((f) => (

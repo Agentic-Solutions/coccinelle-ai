@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Check, X, ArrowRight, Minus, ChevronDown } from 'lucide-react';
+import { Check, X, ArrowRight, Minus, ChevronDown, Clock } from 'lucide-react';
 import LandingNav from '@/components/LandingNav';
 import { CoccinelleIcon } from '@/components/CoccinelleIcon';
 
@@ -11,7 +11,7 @@ import { CoccinelleIcon } from '@/components/CoccinelleIcon';
 const plans = [
   {
     name: 'Essentiel',
-    desc: 'Pour demarrer',
+    desc: 'Pour démarrer',
     monthly: 79,
     annual: 63,
     cta: 'Essayer gratuitement',
@@ -61,7 +61,11 @@ const features: { category: string; rows: FeatureRow[] }[] = [
     category: 'Canaux',
     rows: [
       { label: 'SMS inclus', essentiel: '50', pro: '250', business: 'Sur mesure' },
-      { label: 'WhatsApp', essentiel: false, pro: true, business: true },
+      // WhatsApp est bloque chez Meta (verification metier + App Review en
+      // attente, cf. WHATSAPP_V2_PLAN.md). Une coche dans une grille tarifaire
+      // est un engagement contractuel : « Bientot » sur les trois formules, et
+      // jamais de coche tant que Meta n'a pas ouvert.
+      { label: 'WhatsApp', essentiel: 'Bientôt', pro: 'Bientôt', business: 'Bientôt' },
     ],
   },
   {
@@ -391,7 +395,7 @@ export default function PricingPage() {
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Agenda & RDV</span></li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-gray-900 flex-shrink-0" /><span className="text-gray-700">Insights complets</span></li>
                 </ul>
-                <p className="text-xs text-gray-400 mb-3">0,15&#8239;&#8364;/SMS au-del&agrave; &middot; WhatsApp bient&ocirc;t disponible</p>
+                <p className="text-xs text-gray-400 mb-3">0,15&#8239;&#8364;/SMS au-del&agrave;</p>
                 <Link href="/signup" className="block w-full text-center px-4 py-2.5 text-sm font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
                   Commencer
                 </Link>
@@ -478,7 +482,7 @@ export default function PricingPage() {
               <span className="text-lg font-bold text-white">Coccinelle.ai</span>
             </div>
             <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-400">
-              <Link href="/legal/mentions-legales" className="hover:text-white transition-colors">Mentions legales</Link>
+              <Link href="/legal/mentions-legales" className="hover:text-white transition-colors">Mentions légales</Link>
               <Link href="/legal/politique-confidentialite" className="hover:text-white transition-colors">Confidentialite</Link>
               <Link href="/legal/politique-cookies" className="hover:text-white transition-colors">Cookies</Link>
               <Link href="/legal/cgu" className="hover:text-white transition-colors">CGU</Link>
@@ -488,7 +492,7 @@ export default function PricingPage() {
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500">&copy; 2026 Agentic Solutions SASU &middot; SIREN 944 504 679</p>
-            <p className="text-sm text-gray-500">Heberge en France &middot; Donnees en Europe</p>
+            <p className="text-sm text-gray-500">Hébergé en France &middot; Données en Europe</p>
           </div>
         </div>
       </footer>

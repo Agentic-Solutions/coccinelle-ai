@@ -18,7 +18,7 @@ const tocItems = [
   { id: 'pi', label: '9. Propriete intellectuelle' },
   { id: 'donnees-client', label: '10. Propriete des donnees' },
   { id: 'confidentialite', label: '11. Confidentialite' },
-  { id: 'donnees-perso', label: '12. Donnees personnelles' },
+  { id: 'donnees-perso', label: '12. Données personnelles' },
   { id: 'suspension', label: '13. Suspension et resiliation' },
   { id: 'force-majeure', label: '14. Force majeure' },
   { id: 'modifications', label: '15. Modifications' },
@@ -244,7 +244,7 @@ export default function CguPage() {
 
         {/* 12. Données personnelles */}
         <section id="donnees-perso">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">12. Donnees personnelles</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">12. Données personnelles</h2>
           <p className="text-gray-600 leading-relaxed">
             Le traitement des donnees personnelles est decrit dans notre{' '}
             <Link href="/legal/politique-confidentialite" className="text-gray-900 underline">
@@ -336,7 +336,7 @@ export default function CguPage() {
             <p>57B Chemin des Etroits, 31400 Toulouse, France</p>
             <p>SIREN : 944 504 679 &mdash; RCS Toulouse</p>
             <p>Email : <a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a></p>
-            <p>Telephone : +33 7 60 76 21 53</p>
+            <p>Téléphone : +33 7 60 76 21 53</p>
           </div>
         </section>
       </div>

@@ -68,7 +68,7 @@ function VerifyEmailContent() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setResendMessage('Un nouvel email de verification a ete envoye.');
+        setResendMessage('Un nouvel email de verification a été envoyé.');
       } else {
         setResendMessage(data.error || 'Erreur lors de l\'envoi.');
       }

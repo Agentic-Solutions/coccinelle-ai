@@ -341,7 +341,6 @@ export default function LandingPage() {
                   
                   'CRM complet + export',
                   'Catalogue produits',
-                  'Analytics avancés',
                   'Rôles et permissions',
                   'Support prioritaire (24h)',
                 ].map((f) => (

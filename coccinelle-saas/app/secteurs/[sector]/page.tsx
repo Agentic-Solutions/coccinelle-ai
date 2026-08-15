@@ -622,7 +622,7 @@ export default function SectorPage({
                 href="/legal/mentions-legales"
                 className="hover:text-white transition-colors"
               >
-                Mentions legales
+                Mentions légales
               </Link>
               <Link
                 href="/legal/politique-confidentialite"
@@ -661,7 +661,7 @@ export default function SectorPage({
               &copy; 2026 Agentic Solutions SASU &middot; SIREN 944 504 679
             </p>
             <p className="text-sm text-gray-500">
-              Heberge en France &middot; Donnees en Europe
+              Hébergé en France &middot; Données en Europe
             </p>
           </div>
         </div>

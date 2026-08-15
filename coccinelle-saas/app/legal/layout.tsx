@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { CoccinelleIcon } from '@/components/CoccinelleIcon';
 
 const legalLinks = [
-  { href: '/legal/mentions-legales', label: 'Mentions legales' },
+  { href: '/legal/mentions-legales', label: 'Mentions légales' },
   { href: '/legal/politique-confidentialite', label: 'Confidentialite' },
   { href: '/legal/suppression-donnees', label: 'Suppression des donnees' },
   { href: '/legal/politique-cookies', label: 'Cookies' },

@@ -45,7 +45,7 @@ const featureGroups: FeatureGroup[] = [
         icon: UsersIcon,
         title: 'Fiches prospects et clients',
         description:
-          'Chaque personne qui vous contacte est automatiquement enregistrée avec son nom, téléphone et email. Les doublons sont détectés et fusionnés. Vous retrouvez tout l\'historique en un clic.',
+          'Chaque personne qui vous contacte est automatiquement enregistrée avec son nom et son téléphone. Les doublons sont détectés et fusionnés. Vous retrouvez tout l\'historique en un clic.',
       },
       {
         icon: ClockIcon,
@@ -213,7 +213,7 @@ const featureGroups: FeatureGroup[] = [
         icon: MailIcon,
         title: 'Rapports et récapitulatifs',
         description:
-          'Chaque lundi, vous recevez par email le bilan de votre semaine : nombre d\'appels, RDV pris, contacts ajoutés. Vous pouvez aussi exporter vos données en un clic.',
+          'Suivez votre semaine depuis votre tableau de bord : nombre d\'appels, RDV pris, contacts ajoutés. Vous pouvez exporter vos données en un clic.',
       },
       {
         icon: HelpCircleIcon,

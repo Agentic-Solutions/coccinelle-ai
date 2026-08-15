@@ -60,7 +60,6 @@ const PLANS = [
       'WhatsApp + Email',
       'CRM complet + export',
       'Catalogue produits',
-      'Analytics avances',
       'Roles et permissions',
       'Support prioritaire (24h)',
     ],
@@ -188,7 +187,7 @@ export default function BillingPage() {
       if (data.success && data.url) {
         window.location.href = data.url;
       } else if (res.status === 409) {
-        setError(data.error || 'Vous avez deja un abonnement actif.');
+        setError(data.error || 'Vous avez déjà un abonnement actif.');
       } else {
         setError(data.error || 'Erreur lors de la creation de la session de paiement.');
       }

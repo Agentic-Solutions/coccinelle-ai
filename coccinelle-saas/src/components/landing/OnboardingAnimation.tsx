@@ -402,7 +402,7 @@ export default function OnboardingAnimation() {
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-gray-900">Marc Dubois</p>
-                        <p className="text-xs text-gray-500">Email → Téléphone</p>
+                        <p className="text-xs text-gray-500">SMS → Téléphone</p>
                       </div>
                       <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">En cours</span>
                     </div>
@@ -548,7 +548,7 @@ export default function OnboardingAnimation() {
                       </div>
                       <div>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-600">Email</span>
+                          <span className="text-gray-600">SMS</span>
                           <span className="font-medium text-gray-900">45%</span>
                         </div>
                         <div className="h-2 bg-gray-200 rounded-full overflow-hidden">

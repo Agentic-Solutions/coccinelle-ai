@@ -19,7 +19,7 @@ const comparisons: ComparisonRow[] = [
     after: 'Une page de réservation en ligne accessible 24h/24',
   },
   {
-    before: 'Vos messages sont dispersés entre téléphone, SMS et email',
+    before: 'Vos messages sont dispersés entre téléphone, SMS et WhatsApp',
     after: 'Tous vos échanges regroupés dans une seule boîte de réception',
   },
   {

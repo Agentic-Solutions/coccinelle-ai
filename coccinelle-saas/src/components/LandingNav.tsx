@@ -15,41 +15,18 @@ import { CoccinelleIcon } from '@/components/CoccinelleIcon';
 
 type MenuKey = 'features' | 'sectors' | 'resources' | null;
 
-// ─── Announcement Banner ───────────────────────────────────────────────────────
-
-function AnnouncementBanner() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const dismissed = localStorage.getItem('banner_dismissed_insights_v1');
-    if (!dismissed) setVisible(true);
-  }, []);
-
-  const dismiss = () => {
-    setVisible(false);
-    localStorage.setItem('banner_dismissed_insights_v1', '1');
-  };
-
-  if (!visible) return null;
-
-  return (
-    <div className="w-full bg-gray-900 text-white text-center py-2 text-sm">
-      <span className="inline-flex items-center gap-1 flex-wrap justify-center">
-        Nouveau : Analytics avancés disponibles sur le plan Pro
-        <Link href="/signup" className="ml-2 underline hover:no-underline font-medium">
-          Essayer gratuitement &rarr;
-        </Link>
-      </span>
-      <button
-        onClick={dismiss}
-        className="ml-4 text-gray-400 hover:text-white transition-colors"
-        aria-label="Fermer"
-      >
-        &times;
-      </button>
-    </div>
-  );
-}
+// `AnnouncementBanner` supprime le 15/08/2026.
+//
+// Il annoncait « Nouveau : Analytics avancés disponibles sur le plan Pro » — une
+// fonction qui n'existe pas. Le bandeau s'affichait sur TOUTES les pages portant
+// cette barre : accueil, tarifs, pages secteurs, gabarit secteur.
+//
+// Retire et non reformule : un bandeau d'annonce n'a de sens que s'il y a quelque
+// chose a annoncer. En inventer un contenu aurait remplace une fausse promesse par
+// une autre.
+//
+// Note : la cle `banner_dismissed_insights_v1` peut subsister dans le
+// localStorage de visiteurs. Elle est inerte et ne genera rien.
 
 // ─── Mega-menu: Fonctionnalites ────────────────────────────────────────────────
 
@@ -292,7 +269,6 @@ export default function LandingNav() {
 
   return (
     <>
-      <AnnouncementBanner />
 
       <div className="sticky top-4 z-50 mt-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
