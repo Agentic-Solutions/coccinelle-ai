@@ -19,6 +19,9 @@
 import { logger } from '../../utils/logger.js';
 import { enrichirSmsAvecLien } from './sms-booking-link.js';
 import { compterSms } from './sms-format.js';
+import {
+  ORIGINE_AUTHENTIFIEE, ORIGINE_PUBLIQUE, reserverUnite, relacherUnite,
+} from './sms-plafond.js';
 
 /**
  * FORME DE RETOUR — une seule, et elle porte du sens.
@@ -52,11 +55,37 @@ import { compterSms } from './sms-format.js';
  *   celui-la, jamais le `message` d'entree : c'est precisement l'ecart qui
  *   rendait les historiques faux (cf. l'INSERT mort de voixia/routes.js).
  */
-export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospectId, nomContact }) {
+export async function envoyerSmsTrace(env, {
+  tenantId, to, message, type, prospectId, nomContact,
+  origine = ORIGINE_AUTHENTIFIEE, ignorerPlafond = false,
+}) {
   const destinataire = String(to || '').trim();
   // Rien n'a ete tente : l'issue est certaine.
   if (!destinataire) {
     return { envoye: false, refuse: true, erreur: 'Numéro destinataire manquant' };
+  }
+
+  // ── PLAFOND QUOTIDIEN, avant toute chose (chantier ANTI-ROBOT) ──
+  //
+  // `origine` et non `type` : au niveau d'un message, une attaque est
+  // indistinguable d'une vraie reservation. Ce qui les separe est l'origine — le
+  // chemin public est le seul par lequel un robot peut passer. Deux seaux
+  // etanches, donc saturer le public ne fait jamais taire un rappel J-1.
+  //
+  // `ignorerPlafond` est reserve a l'alerte de depassement elle-meme : sans cette
+  // sortie, l'alerte serait refusee par le plafond qu'elle annonce.
+  if (!ignorerPlafond) {
+    const budget = await reserverUnite(env, tenantId, origine);
+    if (!budget.autorise) {
+      // Alerte NON BLOQUANTE, et une seule par tenant/jour/origine.
+      if (budget.premierDepassement) {
+        alerterDepassement(env, { tenantId, origine, ...budget }).catch(() => {});
+      }
+      return {
+        envoye: false, refuse: true, plafondAtteint: true,
+        erreur: `Plafond quotidien de SMS atteint (${budget.envoyes}/${budget.plafond}, origine ${origine})`,
+      };
+    }
   }
 
   const accountSid = env.TWILIO_ACCOUNT_SID;
@@ -93,6 +122,11 @@ export async function envoyerSmsTrace(env, { tenantId, to, message, type, prospe
       logger.warn('[SMS] Envoi refusé par Twilio', {
         tenantId, type, code: donnees?.code, message: donnees?.message,
       });
+      // Refus certain : rien n'est parti, on rend l'unite au budget. Sur une
+      // issue INCONNUE (exception plus bas) on la garde — mieux vaut avoir
+      // decompte un SMS peut-etre parti que reouvrir le seau a un balayage qui
+      // provoque des timeouts.
+      if (!ignorerPlafond) await relacherUnite(env, tenantId, origine);
       return {
         envoye: false, refuse: true, erreur: donnees?.message || 'Envoi refusé',
         segments: mesure.segments, corps,
@@ -177,5 +211,60 @@ async function tracerDansConversation(env, { tenantId, destinataire, corps, sid,
          (id, conversation_id, channel, direction, content, sender_role, message_sid, created_at)
        VALUES (?, ?, 'sms', 'outbound', ?, 'assistant', ?, datetime('now'))`,
     ).bind(idMessage, conversationId, corps, sid || null).run();
+  }
+}
+
+/**
+ * Previent l'exploitant qu'un plafond quotidien vient d'etre atteint.
+ *
+ * PAR SMS et non par e-mail : l'e-mail sort du perimetre du produit depuis le
+ * 15/08, et une alerte qui arrive dans un canal coupe n'est pas une alerte.
+ *
+ * `ignorerPlafond: true` — sans cette sortie, l'alerte serait refusee par le
+ * plafond qu'elle annonce. Et `alerte_envoyee_at` en base garantit UNE alerte par
+ * tenant/jour/origine : sans lui, 10 000 tentatives au-dela du plafond
+ * declencheraient 10 000 SMS d'alerte, et l'alerte deviendrait l'attaque.
+ *
+ * Le numero vit dans le SECRET `ALERTE_SMS_NUMERO` (`wrangler secret put`), pas
+ * dans `wrangler.toml` ni dans le code : ni fichier a modifier, ni tenant code en
+ * dur — c'est l'antipattern qui a produit `tenant.py:27` et `tenant_demo_001`.
+ * Secret absent : on journalise et on n'envoie rien, plutot que de deviner un
+ * destinataire.
+ */
+async function alerterDepassement(env, { tenantId, origine, envoyes, plafond }) {
+  const numero = env.ALERTE_SMS_NUMERO;
+  if (!numero) {
+    logger.error('[SMS] Plafond atteint et ALERTE_SMS_NUMERO absent — personne n\'est prevenu', {
+      tenantId, origine, envoyes, plafond,
+    });
+    return;
+  }
+
+  const nom = await nomDuTenant(env, tenantId);
+  const message = origine === ORIGINE_PUBLIQUE
+    ? `Coccinelle : plafond SMS atteint chez ${nom} (${envoyes}/${plafond}, formulaire public). `
+      + `Les rendez-vous sont enregistres, les confirmations ne partent plus. Verifiez s'il s'agit d'un robot.`
+    : `Coccinelle : plafond SMS atteint chez ${nom} (${envoyes}/${plafond}, envois internes). `
+      + `Rappels et devis ne partent plus aujourd'hui.`;
+
+  // ⚠️ `tenantId: null` et non le tenant en cause. Le passer aurait ecrit CETTE
+  // alerte dans l'historique de conversation du CLIENT : il aurait vu dans sa fiche
+  // un message qu'il n'a jamais recu, et adresse a nous. `tracerDansConversation`
+  // sort immediatement sans tenant. Le nom du tenant reste dans le TEXTE, qui est
+  // sa place.
+  await envoyerSmsTrace(env, {
+    tenantId: null, to: numero, message,
+    type: 'interne',            // pas de lien de reservation : ce n'est pas un client
+    ignorerPlafond: true,
+  });
+}
+
+/** Nom lisible du tenant pour l'alerte, ou son identifiant a defaut. */
+async function nomDuTenant(env, tenantId) {
+  try {
+    const t = await env.DB.prepare('SELECT name FROM tenants WHERE id = ?').bind(tenantId).first();
+    return t?.name || tenantId;
+  } catch {
+    return tenantId;
   }
 }
