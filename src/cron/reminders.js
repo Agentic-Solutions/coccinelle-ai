@@ -32,6 +32,73 @@ export async function handleScheduled(event, env, ctx) {
   } catch (error) {
     logger.error('Cron bundle reconcile failed', { error: error.message, stack: error.stack });
   }
+
+  // Sécurité : prévient d'un balayage de clés VoixIA (chantier ANTI-ROBOT).
+  try {
+    await alerterBalayageCles(env);
+  } catch (error) {
+    logger.error('Cron alerte 401 failed', { error: error.message });
+  }
+}
+
+/**
+ * Prévient par SMS si les clés VoixIA ont été refusées en nombre aujourd'hui.
+ *
+ * POURQUOI CE DÉTOUR PAR LE CRON : jusqu'au 15/08/2026, le 401 tombait avant tout
+ * rate limit ET `[observability.logs]` était désactivé — un balayage de clés était
+ * donc gratuit ET invisible. Les logs sont maintenant conservés, mais un log qu'on
+ * ne lit pas ne prévient personne. `voixia/auth.js` agrège les refus par jour, ce
+ * cron les lit une fois par jour et alerte au-delà du seuil.
+ *
+ * PAR SMS et non par e-mail : l'e-mail sort du périmètre du produit depuis le
+ * 15/08, et une alerte qui arrive dans un canal coupé n'est pas une alerte.
+ *
+ * Latence assumée : jusqu'à 24 h (le cron tourne à 17 h UTC). C'est suffisant pour
+ * un balayage, qui durerait des heures — et cela évite d'ajouter un second cron.
+ *
+ * SEUIL : 50 refus sur la journée. Un agent correctement configuré n'en produit
+ * AUCUN — la clé est dans son `.env`. Quelques refus isolés sont plausibles
+ * (redéploiement, test manuel) ; 50 ne le sont pas.
+ */
+const SEUIL_401_QUOTIDIEN = 50;
+
+async function alerterBalayageCles(env) {
+  const jour = new Date().toISOString().slice(0, 10);
+  const ligne = await env.DB.prepare(
+    'SELECT tentatives FROM voixia_401_jour WHERE jour = ?',
+  ).bind(jour).first();
+
+  const tentatives = ligne?.tentatives || 0;
+  if (tentatives < SEUIL_401_QUOTIDIEN) {
+    logger.info('Cles VoixIA refusees aujourd\'hui', { jour, tentatives });
+    return;
+  }
+
+  const numero = env.ALERTE_SMS_NUMERO;
+  if (!numero) {
+    logger.error('[Securite] Balayage de cles VoixIA detecte et ALERTE_SMS_NUMERO absent', {
+      jour, tentatives,
+    });
+    return;
+  }
+
+  // `ignorerPlafond` : l'alerte ne doit pas être retenue par le plafond quotidien
+  // de SMS — c'est précisément quand quelque chose déborde qu'elle doit passer.
+  // `tenantId: null` — DÉLIBÉRÉ, deux raisons :
+  //   1. n'inventer aucun identifiant de tenant : c'est l'antipattern qui a produit
+  //      `tenant.py:27` et `tenant_demo_001` ;
+  //   2. `tracerDansConversation` sort immédiatement sans tenant, donc cette alerte
+  //      n'atterrit dans l'historique d'AUCUN client. Ce n'est pas un message de
+  //      client, il n'a rien à faire dans une fiche contact.
+  await envoyerSmsTrace(env, {
+    tenantId: null,
+    to: numero,
+    message: `Coccinelle securite : ${tentatives} cles VoixIA refusees aujourd'hui (${jour}). `
+      + `Un agent correctement configure n'en produit aucune. Verifiez les logs du Worker.`,
+    type: 'interne',
+    ignorerPlafond: true,
+  });
+  logger.warn('[Securite] Alerte de balayage envoyee', { jour, tentatives });
 }
 
 /**

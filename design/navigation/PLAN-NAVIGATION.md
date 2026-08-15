@@ -813,3 +813,50 @@ PDF donne la marche à suivre : ouvrir, copier, coller.
    une page lisible partout, se tromper vers deux donne un instant d'illisible
    sur mobile). Il reste à l'appliquer aux deux pages : la grille, le `padding`
    du conteneur (`36px 40px` → `24px 16px`) et celui des cartes.
+
+---
+
+## 16. Backlog ajouté par le chantier ANTI-ROBOT (16/08/2026)
+
+### 6. 🔴 Les quotas annoncés ne sont appliqués nulle part
+
+À réconcilier **avant la première signature payante**. Trois sources se
+contredisent, et aucune ne gouverne quoi que ce soit :
+
+| Source | Ce qu'elle dit pour Essentiel |
+|---|---|
+| Page Tarifs (front) | 50 SMS/mois |
+| `planQuotas` (code) | **0** |
+| Le code d'envoi | rien — aucun contrôle de quota n'existe |
+
+Un client d'Essentiel peut donc envoyer autant de SMS qu'il veut, et un client
+qui compte sur ses 50 SMS n'a aucun compteur pour le lui dire. C'est vendable
+tant que personne ne paie ; ça devient un litige au premier abonnement.
+
+Le plafond quotidien livré par ce chantier **ne règle pas ce point** : il borne
+le coût d'un abus (20/jour public, 100/jour authentifié), il ne mesure pas un
+droit d'usage mensuel. Les deux compteurs sont distincts et doivent le rester —
+un plafond anti-robot qui servirait de quota commercial refuserait un SMS
+légitime au nom de la facturation.
+
+Travail : trancher la grille réelle, la porter dans **une** source, brancher le
+décompte mensuel sur `sms_compteurs_jour` (l'agrégat par jour existe déjà, la
+somme du mois est une requête), et afficher le compteur au client.
+
+### 7. Rate limit réellement partagé (dépend de l'infrastructure)
+
+Le limiteur de `src/utils/rate-limiter.js` est une `Map` **en mémoire du
+Worker** : un compteur par isolate, remis à zéro à chaque éviction. Il élève le
+coût d'un balayage, il ne l'interdit pas. C'est vrai du rate limit posé devant la
+validation de clé VoixIA par ce chantier comme de celui qui existait déjà.
+
+Un vrai plafond de requêtes exige l'un des deux :
+- une **zone Cloudflare** sur le domaine de l'API (`api.coccinelle.ai` plutôt que
+  `*.workers.dev`), qui donne accès aux règles de rate limiting du bord — c'est
+  la voie courte ;
+- ou un **compteur partagé** (KV, Durable Object), à déclarer dans les liaisons.
+
+⇒ **À traiter avec la migration Scaleway**, pas avant : c'est le même
+déplacement de domaine. En attendant, ce qui borne réellement le risque est le
+plafond quotidien de SMS (le coût) et le compteur de 401 (la visibilité), pas le
+limiteur.
