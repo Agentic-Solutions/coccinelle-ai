@@ -3,6 +3,8 @@ import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 import { composerMessage } from '../shared/sms-modeles.js';
+import { ORIGINE_PUBLIQUE } from '../shared/sms-plafond.js';
+import { verifierTurnstile } from '../shared/turnstile.js';
 
 /**
  * GET /api/v1/public/booking/:tenantSlug
@@ -232,6 +234,39 @@ export async function handleCreatePublicBooking(request, env, slug) {
       return errorResponse('Format email invalide', 400, request);
     }
 
+    // ── TURNSTILE : le filtre, avant tout travail (chantier ANTI-ROBOT) ──
+    //
+    // Placé ici, donc AVANT la moindre écriture : un robot refusé ne crée ni
+    // prospect, ni rendez-vous, ni ligne de compteur.
+    //
+    // ⚠️ Jeton ABSENT = accepté (le script tiers peut ne pas avoir chargé) ;
+    // jeton PRÉSENT mais INVALIDE = refusé. La distinction vit dans
+    // `shared/turnstile.js`, avec la raison de ce choix. C'est le plafond
+    // quotidien de SMS qui rend cet échec ouvert acceptable.
+    const controleRobot = await verifierTurnstile(
+      env, body.turnstile_token, request.headers.get('CF-Connecting-IP'),
+    );
+    if (!controleRobot.accepte) {
+      // Message volontairement neutre : on ne dit pas à un robot pourquoi il est
+      // refusé, et un humain dont le jeton a expiré n'a qu'à réessayer.
+      return errorResponse('Vérification de sécurité échouée, merci de réessayer', 403, request);
+    }
+
+    // ── TÉLÉPHONE AU FORMAT E.164 (chantier ANTI-ROBOT, 15/08/2026) ──
+    //
+    // Le champ était seulement « présent ou absent » : un robot fournissait donc
+    // le numéro de SON choix, et notre ligne Twilio envoyait des SMS non
+    // sollicités à des tiers. Ce n'est pas qu'une facture, c'est notre réputation
+    // d'expéditeur et le risque de blocage opérateur.
+    //
+    // Le motif est celui déjà utilisé par `/onboarding/send-verification` — pas un
+    // second dialecte de validation.
+    if (!/^\+[1-9]\d{6,14}$/.test(String(phone).trim())) {
+      return errorResponse(
+        'Format de numéro invalide (ex : +33612345678)', 400, request,
+      );
+    }
+
     const tenant = await env.DB.prepare(
       'SELECT id, name FROM tenants WHERE slug = ? AND is_active = 1'
     ).bind(slug).first();
@@ -254,6 +289,57 @@ export async function handleCreatePublicBooking(request, env, slug) {
           typeName = appointmentType.name;
         }
       } catch { /* table peut ne pas exister */ }
+    }
+
+    // Une date PASSÉE n'est pas réservable. `/slots` le refusait déjà, la
+    // réservation non : un robot y aurait trouvé un nombre illimité de créneaux
+    // sans conflit possible, chacun payant un SMS.
+    if (String(datetime).slice(0, 10) < new Date().toISOString().slice(0, 10)) {
+      return errorResponse('La date ne peut pas être dans le passé', 400, request);
+    }
+
+    // ── LE CRÉNEAU EST-IL DANS LES DISPONIBILITÉS ? (chantier ANTI-ROBOT) ──
+    //
+    // Aucune vérification n'existait : `handleCreatePublicBooking` ne consultait ni
+    // `availability_slots` ni `business_hours` (0 référence, mesuré). Un RDV à 3 h
+    // du matin un dimanche de 2030 passait — et chacun envoyait un SMS.
+    //
+    // ⚠️ ON RÉUTILISE LE HANDLER DE `/slots`, on ne recalcule pas. C'est
+    // volontaire : la validation voit littéralement ce que le client a vu, y
+    // compris si la cascade de disponibilités change un jour. Deux calculs séparés
+    // dériveraient, et le formulaire proposerait des créneaux que la réservation
+    // refuse — le pire des deux mondes. (Une première version extrayait le calcul
+    // dans une fonction partagée ; le remaniement coupait un bloc de commentaire et
+    // cassait le fichier. Réutiliser le handler donne la même garantie sans risque.)
+    //
+    // Rappel de ce que la cascade garantit, elle préexiste à ce chantier :
+    // `availability_slots` → `business_hours` → REPLI 9 h-18 h lun-ven. Un tenant
+    // qui n'a RIEN configuré reste donc pleinement réservable — c'est le cas de Léa
+    // et Léo, les deux enfants revendeur, sans aucun créneau défini.
+    //
+    // `slots.length > 0` dans la condition : une liste VIDE veut dire « ce jour-là
+    // rien n'est proposé » (week-end sur le repli, ou aucun agent) et non « tout est
+    // permis » — mais elle peut aussi venir d'une lecture partielle. On n'échoue
+    // donc que sur une liste non vide qui ne contient pas le créneau demandé.
+    //
+    // Panne de lecture → on LAISSE PASSER : cette validation protège d'un robot,
+    // elle ne doit pas devenir une condition de fonctionnement.
+    try {
+      const jour = String(datetime).slice(0, 10);
+      const urlCreneaux = new URL(request.url);
+      urlCreneaux.search = `?date=${jour}${type_id ? `&type_id=${type_id}` : ''}`;
+      const reponseCreneaux = await handleGetBookingSlots(
+        new Request(urlCreneaux.toString(), { method: 'GET' }), env, slug,
+      );
+      const { slots } = await reponseCreneaux.json();
+      if (Array.isArray(slots) && slots.length > 0
+          && !slots.some((c) => c.datetime === datetime)) {
+        return errorResponse('Ce créneau n\'est pas proposé à la réservation', 409, request);
+      }
+    } catch (erreurCreneaux) {
+      logger.warn('Public booking — validation des créneaux impossible, réservation acceptée', {
+        erreur: erreurCreneaux.message, datetime,
+      });
     }
 
     // Vérifier que le créneau ne chevauche pas un RDV existant (BUG #014)
@@ -414,6 +500,12 @@ export async function handleCreatePublicBooking(request, env, slug) {
           type: 'confirmation_rdv',   // pas de lien de reservation : le RDV est pris
           prospectId,
           nomContact: `${first_name} ${last_name}`.trim(),
+          // ── LE SEUL point d'envoi sur le chemin PUBLIC, donc le seul seau
+          // qu'un robot peut consommer (chantier ANTI-ROBOT, 15/08/2026).
+          // Plafond par defaut 20/jour/tenant. Saturer ce seau ne fait JAMAIS
+          // taire un rappel J-1 ni un devis, qui vivent dans le seau
+          // `authentifie`. Voir shared/sms-plafond.js.
+          origine: ORIGINE_PUBLIQUE,
         });
         if (envoi.envoye) { confirmationEnvoyee = true; canalConfirmation = 'sms'; }
       }
