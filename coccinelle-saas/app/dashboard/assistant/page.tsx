@@ -633,7 +633,7 @@ export default function PageAssistant() {
 }
 
 const NOM_CANAL: Record<string, string> = {
-  phone: 'Téléphone', sms: 'SMS', email: 'E-mail', whatsapp: 'WhatsApp',
+  phone: 'Téléphone', sms: 'SMS', whatsapp: 'WhatsApp',
 };
 
 /**

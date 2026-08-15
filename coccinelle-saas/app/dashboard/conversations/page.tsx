@@ -27,7 +27,7 @@ const DESTINATIONS = [
     href: '/dashboard/communications',
     icone: MessageSquare,
     titre: 'Mes communications',
-    detail: 'Les SMS et e-mails réellement envoyés, avec leur contenu',
+    detail: 'Les SMS réellement envoyés, avec leur contenu',
   },
   {
     href: '/dashboard/channels/inbox',

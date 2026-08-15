@@ -16,7 +16,8 @@ import ActionToastContainer from '@/src/components/ActionToast';
 
 // Types
 interface CommunicationPreferences {
-  preferredChannel: 'email' | 'sms' | 'whatsapp' | 'phone';
+  // 'email' retiré le 15/08/2026 : aucun envoi n'est possible par ce canal.
+  preferredChannel: 'sms' | 'whatsapp' | 'phone';
   emailOptIn: boolean;
   smsOptIn: boolean;
   whatsappOptIn: boolean;
@@ -458,9 +459,9 @@ export default function CustomerDetailClient() {
                     <div className="flex-1">
                       <p className="text-sm text-gray-600 mb-2">Canal préféré</p>
                       <select
-                        value={customer.preferredChannel || 'email'}
+                        value={customer.preferredChannel === 'email' ? 'sms' : (customer.preferredChannel || 'sms')}
                         onChange={(e) => {
-                          const newChannel = e.target.value as 'email' | 'sms' | 'whatsapp' | 'phone';
+                          const newChannel = e.target.value as 'sms' | 'whatsapp' | 'phone';
                           setCustomer({
                             ...customer,
                             preferredChannel: newChannel,
@@ -473,7 +474,6 @@ export default function CustomerDetailClient() {
                         }}
                         className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-gray-900 cursor-pointer"
                       >
-                        <option value="email">📧 Email</option>
                         <option value="sms">💬 SMS</option>
                         <option value="whatsapp">📱 WhatsApp</option>
                         <option value="phone">📞 Téléphone</option>

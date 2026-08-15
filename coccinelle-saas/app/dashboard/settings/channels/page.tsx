@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Phone, MessageSquare, Mail, CheckCircle, AlertCircle, Settings, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Phone, MessageSquare, CheckCircle, AlertCircle, Settings, ChevronRight } from 'lucide-react';
 import Logo from '@/components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
@@ -16,7 +16,6 @@ export default function ChannelsPage() {
   const [channels, setChannels] = useState({
     phone: { enabled: false, configured: false } as ChannelStatus,
     sms: { enabled: false, configured: false } as ChannelStatus,
-    email: { enabled: false, configured: false } as ChannelStatus,
     whatsapp: { enabled: false, configured: false } as ChannelStatus
   });
   const [loading, setLoading] = useState(true);
@@ -91,20 +90,8 @@ export default function ChannelsPage() {
         }
       }
 
-      // Email — hors périmètre : plus rien à lire. Cet état venait du
-      // localStorage, donc d'une invention du navigateur, jamais du serveur.
-      const emailConfig = null;
-      if (emailConfig) {
-        try {
-          const parsed = JSON.parse(emailConfig);
-          setChannels(prev => ({
-            ...prev,
-            email: { enabled: parsed.enabled || false, configured: parsed.configured || false }
-          }));
-        } catch (e) {
-          console.error('Error loading email config:', e);
-        }
-      }
+      // Le canal e-mail a disparu de cette page le 15/08/2026. Son état venait du
+      // localStorage — donc d'une invention du navigateur, jamais du serveur.
 
       // WhatsApp
       const whatsappConfig = localStorage.getItem('whatsapp_client_config');
@@ -146,16 +133,9 @@ export default function ChannelsPage() {
       managedBy: 'admin'
     },
     {
-      id: 'email',
-      name: 'Email',
-      description: 'Emails automatisés via SMTP',
-      icon: Mail,
-      color: 'purple',
-      path: '/dashboard/channels/email',
-      status: channels.email,
-      managedBy: 'client'
-    },
-    {
+      // Carte « Email » retirée le 15/08/2026 : Coccinelle ne parle plus d'e-mail
+      // à ses clients. Elle pointait sur /dashboard/channels/email, page elle-même
+      // retirée de la navigation.
       id: 'whatsapp',
       name: 'WhatsApp',
       description: 'Messages WhatsApp Business automatisés',
@@ -271,7 +251,7 @@ export default function ChannelsPage() {
             <p className="text-gray-900 font-medium mb-1">Comment ça fonctionne ?</p>
             <ul className="text-sm text-gray-800 space-y-1">
               <li>• <strong>Téléphone & SMS :</strong> Configurés par Coccinelle.AI, vous activez simplement leur utilisation</li>
-              <li>• <strong>Email & WhatsApp :</strong> pas encore ouverts — ils arriveront après le lancement</li>
+              <li>• <strong>WhatsApp :</strong> pas encore ouvert — il arrivera après le lancement</li>
             </ul>
           </div>
         </div>

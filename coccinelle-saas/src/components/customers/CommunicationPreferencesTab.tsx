@@ -2,12 +2,16 @@
 
 import { useState } from 'react';
 import {
-  Mail, MessageSquare, Phone, MessageCircle, Bell, Clock,
+  MessageSquare, Phone, MessageCircle, Bell, Clock,
   MoonStar, CheckCircle, Save, Info
 } from 'lucide-react';
 
 interface CommunicationPreferences {
-  preferredChannel: 'email' | 'sms' | 'whatsapp' | 'phone';
+  // 'email' retiré le 15/08/2026 : aucun envoi n'est possible par ce canal.
+  // `emailOptIn` est CONSERVÉ — la donnée existe en base (27 contacts) et sera
+  // reprise par MailIA ; c'est le CHOIX de ce canal qui disparaît, pas le
+  // consentement déjà donné.
+  preferredChannel: 'sms' | 'whatsapp' | 'phone';
   emailOptIn: boolean;
   smsOptIn: boolean;
   whatsappOptIn: boolean;
@@ -35,13 +39,9 @@ export default function CommunicationPreferencesTab({
   const [saved, setSaved] = useState(false);
 
   const channels = [
-    {
-      id: 'email' as const,
-      name: 'Email',
-      icon: Mail,
-      description: 'Notifications par email',
-      optInKey: 'emailOptIn' as const
-    },
+    // Canal « Email » retiré le 15/08/2026 : le proposer comme canal préféré
+    // promettait un envoi qui n'a plus lieu. Coccinelle ne parle plus d'e-mail à
+    // ses clients.
     {
       id: 'sms' as const,
       name: 'SMS',

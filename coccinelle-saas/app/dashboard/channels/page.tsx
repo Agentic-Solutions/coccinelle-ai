@@ -90,17 +90,10 @@ export default function ChannelsPage() {
               </div>
             </Link>
 
-            <Link href="/dashboard/channels/email">
-              <div className="p-3 sm:p-4 border border-gray-200 rounded-lg hover:border-gray-900 hover:shadow-md transition-all cursor-pointer group active:bg-gray-50">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 group-hover:bg-gray-900 rounded-lg flex items-center justify-center transition-colors flex-shrink-0">
-                    <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 group-hover:text-white" />
-                  </div>
-                  <h3 className="font-bold text-gray-900">Email</h3>
-                </div>
-                <p className="text-xs sm:text-sm text-gray-600">Configurer domaine et templates d&apos;email</p>
-              </div>
-            </Link>
+            {/* Carte « Email » retirée le 15/08/2026 : Coccinelle ne parle plus
+                d'e-mail à ses clients. La page /dashboard/channels/email reste en
+                ligne — des redirections OAuth du backend la référencent — mais plus
+                aucun chemin de l'interface n'y mène. */}
           </div>
         </div>
 

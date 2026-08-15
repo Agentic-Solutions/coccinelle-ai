@@ -86,7 +86,9 @@ export const PAGES_INDEXEES: PageIndexee[] = [
   { titre: 'Questions fréquentes', href: '/dashboard/knowledge/faq', motsCles: ['faq', 'questions'] },
   { titre: 'Prestations et tarifs', href: '/dashboard/services', motsCles: ['tarifs', 'prix', 'prestations', 'services'] },
   { titre: 'SMS', href: '/dashboard/channels/sms', motsCles: ['sms', 'messages écrits'] },
-  { titre: 'E-mail', href: '/dashboard/channels/email', motsCles: ['email', 'mail', 'boîte'] },
+  // Entrée « E-mail » retirée de l'index de recherche le 15/08/2026 : taper
+  // « mail » dans Réglages menait encore à la page du canal. Coccinelle ne parle
+  // plus d'e-mail à ses clients — y compris dans une recherche.
   { titre: 'WhatsApp', href: '/dashboard/channels/whatsapp', motsCles: ['whatsapp'] },
   { titre: 'Mes numéros', href: '/dashboard/channels/numbers', motsCles: ['numéro', 'ligne', 'téléphone'] },
   { titre: 'Messages automatiques', href: '/dashboard/proactive', motsCles: ['proactif', 'relances', 'rappels automatiques'] },
