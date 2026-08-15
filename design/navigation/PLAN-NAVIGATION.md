@@ -696,6 +696,24 @@ PDF donne la marche à suivre : ouvrir, copier, coller.
 
 ## 16. Backlog — ordre arrêté le 14/08/2026
 
+0. 🔴🔴 **Fermer la fenêtre de rotation `VOIXIA_API_KEY`** (10 min) — ajouté le
+   15/08/2026, constaté en listant les secrets du Worker.
+
+   **`VOIXIA_API_KEY_ROTATION` est TOUJOURS présent** dans les 43 secrets de
+   production. Les deux clés sont donc encore acceptées par `requireVoixIAAuth`
+   — dont l'ancienne, celle qui est **en clair dans 20 commits publics**
+   (02/04 → 09/05). La rotation engagée le 11/08 n'est pas terminée : elle a
+   basculé l'agent sur la nouvelle valeur, mais n'a jamais refermé la porte.
+
+   Tant que ce secret existe, la fuite est ouverte — et le dépôt est public.
+   C'est l'écart le plus court entre un risque connu et sa fermeture : deux
+   commandes, et le contrôle du § r.1 doit renvoyer **401 sur l'ancienne clé**.
+
+   ⚠️ **Ordre impératif** (§ r.1, étapes 4 puis 5) : écrire la nouvelle valeur
+   dans `VOIXIA_API_KEY` **avant** de supprimer `VOIXIA_API_KEY_ROTATION`.
+   L'inverse coupe tous les appels entrants — le Worker retomberait sur
+   l'ancienne clé pendant que l'agent tourne sur la nouvelle.
+
 1. 🔴 **Jeton OAuth court à usage unique** (0,5 j) — cf. § 14. Un JWT de 30 jours
    part aujourd'hui dans l'URL, l'historique et le `Referer` vers Google.
 2. **Synchronisation calendrier réelle** (5–7 j). C'est la brique qui a le plus
