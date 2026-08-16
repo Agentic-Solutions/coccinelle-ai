@@ -517,6 +517,54 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 16ter. **Toujours vérifier le HTML généré**, pas seulement le succès du build : `grep __next_error__`
    sur `out/**/index.html`. Un build vert n'implique pas une page fonctionnelle.
 
+### Accents (texte visible)
+16quater. **Un accent se corrige FICHIER PAR FICHIER, jamais mot par mot.** Corriger les
+   occurrences signalées une à une produit des fichiers **mixtes**, qui sont pires que des
+   fichiers uniformément fautifs : plus personne ne sait ce qui a été relu. Mesuré le 16/08/2026 —
+   `politique-confidentialite/page.tsx` portait **19 caractères accentués ET 16 phrases fautives**,
+   signature d'une passe partielle antérieure ; `cgu/page.tsx` 12 et 14. Un fichier écrit d'un
+   bloc sans accents (`agents/nodes/page.tsx`, 0 accent) est au contraire immédiatement lisible
+   comme tel.
+   **Origine de la dette** : la génération en masse. Sur 113 phrases fautives, **59 viennent d'un
+   seul commit** (« Sprint 4 »), 27 de mars. Ce ne sont pas des fautes de frappe dispersées.
+16quinquies. **Le détecteur d'accents se juge sur ses faux positifs, pas sur son rappel.** Quatre
+   versions successives ont donné 169 281 → 5 961 → 844 → **113**. Les trois écarts sont autant de
+   pièges à connaître :
+   - un **mot isolé est indécidable** (`role=`, `date`, `code` sont du code, pas du français) —
+     ce qui rend un mot décidable est la présence d'un **mot-outil français** dans la même chaîne ;
+   - un **fragment de mot accentué** matche (`passe` dans « dépasse ») : exiger le mot ENTIER,
+     accents compris (`[A-Za-zÀ-ÿ]+`), et retirer les `${…}` avant analyse ;
+   - un **homographe ne se décide qu'en lisant** : « Ce message ne se **modifie** pas » est
+     correct. `modifie`, `réserve`, `active`, `complète`, `passe`, `limite` sont autant des mots
+     valides que des participes mal accentués. Deux paniers, jamais un seul.
+   ⚠️ La table des formes accentuées du dépôt est un **indice**, pas une source : sur 115
+   propositions pour les pages légales, une trentaine étaient fausses (`Base`→`Basé` aurait cassé
+   « Base de connaissances », `La`→`Là`, `sur`→`sûr`, `du`→`dû`, `et`→`ét`, `ou`→`où`).
+16sexies. 🔴 **Une correction d'accents se valide par un INVARIANT, pas par relecture.** Deux
+   invariants, et c'est le second qui a rattrapé une corruption réelle le 16/08/2026 :
+   1. `désaccentué(avant) == désaccentué(après)` sur chaque ligne changée — seuls des accents ont
+      bougé, caractère pour caractère ;
+   2. **aucune valeur de chaîne sans espace n'a changé** — un identifiant, un slug, une URL n'ont
+      jamais d'espace, la prose en a toujours. C'est la garde la plus forte parce qu'elle ne
+      demande pas de comprendre la syntaxe alentour.
+   Ce qui avait été **écrit sur le disque** avant cette vérification : `id: 'donnees-perso'` →
+   `'données-perso'` (ancre de navigation morte) et `href: '/legal/mentions-legales'` →
+   `'/légal/mentions-légales'` (URL en 404). La garde de l'époque ne connaissait que la syntaxe
+   d'attribut `href=`, pas celle d'objet `href:`. **Filtrer sur les deux, `[:=]`.**
+   Contrôle final sur du HTML généré : chaque `href="#x"` doit avoir son `id="x"` (75 ancres
+   vérifiées sur les pages légales).
+16septies. 🔴 **NE JAMAIS accentuer un texte de SMS sans vérifier le chemin d'envoi.** Table GSM-7
+   du projet, interrogée le 16/08/2026 :
+   - **dans** la table (gratuits) : `à ä é è ö ù ü É Ö Ü Ç`
+   - **hors** table (160 → **70** unités par segment) : `â ê ë î ï ô û ç À Â È Ê Î Ô Ù Û`
+   Donc « a votre ecoute » → « à votre écoute » est **gratuit**, mais « A bientot » → « À bientôt »
+   fait passer le rappel J-1 de **1 à 2 segments** — mesuré. Seul `août` casse GSM-7 parmi les noms
+   de mois (`février` et `décembre` passent : `é` est dans la table).
+   **9 modules appellent Twilio directement ; 8 ne compactent pas** (seul
+   `omnichannel/webhooks/sms.js` passe par `enrichirSmsAvecLien`). Sur ces 8, on ne choisit pas
+   entre un français correct et un segment : **on corrige le CHEMIN** (le faire passer par
+   `envoyerSmsTrace`, qui compacte, plafonne et trace), jamais la langue. Voir [[accents-texte-visible]].
+
 ### Général
 17. Vérifier le `DEFAULT` d'une colonne avant de conclure qu'un champ manquant casse quelque chose.
 18. Toujours cibler `coccinelle-db-eu` (jamais l'ancienne `coccinelle-db`).

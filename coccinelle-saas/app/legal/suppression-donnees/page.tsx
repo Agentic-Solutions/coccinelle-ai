@@ -2,17 +2,17 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Suppression des donnees - Coccinelle.ai',
-  description: 'Comment demander la suppression de vos donnees personnelles traitees par Coccinelle.ai. Procedure, delais et recours (RGPD art. 17).',
+  title: 'Suppression des données - Coccinelle.ai',
+  description: 'Comment demander la suppression de vos données personnelles traitees par Coccinelle.ai. Procedure, délais et recours (RGPD art. 17).',
 };
 
 const tocItems = [
   { id: 'objet', label: '1. Objet de cette page' },
   { id: 'client', label: '2. Vous etes client Coccinelle.ai' },
   { id: 'client-final', label: '3. Vous avez contacte une entreprise' },
-  { id: 'delais', label: '4. Delais de traitement' },
-  { id: 'identite', label: '5. Verification d’identite' },
-  { id: 'conservation', label: '6. Donnees conservees' },
+  { id: 'delais', label: '4. Délais de traitement' },
+  { id: 'identite', label: '5. Verification d’identité' },
+  { id: 'conservation', label: '6. Données conservees' },
   { id: 'recours', label: '7. Recours' },
 ];
 
@@ -104,13 +104,13 @@ export default function SuppressionDonneesPage() {
           <ul className="list-disc pl-6 space-y-2 text-gray-600 mb-4">
             <li>Votre compte utilisateur et vos identifiants de connexion</li>
             <li>La configuration de votre assistant vocal (prompt, voix, horaires)</li>
-            <li>Votre base de connaissances et vos documents importes</li>
-            <li>Vos contacts, prospects, rendez-vous et taches</li>
+            <li>Votre base de connaissances et vos documents importés</li>
+            <li>Vos contacts, prospects, rendez-vous et tâches</li>
             <li>
               L&apos;historique de vos conversations, tous canaux confondus : appels, transcriptions,
               SMS, messages WhatsApp et emails
             </li>
-            <li>Vos parametres d&apos;equipe et de permissions</li>
+            <li>Vos paramètres d&apos;équipe et de permissions</li>
           </ul>
 
           <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
@@ -159,7 +159,7 @@ export default function SuppressionDonneesPage() {
           </p>
           <p className="text-gray-600 leading-relaxed">
             Nous transmettrons votre demande a l&apos;entreprise concernee{' '}
-            <strong>sous 72 heures ouvrees</strong> et nous vous confirmerons cette transmission.
+            <strong>sous 72 heures ouvrées</strong> et nous vous confirmerons cette transmission.
             Nous ne pouvons pas nous substituer a sa decision, mais nous nous assurons que votre
             demande lui parvient et qu&apos;elle est informee de ses obligations.
           </p>
@@ -167,23 +167,23 @@ export default function SuppressionDonneesPage() {
 
         {/* 4. Délais */}
         <section id="delais">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">4. Delais de traitement</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">4. Délais de traitement</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="border-b border-gray-200">
                 <tr>
-                  <th className="py-3 pr-4 font-semibold text-gray-900">Etape</th>
-                  <th className="py-3 font-semibold text-gray-900">Delai</th>
+                  <th className="py-3 pr-4 font-semibold text-gray-900">Étape</th>
+                  <th className="py-3 font-semibold text-gray-900">Délai</th>
                 </tr>
               </thead>
               <tbody className="text-gray-600">
                 <tr className="border-b border-gray-100">
-                  <td className="py-2.5 pr-4">Accuse de reception de votre demande</td>
-                  <td className="py-2.5">72 heures ouvrees</td>
+                  <td className="py-2.5 pr-4">Accuse de réception de votre demande</td>
+                  <td className="py-2.5">72 heures ouvrées</td>
                 </tr>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <td className="py-2.5 pr-4">Transmission a l&apos;entreprise responsable (section 3)</td>
-                  <td className="py-2.5">72 heures ouvrees</td>
+                  <td className="py-2.5">72 heures ouvrées</td>
                 </tr>
                 <tr className="border-b border-gray-100">
                   <td className="py-2.5 pr-4">Traitement de la demande (RGPD art. 12)</td>
@@ -191,7 +191,7 @@ export default function SuppressionDonneesPage() {
                 </tr>
                 <tr className="bg-gray-50">
                   <td className="py-2.5 pr-4">Demande complexe ou volume important</td>
-                  <td className="py-2.5">Extensible a 3 mois, avec information prealable</td>
+                  <td className="py-2.5">Extensible à 3 mois, avec information prealable</td>
                 </tr>
               </tbody>
             </table>
@@ -200,7 +200,7 @@ export default function SuppressionDonneesPage() {
 
         {/* 5. Identité */}
         <section id="identite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">5. Verification d&apos;identite</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">5. Verification d&apos;identité</h2>
           <p className="text-gray-600 leading-relaxed">
             Afin de proteger vos donnees contre les demandes frauduleuses, une piece
             d&apos;identite pourra vous etre demandee avant tout traitement. Elle est utilisee
@@ -210,7 +210,7 @@ export default function SuppressionDonneesPage() {
 
         {/* 6. Données conservées */}
         <section id="conservation">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">6. Donnees conservees malgre votre demande</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">6. Données conservees malgre votre demande</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             Le droit a l&apos;effacement n&apos;est pas absolu. Certaines donnees sont conservees
             lorsque la loi nous l&apos;impose ou pour la constatation et la defense de droits en
@@ -220,14 +220,14 @@ export default function SuppressionDonneesPage() {
             <table className="w-full text-sm text-left">
               <thead className="border-b border-gray-200">
                 <tr>
-                  <th className="py-3 pr-4 font-semibold text-gray-900">Donnees</th>
-                  <th className="py-3 pr-4 font-semibold text-gray-900">Duree</th>
+                  <th className="py-3 pr-4 font-semibold text-gray-900">Données</th>
+                  <th className="py-3 pr-4 font-semibold text-gray-900">Durée</th>
                   <th className="py-3 font-semibold text-gray-900">Justification</th>
                 </tr>
               </thead>
               <tbody className="text-gray-600">
                 <tr className="border-b border-gray-100">
-                  <td className="py-2.5 pr-4">Donnees de facturation</td>
+                  <td className="py-2.5 pr-4">Données de facturation</td>
                   <td className="py-2.5 pr-4">10 ans</td>
                   <td className="py-2.5">Code de commerce</td>
                 </tr>

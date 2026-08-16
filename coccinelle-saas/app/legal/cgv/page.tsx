@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Conditions Generales de Vente - Coccinelle.ai',
-  description: 'CGV de la plateforme Coccinelle.ai. Tarifs, facturation, SLA, resiliation, mediation.',
+  title: 'Conditions Générales de Vente - Coccinelle.ai',
+  description: 'CGV de la plateforme Coccinelle.ai. Tarifs, facturation, SLA, résiliation, médiation.',
 };
 
 const tocItems = [
@@ -12,12 +12,12 @@ const tocItems = [
   { id: 'essai', label: '3. Essai gratuit' },
   { id: 'facturation', label: '4. Facturation et paiement' },
   { id: 'renouvellement', label: '5. Renouvellement' },
-  { id: 'resiliation', label: '6. Resiliation' },
-  { id: 'retractation', label: '7. Droit de retractation' },
-  { id: 'portabilite', label: '8. Portabilite des donnees' },
+  { id: 'resiliation', label: '6. Résiliation' },
+  { id: 'retractation', label: '7. Droit de rétractation' },
+  { id: 'portabilite', label: '8. Portabilité des données' },
   { id: 'sla', label: '9. Niveaux de service' },
   { id: 'incident', label: '10. Incident de paiement' },
-  { id: 'mediation', label: '11. Mediation et litiges' },
+  { id: 'mediation', label: '11. Médiation et litiges' },
   { id: 'contact', label: '12. Contact' },
 ];
 
@@ -27,7 +27,7 @@ export default function CgvPage() {
       {/* Header */}
       <div className="mb-10">
         <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">Conditions Generales de Vente</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">Conditions Générales de Vente</h1>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
             v2.0
           </span>
@@ -152,7 +152,7 @@ export default function CgvPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">4. Facturation et paiement</h2>
           <ul className="list-disc pl-6 space-y-2 text-gray-600">
             <li><strong className="text-gray-900">Periodicite :</strong> mensuelle ou annuelle selon le choix du Client</li>
-            <li><strong className="text-gray-900">Moyen de paiement :</strong> carte bancaire via Stripe (paiement securise, certifie PCI DSS)</li>
+            <li><strong className="text-gray-900">Moyen de paiement :</strong> carte bancaire via Stripe (paiement sécurisé, certifie PCI DSS)</li>
             <li><strong className="text-gray-900">Facturation :</strong> factures emises le 1er de chaque mois, disponibles depuis le dashboard</li>
             <li><strong className="text-gray-900">Devise :</strong> euros (EUR)</li>
           </ul>
@@ -167,27 +167,27 @@ export default function CgvPage() {
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
             <li>Notification par email 30 jours avant le renouvellement annuel</li>
             <li>Notification par email 7 jours avant le renouvellement mensuel</li>
-            <li>Possibilite d&apos;annuler avant le renouvellement sans frais depuis le dashboard</li>
+            <li>Possibilité d&apos;annuler avant le renouvellement sans frais depuis le dashboard</li>
           </ul>
         </section>
 
         {/* 6. Résiliation */}
         <section id="resiliation">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">6. Resiliation</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">6. Résiliation</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             L&apos;abonnement peut etre resilie a tout moment depuis le dashboard, sans frais ni penalites.
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>La resiliation prend effet a la fin de la periode en cours (mois ou annee)</li>
-            <li>Aucun remboursement au prorata pour les periodes entamees</li>
-            <li>Acces au service maintenu jusqu&apos;a la fin de la periode payee</li>
-            <li>Export des donnees disponible pendant 30 jours apres la resiliation effective</li>
+            <li>La résiliation prend effet a la fin de la période en cours (mois ou année)</li>
+            <li>Aucun remboursement au prorata pour les périodes entamées</li>
+            <li>Accès au service maintenu jusqu&apos;a la fin de la période payée</li>
+            <li>Export des données disponible pendant 30 jours après la résiliation effective</li>
           </ul>
         </section>
 
         {/* 7. Rétractation */}
         <section id="retractation">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">7. Droit de retractation</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">7. Droit de rétractation</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             Conformement a l&apos;article L.221-18 du Code de la consommation :
           </p>
@@ -205,7 +205,7 @@ export default function CgvPage() {
 
         {/* 8. Portabilité */}
         <section id="portabilite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">8. Portabilite des donnees</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">8. Portabilité des données</h2>
           <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-4">
             <p className="text-sm text-blue-800">
               Vos donnees vous appartiennent. Vous pouvez les exporter a tout moment.
@@ -213,8 +213,8 @@ export default function CgvPage() {
           </div>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
             <li>Export disponible depuis le dashboard en formats standards (CSV, JSON)</li>
-            <li>En cas de resiliation : export disponible pendant 30 jours</li>
-            <li>Suppression definitive et securisee des donnees 30 jours apres la resiliation</li>
+            <li>En cas de résiliation : export disponible pendant 30 jours</li>
+            <li>Suppression définitive et sécurisée des données 30 jours après la résiliation</li>
             <li>Certificat de suppression disponible sur demande</li>
           </ul>
         </section>
@@ -228,14 +228,14 @@ export default function CgvPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="py-3 px-4 font-semibold text-gray-900">Formule</th>
                   <th className="py-3 px-4 font-semibold text-gray-900">Support</th>
-                  <th className="py-3 px-4 font-semibold text-gray-900">Delai de reponse</th>
+                  <th className="py-3 px-4 font-semibold text-gray-900">Délai de réponse</th>
                 </tr>
               </thead>
               <tbody className="text-gray-600">
                 <tr className="border-b border-gray-100">
                   <td className="py-2.5 px-4 font-medium">Essentiel</td>
                   <td className="py-2.5 px-4">Email</td>
-                  <td className="py-2.5 px-4">48h ouvrees</td>
+                  <td className="py-2.5 px-4">48h ouvrées</td>
                 </tr>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <td className="py-2.5 px-4 font-medium">Pro</td>
@@ -245,7 +245,7 @@ export default function CgvPage() {
                 <tr>
                   <td className="py-2.5 px-4 font-medium">Business</td>
                   <td className="py-2.5 px-4">Account manager dedie</td>
-                  <td className="py-2.5 px-4">4h ouvrees</td>
+                  <td className="py-2.5 px-4">4h ouvrées</td>
                 </tr>
               </tbody>
             </table>
@@ -267,15 +267,15 @@ export default function CgvPage() {
             <table className="w-full text-sm text-left border border-gray-200 rounded-lg overflow-hidden">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="py-3 px-4 font-semibold text-gray-900">Delai</th>
+                  <th className="py-3 px-4 font-semibold text-gray-900">Délai</th>
                   <th className="py-3 px-4 font-semibold text-gray-900">Action</th>
                 </tr>
               </thead>
               <tbody className="text-gray-600">
-                <tr className="border-b border-gray-100"><td className="py-2.5 px-4 font-medium">J+1</td><td className="py-2.5 px-4">Notification par email du defaut de paiement</td></tr>
+                <tr className="border-b border-gray-100"><td className="py-2.5 px-4 font-medium">J+1</td><td className="py-2.5 px-4">Notification par email du défaut de paiement</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 px-4 font-medium">J+3</td><td className="py-2.5 px-4">Nouvelle tentative de prelevement automatique</td></tr>
-                <tr className="border-b border-gray-100"><td className="py-2.5 px-4 font-medium">J+7</td><td className="py-2.5 px-4">Suspension du service (donnees conservees)</td></tr>
-                <tr><td className="py-2.5 px-4 font-medium">J+30</td><td className="py-2.5 px-4">Resiliation definitive et lancement de la procedure de suppression des donnees</td></tr>
+                <tr className="border-b border-gray-100"><td className="py-2.5 px-4 font-medium">J+7</td><td className="py-2.5 px-4">Suspension du service (données conservees)</td></tr>
+                <tr><td className="py-2.5 px-4 font-medium">J+30</td><td className="py-2.5 px-4">Résiliation définitive et lancement de la procedure de suppression des données</td></tr>
               </tbody>
             </table>
           </div>
@@ -287,7 +287,7 @@ export default function CgvPage() {
 
         {/* 11. Médiation */}
         <section id="mediation">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">11. Mediation et litiges</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">11. Médiation et litiges</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             En cas de differend relatif aux presentes CGV :
           </p>
@@ -295,7 +295,7 @@ export default function CgvPage() {
             <li>Resolution amiable par contact a <a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a></li>
             <li>Mediation aupres de l&apos;Association des Mediateurs Europeens (AME) &mdash;{' '}
               <a href="https://www.mediateurs-europeens.org" className="text-gray-900 underline" target="_blank" rel="noopener noreferrer">www.mediateurs-europeens.org</a></li>
-            <li>A defaut, competence exclusive du Tribunal de Commerce de <strong>Toulouse</strong></li>
+            <li>À défaut, compétence exclusive du Tribunal de Commerce de <strong>Toulouse</strong></li>
           </ol>
           <p className="text-gray-600 leading-relaxed">
             <strong className="text-gray-900">Droit applicable :</strong> les presentes CGV sont soumises au droit francais.

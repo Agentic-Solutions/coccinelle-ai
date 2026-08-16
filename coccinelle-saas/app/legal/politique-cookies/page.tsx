@@ -3,20 +3,20 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Politique de cookies - Coccinelle.ai',
-  description: 'Politique de cookies de Coccinelle.ai. Cookies techniques, preferences, tiers, droits et conformite RGPD/ePrivacy.',
+  description: 'Politique de cookies de Coccinelle.ai. Cookies techniques, préférences, tiers, droits et conformité RGPD/ePrivacy.',
 };
 
 const tocItems = [
   { id: 'definition', label: '1. Qu\'est-ce qu\'un cookie ?' },
   { id: 'pourquoi', label: '2. Pourquoi utilisons-nous des cookies ?' },
-  { id: 'necessaires', label: '3. Cookies strictement necessaires' },
-  { id: 'preferences', label: '4. Cookies de preferences' },
+  { id: 'necessaires', label: '3. Cookies strictement nécessaires' },
+  { id: 'preferences', label: '4. Cookies de préférences' },
   { id: 'tiers', label: '5. Cookies tiers' },
   { id: 'choix', label: '6. Vos choix' },
   { id: 'navigateur', label: '7. Parametrage navigateur' },
-  { id: 'securite', label: '8. Securite' },
+  { id: 'securite', label: '8. Sécurité' },
   { id: 'droits', label: '9. Droits et contact' },
-  { id: 'conformite', label: '10. Conformite' },
+  { id: 'conformite', label: '10. Conformité' },
 ];
 
 export default function PolitiqueCookiesPage() {
@@ -80,7 +80,7 @@ export default function PolitiqueCookiesPage() {
 
         {/* 3. Cookies nécessaires */}
         <section id="necessaires">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">3. Cookies strictement necessaires</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">3. Cookies strictement nécessaires</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             Ces cookies sont indispensables au fonctionnement du service. Ils sont exemptes de consentement
             conformement aux recommandations de la CNIL.
@@ -91,7 +91,7 @@ export default function PolitiqueCookiesPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="py-3 px-4 font-semibold text-gray-900">Cookie</th>
                   <th className="py-3 px-4 font-semibold text-gray-900">Finalite</th>
-                  <th className="py-3 px-4 font-semibold text-gray-900">Duree</th>
+                  <th className="py-3 px-4 font-semibold text-gray-900">Durée</th>
                   <th className="py-3 px-4 font-semibold text-gray-900">HttpOnly</th>
                   <th className="py-3 px-4 font-semibold text-gray-900">Secure</th>
                   <th className="py-3 px-4 font-semibold text-gray-900">SameSite</th>
@@ -137,7 +137,7 @@ export default function PolitiqueCookiesPage() {
 
         {/* 4. Préférences */}
         <section id="preferences">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">4. Cookies de preferences</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">4. Cookies de préférences</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             Ces cookies memorisent vos preferences d&apos;interface. Ils ne sont pas indispensables
             mais ameliorent votre experience.
@@ -148,7 +148,7 @@ export default function PolitiqueCookiesPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="py-3 px-4 font-semibold text-gray-900">Cookie</th>
                   <th className="py-3 px-4 font-semibold text-gray-900">Finalite</th>
-                  <th className="py-3 px-4 font-semibold text-gray-900">Duree</th>
+                  <th className="py-3 px-4 font-semibold text-gray-900">Durée</th>
                 </tr>
               </thead>
               <tbody className="text-gray-600">
@@ -175,7 +175,7 @@ export default function PolitiqueCookiesPage() {
             <ul className="list-disc pl-5 space-y-1 text-sm text-green-800">
               <li>AUCUN cookie publicitaire</li>
               <li>AUCUN Google Analytics, Meta Pixel ou tracking cross-site</li>
-              <li>Coccinelle.ai est 100% sans publicite</li>
+              <li>Coccinelle.ai est 100% sans publicité</li>
             </ul>
           </div>
           <p className="text-gray-600 leading-relaxed">
@@ -193,7 +193,7 @@ export default function PolitiqueCookiesPage() {
               de preferences n&apos;empeche pas l&apos;utilisation du service</li>
             <li><strong className="text-gray-900">Choix granulaire :</strong> possibilite d&apos;accepter ou refuser chaque
               categorie de cookies independamment</li>
-            <li><strong className="text-gray-900">Modification a tout moment :</strong> depuis les parametres de votre compte</li>
+            <li><strong className="text-gray-900">Modification à tout moment :</strong> depuis les paramètres de votre compte</li>
             <li><strong className="text-gray-900">Retrait du consentement :</strong> sans consequence sur l&apos;acces au service
               pour les cookies non essentiels</li>
           </ul>
@@ -206,10 +206,10 @@ export default function PolitiqueCookiesPage() {
             Vous pouvez egalement gerer les cookies directement dans les parametres de votre navigateur :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li><strong className="text-gray-900">Chrome :</strong> Parametres &gt; Confidentialite et securite &gt; Cookies et autres donnees des sites</li>
-            <li><strong className="text-gray-900">Firefox :</strong> Parametres &gt; Vie privee et securite &gt; Cookies et donnees de sites</li>
-            <li><strong className="text-gray-900">Safari :</strong> Preferences &gt; Confidentialite &gt; Gerer les donnees de sites web</li>
-            <li><strong className="text-gray-900">Edge :</strong> Parametres &gt; Cookies et autorisations de site &gt; Gerer et supprimer les cookies</li>
+            <li><strong className="text-gray-900">Chrome :</strong> Paramètres &gt; Confidentialité et sécurité &gt; Cookies et autres données des sites</li>
+            <li><strong className="text-gray-900">Firefox :</strong> Paramètres &gt; Vie privée et sécurité &gt; Cookies et données de sites</li>
+            <li><strong className="text-gray-900">Safari :</strong> Préférences &gt; Confidentialité &gt; Gerer les données de sites web</li>
+            <li><strong className="text-gray-900">Edge :</strong> Paramètres &gt; Cookies et autorisations de site &gt; Gerer et supprimer les cookies</li>
           </ul>
           <div className="mt-4 bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
             <p className="text-sm text-amber-800">
@@ -221,7 +221,7 @@ export default function PolitiqueCookiesPage() {
 
         {/* 8. Sécurité */}
         <section id="securite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">8. Securite des cookies</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">8. Sécurité des cookies</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             Tous nos cookies techniques sont proteges par les mesures suivantes :
           </p>
@@ -230,7 +230,7 @@ export default function PolitiqueCookiesPage() {
               le cookie n&apos;est pas accessible via JavaScript</li>
             <li><strong className="text-gray-900">Secure :</strong> transmission uniquement via HTTPS</li>
             <li><strong className="text-gray-900">SameSite=Lax/Strict :</strong> protection contre les attaques CSRF</li>
-            <li><strong className="text-gray-900">Chiffrement :</strong> les donnees sensibles dans les cookies sont chiffrees</li>
+            <li><strong className="text-gray-900">Chiffrement :</strong> les données sensibles dans les cookies sont chiffrees</li>
           </ul>
         </section>
 
@@ -251,13 +251,13 @@ export default function PolitiqueCookiesPage() {
 
         {/* 10. Conformité */}
         <section id="conformite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">10. Conformite</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">10. Conformité</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             La presente politique de cookies est conforme aux textes suivants :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>Reglement General sur la Protection des Donnees (RGPD &mdash; UE 2016/679)</li>
-            <li>Loi n&deg;78-17 du 6 janvier 1978 relative a l&apos;informatique, aux fichiers et aux libertes</li>
+            <li>Règlement Général sur la Protection des Données (RGPD &mdash; UE 2016/679)</li>
+            <li>Loi n&deg;78-17 du 6 janvier 1978 relative à l&apos;informatique, aux fichiers et aux libertés</li>
             <li>Directive ePrivacy (2002/58/CE)</li>
             <li>Recommandations CNIL sur les cookies et traceurs</li>
           </ul>

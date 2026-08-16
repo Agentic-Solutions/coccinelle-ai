@@ -5,7 +5,7 @@ import { CoccinelleIcon } from '@/components/CoccinelleIcon';
 const legalLinks = [
   { href: '/legal/mentions-legales', label: 'Mentions légales' },
   { href: '/legal/politique-confidentialite', label: 'Confidentialite' },
-  { href: '/legal/suppression-donnees', label: 'Suppression des donnees' },
+  { href: '/legal/suppression-donnees', label: 'Suppression des données' },
   { href: '/legal/politique-cookies', label: 'Cookies' },
   { href: '/legal/cgu', label: 'CGU' },
   { href: '/legal/cgv', label: 'CGV' },

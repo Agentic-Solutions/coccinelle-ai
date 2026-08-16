@@ -3,26 +3,26 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Conditions Generales d\'Utilisation - Coccinelle.ai',
-  description: 'CGU de la plateforme Coccinelle.ai. Obligations, IA vocale, SLA, propriete intellectuelle, RGPD.',
+  description: 'CGU de la plateforme Coccinelle.ai. Obligations, IA vocale, SLA, propriété intellectuelle, RGPD.',
 };
 
 const tocItems = [
   { id: 'objet', label: '1. Objet' },
-  { id: 'acces', label: '2. Acces au service' },
+  { id: 'acces', label: '2. Accès au service' },
   { id: 'description', label: '3. Description du service' },
   { id: 'obligations', label: '4. Obligations de l\'utilisateur' },
   { id: 'agent-vocal', label: '5. Agent vocal IA' },
   { id: 'usages-interdits', label: '6. Usages interdits' },
   { id: 'sla', label: '7. Disponibilite et SLA' },
   { id: 'responsabilite', label: '8. Responsabilite' },
-  { id: 'pi', label: '9. Propriete intellectuelle' },
-  { id: 'donnees-client', label: '10. Propriete des donnees' },
-  { id: 'confidentialite', label: '11. Confidentialite' },
+  { id: 'pi', label: '9. Propriété intellectuelle' },
+  { id: 'donnees-client', label: '10. Propriété des données' },
+  { id: 'confidentialite', label: '11. Confidentialité' },
   { id: 'donnees-perso', label: '12. Données personnelles' },
-  { id: 'suspension', label: '13. Suspension et resiliation' },
+  { id: 'suspension', label: '13. Suspension et résiliation' },
   { id: 'force-majeure', label: '14. Force majeure' },
   { id: 'modifications', label: '15. Modifications' },
-  { id: 'divisibilite', label: '16. Divisibilite' },
+  { id: 'divisibilite', label: '16. Divisibilité' },
   { id: 'droit', label: '17. Droit applicable et litiges' },
   { id: 'contact', label: '18. Contact' },
 ];
@@ -33,7 +33,7 @@ export default function CguPage() {
       {/* Header */}
       <div className="mb-10">
         <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">Conditions Generales d&apos;Utilisation</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">Conditions Générales d&apos;Utilisation</h1>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
             v2.0
           </span>
@@ -66,7 +66,7 @@ export default function CguPage() {
             Les presentes Conditions Generales d&apos;Utilisation (CGU) regissent l&apos;acces et l&apos;utilisation
             de la plateforme Coccinelle.ai, editee par <strong>Agentic Solutions SASU</strong>, au capital de
             1 000 euros, immatriculee au RCS de Toulouse sous le numero 944 504 679, dont le siege
-            social est situe 57B Chemin des Etroits, 31400 Toulouse (ci-apres &laquo;&nbsp;Agentic Solutions&nbsp;&raquo;).
+            social est situé 57B Chemin des Étroits, 31400 Toulouse (ci-après &laquo;&nbsp;Agentic Solutions&nbsp;&raquo;).
           </p>
           <p className="text-gray-600 leading-relaxed mt-3">
             En accedant a la plateforme ou en utilisant nos services, vous acceptez sans reserve les presentes CGU.
@@ -75,16 +75,16 @@ export default function CguPage() {
 
         {/* 2. Accès */}
         <section id="acces">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">2. Acces au service</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">2. Accès au service</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             L&apos;acces a Coccinelle.ai necessite la creation d&apos;un compte. L&apos;utilisateur garantit l&apos;exactitude
             des informations fournies et s&apos;engage a les maintenir a jour.
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
             <li>Chaque compte est strictement personnel et non cessible</li>
-            <li>L&apos;acces est reserve aux professionnels et aux entreprises</li>
-            <li>L&apos;utilisateur est seul responsable de la confidentialite de ses identifiants</li>
-            <li>Toute activite effectuee depuis un compte est presumee etre le fait de son titulaire</li>
+            <li>L&apos;accès est réserve aux professionnels et aux entreprises</li>
+            <li>L&apos;utilisateur est seul responsable de la confidentialité de ses identifiants</li>
+            <li>Toute activité effectuée depuis un compte est présumée être le fait de son titulaire</li>
           </ul>
         </section>
 
@@ -95,12 +95,12 @@ export default function CguPage() {
             Coccinelle.ai est une plateforme SaaS d&apos;agent vocal IA permettant :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>La reception et le traitement d&apos;appels telephoniques par un agent vocal IA</li>
-            <li>La gestion de rendez-vous et d&apos;agenda en temps reel</li>
+            <li>La réception et le traitement d&apos;appels téléphoniques par un agent vocal IA</li>
+            <li>La gestion de rendez-vous et d&apos;agenda en temps réel</li>
             <li>L&apos;envoi automatique de SMS, emails et messages WhatsApp</li>
             <li>La gestion d&apos;une base de connaissances consultable par l&apos;agent</li>
-            <li>Un CRM integre pour la gestion des contacts et prospects</li>
-            <li>Un catalogue produits et services presentable par l&apos;agent</li>
+            <li>Un CRM intégré pour la gestion des contacts et prospects</li>
+            <li>Un catalogue produits et services présentable par l&apos;agent</li>
           </ul>
         </section>
 
@@ -109,11 +109,11 @@ export default function CguPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">4. Obligations de l&apos;utilisateur</h2>
           <p className="text-gray-600 leading-relaxed mb-3">L&apos;utilisateur s&apos;engage a :</p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>Utiliser le service conformement a la legislation francaise et europeenne</li>
-            <li>Ne pas utiliser le service a des fins frauduleuses ou illegales</li>
-            <li>Respecter la vie privee des tiers, notamment les appelants</li>
-            <li>Obtenir les consentements necessaires pour l&apos;enregistrement des appels</li>
-            <li>Ne pas tenter de contourner les mesures de securite</li>
+            <li>Utiliser le service conformément à la législation française et européenne</li>
+            <li>Ne pas utiliser le service à des fins frauduleuses ou illégales</li>
+            <li>Respecter la vie privée des tiers, notamment les appelants</li>
+            <li>Obtenir les consentements nécessaires pour l&apos;enregistrement des appels</li>
+            <li>Ne pas tenter de contourner les mesures de sécurité</li>
             <li>Ne pas surcharger intentionnellement l&apos;infrastructure</li>
           </ul>
         </section>
@@ -122,14 +122,14 @@ export default function CguPage() {
         <section id="agent-vocal">
           <h2 className="text-xl font-bold text-gray-900 mb-4">5. Agent vocal IA &mdash; obligations specifiques</h2>
           <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded mb-4">
-            <p className="text-sm font-semibold text-amber-900 mb-2">Obligation legale du Client :</p>
+            <p className="text-sm font-semibold text-amber-900 mb-2">Obligation légale du Client :</p>
             <p className="text-sm text-amber-800 mb-2">
               Le Client DOIT obligatoirement informer ses appelants :
             </p>
             <ul className="list-disc pl-5 space-y-1 text-sm text-amber-800">
               <li>Qu&apos;ils interagissent avec un agent vocal IA (et non un humain)</li>
-              <li>Que la conversation est transcrite et enregistree</li>
-              <li>De leurs droits RGPD relatifs a leurs donnees personnelles</li>
+              <li>Que la conversation est transcrite et enregistrée</li>
+              <li>De leurs droits RGPD relatifs a leurs données personnelles</li>
             </ul>
             <p className="text-sm text-amber-800 mt-2">
               Fondements : article L.226-1 du Code penal, articles 13 et 14 du RGPD.
@@ -150,11 +150,11 @@ export default function CguPage() {
             Sont strictement interdits les usages suivants :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>Collecte de donnees bancaires, de sante ou de mots de passe par l&apos;agent</li>
-            <li>Demarchage telephonique non consenti (loi Bloctel, art. L.223-1 du Code de la consommation)</li>
-            <li>Usurpation d&apos;identite d&apos;une personne physique ou morale</li>
+            <li>Collecte de données bancaires, de santé ou de mots de passe par l&apos;agent</li>
+            <li>Démarchage téléphonique non consenti (loi Bloctel, art. L.223-1 du Code de la consommation)</li>
+            <li>Usurpation d&apos;identité d&apos;une personne physique ou morale</li>
             <li>Manipulation psychologique ou pratiques commerciales trompeuses</li>
-            <li>Tout usage contraire a la legislation francaise ou europeenne en vigueur</li>
+            <li>Tout usage contraire a la legislation française ou européenne en vigueur</li>
           </ul>
           <p className="text-gray-600 leading-relaxed mt-3">
             Tout manquement constate peut entrainer la suspension immediate du compte sans preavis.
@@ -188,11 +188,11 @@ export default function CguPage() {
             Notre responsabilite ne saurait etre engagee en cas de :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600 mb-4">
-            <li>Interruptions de service liees a des tiers ou sous-traitants</li>
-            <li>Erreurs ou approximations des reponses generees par l&apos;agent IA</li>
-            <li>Dommages indirects, pertes de chiffre d&apos;affaires ou manques a gagner</li>
-            <li>Utilisation du service en violation des presentes CGU</li>
-            <li>Evenements de force majeure (cf. article 14)</li>
+            <li>Interruptions de service liées a des tiers ou sous-traitants</li>
+            <li>Erreurs ou approximations des réponses générées par l&apos;agent IA</li>
+            <li>Dommages indirects, pertes de chiffre d&apos;affaires ou manques à gagner</li>
+            <li>Utilisation du service en violation des présentes CGU</li>
+            <li>Événements de force majeure (cf. article 14)</li>
           </ul>
           <p className="text-gray-600 leading-relaxed">
             <strong className="text-gray-900">Plafond :</strong> la responsabilite totale d&apos;Agentic Solutions est plafonnee
@@ -202,7 +202,7 @@ export default function CguPage() {
 
         {/* 9. PI */}
         <section id="pi">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">9. Propriete intellectuelle</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">9. Propriété intellectuelle</h2>
           <p className="text-gray-600 leading-relaxed">
             La plateforme Coccinelle.ai, son code source, ses algorithmes, son design et ses interfaces
             sont la propriete exclusive d&apos;Agentic Solutions SASU. Toute reproduction, modification ou
@@ -212,33 +212,33 @@ export default function CguPage() {
 
         {/* 10. Propriété des données */}
         <section id="donnees-client">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">10. Propriete des donnees du Client</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">10. Propriété des données du Client</h2>
           <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-4">
             <p className="text-sm text-blue-800">
               Les donnees saisies par le Client sur la plateforme (contacts, base de connaissances,
-              configurations, transcriptions) restent la <strong>propriete exclusive du Client</strong>.
+              configurations, transcriptions) restent la <strong>propriété exclusive du Client</strong>.
             </p>
           </div>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>Agentic Solutions agit en qualite de sous-traitant RGPD (art. 28)</li>
-            <li>Licence limitee accordee a Agentic Solutions pour le seul but de fournir le service</li>
-            <li>Export des donnees possible a tout moment depuis le dashboard</li>
-            <li>En cas de resiliation : export disponible pendant 30 jours</li>
-            <li>Suppression definitive et securisee 30 jours apres la resiliation</li>
+            <li>Agentic Solutions agit en qualité de sous-traitant RGPD (art. 28)</li>
+            <li>Licence limitée accordée à Agentic Solutions pour le seul but de fournir le service</li>
+            <li>Export des données possible à tout moment depuis le dashboard</li>
+            <li>En cas de résiliation : export disponible pendant 30 jours</li>
+            <li>Suppression définitive et sécurisée 30 jours après la résiliation</li>
           </ul>
         </section>
 
         {/* 11. Confidentialité */}
         <section id="confidentialite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">11. Confidentialite</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">11. Confidentialité</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             Les parties s&apos;engagent reciproquement a maintenir confidentielles toutes les informations
             echangees dans le cadre de l&apos;utilisation du service.
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>Cette obligation de confidentialite survit 3 ans a la resiliation du contrat</li>
-            <li>Le secret des affaires est protege conformement a la directive (UE) 2016/943</li>
-            <li>Exception : obligations legales, decisions de justice, autorites de regulation</li>
+            <li>Cette obligation de confidentialité survit 3 ans a la résiliation du contrat</li>
+            <li>Le secret des affaires est protégé conformément à la directive (UE) 2016/943</li>
+            <li>Exception : obligations légales, décisions de justice, autorités de régulation</li>
           </ul>
         </section>
 
@@ -259,15 +259,15 @@ export default function CguPage() {
 
         {/* 13. Suspension */}
         <section id="suspension">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">13. Suspension et resiliation</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">13. Suspension et résiliation</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             Agentic Solutions se reserve le droit de suspendre ou resilier un compte en cas de :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600 mb-4">
-            <li>Violation des presentes CGU</li>
+            <li>Violation des présentes CGU</li>
             <li>Non-paiement de l&apos;abonnement (cf. <Link href="/legal/cgv" className="text-gray-900 underline">CGV</Link>)</li>
             <li>Utilisation frauduleuse ou illegale du service</li>
-            <li>Usage portant atteinte a la securite ou a la reputation du service</li>
+            <li>Usage portant atteinte a la sécurité ou a la réputation du service</li>
           </ul>
           <p className="text-gray-600 leading-relaxed">
             En cas de violation grave (fraude, usage illegal), la suspension peut etre immediate
@@ -285,7 +285,7 @@ export default function CguPage() {
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
             <li>Catastrophe naturelle</li>
             <li>Cyberattaque d&apos;ampleur nationale ou internationale</li>
-            <li>Decision gouvernementale ou reglementaire</li>
+            <li>Décision gouvernementale ou réglementaire</li>
             <li>Pandemie</li>
             <li>Panne massive d&apos;un fournisseur d&apos;infrastructure</li>
           </ul>
@@ -305,7 +305,7 @@ export default function CguPage() {
 
         {/* 16. Divisibilité */}
         <section id="divisibilite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">16. Divisibilite</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">16. Divisibilité</h2>
           <p className="text-gray-600 leading-relaxed">
             Si l&apos;une des clauses des presentes CGU venait a etre declaree nulle ou inapplicable
             par une decision de justice, les autres clauses resteraient en vigueur et pleinement
@@ -324,7 +324,7 @@ export default function CguPage() {
             <li>Resolution amiable par contact a <a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a></li>
             <li>Mediation aupres de l&apos;Association des Mediateurs Europeens (AME) &mdash;{' '}
               <a href="https://www.mediateurs-europeens.org" className="text-gray-900 underline" target="_blank" rel="noopener noreferrer">www.mediateurs-europeens.org</a></li>
-            <li>A defaut, competence exclusive des tribunaux de <strong>Toulouse</strong></li>
+            <li>À défaut, compétence exclusive des tribunaux de <strong>Toulouse</strong></li>
           </ol>
         </section>
 

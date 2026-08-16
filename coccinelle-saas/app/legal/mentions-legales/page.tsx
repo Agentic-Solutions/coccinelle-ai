@@ -3,23 +3,23 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Mentions légales - Coccinelle.ai',
-  description: 'Mentions légales de la plateforme Coccinelle.ai, editee par Agentic Solutions SASU. LCEN, RGPD, hebergement.',
+  description: 'Mentions légales de la plateforme Coccinelle.ai, editee par Agentic Solutions SASU. LCEN, RGPD, hébergement.',
 };
 
 const tocItems = [
   { id: 'editeur', label: '1. Identification de l\'editeur' },
-  { id: 'activite', label: '2. Activite et objet social' },
-  { id: 'hebergement', label: '3. Hebergement et infrastructure' },
-  { id: 'pi', label: '4. Propriete intellectuelle' },
+  { id: 'activite', label: '2. Activité et objet social' },
+  { id: 'hebergement', label: '3. Hébergement et infrastructure' },
+  { id: 'pi', label: '4. Propriété intellectuelle' },
   { id: 'responsabilite', label: '5. Limitation de responsabilite' },
-  { id: 'donnees', label: '6. Protection des donnees' },
-  { id: 'conformite', label: '7. Conformite reglementaire' },
+  { id: 'donnees', label: '6. Protection des données' },
+  { id: 'conformite', label: '7. Conformité réglementaire' },
   { id: 'partenaires', label: '8. Partenaires technologiques' },
-  { id: 'mediation', label: '9. Mediation et litiges' },
+  { id: 'mediation', label: '9. Médiation et litiges' },
   { id: 'tarifs', label: '10. Informations economiques' },
   { id: 'environnement', label: '11. Engagement environnemental' },
-  { id: 'accessibilite', label: '12. Accessibilite numerique' },
-  { id: 'evolution', label: '13. Evolution et mise a jour' },
+  { id: 'accessibilite', label: '12. Accessibilité numérique' },
+  { id: 'evolution', label: '13. Evolution et mise à jour' },
 ];
 
 export default function MentionsLegalesPage() {
@@ -56,12 +56,12 @@ export default function MentionsLegalesPage() {
       <div className="space-y-12">
         {/* 1. Identification */}
         <section id="editeur">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">1. Identification de l&apos;editeur</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">1. Identification de l&apos;éditeur</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <tbody className="text-gray-600">
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Denomination</td><td className="py-2.5">Agentic Solutions SASU</td></tr>
-                <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Forme juridique</td><td className="py-2.5">Societe par Actions Simplifiee Unipersonnelle</td></tr>
+                <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Forme juridique</td><td className="py-2.5">Société par Actions Simplifiee Unipersonnelle</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Capital social</td><td className="py-2.5">1 000 euros</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">SIREN</td><td className="py-2.5">944 504 679</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">SIRET</td><td className="py-2.5">944 504 679 00019</td></tr>
@@ -69,7 +69,7 @@ export default function MentionsLegalesPage() {
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Code NAF/APE</td><td className="py-2.5">58.29C &mdash; Edition de logiciels applicatifs</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">RCS</td><td className="py-2.5">Toulouse</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Immatriculation</td><td className="py-2.5">28 fevrier 2023</td></tr>
-                <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Siege social</td><td className="py-2.5">57B Chemin des Etroits, 31400 Toulouse, France</td></tr>
+                <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Siège social</td><td className="py-2.5">57B Chemin des Etroits, 31400 Toulouse, France</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">President</td><td className="py-2.5">Youssef Amrouche</td></tr>
                 <tr className="border-b border-gray-100 bg-gray-50"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">Directeur de la publication</td><td className="py-2.5">Youssef Amrouche</td></tr>
                 <tr className="border-b border-gray-100"><td className="py-2.5 pr-4 font-medium text-gray-900 whitespace-nowrap">DPO</td><td className="py-2.5">Youssef Amrouche &mdash; <a href="mailto:privacy@coccinelle.ai" className="text-gray-900 underline">privacy@coccinelle.ai</a></td></tr>
@@ -83,18 +83,18 @@ export default function MentionsLegalesPage() {
 
         {/* 2. Activité */}
         <section id="activite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">2. Activite et objet social</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">2. Activité et objet social</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             Agentic Solutions edite <strong className="text-gray-900">Coccinelle.ai</strong>, une plateforme SaaS
             d&apos;agent vocal IA destinee aux TPE et PME francaises.
           </p>
           <p className="text-gray-600 leading-relaxed mb-3">Services proposes :</p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600 mb-4">
-            <li>Agent vocal IA repondant 24h/24, 7j/7 avec voix naturelle</li>
+            <li>Agent vocal IA répondant 24h/24, 7j/7 avec voix naturelle</li>
             <li>Base de connaissances avec recherche intelligente</li>
             <li>Prise de rendez-vous automatique et gestion d&apos;agenda</li>
-            <li>CRM integre avec gestion des contacts</li>
-            <li>Communication multicanal : telephone, SMS, WhatsApp, email</li>
+            <li>CRM intégré avec gestion des contacts</li>
+            <li>Communication multicanal : téléphone, SMS, WhatsApp, email</li>
             <li>Catalogue produits et services consultable par l&apos;agent</li>
           </ul>
           <p className="text-gray-600 leading-relaxed">
@@ -105,7 +105,7 @@ export default function MentionsLegalesPage() {
 
         {/* 3. Hébergement */}
         <section id="hebergement">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">3. Hebergement et infrastructure</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">3. Hébergement et infrastructure</h2>
           <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded mb-4">
             <p className="text-sm text-green-800">
               Toutes les donnees utilisateur sont traitees et stockees au sein de l&apos;Union europeenne,
@@ -116,23 +116,23 @@ export default function MentionsLegalesPage() {
             <div>
               <p className="font-semibold text-gray-900">Frontend et CDN :</p>
               <p>Cloudflare, Inc. &mdash; 101 Townsend St, San Francisco, CA 94107, USA</p>
-              <p className="text-sm text-gray-500">Infrastructure edge EU &mdash; donnees servies depuis les noeuds europeens</p>
+              <p className="text-sm text-gray-500">Infrastructure edge EU &mdash; données servies depuis les noeuds europeens</p>
             </div>
             <div>
               <p className="font-semibold text-gray-900">Backend et agent vocal :</p>
-              <p>Scaleway SAS &mdash; 8 rue de la Ville l&apos;Eveque, 75008 Paris, France</p>
+              <p>Scaleway SAS &mdash; 8 rue de la Ville l&apos;Évêque, 75008 Paris, France</p>
               <p className="text-sm text-gray-500">Datacenter Paris &mdash; serveur dedie en France</p>
             </div>
             <div>
-              <p className="font-semibold text-gray-900">Base de donnees :</p>
-              <p>Cloudflare D1 &mdash; region Union Europeenne</p>
+              <p className="font-semibold text-gray-900">Base de données :</p>
+              <p>Cloudflare D1 &mdash; région Union Européenne</p>
             </div>
           </div>
         </section>
 
         {/* 4. Propriété intellectuelle */}
         <section id="pi">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">4. Propriete intellectuelle</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">4. Propriété intellectuelle</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             L&apos;ensemble des elements constituant la plateforme Coccinelle.ai (code source, algorithmes,
             interfaces, design, textes, logos, marques) est la propriete exclusive d&apos;Agentic Solutions SASU
@@ -156,9 +156,9 @@ export default function MentionsLegalesPage() {
             sur ce site. Notre responsabilite ne saurait etre engagee en cas de :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600 mb-4">
-            <li>Dommages indirects, pertes de chiffre d&apos;affaires ou manques a gagner</li>
-            <li>Erreurs ou approximations des reponses generees par l&apos;agent vocal IA</li>
-            <li>Interruptions de service liees a des tiers ou sous-traitants</li>
+            <li>Dommages indirects, pertes de chiffre d&apos;affaires ou manques à gagner</li>
+            <li>Erreurs ou approximations des réponses générées par l&apos;agent vocal IA</li>
+            <li>Interruptions de service liées a des tiers ou sous-traitants</li>
             <li>Evenements de force majeure (catastrophe naturelle, cyberattaque d&apos;ampleur,
               decision gouvernementale, pandemie)</li>
           </ul>
@@ -171,7 +171,7 @@ export default function MentionsLegalesPage() {
 
         {/* 6. Protection des données */}
         <section id="donnees">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">6. Protection des donnees personnelles</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">6. Protection des données personnelles</h2>
           <p className="text-gray-600 leading-relaxed">
             Conformement au RGPD et a la loi Informatique et Libertes, vous disposez de droits sur vos
             donnees personnelles (acces, rectification, effacement, portabilite, opposition, limitation).
@@ -187,16 +187,16 @@ export default function MentionsLegalesPage() {
 
         {/* 7. Conformité réglementaire */}
         <section id="conformite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">7. Conformite reglementaire</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">7. Conformité réglementaire</h2>
           <p className="text-gray-600 leading-relaxed mb-3">
             La plateforme Coccinelle.ai est concue dans le respect des textes suivants :
           </p>
           <ul className="list-disc pl-6 space-y-1 text-gray-600">
-            <li>Reglement General sur la Protection des Donnees (RGPD &mdash; UE 2016/679)</li>
-            <li>Loi n&deg;2004-575 du 21 juin 2004 pour la Confiance dans l&apos;Economie Numerique (LCEN)</li>
-            <li>Loi n&deg;78-17 du 6 janvier 1978 relative a l&apos;informatique, aux fichiers et aux libertes</li>
+            <li>Règlement Général sur la Protection des Données (RGPD &mdash; UE 2016/679)</li>
+            <li>Loi n&deg;2004-575 du 21 juin 2004 pour la Confiance dans l&apos;Économie Numérique (LCEN)</li>
+            <li>Loi n&deg;78-17 du 6 janvier 1978 relative à l&apos;informatique, aux fichiers et aux libertés</li>
             <li>Directive ePrivacy (2002/58/CE) pour les cookies et traceurs</li>
-            <li>Code de la consommation (droit de retractation, information precontractuelle)</li>
+            <li>Code de la consommation (droit de rétractation, information précontractuelle)</li>
           </ul>
         </section>
 
@@ -219,14 +219,14 @@ export default function MentionsLegalesPage() {
 
         {/* 9. Médiation et litiges */}
         <section id="mediation">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">9. Mediation et litiges</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">9. Médiation et litiges</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             En cas de differend relatif aux presentes mentions ou a l&apos;utilisation du site,
             les parties s&apos;engagent a rechercher une resolution amiable en contactant :{' '}
             <a href="mailto:contact@coccinelle.ai" className="text-gray-900 underline">contact@coccinelle.ai</a>
           </p>
           <p className="text-gray-600 leading-relaxed mb-4">
-            <strong className="text-gray-900">Mediation :</strong> conformement aux articles L.616-1 et R.616-1
+            <strong className="text-gray-900">Médiation :</strong> conformement aux articles L.616-1 et R.616-1
             du Code de la consommation, en cas de litige non resolu, le consommateur peut recourir
             gratuitement au service de mediation :
           </p>
@@ -304,7 +304,7 @@ export default function MentionsLegalesPage() {
 
         {/* 12. Accessibilité numérique */}
         <section id="accessibilite">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">12. Accessibilite numerique</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">12. Accessibilité numérique</h2>
           <p className="text-gray-600 leading-relaxed">
             Agentic Solutions s&apos;engage a rendre la plateforme Coccinelle.ai accessible au plus grand
             nombre, conformement au Referentiel General d&apos;Amelioration de l&apos;Accessibilite (RGAA) et
@@ -318,7 +318,7 @@ export default function MentionsLegalesPage() {
 
         {/* 13. Évolution */}
         <section id="evolution">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">13. Evolution et mise a jour</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">13. Evolution et mise à jour</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <tbody className="text-gray-600">
