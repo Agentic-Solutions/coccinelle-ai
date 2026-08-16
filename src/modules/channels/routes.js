@@ -24,6 +24,17 @@ export async function handleChannelsRoutes(request, env, path, method) {
       return await etatDesCanaux(env, tenantId);
     }
 
+    // GET /api/v1/channels/numbers — les lignes du tenant.
+    //
+    // Cette route N'EXISTAIT PAS (16/08/2026), alors que
+    // `dashboard/channels/numbers/page.tsx` l'appelle et que la checklist
+    // d'onboarding y envoie pour l'étape « Appeler mon assistant ». La page tombait
+    // donc systématiquement dans son état vide : le client qui cherchait « mon
+    // numéro » ne trouvait rien, à l'endroit précis où le produit l'avait envoyé.
+    if (path === '/api/v1/channels/numbers' && method === 'GET') {
+      return await listerNumeros(env, tenantId);
+    }
+
     // GET /api/v1/channels/:type - Récupère la config d'un canal
     const channelMatch = path.match(/^\/api\/v1\/channels\/(phone|sms|email)$/);
     if (channelMatch && method === 'GET') {
@@ -1292,4 +1303,90 @@ async function getEmailDomain(env, tenantId, domainId) {
     logger.error('Get email domain failed', { error: error.message, tenantId, domainId });
     return errorResponse('Erreur lors de la récupération: ' + error.message, 500);
   }
+}
+
+/**
+ * GET /api/v1/channels/numbers — les lignes reellement rattachees au tenant.
+ *
+ * SOURCE DE VERITE : `omni_phone_mappings`, la meme table que `resolve-phone`. On ne
+ * lit PAS `tenants.phone`, qui porte le telephone PROFESSIONNEL declare par le client
+ * (souvent son propre mobile) et non une ligne que nous lui aurions attribuee —
+ * mesure du 16/08/2026 : trois tenants y portaient le meme numero personnel.
+ *
+ * ⚠️ LE NUMERO D'ESSAI EST AJOUTE, ET LIBELLE COMME PARTAGE. Aucun tenant n'a de
+ * ligne dediee aujourd'hui (`number_pool` vide, aucun provisionnement a
+ * l'inscription) : sans cette ligne, la page reste vide pour tout le monde, y compris
+ * pour un client qui vient d'entendre son assistant sur ce numero. Mais il ne faut
+ * PAS le faire passer pour sa ligne — d'ou un libelle explicite. Une page qui affiche
+ * un numero partage comme « votre numero » est pire qu'une page vide : le client le
+ * mettrait sur ses factures.
+ *
+ * Le numero d'essai n'apparait que si le client peut REELLEMENT s'en servir, c'est-a-dire
+ * si son telephone est verifie (`users.phone_verified = 1`) — c'est la seule condition
+ * de la branche `caller` de `resolve-phone`. Sinon, l'annoncer serait une fausse piste.
+ */
+async function listerNumeros(env, tenantId) {
+  const numeros = [];
+
+  try {
+    const { results } = await env.DB.prepare(`
+      SELECT phone_number, channel_type, is_active
+      FROM omni_phone_mappings
+      WHERE tenant_id = ?
+      ORDER BY channel_type, phone_number
+    `).bind(tenantId).all();
+
+    // Un meme numero peut porter plusieurs canaux (voix + SMS) : on le presente une
+    // seule fois, avec ses canaux regroupes. La page compte les canaux distincts.
+    const parNumero = new Map();
+    for (const r of results || []) {
+      if (!parNumero.has(r.phone_number)) {
+        parNumero.set(r.phone_number, { canaux: [], actif: false });
+      }
+      const e = parNumero.get(r.phone_number);
+      if (r.channel_type) e.canaux.push(r.channel_type);
+      // Actif des qu'UN mapping l'est : la ligne repond.
+      if (r.is_active === 1 || r.is_active === null) e.actif = true;
+    }
+
+    for (const [numero, e] of parNumero) {
+      numeros.push({
+        id: `map_${numero}`,
+        number: numero,
+        label: 'Votre ligne',
+        status: e.actif ? 'active' : 'inactive',
+        channels: e.canaux.length ? e.canaux : ['voice'],
+        tenant: '',
+      });
+    }
+  } catch (error) {
+    logger.warn('[Canaux] Lecture des mappings impossible', { tenantId, erreur: error.message });
+  }
+
+  // ── Le numero d'essai partage ──
+  try {
+    const essai = env.TRIAL_PHONE_NUMBER;
+    if (essai) {
+      const verifie = await env.DB.prepare(
+        'SELECT 1 AS ok FROM users WHERE tenant_id = ? AND phone_verified = 1 LIMIT 1',
+      ).bind(tenantId).first();
+
+      if (verifie?.ok && !numeros.some((n) => n.number === essai)) {
+        numeros.push({
+          id: 'trial',
+          number: essai,
+          label: "Numero d'essai (partage) — appelez-le depuis votre mobile verifie pour "
+            + "entendre votre assistant. Ce n'est pas votre ligne : a la mise en service, "
+            + 'vous garderez votre numero.',
+          status: 'active',
+          channels: ['voice'],
+          tenant: '',
+        });
+      }
+    }
+  } catch (error) {
+    logger.warn('[Canaux] Numero d\'essai non evalue', { tenantId, erreur: error.message });
+  }
+
+  return successResponse({ numbers: numeros });
 }

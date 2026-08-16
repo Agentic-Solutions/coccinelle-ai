@@ -114,10 +114,25 @@ export default function NumbersPage() {
               </div>
             </div>
           ) : numbers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+            /* État vide réécrit le 16/08/2026. L'ancien disait « Aucun numéro configuré
+               — contactez le support », ce qui se lit comme une panne. C'est l'état
+               NORMAL d'un compte en essai : rien n'est attribué, et c'est voulu. On en
+               profite pour lever l'objection n°1 là où elle se pose vraiment — sur la
+               page où le client vient chercher « mon numéro ». */
+            <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <Phone className="w-10 h-10 text-gray-300 mb-3" />
-              <p className="text-sm text-gray-500">Aucun numéro configuré</p>
-              <p className="text-xs text-gray-400 mt-1">Contactez le support pour ajouter un numéro</p>
+              <p className="text-sm text-gray-500">Aucune ligne attribuée pour l&apos;instant</p>
+              <p className="text-xs text-gray-400 mt-2 max-w-md leading-relaxed">
+                Vous garderez votre numéro : à la mise en service, une ligne française vous est
+                attribuée et vous y renverrez vos appels. Vos clients continueront d&apos;appeler
+                le numéro qu&apos;ils connaissent. Écrivez-nous pour la demander.
+              </p>
+              <a
+                href="/dashboard/support/"
+                className="text-xs text-gray-600 underline hover:text-gray-900 mt-3"
+              >
+                Comment renvoyer ma ligne
+              </a>
             </div>
           ) : (
             <table className="w-full">
