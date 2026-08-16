@@ -5,6 +5,7 @@ import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 import { composerMessage } from '../shared/sms-modeles.js';
 import { ORIGINE_PUBLIQUE } from '../shared/sms-plafond.js';
 import { verifierTurnstile } from '../shared/turnstile.js';
+import { normaliserTelephone } from '../shared/telephone.js';
 
 /**
  * GET /api/v1/public/booking/:tenantSlug
@@ -222,10 +223,12 @@ export async function handleGetBookingSlots(request, env, slug) {
 export async function handleCreatePublicBooking(request, env, slug) {
   try {
     const body = await request.json();
-    const { first_name, last_name, email, phone, datetime, type_id, agent_id, notes } = body;
+    const {
+      first_name, last_name, email, phone: phoneBrut, datetime, type_id, agent_id, notes,
+    } = body;
 
     // Validation
-    if (!first_name || !last_name || !phone || !datetime) {
+    if (!first_name || !last_name || !phoneBrut || !datetime) {
       return errorResponse('Champs requis : first_name, last_name, phone, datetime', 400, request);
     }
 
@@ -234,10 +237,47 @@ export async function handleCreatePublicBooking(request, env, slug) {
       return errorResponse('Format email invalide', 400, request);
     }
 
-    // ── TURNSTILE : le filtre, avant tout travail (chantier ANTI-ROBOT) ──
+    // ── LES CONTRÔLES DE SAISIE D'ABORD, LE FILTRE ANTI-ROBOT ENSUITE ──
     //
-    // Placé ici, donc AVANT la moindre écriture : un robot refusé ne crée ni
-    // prospect, ni rendez-vous, ni ligne de compteur.
+    // Cet ordre est le correctif de l'incident du 16/08/2026, et il vaut d'être
+    // expliqué parce qu'il paraît contre-intuitif.
+    //
+    // Turnstile était en tête. Un visiteur avec un numéro au format français
+    // voyait donc : 1) Turnstile OK, 2) « Format de numéro invalide ». Il
+    // corrigeait, renvoyait — et le jeton Turnstile, à USAGE UNIQUE, était rejoué :
+    // « Vérification de sécurité échouée ». L'erreur de sécurité MASQUAIT la vraie
+    // cause, et c'est cet écran-là qui a été signalé.
+    //
+    // Mettre les validations de saisie devant ne coûte RIEN en sécurité : elles ne
+    // touchent pas la base, n'envoient aucun SMS et ne créent rien. Un robot est
+    // refusé tout aussi tôt ; un humain reçoit la vraie raison. Ce qui doit rester
+    // DERRIÈRE Turnstile, c'est tout ce qui écrit ou coûte — et ça l'est.
+
+    // ── TÉLÉPHONE (chantier ANTI-ROBOT, corrigé le 16/08/2026) ──
+    //
+    // Le champ était seulement « présent ou absent » : un robot fournissait donc le
+    // numéro de SON choix, et notre ligne Twilio envoyait des SMS non sollicités à
+    // des tiers. Ce n'est pas qu'une facture, c'est notre réputation d'expéditeur
+    // et le risque de blocage opérateur.
+    //
+    // ⚠️ Ma première version exigeait de l'E.164 BRUT, alors que le formulaire
+    // affiche « 06 12 34 56 78 » en exemple : elle refusait exactement ce qu'elle
+    // demandait d'écrire, et a bloqué 100 % des réservations pendant un
+    // déploiement. On NORMALISE, on n'exige pas — convertir vers le format que
+    // Twilio veut est le travail du serveur, pas celui du visiteur.
+    const tel = normaliserTelephone(phoneBrut);
+    if (!tel.valide) {
+      return errorResponse(
+        'Numéro de téléphone invalide (ex : 06 12 34 56 78)', 400, request,
+      );
+    }
+    // Une seule forme circule ensuite : ce qui est stocké est ce qui part au SMS.
+    const phone = tel.e164;
+
+    // ── TURNSTILE : le filtre, avant tout ce qui écrit ou coûte ──
+    //
+    // Placé avant la moindre écriture : un robot refusé ne crée ni prospect, ni
+    // rendez-vous, ni ligne de compteur, et ne déclenche aucun SMS.
     //
     // ⚠️ Jeton ABSENT = accepté (le script tiers peut ne pas avoir chargé) ;
     // jeton PRÉSENT mais INVALIDE = refusé. La distinction vit dans
@@ -247,24 +287,10 @@ export async function handleCreatePublicBooking(request, env, slug) {
       env, body.turnstile_token, request.headers.get('CF-Connecting-IP'),
     );
     if (!controleRobot.accepte) {
-      // Message volontairement neutre : on ne dit pas à un robot pourquoi il est
-      // refusé, et un humain dont le jeton a expiré n'a qu'à réessayer.
+      // Message neutre : on ne dit pas à un robot pourquoi il est refusé. Le front
+      // renouvelle le jeton après tout échec, pour qu'un humain qui réessaie ne
+      // rejoue pas un jeton déjà consommé — c'était la moitié de l'incident.
       return errorResponse('Vérification de sécurité échouée, merci de réessayer', 403, request);
-    }
-
-    // ── TÉLÉPHONE AU FORMAT E.164 (chantier ANTI-ROBOT, 15/08/2026) ──
-    //
-    // Le champ était seulement « présent ou absent » : un robot fournissait donc
-    // le numéro de SON choix, et notre ligne Twilio envoyait des SMS non
-    // sollicités à des tiers. Ce n'est pas qu'une facture, c'est notre réputation
-    // d'expéditeur et le risque de blocage opérateur.
-    //
-    // Le motif est celui déjà utilisé par `/onboarding/send-verification` — pas un
-    // second dialecte de validation.
-    if (!/^\+[1-9]\d{6,14}$/.test(String(phone).trim())) {
-      return errorResponse(
-        'Format de numéro invalide (ex : +33612345678)', 400, request,
-      );
     }
 
     const tenant = await env.DB.prepare(

@@ -40,6 +40,7 @@ declare global {
     turnstile?: {
       render: (el: HTMLElement, opts: Record<string, unknown>) => string | undefined;
       remove: (id: string) => void;
+      reset: (id: string) => void;
     };
   }
 }
@@ -49,9 +50,20 @@ interface Props {
   onToken: (token: string) => void;
   /** Pour que le parent puisse informer sans jamais bloquer. */
   onEtat?: (etat: EtatTurnstile) => void;
+  /**
+   * Compteur à incrémenter après CHAQUE tentative d'envoi échouée : le widget
+   * redemande alors un jeton neuf.
+   *
+   * ⚠️ Ce n'est pas un raffinement, c'est la moitié du correctif de l'incident du
+   * 16/08/2026. Un jeton Turnstile est à USAGE UNIQUE : sans renouvellement, la
+   * deuxième tentative rejoue un jeton consommé et le serveur répond
+   * « Vérification de sécurité échouée » — un message de sécurité affiché à un
+   * visiteur légitime, à la place de la vraie erreur de son formulaire.
+   */
+  reinitialiser?: number;
 }
 
-export default function TurnstileWidget({ onToken, onEtat }: Props) {
+export default function TurnstileWidget({ onToken, onEtat, reinitialiser = 0 }: Props) {
   const conteneur = useRef<HTMLDivElement>(null);
   const idWidget = useRef<string | undefined>(undefined);
   const [etat, setEtat] = useState<EtatTurnstile>(SITE_KEY ? 'attente' : 'inactif');
@@ -132,6 +144,20 @@ export default function TurnstileWidget({ onToken, onEtat }: Props) {
       }
     };
   }, []);
+
+  // Renouvellement du jeton, à chaque échec signalé par le parent.
+  useEffect(() => {
+    if (!reinitialiser || !idWidget.current || !window.turnstile) return;
+    // Le jeton courant est périmé dès l'instant où il a été soumis : on le vide
+    // AVANT de redemander, pour qu'un envoi entre les deux ne le rejoue pas.
+    rappels.current.onToken('');
+    try {
+      window.turnstile.reset(idWidget.current);
+    } catch {
+      // Widget déjà retiré, ou script disparu. On ne bloque pas : sans jeton, le
+      // serveur accepte (échec ouvert) — c'est exactement le cas prévu.
+    }
+  }, [reinitialiser]);
 
   if (!SITE_KEY) return null;
 

@@ -81,6 +81,12 @@ export default function BookingClient() {
   // NORMAL : le script tiers peut ne pas avoir chargé. Le formulaire reste
   // envoyable — voir `components/TurnstileWidget.tsx` pour le pourquoi.
   const [turnstileToken, setTurnstileToken] = useState('');
+  // Incrémenté après CHAQUE tentative échouée : le widget redemande un jeton neuf.
+  // Un jeton Turnstile est à usage unique — sans ce compteur, la deuxième
+  // tentative rejoue un jeton consommé et le visiteur reçoit « Vérification de
+  // sécurité échouée » au lieu de la vraie erreur de son formulaire (incident du
+  // 16/08/2026).
+  const [essais, setEssais] = useState(0);
   const [confirmation, setConfirmation] = useState<{
     datetime: string;
     type_name: string | null;
@@ -162,9 +168,15 @@ export default function BookingClient() {
         setStep('confirmation');
       } else {
         setError(data.error || 'Erreur lors de la réservation');
+        // Le jeton vient d'être consommé par cette requête, quelle qu'ait été la
+        // raison du refus. On en redemande un avant que le visiteur ne réessaie.
+        setEssais(n => n + 1);
       }
     } catch {
       setError('Erreur réseau. Veuillez réessayer.');
+      // Même en cas d'échec réseau : la requête a pu atteindre le serveur et y
+      // consommer le jeton. On ne parie pas là-dessus.
+      setEssais(n => n + 1);
     } finally {
       setSubmitting(false);
     }
@@ -447,7 +459,7 @@ export default function BookingClient() {
 
               {/* Filtre anti-robot. Le bouton ci-dessous ne dépend PAS de son état :
                   un script tiers absent ne doit jamais empêcher une réservation. */}
-              <TurnstileWidget onToken={setTurnstileToken} />
+              <TurnstileWidget onToken={setTurnstileToken} reinitialiser={essais} />
 
               <button
                 type="submit"
