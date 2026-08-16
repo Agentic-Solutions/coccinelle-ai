@@ -41,7 +41,7 @@ const TABS: { id: TabId; label: string; icon: typeof HelpCircle }[] = [
 ];
 
 const CATEGORIES = [
-  { value: 'general', label: 'Question generale' },
+  { value: 'general', label: 'Question générale' },
   { value: 'technique', label: 'Probleme technique' },
   { value: 'facturation', label: 'Facturation' },
   { value: 'fonctionnalite', label: 'Demande de fonctionnalite' },
@@ -307,7 +307,7 @@ export default function SupportPage() {
             ) : filteredFaq.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <HelpCircle className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                <p>Aucun resultat pour votre recherche.</p>
+                <p>Aucun résultat pour votre recherche.</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -364,7 +364,7 @@ export default function SupportPage() {
               <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-3">
                 <Check className="w-5 h-5 text-gray-700 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-gray-800">Ticket cree avec succes</p>
+                  <p className="text-sm font-medium text-gray-800">Ticket cree avec succès</p>
                   <p className="text-xs text-gray-700 mt-0.5">
                     Un email de confirmation vous a été envoyé. Suivez votre ticket dans l&apos;onglet &quot;Mes tickets&quot;.
                   </p>
@@ -400,7 +400,7 @@ export default function SupportPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Categorie</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
@@ -509,7 +509,7 @@ export default function SupportPage() {
                       </div>
                       {ticket.admin_response && (
                         <div className="mt-3 p-3 bg-gray-100 border border-gray-200 rounded-lg">
-                          <p className="text-xs font-medium text-gray-700 mb-1">Reponse du support :</p>
+                          <p className="text-xs font-medium text-gray-700 mb-1">Réponse du support :</p>
                           <p className="text-sm text-gray-800">{ticket.admin_response}</p>
                         </div>
                       )}

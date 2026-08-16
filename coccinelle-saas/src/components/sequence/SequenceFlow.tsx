@@ -115,9 +115,9 @@ const AI_SECTORS = [
 
 const AI_EXAMPLES = [
   'Sequence de qualification et prise de RDV pour un garage automobile',
-  'Relance par SMS et email apres un appel sans reponse',
+  'Relance par SMS et email après un appel sans réponse',
   'Accueil, identification du besoin, transfert si complexe',
-  'Prise de RDV avec verification des disponibilites et confirmation SMS',
+  'Prise de RDV avec verification des disponibilités et confirmation SMS',
 ];
 
 // ─── Séquence par défaut ─────────────────────────────────────────────────────
@@ -455,7 +455,7 @@ Genere entre 4 et 10 nodes selon la complexite demandee.`;
         setAiModalOpen(false);
         setAiPrompt('');
       } else {
-        setAiError('Format de reponse inattendu. Reessayez.');
+        setAiError('Format de réponse inattendu. Reessayez.');
       }
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Erreur de generation');
@@ -772,7 +772,7 @@ function NodeEditor({
       {/* Delai */}
       {data.type === 'delay' && (
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Duree</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Durée</label>
           <select
             value={data.delayDuration || '1h'}
             onChange={(e) => onUpdate(node.id, { delayDuration: e.target.value })}

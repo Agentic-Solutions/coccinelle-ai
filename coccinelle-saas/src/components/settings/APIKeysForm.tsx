@@ -37,7 +37,7 @@ export default function APIKeysForm() {
         setApiKeys(data.apiKeys || []);
       }
     } catch (error) {
-      console.error('Erreur chargement cles API:', error);
+      console.error('Erreur chargement clés API:', error);
     }
   };
 
@@ -91,7 +91,7 @@ export default function APIKeysForm() {
       });
 
       if (res.ok) {
-        setMessage('Cle revoquee avec succes');
+        setMessage('Cle revoquee avec succès');
         fetchAPIKeys();
         setTimeout(() => setMessage(''), 3000);
       }
@@ -109,8 +109,8 @@ export default function APIKeysForm() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Cles API</h2>
-        <p className="text-gray-600">Gerez vos cles d'acces a l'API Coccinelle</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Clés API</h2>
+        <p className="text-gray-600">Gerez vos clés d'accès a l'API Coccinelle</p>
       </div>
 
       {message && (
@@ -128,7 +128,7 @@ export default function APIKeysForm() {
           <div className="flex items-start gap-4">
             <Key className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-green-900 mb-2">Cle API generee</h3>
+              <h3 className="text-lg font-semibold text-green-900 mb-2">Cle API générée</h3>
               <p className="text-sm text-green-700 mb-4">
                 Copiez cette cle maintenant. Elle ne sera plus visible apres.
               </p>
@@ -176,7 +176,7 @@ export default function APIKeysForm() {
         {apiKeys.length === 0 ? (
           <div className="text-center py-12">
             <Key className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">Aucune cle API creee pour le moment</p>
+            <p className="text-gray-500">Aucune cle API créée pour le moment</p>
             <p className="text-sm text-gray-400 mt-1">Generez une cle pour acceder a l'API Coccinelle</p>
           </div>
         ) : (

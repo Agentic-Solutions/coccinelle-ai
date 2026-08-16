@@ -28,7 +28,7 @@ export default function DemoPage() {
         const data = await response.json();
 
         if (!response.ok || !data.success) {
-          setError(data.error || 'Echec de la connexion demo.');
+          setError(data.error || 'Échec de la connexion demo.');
           return;
         }
 

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 const features = [
-  'Reponses automatiques par agent IA',
+  'Réponses automatiques par agent IA',
   'Prise de RDV via WhatsApp',
   'Confirmation par message',
   'Historique des conversations',

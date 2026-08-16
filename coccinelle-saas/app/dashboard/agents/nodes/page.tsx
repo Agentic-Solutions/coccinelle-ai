@@ -60,7 +60,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 const ACTION_LABELS: Record<string, string> = {
   send_message: 'Envoyer SMS',
   send_email: 'Envoyer email',
-  ai_reply: 'Reponse IA',
+  ai_reply: 'Réponse IA',
   create_prospect: 'Creer contact',
 };
 
@@ -75,7 +75,7 @@ const CHANNEL_ICONS: Record<string, typeof Phone> = {
 const SCENARIOS = [
   {
     title: 'Appel → SMS',
-    desc: 'Apres chaque appel, confirmez par SMS',
+    desc: 'Après chaque appel, confirmez par SMS',
     trigger_event: 'call_ended',
     trigger_channel: 'voice',
     action_channel: 'sms',
@@ -94,7 +94,7 @@ const SCENARIOS = [
     delay: 60,
   },
   {
-    title: 'SMS → Reponse IA',
+    title: 'SMS → Réponse IA',
     desc: 'Repondez automatiquement aux SMS entrants',
     trigger_event: 'message_received',
     trigger_channel: 'sms',
@@ -115,7 +115,7 @@ const SCENARIOS = [
   },
   {
     title: 'Appel → Contact CRM',
-    desc: 'Creez un prospect apres chaque appel',
+    desc: 'Creez un prospect après chaque appel',
     trigger_event: 'call_ended',
     trigger_channel: 'voice',
     action_channel: 'crm',
@@ -178,7 +178,7 @@ export default function AgentNodesPage() {
         body: JSON.stringify({ is_active: currentActive ? false : true }),
       });
       if (res.ok) {
-        showMsg(currentActive ? 'Regle desactivee' : 'Regle activee');
+        showMsg(currentActive ? 'Regle désactivée' : 'Regle activee');
         loadRules();
       }
     } catch { showMsg('Erreur', true); }
@@ -239,7 +239,7 @@ export default function AgentNodesPage() {
           {/* Tabs */}
           <div className="flex gap-1 mt-4 border-b border-gray-200 -mb-px">
             {[
-              { id: 'sequences' as const, label: 'Editeur de sequences' },
+              { id: 'sequences' as const, label: 'Éditeur de sequences' },
               { id: 'rules' as const, label: 'Regles automatiques' },
               { id: 'history' as const, label: 'Historique' },
             ].map(t => (
@@ -296,11 +296,11 @@ export default function AgentNodesPage() {
           ) : (
             <div className="space-y-3">
               {[
-                { scenario: SCENARIOS[0], icon: MessageSquare, title: 'SMS de remerciement', description: "Envoie un SMS au client 30 secondes apres la fin de l'appel", badge: 'Voix \u2192 SMS', comingSoon: false, disabled: false },
-                { scenario: SCENARIOS[1], icon: Mail, title: 'Email recapitulatif', description: "Envoie un email de recapitulatif 1 minute apres la fin de l'appel", badge: 'Voix \u2192 Email', comingSoon: false, disabled: false },
-                { scenario: SCENARIOS[2], icon: Bot, title: 'Reponse SMS automatique', description: "Repond automatiquement aux SMS recus grace a l'IA", badge: 'SMS \u2192 IA', comingSoon: false, disabled: false },
-                { scenario: SCENARIOS[3], icon: UserPlus, title: 'Contact CRM depuis WhatsApp', description: 'Cree automatiquement une fiche contact quand un message WhatsApp est recu', badge: 'WhatsApp \u2192 CRM', comingSoon: true, disabled: true },
-                { scenario: SCENARIOS[4], icon: UserPlus, title: 'Contact CRM apres appel', description: 'Cree automatiquement une fiche prospect apres chaque appel', badge: 'Voix \u2192 CRM', comingSoon: false, disabled: false },
+                { scenario: SCENARIOS[0], icon: MessageSquare, title: 'SMS de remerciement', description: "Envoie un SMS au client 30 secondes après la fin de l'appel", badge: 'Voix \u2192 SMS', comingSoon: false, disabled: false },
+                { scenario: SCENARIOS[1], icon: Mail, title: 'Email recapitulatif', description: "Envoie un email de recapitulatif 1 minute après la fin de l'appel", badge: 'Voix \u2192 Email', comingSoon: false, disabled: false },
+                { scenario: SCENARIOS[2], icon: Bot, title: 'Réponse SMS automatique', description: "Repond automatiquement aux SMS recus grace a l'IA", badge: 'SMS \u2192 IA', comingSoon: false, disabled: false },
+                { scenario: SCENARIOS[3], icon: UserPlus, title: 'Contact CRM depuis WhatsApp', description: 'Crée automatiquement une fiche contact quand un message WhatsApp est reçu', badge: 'WhatsApp \u2192 CRM', comingSoon: true, disabled: true },
+                { scenario: SCENARIOS[4], icon: UserPlus, title: 'Contact CRM après appel', description: 'Crée automatiquement une fiche prospect après chaque appel', badge: 'Voix \u2192 CRM', comingSoon: false, disabled: false },
               ].map((card, i) => {
                 const active = isScenarioActive(card.scenario);
                 const Icon = card.icon;
@@ -357,7 +357,7 @@ export default function AgentNodesPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evenement</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Événement</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Canal</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>

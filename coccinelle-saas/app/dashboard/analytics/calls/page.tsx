@@ -162,14 +162,14 @@ export default function AnalyticsCallsPage() {
               <div className="bg-white rounded-lg border border-gray-200 p-5">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="w-4 h-4 text-gray-700" />
-                  <span className="text-sm text-gray-500">Taux reponse</span>
+                  <span className="text-sm text-gray-500">Taux réponse</span>
                 </div>
                 <p className="text-3xl font-bold text-gray-900">{stats.successRate}%</p>
               </div>
               <div className="bg-white rounded-lg border border-gray-200 p-5">
                 <div className="flex items-center gap-2 mb-2">
                   <Clock className="w-4 h-4 text-gray-700" />
-                  <span className="text-sm text-gray-500">Duree moyenne</span>
+                  <span className="text-sm text-gray-500">Durée moyenne</span>
                 </div>
                 <p className="text-3xl font-bold text-gray-900">{formatDuration(stats.avgDuration)}</p>
               </div>
@@ -184,7 +184,7 @@ export default function AnalyticsCallsPage() {
                 <div className="p-8 text-center text-gray-500">
                   <Phone className="w-10 h-10 mx-auto mb-3 opacity-30" />
                   <p>Aucun appel enregistre.</p>
-                  <p className="text-sm mt-1">Les appels apparaitront apres les premieres conversations avec vos agents.</p>
+                  <p className="text-sm mt-1">Les appels apparaitront après les premieres conversations avec vos agents.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">

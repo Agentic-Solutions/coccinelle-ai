@@ -815,7 +815,7 @@ export default function OnboardingPage() {
 
                 {kbShowExtra && (
                   <div className="border border-gray-200 rounded-xl p-5">
-                    <h3 className="font-semibold text-gray-900 mb-3">Questions-reponses supplementaires</h3>
+                    <h3 className="font-semibold text-gray-900 mb-3">Questions-réponses supplementaires</h3>
                     <div className="space-y-2">
                       <input
                         type="text"
@@ -827,7 +827,7 @@ export default function OnboardingPage() {
                       <textarea
                         value={kbCurrentQA.answer}
                         onChange={e => setKbCurrentQA({ ...kbCurrentQA, answer: e.target.value })}
-                        placeholder="Reponse : ex. Nous sommes ouverts du lundi au samedi, de 9h a 19h."
+                        placeholder="Réponse : ex. Nous sommes ouverts du lundi au samedi, de 9h a 19h."
                         rows={2}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none text-sm resize-none"
                       />

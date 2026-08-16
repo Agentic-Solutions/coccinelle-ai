@@ -93,7 +93,7 @@ export default function UsagePage() {
       }
     } catch (err) {
       console.error('Error loading usage data:', err);
-      setError('Impossible de charger les donnees de consommation. Verifiez votre connexion.');
+      setError('Impossible de charger les données de consommation. Verifiez votre connexion.');
     } finally {
       setLoading(false);
     }

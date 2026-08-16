@@ -229,7 +229,7 @@ export default function ServicesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Prestations</h1>
-          <p className="text-gray-500 text-sm mt-1">Gerez vos services et assignez-les aux membres de l&apos;equipe</p>
+          <p className="text-gray-500 text-sm mt-1">Gerez vos services et assignez-les aux membres de l&apos;équipe</p>
         </div>
         <button
           onClick={openAdd}
@@ -370,7 +370,7 @@ export default function ServicesPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duree</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Durée</label>
                   <select
                     value={formDuration}
                     onChange={e => setFormDuration(Number(e.target.value))}
@@ -474,13 +474,13 @@ export default function ServicesPage() {
                         </div>
                         {assigned && (
                           <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <label className="text-[10px] text-gray-500">Duree :</label>
+                            <label className="text-[10px] text-gray-500">Durée :</label>
                             <select
                               value={agentData?.custom_duration_minutes || ''}
                               onChange={e => setCustomDuration(m.id, e.target.value ? Number(e.target.value) : null)}
                               className="text-xs px-1.5 py-1 border border-gray-300 rounded"
                             >
-                              <option value="">Par defaut</option>
+                              <option value="">Par défaut</option>
                               {DURATIONS.map(d => (
                                 <option key={d} value={d}>{d} min</option>
                               ))}

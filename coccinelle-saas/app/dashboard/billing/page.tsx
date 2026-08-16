@@ -116,12 +116,12 @@ export default function BillingPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === 'true') {
-      setSuccessMessage('Paiement effectue avec succes ! Votre abonnement est actif.');
+      setSuccessMessage('Paiement effectue avec succès ! Votre abonnement est actif.');
       // Clean URL
       window.history.replaceState({}, '', '/dashboard/billing');
     }
     if (params.get('canceled') === 'true') {
-      setError('Le paiement a ete annule.');
+      setError('Le paiement a été annule.');
       window.history.replaceState({}, '', '/dashboard/billing');
     }
     loadSubscription();
@@ -229,7 +229,7 @@ export default function BillingPage() {
     { value: 'missing_features', label: 'Fonctionnalites manquantes' },
     { value: 'not_using', label: 'Je ne l\'utilise pas assez' },
     { value: 'switched_competitor', label: 'Je suis passe a un concurrent' },
-    { value: 'technical_issues', label: 'Problemes techniques' },
+    { value: 'technical_issues', label: 'Problèmes techniques' },
     { value: 'bad_support', label: 'Support insatisfaisant' },
     { value: 'temporary', label: 'Pause temporaire' },
     { value: 'other', label: 'Autre raison' },
@@ -370,8 +370,8 @@ export default function BillingPage() {
               <AlertCircle className="w-5 h-5 text-red-600" />
               <span className="font-semibold text-gray-900">
                 {isPastDue
-                  ? 'Paiement echoue — veuillez mettre a jour votre moyen de paiement'
-                  : 'Votre essai est termine — choisissez un plan pour continuer'}
+                  ? 'Paiement échoué — veuillez mettre a jour votre moyen de paiement'
+                  : 'Votre essai est terminé — choisissez un plan pour continuer'}
               </span>
             </div>
           </div>
@@ -536,7 +536,7 @@ export default function BillingPage() {
               </p>
             </div>
             <div>
-              <p className="font-medium text-gray-900 text-sm">Puis-je changer de plan a tout moment ?</p>
+              <p className="font-medium text-gray-900 text-sm">Puis-je changer de plan à tout moment ?</p>
               <p className="text-sm text-gray-500 mt-1">
                 Oui, vous pouvez passer d&apos;Essentiel a Pro (ou inversement) a tout moment. La facturation est ajustee au prorata.
               </p>

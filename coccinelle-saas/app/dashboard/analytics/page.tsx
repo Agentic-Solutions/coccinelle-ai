@@ -193,7 +193,7 @@ export default function AnalyticsPage() {
 
     } catch (error) {
       console.error('Erreur chargement analytics:', error);
-      setError('Impossible de charger les donnees analytics. Verifiez votre connexion.');
+      setError('Impossible de charger les données analytics. Verifiez votre connexion.');
     } finally {
       setLoading(false);
     }

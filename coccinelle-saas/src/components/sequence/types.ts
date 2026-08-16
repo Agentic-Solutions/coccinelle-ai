@@ -48,8 +48,8 @@ export const NODE_PALETTE: PaletteItem[] = [
   { type: 'call',      label: 'Appel vocal',           description: "Script que l'agent prononce",          category: 'CONVERSATION' },
   { type: 'sms',       label: 'SMS',                   description: 'Envoyer un SMS au client',             category: 'CONVERSATION' },
   { type: 'email',     label: 'Email',                 description: 'Envoyer un email au client',           category: 'CONVERSATION' },
-  { type: 'condition', label: 'Condition',              description: 'Brancher selon la reponse',            category: 'LOGIQUE' },
-  { type: 'delay',     label: 'Delai',                 description: "Attendre avant l'etape suivante",      category: 'LOGIQUE' },
+  { type: 'condition', label: 'Condition',              description: 'Brancher selon la réponse',            category: 'LOGIQUE' },
+  { type: 'delay',     label: 'Delai',                 description: "Attendre avant l'étape suivante",      category: 'LOGIQUE' },
   { type: 'rdv',       label: 'Prise de RDV',          description: 'Verifier dispos et reserver',          category: 'ACTIONS', tool: 'check_availability + book_appointment' },
   { type: 'knowledge', label: 'Base de connaissances', description: 'Chercher dans la KB',                  category: 'ACTIONS', tool: 'search_knowledge' },
   { type: 'products',  label: 'Produits & Services',   description: 'Chercher dans les produits',           category: 'ACTIONS', tool: 'search_products' },
@@ -74,7 +74,7 @@ export const DELAY_OPTIONS = [
 export const CONDITION_OPTIONS = [
   { value: 'answered',     label: 'A repondu' },
   { value: 'not_answered', label: "N'a pas repondu" },
-  { value: 'interested',   label: 'A exprime un interet' },
+  { value: 'interested',   label: 'A exprime un intérêt' },
   { value: 'said_yes',     label: 'A dit oui' },
   { value: 'said_no',      label: 'A dit non' },
 ];
