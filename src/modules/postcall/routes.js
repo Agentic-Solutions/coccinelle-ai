@@ -38,8 +38,8 @@ async function ensureTable(env) {
   await env.DB.exec(
     "CREATE TABLE IF NOT EXISTS calls_extracted (" +
       "id INTEGER PRIMARY KEY AUTOINCREMENT, call_id TEXT, caller_number TEXT, " +
-      "intent TEXT, nom TEXT, telephone TEXT, date_rdv TEXT, heure_rdv TEXT, " +
-      "vehicule TEXT, resume TEXT, transcript TEXT, raw_json TEXT, " +
+      "intent TEXT, nom TEXT, téléphone TEXT, date_rdv TEXT, heure_rdv TEXT, " +
+      "vehicule TEXT, résumé TEXT, transcript TEXT, raw_json TEXT, " +
       "created_at TEXT DEFAULT (datetime('now')))"
   );
 }
@@ -74,11 +74,11 @@ async function callClaude(env, transcript) {
     "autour, sans balise markdown, avec EXACTEMENT ces clés : " +
     "intent (une valeur parmi 'rdv', 'devis', 'question', 'autre'), " +
     "nom (nom de l'appelant ou null), " +
-    "telephone (numéro mentionné ou null), " +
+    "téléphone (numéro mentionné ou null), " +
     "date_rdv (date évoquée telle quelle ou null), " +
     "heure_rdv (heure évoquée telle quelle ou null), " +
     "vehicule (marque/modèle/immatriculation ou null), " +
-    "resume (résumé en une phrase concise). " +
+    "résumé (résumé en une phrase concise). " +
     "Utilise null (pas une chaîne vide) pour toute information absente.";
 
   const resp = await fetch('https://api.anthropic.com/v1/messages', {

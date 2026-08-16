@@ -170,5 +170,5 @@ async function handleDeleteType(request, env, typeId) {
     'UPDATE appointment_types SET is_active = 0, updated_at = ? WHERE id = ? AND tenant_id = ?'
   ).bind(new Date().toISOString(), typeId, tenant.id).run();
 
-  return successResponse({ message: 'Type de RDV supprime' }, 200, request);
+  return successResponse({ message: 'Type de RDV supprimé' }, 200, request);
 }

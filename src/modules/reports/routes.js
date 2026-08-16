@@ -279,7 +279,7 @@ export async function handleReportsRoutes(request, env, ctx, corsHeaders) {
 
       return new Response(JSON.stringify({
         success: sent,
-        message: sent ? 'Recap envoye par email' : 'Erreur envoi email'
+        message: sent ? 'Récap envoyé par email' : 'Erreur envoi email'
       }), {
         status: sent ? 200 : 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

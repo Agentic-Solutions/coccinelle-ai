@@ -88,7 +88,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       logger.error('Get settings error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la recuperation des parametres'
+        error: 'Erreur lors de la recuperation des paramètres'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -116,7 +116,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       try {
         body = await request.json();
       } catch {
-        return new Response(JSON.stringify({ success: false, error: 'Corps de requete invalide' }), {
+        return new Response(JSON.stringify({ success: false, error: 'Corps de requête invalide' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -201,7 +201,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       logger.error('Update account error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la mise a jour du compte'
+        error: 'Erreur lors de la mise à jour du compte'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -240,7 +240,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       try {
         body = await request.json();
       } catch {
-        return new Response(JSON.stringify({ success: false, error: 'Corps de requete invalide' }), {
+        return new Response(JSON.stringify({ success: false, error: 'Corps de requête invalide' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -283,7 +283,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       if (updates.length === 0) {
         return new Response(JSON.stringify({
           success: false,
-          error: 'Aucune donnee a mettre a jour'
+          error: 'Aucune donnée a mettre a jour'
         }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -315,7 +315,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       logger.error('Update company error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la mise a jour des informations entreprise'
+        error: 'Erreur lors de la mise à jour des informations entreprise'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -436,7 +436,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       try {
         body = await request.json();
       } catch {
-        return new Response(JSON.stringify({ success: false, error: 'Corps de requete invalide' }), {
+        return new Response(JSON.stringify({ success: false, error: 'Corps de requête invalide' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -479,7 +479,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       logger.error('Update notifications error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: 'Erreur lors de la mise a jour des notifications'
+        error: 'Erreur lors de la mise à jour des notifications'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -509,7 +509,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       try {
         body = await request.json();
       } catch {
-        return new Response(JSON.stringify({ success: false, error: 'Corps de requete invalide' }), {
+        return new Response(JSON.stringify({ success: false, error: 'Corps de requête invalide' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
@@ -543,7 +543,7 @@ export async function handleSettingsRoutes(request, env, ctx, corsHeaders) {
       logger.error('Update ui-mode error', { error: error.message });
       return new Response(JSON.stringify({
         success: false,
-        error: "Erreur lors de la mise a jour de l'affichage"
+        error: "Erreur lors de la mise à jour de l'affichage"
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

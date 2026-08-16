@@ -755,7 +755,7 @@ async function handleTestSMS(request, env, tenantId) {
       message_sid: data.sid,
       to,
       status: 'sent',
-      message: 'SMS de test envoye avec succes'
+      message: 'SMS de test envoyé avec succès'
     });
   } catch (error) {
     logger.error('Test SMS error', { error: error.message, tenantId });

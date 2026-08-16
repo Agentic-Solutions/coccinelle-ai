@@ -113,7 +113,7 @@ async function handleSubmitFeedback(request, env, corsHeaders) {
   }
 
   if (rating !== undefined && (rating < 1 || rating > 5)) {
-    return Response.json({ success: false, error: 'La note doit etre entre 1 et 5' }, { status: 400, headers: corsHeaders });
+    return Response.json({ success: false, error: 'La note doit être entre 1 et 5' }, { status: 400, headers: corsHeaders });
   }
 
   const feedback = await env.DB.prepare(
@@ -125,7 +125,7 @@ async function handleSubmitFeedback(request, env, corsHeaders) {
   }
 
   if (feedback.rating !== null) {
-    return Response.json({ success: false, error: 'Feedback deja soumis' }, { status: 400, headers: corsHeaders });
+    return Response.json({ success: false, error: 'Feedback déjà soumis' }, { status: 400, headers: corsHeaders });
   }
 
   await env.DB.prepare(`
@@ -137,8 +137,8 @@ async function handleSubmitFeedback(request, env, corsHeaders) {
   await createNotification(env, {
     tenant_id: feedback.tenant_id,
     type: 'feedback_received',
-    title: 'Nouveau feedback recu',
-    message: `Nouveau feedback : ${rating}/5 etoiles${comment ? ' - "' + comment.substring(0, 100) + '"' : ''}`,
+    title: 'Nouveau feedback reçu',
+    message: `Nouveau feedback : ${rating}/5 étoiles${comment ? ' - "' + comment.substring(0, 100) + '"' : ''}`,
     data: { feedback_id: feedback.id, rating, appointment_id: feedback.appointment_id }
   });
 

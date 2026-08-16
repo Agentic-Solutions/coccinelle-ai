@@ -148,7 +148,7 @@ export async function handleBillingSubscriptionRoutes(request, env, ctx, corsHea
           }
         }
         return new Response(
-          JSON.stringify({ success: false, error: 'Vous avez deja un abonnement actif. Utilisez "Gerer mon abonnement" pour modifier votre plan.' }),
+          JSON.stringify({ success: false, error: 'Vous avez déjà un abonnement actif. Utilisez "Gerer mon abonnement" pour modifier votre plan.' }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

@@ -226,7 +226,7 @@ export async function handleOmnicanalEvent(request, env) {
     return successResponse({ success: true, executed: result?.executed || 0, details: result });
   } catch (error) {
     logger.error('handleOmnicanalEvent error', { error: error.message });
-    return errorResponse('Erreur lors du traitement de l evenement', 500);
+    return errorResponse('Erreur lors du traitement de l événement', 500);
   }
 }
 

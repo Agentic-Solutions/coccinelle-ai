@@ -253,7 +253,7 @@ async function handleConvertProspect(request, env, prospectId) {
   }
 
   if (prospect.status === 'converted') {
-    return errorResponse('Ce prospect a deja ete converti', 400);
+    return errorResponse('Ce prospect a déjà été converti', 400);
   }
 
   const customerId = auth.generateId('cust');

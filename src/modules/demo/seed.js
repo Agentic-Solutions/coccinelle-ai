@@ -116,7 +116,7 @@ export function buildSeedCallSummaries(tenantId, now) {
   return [
     { id: 'cs_demo_001', call_id: 'call_demo_001', tenant_id: tenantId, message_count: 4, duration: 180, summary: 'Signalement fuite d eau colonne montante batiment A, 3e etage. Technicien envoye.', sentiment: 'neutral', intent: 'signalement_urgence', appointment_booked: 0, transfer_requested: 0, created_at: d(1) },
     { id: 'cs_demo_002', call_id: 'call_demo_002', tenant_id: tenantId, message_count: 3, duration: 120, summary: 'Question sur augmentation appel de charges. Explication travaux ravalement AG.', sentiment: 'neutral', intent: 'question_charges', appointment_booked: 0, transfer_requested: 0, created_at: d(2) },
-    { id: 'cs_demo_003', call_id: 'call_demo_003', tenant_id: tenantId, message_count: 5, duration: 240, summary: 'Preparation ordre du jour assemblee generale avec presidente conseil syndical. RDV fixe.', sentiment: 'positive', intent: 'preparation_ag', appointment_booked: 1, transfer_requested: 0, created_at: d(3) },
+    { id: 'cs_demo_003', call_id: 'call_demo_003', tenant_id: tenantId, message_count: 5, duration: 240, summary: 'Preparation ordre du jour assemblee générale avec presidente conseil syndical. RDV fixe.', sentiment: 'positive', intent: 'preparation_ag', appointment_booked: 1, transfer_requested: 0, created_at: d(3) },
     { id: 'cs_demo_004', call_id: 'call_demo_004', tenant_id: tenantId, message_count: 3, duration: 130, summary: 'Appel sortant cabinet notaire pour transmission acte de vente lot 12. Envoi en cours.', sentiment: 'positive', intent: 'suivi_vente', appointment_booked: 0, transfer_requested: 0, created_at: d(4) },
     { id: 'cs_demo_005', call_id: 'call_demo_005', tenant_id: tenantId, message_count: 3, duration: 95, summary: 'Demande attestation assurance immeuble pour locataire lot 7. Envoi par email.', sentiment: 'positive', intent: 'demande_document', appointment_booked: 0, transfer_requested: 0, created_at: d(5) },
   ];
@@ -153,7 +153,7 @@ export function buildSeedAppointments(tenantId, now) {
       duration_minutes: 90,
       management_token: 'tok_demo_ag_001',
       status: 'scheduled',
-      notes: 'Assemblee generale annuelle de copropriete — residence Les Tilleuls',
+      notes: 'Assemblee générale annuelle de copropriete — residence Les Tilleuls',
     },
     {
       id: 'appt_demo_002',

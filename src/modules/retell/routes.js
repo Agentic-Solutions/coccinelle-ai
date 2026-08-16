@@ -424,7 +424,7 @@ async function sendDemoRecapEmail(env, data) {
         <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0;">
           <table style="width: 100%;">
             <tr>
-              <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Duree de l'appel</td>
+              <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Durée de l'appel</td>
               <td style="padding: 6px 0; color: #1f2937; font-weight: 600; text-align: right;">${durationStr}</td>
             </tr>
             ${data.sector ? '<tr><td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Votre secteur</td><td style="padding: 6px 0; color: #1f2937; font-weight: 600; text-align: right;">' + data.sector + '</td></tr>' : ''}

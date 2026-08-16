@@ -267,7 +267,7 @@ export async function handleTeamRoutes(request, env, path, method) {
     try { body = await request.json(); } catch { return new Response(JSON.stringify({ success: false, error: 'Body JSON invalide' }), { status: 400, headers: jsonHeaders }); }
 
     const { services } = body;
-    if (!Array.isArray(services)) return new Response(JSON.stringify({ success: false, error: 'services doit etre un tableau' }), { status: 400, headers: jsonHeaders });
+    if (!Array.isArray(services)) return new Response(JSON.stringify({ success: false, error: 'services doit être un tableau' }), { status: 400, headers: jsonHeaders });
 
     try {
       const stmts = [
@@ -380,7 +380,7 @@ export async function handleTeamRoutes(request, env, path, method) {
       return new Response(JSON.stringify({ success: true, id }), { status: 201, headers: jsonHeaders });
     } catch (err) {
       logger.error('[Team] POST skill error', { error: err.message });
-      return new Response(JSON.stringify({ success: false, error: 'Erreur ajout competence' }), { status: 500, headers: jsonHeaders });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur ajout compétence' }), { status: 500, headers: jsonHeaders });
     }
   }
 
@@ -402,7 +402,7 @@ export async function handleTeamRoutes(request, env, path, method) {
       return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
     } catch (err) {
       logger.error('[Team] DELETE skill error', { error: err.message });
-      return new Response(JSON.stringify({ success: false, error: 'Erreur suppression competence' }), { status: 500, headers: jsonHeaders });
+      return new Response(JSON.stringify({ success: false, error: 'Erreur suppression compétence' }), { status: 500, headers: jsonHeaders });
     }
   }
 

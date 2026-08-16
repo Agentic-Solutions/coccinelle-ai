@@ -115,7 +115,7 @@ async function handleCreateFaqItem(request, env, corsHeaders) {
   const { question, answer, category, sort_order } = body;
 
   if (!question || !answer) {
-    return Response.json({ success: false, error: 'Question et reponse requises' }, { status: 400, headers: corsHeaders });
+    return Response.json({ success: false, error: 'Question et réponse requises' }, { status: 400, headers: corsHeaders });
   }
 
   const itemId = `faq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

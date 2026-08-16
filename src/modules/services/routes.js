@@ -162,7 +162,7 @@ export async function handleServicesRoutes(request, env, path, method) {
     try { body = await request.json(); } catch { return new Response(JSON.stringify({ success: false, error: 'Body JSON invalide' }), { status: 400, headers: jsonHeaders }); }
 
     const { agents } = body;
-    if (!Array.isArray(agents)) return new Response(JSON.stringify({ success: false, error: 'agents doit etre un tableau' }), { status: 400, headers: jsonHeaders });
+    if (!Array.isArray(agents)) return new Response(JSON.stringify({ success: false, error: 'agents doit être un tableau' }), { status: 400, headers: jsonHeaders });
 
     try {
       // Delete existing assignments for this service

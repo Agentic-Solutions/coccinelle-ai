@@ -74,7 +74,7 @@ async function handleOrchestrate(request, env) {
       if (resolved) {
         tenantId = resolved.tenant_id;
       } else {
-        return errorResponse('Impossible de resoudre le tenant depuis le numero/email', 404);
+        return errorResponse('Impossible de resoudre le tenant depuis le numéro/email', 404);
       }
     }
 
@@ -407,7 +407,7 @@ async function generateLLMResponse(env, systemPrompt, userMessage, canal, contex
 function getFormatInstruction(canal) {
   switch (canal) {
     case 'sms':
-      return 'IMPORTANT : Ta reponse doit faire maximum 160 caracteres (limite SMS). Sois ultra concise.';
+      return 'IMPORTANT : Ta réponse doit faire maximum 160 caracteres (limite SMS). Sois ultra concise.';
     case 'email':
       return 'Reponds dans un format email professionnel avec salutation, corps et signature. Signe "Sara — Assistante IA".';
     case 'whatsapp':

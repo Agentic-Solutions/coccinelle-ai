@@ -217,7 +217,7 @@ async function handleCreateAppointment(request, env) {
     `).bind(tenant_id, date_time, newDuration, date_time).first();
     if (conflict && conflict.n > 0) {
       return successResponse({
-        message: `Ce creneau est deja pris. Souhaitez-vous un autre horaire ?`,
+        message: `Ce créneau est déjà pris. Souhaitez-vous un autre horaire ?`,
         conflict: true,
         requested_time: date_time
       }, 200);
@@ -1396,7 +1396,7 @@ export function _isNonAnswer(text) {
   const marqueurs = [
     "n'ai pas assez d'informations",
     "n'ai pas d'informations",
-    "n'ai pas acces",
+    "n'ai pas accès",
     "n'ai pas accès",
     'ne dispose pas',
     'aucune information',
@@ -1648,7 +1648,7 @@ async function handleResolvePhone(request, env) {
         llm_model: defaultTemplate?.llm_model || 'mistral-large-latest',
         voice_id: defaultTemplate?.voice_id || 'cgSgspJ2msm6clMCkdW9',
         system_prompt: buildSectorPrompt({ secteur: 'generaliste' }),
-        message: 'Numero non associe a un tenant — config generaliste par defaut'
+        message: 'Numéro non associé à un tenant — config généraliste par défaut'
       });
     }
 
@@ -1698,12 +1698,12 @@ async function handleResolvePhone(request, env) {
       }),
       active_prompt_id: resolved.active_prompt_id || null,
       prompt_version: resolved.prompt_version || null,
-      message: 'Tenant resolu avec succes'
+      message: 'Tenant résolu avec succès'
     });
 
   } catch (error) {
     logger.error('VoixIA resolve-phone error', { error: error.message, phone });
-    return errorResponse('Erreur lors de la resolution du numero', 500);
+    return errorResponse('Erreur lors de la résolution du numéro', 500);
   }
 }
 
@@ -1764,7 +1764,7 @@ async function handleTransferToHuman(request, env) {
   return successResponse({
     transfer_possible: false,
     action: 'propose_callback',
-    message: 'Le transfert direct n est pas disponible. Proposez un rappel au client : demandez son nom, numero et creneau prefere. Utilisez ensuite create_prospect avec status callback_requested et send_sms pour confirmer.',
+    message: 'Le transfert direct n est pas disponible. Proposez un rappel au client : demandez son nom, numéro et créneau préféré. Utilisez ensuite create_prospect avec status callback_requested et send_sms pour confirmer.',
     reason: reason || 'Demande client'
   });
 }
@@ -1910,7 +1910,7 @@ async function handleLogCall(request, env) {
     return successResponse({
       call_id: callId,
       logged: true,
-      message: 'Appel logge avec succes'
+      message: 'Appel loggé avec succès'
     });
 
   } catch (error) {
@@ -2068,7 +2068,7 @@ async function handleCreateAgentConfig(request, env) {
       agent_type,
       prompt_id: promptId,
       version: nextVersion,
-      message: 'Agent cree avec succes'
+      message: 'Agent créé avec succès'
     }, 201);
   } catch (error) {
     logger.error('Create agent error', { error: error.message });

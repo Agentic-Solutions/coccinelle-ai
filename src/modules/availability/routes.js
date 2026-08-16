@@ -89,7 +89,7 @@ async function handleSetAvailability(request, env) {
   const targetAgentId = agent_id || user.id;
 
   if (day_of_week === undefined || day_of_week < 1 || day_of_week > 7) {
-    return errorResponse('day_of_week doit etre entre 1 (lundi) et 7 (dimanche)', 400, request);
+    return errorResponse('day_of_week doit être entre 1 (lundi) et 7 (dimanche)', 400, request);
   }
 
   // Validate that the agent exists and ensure FK to agents table is satisfied
@@ -174,7 +174,7 @@ async function handleSetAvailability(request, env) {
       ).run();
     } catch (fallbackError) {
       logger.error('Availability slot creation failed', { error: fallbackError.message });
-      return errorResponse('Impossible de creer le creneau: ' + fallbackError.message, 500, request);
+      return errorResponse('Impossible de creer le créneau: ' + fallbackError.message, 500, request);
     }
   }
 
@@ -199,7 +199,7 @@ async function handleDeleteAvailability(request, env, slotId) {
   ).bind(slotId, tenant.id).first();
 
   if (!existing) {
-    return errorResponse('Creneau non trouve', 404, request);
+    return errorResponse('Créneau non trouve', 404, request);
   }
 
   await env.DB.prepare(
@@ -237,7 +237,7 @@ async function handleSetBusinessHours(request, env) {
   const { hours } = body;
 
   if (!Array.isArray(hours)) {
-    return errorResponse('hours doit etre un tableau', 400, request);
+    return errorResponse('hours doit être un tableau', 400, request);
   }
 
   // Delete existing then insert all
