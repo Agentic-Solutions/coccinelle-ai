@@ -487,7 +487,7 @@ export default function BookingClient() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Rendez-vous confirmé !</h2>
             <p className="text-gray-600 mb-6">
-              Votre rendez-vous a bien ete enregistre.
+              Votre rendez-vous a bien été enregistré.
             </p>
 
             <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-md mx-auto text-left">
@@ -516,8 +516,17 @@ export default function BookingClient() {
               )}
             </div>
 
+            {/* La page dit ce qui est RÉELLEMENT parti, pas ce qu'on espère.
+                `confirmation_sent` vient de l'API, qui sait si Twilio a accepté le
+                message. L'e-mail a disparu de cette phrase : le canal est hors
+                périmètre et la boîte est déconnectée — le promettre était une
+                promesse vide. Et si le SMS n'est pas parti, on le dit et on invite
+                à noter le rendez-vous, plutôt que de laisser le visiteur attendre
+                un message qui ne viendra jamais. */}
             <p className="text-sm text-gray-500 mt-6">
-              Vous recevrez une confirmation par SMS ou par e-mail.
+              {confirmation.confirmation_sent
+                ? 'Vous recevrez une confirmation par SMS.'
+                : "Notez bien ce rendez-vous : nous n'avons pas pu vous envoyer le SMS de confirmation."}
             </p>
           </div>
         )}
