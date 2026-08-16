@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
+    "test": "node scripts/test_dates.mjs && TZ=Europe/Paris node scripts/test_dates.mjs && TZ=UTC node scripts/test_dates.mjs && TZ=America/New_York node scripts/test_dates.mjs && TZ=Pacific/Auckland node scripts/test_dates.mjs && node scripts/verifier-dates.mjs && node scripts/test_plafond_sms.mjs && node scripts/test_rappels.mjs && node scripts/test_sms_lien.mjs && node scripts/test_telephone.mjs && bash design/menage/verifier-liens.sh",
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 execute coccinelle-db --local --file=database/schema-v1.sql",

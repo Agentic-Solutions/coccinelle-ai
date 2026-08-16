@@ -461,9 +461,23 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
     la capacité passe de 160 à **70** par segment. Passer par
     `compterSms()` / `compacterPourGsm7()` (`shared/sms-format.js`) avant de conclure qu'un
     message « tient ». `€` compte double mais reste plus court que « EUR ».
-10quinquies. **`appointments.scheduled_at` est une date-heure NAÏVE et déjà LOCALE.** Ne jamais
-    la passer à `new Date()` puis la reformater avec un `timeZone` : cela ajoute deux heures en
-    été. Lire les composantes du texte telles quelles.
+10quinquies. 🔴 **`appointments.scheduled_at` est une date-heure NAÏVE et déjà LOCALE**
+    (`"2026-08-17T14:30:00"`, séparateur `T`, aucun décalage).
+    **⚠️ CETTE RÈGLE A ÉTÉ MAL LUE TROIS FOIS. Le critère exact : c'est le `timeZone`
+    qui est interdit, PAS le `new Date()`.** Mesuré le 16/08/2026 :
+    - **sans** `timeZone`, l'affichage est correct **partout** — `new Date(s)` parse une
+      date-heure sans décalage comme LOCALE, donc `toLocaleTimeString('fr-FR')` rend
+      **14:30** sous Paris, UTC, New York et Auckland. L'affichage n'a jamais été cassé ;
+    - **avec** `timeZone: 'Europe/Paris'`, tout se décale selon le fuseau du runtime :
+      14:30 sous Paris, **16:30 sous UTC** (le cas du Worker), **20:30** sous New York.
+    ⇒ **Passer par `coccinelle-saas/lib/dates.ts` (front) ou `src/modules/shared/dates.js`
+    (Worker), jamais par `new Date()` directement.** `timeZone: 'UTC'` est la seule
+    valeur autorisée, et seulement sur un support dont les composantes ont été posées en
+    UTC (`supportAffichage()`).
+    Garde-fous : `scripts/verifier-dates.mjs` (échoue sur un `timeZone` interdit ou un
+    `new Date(<champ naïf>)` hors module) et `scripts/test_dates.mjs` (**5 fuseaux** —
+    lancé seulement sous Paris, il passe 67/67 sur du code cassé). Les deux sont dans
+    `npm test`. Voir [[dates-naives-source-unique]].
 10bis. **La règle « ce SMS mérite-t-il le lien de réservation ? » vit dans UN SEUL fichier** :
     `src/modules/shared/sms-booking-link.js` (table `TYPES_SMS`). Un module d'envoi n'écrit
     jamais cette décision lui-même — il passe un `type`. Ajouter un type au tableau, jamais un
@@ -1025,7 +1039,27 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
 2. Lire `MASTER-PROMPT-V5.md` (37 règles techniques Agentic OS + contexte fondateur).
 
 ### Ordre de déploiement obligatoire
-Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`) → Frontend (build + pages deploy).
+
+**0. `npm test` à la racine — AVANT tout déploiement.**
+
+```bash
+cd ~/Projects/saas/coccinelle-ai && npm test
+```
+
+Une seule commande qui enchaîne : les dates sous **5 fuseaux** (`test_dates.mjs`), le
+garde-fou des dates naïves (`verifier-dates.mjs`), le plafond SMS, les rappels J-1, le
+lien de réservation, le téléphone, et `verifier-liens.sh`. Elle s'arrête au premier
+échec.
+
+⚠️ **Il n'y a ni CI ni hook dans ce dépôt** : cette commande n'est exécutée que si
+quelqu'un la lance. C'est pour cette raison qu'elle figure ici, à l'étape 0 — un
+garde-fou que personne n'exécute n'est pas un garde-fou. Et le test des dates ne vaut
+que **lancé sous plusieurs fuseaux** : mesuré le 16/08/2026, du code portant le défaut
+historique passe **67/67 sous `TZ=Europe/Paris`** et n'échoue qu'à partir d'`UTC`.
+
+Puis : Backend (`wrangler deploy`) → VoixIA (`systemctl restart voixia`, par **`scp`**
+fichier par fichier, jamais `rsync --delete` — règle 20bis) → Frontend (build + pages
+deploy).
 
 ### Garde-fous
 - Ne JAMAIS committer de secret (repo public + push-protection). Secrets → `.credentials.md`.
