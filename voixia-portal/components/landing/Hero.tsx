@@ -23,7 +23,7 @@ export function Hero() {
         </h1>
 
         <p className="mb-8 max-w-[480px] text-[19px]" style={{ lineHeight: 1.55, color: "var(--muted-2)" }}>
-          Déployez des agents qui répondent au téléphone, en SMS et par email. Voix
+          Déployez des agents qui répondent au téléphone et en SMS. Voix
           françaises naturelles, latence FR, RGPD natif —{" "}
           <span style={{ color: "var(--text)", fontWeight: 600 }}>le prix affiché = le prix payé.</span>
         </p>
@@ -71,7 +71,7 @@ curl https://api.voixia.io/v1/agents \\
     "llm": "mistral-large-eu",
     "canaux": ["voix","sms"]
   }'
-→ agent prêt · numéro FR attribué`}
+→ agent prêt · numéro FR après validation`}
         </pre>
       </div>
     </header>

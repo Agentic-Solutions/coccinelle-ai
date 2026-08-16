@@ -21,7 +21,7 @@ const FAQS = [
   },
   {
     q: "Combien coûte un numéro de téléphone ?",
-    a: "5 €/mois par numéro français dédié, attribué à un agent. Vous pouvez en acheter directement depuis le portail, en un clic.",
+    a: "5 €/mois par numéro français dédié, attribué à un agent. Vous le commandez depuis le portail ; l'attribution demande une validation réglementaire de l'opérateur, soit 2 à 3 jours ouvrés après réception des documents (Kbis, pièce d'identité du représentant légal, justificatif d'adresse, SIRET).",
   },
   {
     q: "Comment je démarre ?",

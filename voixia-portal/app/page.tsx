@@ -14,7 +14,7 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 export const metadata: Metadata = {
   title: "VoixIA — L'API d'agents vocaux IA souveraine et française",
   description:
-    "Déployez des agents vocaux IA qui répondent au téléphone, en SMS et par email. Hébergé en Europe, LLM Mistral souverain, RGPD natif. Le prix affiché = le prix payé.",
+    "Déployez des agents vocaux IA qui répondent au téléphone et en SMS. Hébergé en Europe, LLM Mistral souverain, RGPD natif. Le prix affiché = le prix payé.",
 };
 
 export default function LandingPage() {
@@ -40,7 +40,7 @@ export default function LandingPage() {
             Prêt à déployer votre premier agent ?
           </h2>
           <p className="mb-7 text-[16.5px]" style={{ color: "var(--muted-2)" }}>
-            Compte créé en quelques minutes. Numéro français attribué en un clic.
+            Compte créé en quelques minutes. Numéro français attribué après validation réglementaire, sous 2 à 3 jours ouvrés.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Link href="/signup" className="vx-btn-primary px-7 py-3.5 text-[15px]">
