@@ -287,7 +287,11 @@ export default {
       }
 
       // Reminders & followups
-      if (path.startsWith('/api/v1/appointments/send-reminders') || path.startsWith('/api/v1/appointments/send-followups') || path.startsWith('/api/v1/feedback')) {
+      // ⛔ `send-reminders` retiree le 16/08/2026 : doublon vivant du rappel J-1 de
+      // `src/cron/reminders.js`, avec l'heure fausse (regle 10quinquies) et sans
+      // garde atomique. Le chemin n'est plus route : il tombe en 404 comme n'importe
+      // quel chemin inconnu, ce qui est exact — il n'existe plus.
+      if (path.startsWith('/api/v1/appointments/send-followups') || path.startsWith('/api/v1/feedback')) {
         response = await handleRemindersRoutes(request, env, ctx, getCorsHeaders(request));
         if (response) return response;
       }
