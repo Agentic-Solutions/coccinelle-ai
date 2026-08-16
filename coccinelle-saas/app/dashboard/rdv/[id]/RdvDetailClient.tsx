@@ -7,6 +7,7 @@ import { ArrowLeft, Calendar, Clock, User, MapPin, FileText, CheckCircle2, XCirc
 import Logo from '@/components/Logo';
 import { useToast } from '../../../../hooks/useToast';
 import ActionToastContainer from '@/components/ActionToast';
+import { formaterDateLongue, formaterHeureNaive } from '@/lib/dates';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -139,7 +140,11 @@ export default function RdvDetailPage() {
     );
   }
 
-  const scheduledDate = new Date(appointment.scheduled_at);
+  // `scheduled_at` est une heure murale sans decalage : on la lit par `lib/dates`,
+  // qui n'applique aucun fuseau. Le rendu est identique a celui d'avant — c'est le
+  // `timeZone` qui decalait, pas la lecture (mesure du 16/08/2026).
+  const dateLongue = formaterDateLongue(appointment.scheduled_at);
+  const heure = formaterHeureNaive(appointment.scheduled_at);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -157,7 +162,7 @@ export default function RdvDetailPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">Détail du rendez-vous</h1>
               <p className="text-sm text-gray-600">
-                {scheduledDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                {dateLongue}
               </p>
             </div>
           </div>
@@ -182,7 +187,7 @@ export default function RdvDetailPage() {
                   <div>
                     <p className="text-sm text-gray-500">Date</p>
                     <p className="font-medium text-gray-900">
-                      {scheduledDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      {dateLongue}
                     </p>
                   </div>
                 </div>
@@ -192,7 +197,7 @@ export default function RdvDetailPage() {
                   <div>
                     <p className="text-sm text-gray-500">Heure</p>
                     <p className="font-medium text-gray-900">
-                      {scheduledDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      {heure}
                       {appointment.duration_minutes && ` (${appointment.duration_minutes} min)`}
                     </p>
                   </div>

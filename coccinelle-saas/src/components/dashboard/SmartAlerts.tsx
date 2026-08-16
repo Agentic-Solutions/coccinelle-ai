@@ -13,6 +13,7 @@ import {
   Target,
   Zap
 } from 'lucide-react';
+import { estAVenir, heuresJusqua, joursJusqua } from '@/lib/dates';
 
 export interface Alert {
   id: string;
@@ -212,9 +213,10 @@ function generateSmartAlerts(calls: any[], appointments: any[], documents: any[]
 
   // 1. Alerte: RDV dans les prochaines heures
   const upcomingAppointments = appointments.filter(a => {
-    const apptDate = new Date(a.scheduled_at);
-    const hoursUntil = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    return hoursUntil > 0 && hoursUntil < 2 && a.status === 'scheduled';
+    // Ecart d'heure MURALE, via `lib/dates` : « dans moins de 2 heures » se juge sur
+    // la pendule de l'entreprise, pas sur une duree physique.
+    const hoursUntil = heuresJusqua(a.scheduled_at);
+    return hoursUntil !== null && hoursUntil > 0 && hoursUntil < 2 && a.status === 'scheduled';
   });
 
   if (upcomingAppointments.length > 0) {
@@ -286,7 +288,7 @@ function generateSmartAlerts(calls: any[], appointments: any[], documents: any[]
   // 5. Rappel RDV non confirmés
   const unconfirmedAppts = appointments.filter(a =>
     a.status === 'scheduled' &&
-    new Date(a.scheduled_at) > now
+    estAVenir(a.scheduled_at)
   );
 
   if (unconfirmedAppts.length > 5) {
@@ -344,11 +346,10 @@ function generateSmartAlerts(calls: any[], appointments: any[], documents: any[]
   }
 
   // 7. Alerte créneaux populaires complets
-  const upcomingAppts = appointments.filter(a => new Date(a.scheduled_at) > now);
+  const upcomingAppts = appointments.filter(a => estAVenir(a.scheduled_at));
   const nextWeekAppts = upcomingAppts.filter(a => {
-    const apptDate = new Date(a.scheduled_at);
-    const daysUntil = (apptDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-    return daysUntil <= 7;
+    const daysUntil = joursJusqua(a.scheduled_at);
+    return daysUntil !== null && daysUntil <= 7;
   });
 
   if (nextWeekAppts.length > 10) {

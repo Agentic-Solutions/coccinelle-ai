@@ -1,4 +1,5 @@
 // Live Updates Engine - Système de notifications et mises à jour temps réel
+import { supportAffichage } from './dates';
 // Polling intelligent et gestion des événements
 
 export type NotificationType = 'new_booking' | 'appointment_confirmed' | 'appointment_cancelled' | 'milestone' | 'alert';
@@ -296,13 +297,20 @@ export function getUnreadCount(): number {
 }
 
 // Formater une date
+// `dateStr` vient de `booking.scheduled_at` : heure murale, sans decalage. On la lit
+// par `lib/dates`, qui n'applique aucun fuseau.
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = supportAffichage(dateStr);
+  if (!date) return '';
+  // `timeZone: 'UTC'` est obligatoire ici, et c'est le contrat de `supportAffichage` :
+  // les composantes ont ete posees en UTC, donc UTC est l'identite. Toute autre valeur
+  // decalerait l'heure — et fait echouer `scripts/verifier-dates.mjs`.
   return date.toLocaleDateString('fr-FR', {
     day: '2-digit',
     month: 'long',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    timeZone: 'UTC'
   });
 }
 

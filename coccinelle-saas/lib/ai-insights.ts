@@ -1,5 +1,11 @@
 // AI Insights Engine - Analyse intelligente des données Widget/Réservations
 // Génère automatiquement des insights et recommandations pour optimiser les réservations
+//
+// ⚠️ Les dates passent TOUTES par `lib/dates` : `scheduled_at` est une heure murale
+// sans decalage, et la relire par `new Date()` puis la formater avec un `timeZone`
+// la decale (14:30 devient 16:30 depuis un Worker). Le garde-fou
+// `scripts/verifier-dates.mjs` echoue si un `new Date(scheduled_at)` revient ici.
+import { jourSemaineNaive, heureNaive, estAVenir, estPasse, NOMS_JOURS } from './dates';
 
 export interface Insight {
   id: string;
@@ -184,13 +190,17 @@ function analyzeAppointments(appointments: any[]): Insight[] {
 
   // Prédiction des créneaux optimaux
   const appointmentsByDay = appointments.reduce((acc: any, a) => {
-    const day = new Date(a.scheduled_at).getDay();
-    acc[day] = (acc[day] || 0) + 1;
+    // `jourSemaineNaive` rend 1=lundi … 7=dimanche, et `NOMS_JOURS` est indexe
+    // pareil : les deux viennent du meme module, donc ils ne peuvent plus se
+    // desynchroniser. Avant, `getDay()` (0=dimanche) et un tableau commencant par
+    // « Dimanche » etaient corrects ENSEMBLE mais faux separement.
+    const day = jourSemaineNaive(a.scheduled_at);
+    if (day !== null) acc[day] = (acc[day] || 0) + 1;
     return acc;
   }, {});
 
   const bestDay = Object.entries(appointmentsByDay).sort((a: any, b: any) => b[1] - a[1])[0];
-  const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const dayNames = NOMS_JOURS;
 
   if (bestDay) {
     insights.push({
@@ -216,8 +226,8 @@ function analyzeTimeSlots(appointments: any[]): Insight[] {
   // Analyser les heures préférées
   const hourCounts: Record<number, number> = {};
   appointments.forEach(a => {
-    const hour = new Date(a.scheduled_at).getHours();
-    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    const hour = heureNaive(a.scheduled_at);
+    if (hour !== null) hourCounts[hour] = (hourCounts[hour] || 0) + 1;
   });
 
   const sortedHours = Object.entries(hourCounts)
@@ -249,7 +259,7 @@ function analyzeRevenuePotential(appointments: any[]): Insight[] {
   if (appointments.length === 0) return insights;
 
   const now = new Date();
-  const upcomingAppts = appointments.filter(a => new Date(a.scheduled_at) > now && a.status === 'scheduled');
+  const upcomingAppts = appointments.filter(a => estAVenir(a.scheduled_at) && a.status === 'scheduled');
   const completedAppts = appointments.filter(a => a.status === 'completed');
 
   // Estimation revenue (moyenne $50 par RDV)
@@ -319,10 +329,7 @@ function generatePredictions(calls: any[], appointments: any[]): AIAnalysis['pre
   const nextWeekPrediction = Math.max(0, Math.round(avgBookingsPerWeek * (1 + growthRate)));
 
   // Calcul du risque de no-show (basé sur historique)
-  const pastAppts = appointments.filter(a => {
-    const apptDate = new Date(a.scheduled_at);
-    return apptDate < now;
-  });
+  const pastAppts = appointments.filter(a => estPasse(a.scheduled_at));
   const noShowCount = pastAppts.filter(a => a.status === 'no_show').length;
   const noShowRisk = pastAppts.length > 0 ? (noShowCount / pastAppts.length) * 100 : 15; // 15% par défaut
 
@@ -401,7 +408,7 @@ function calculateOverallScore(calls: any[], appointments: any[]): number {
   else if (last7DaysBookings > 15) score += 10;
 
   // Taux de no-show
-  const pastAppts = appointments.filter(a => new Date(a.scheduled_at) < now);
+  const pastAppts = appointments.filter(a => estPasse(a.scheduled_at));
   const noShowRate = pastAppts.length > 0
     ? (pastAppts.filter(a => a.status === 'no_show').length / pastAppts.length) * 100
     : 0;

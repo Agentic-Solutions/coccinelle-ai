@@ -2,6 +2,7 @@
 // Gère la logique de conversation avec Claude/GPT et les tool calls
 import { logger } from '../../utils/logger.js';
 import { ragPipeline } from '../knowledge/search.js';
+import { jourSemaineNaive } from '../shared/dates.js';
 
 export class ConversationManager {
   constructor(env, options) {
@@ -633,7 +634,6 @@ LANGUE: Français exclusivement`;
 
       // Si on a un agent, vérifier ses disponibilités
       if (finalAgentId) {
-        const appointmentDate = new Date(`${date}T${time}:00`);
         // ── day_of_week canonique : 1=Lundi … 7=Dimanche (corrige le 16/08/2026) ──
         // `getDay()` rend 0 pour dimanche, la colonne attend 7. Lundi a samedi
         // coincidaient (1..6), ce qui rendait le defaut invisible : SEUL le dimanche
@@ -641,8 +641,9 @@ LANGUE: Français exclusivement`;
         // indisponible. Meme conversion que `public/booking.js:130` et
         // `voixia/routes.js:310` ; la convention est validee par
         // `availability/routes.js:91` (« entre 1 (lundi) et 7 (dimanche) »).
-        const jsDay = appointmentDate.getDay();
-        const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+        // DURCI le meme jour : la conversion ne s'ecrit plus a la main. Elle vivait
+        // dans quatre fichiers, et c'est ici qu'elle avait ete oubliee.
+        const dayOfWeek = jourSemaineNaive(`${date}T${time}:00`);
 
         const availability = await env.DB.prepare(`
           SELECT * FROM availability_slots

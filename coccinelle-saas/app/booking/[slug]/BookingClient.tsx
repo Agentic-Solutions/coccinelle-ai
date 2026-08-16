@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import TurnstileWidget from '@/components/TurnstileWidget';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { formaterDateHeureNaive } from '@/lib/dates';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -204,14 +205,11 @@ export default function BookingClient() {
     return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
   };
 
+  // `datetime` est une heure murale sans decalage : `lib/dates` la lit sans appliquer
+  // de fuseau. Le rendu est identique — c'est le `timeZone` qui decalait, pas la
+  // lecture. Passer par le module rend la regle verifiable par le garde-fou.
   const formatDatetime = (dt: string) => {
-    const d = new Date(dt);
-    return d.toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return formaterDateHeureNaive(dt);
   };
 
   const themeColor = tenant?.color || '#1a1a1a';

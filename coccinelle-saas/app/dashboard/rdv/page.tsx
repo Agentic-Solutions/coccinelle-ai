@@ -23,6 +23,7 @@ import {
 import Logo from '../../../src/components/Logo';
 import { useToast } from '../../../hooks/useToast';
 import ActionToastContainer from '../../../src/components/ActionToast';
+import { estAVenir, joursJusqua, formaterDateNaive, formaterHeureNaive } from '@/lib/dates';
 
 interface Appointment {
   id: string;
@@ -123,7 +124,7 @@ export default function RdvPage() {
 
       const total = rdvData.appointments?.length || 0;
       const upcoming = rdvData.appointments?.filter((a: Appointment) =>
-        new Date(a.scheduled_at) >= new Date() && a.status === 'scheduled'
+        estAVenir(a.scheduled_at) && a.status === 'scheduled'
       ).length || 0;
       const confirmed = rdvData.appointments?.filter((a: Appointment) =>
         a.status === 'confirmed'
@@ -181,16 +182,15 @@ export default function RdvPage() {
       today.setHours(0, 0, 0, 0);
       
       filtered = filtered.filter(a => {
-        const appointmentDate = new Date(a.scheduled_at);
-        appointmentDate.setHours(0, 0, 0, 0);
-        
-        if (dateFilter === 'today') {
-          return appointmentDate.getTime() === today.getTime();
-        } else if (dateFilter === 'upcoming') {
-          return appointmentDate >= today;
-        } else if (dateFilter === 'past') {
-          return appointmentDate < today;
-        }
+        // L'ecart en JOURS calendaires remplace la troncature a minuit : meme
+        // resultat, sans construire de `Date` sur une heure murale. `null` = date
+        // illisible, on ne l'exclut pas silencieusement d'un filtre « a venir ».
+        const ecart = joursJusqua(a.scheduled_at);
+        if (ecart === null) return dateFilter !== 'today';
+
+        if (dateFilter === 'today') return ecart === 0;
+        if (dateFilter === 'upcoming') return ecart >= 0;
+        if (dateFilter === 'past') return ecart < 0;
         return true;
       });
     }
@@ -222,8 +222,8 @@ export default function RdvPage() {
       'Prospect': a.prospect_name || 'N/A',
       'Téléphone': a.prospect_phone || 'N/A',
       'Agent': a.agent_name || 'N/A',
-      'Date': new Date(a.scheduled_at).toLocaleDateString('fr-FR'),
-      'Heure': a.scheduled_at ? a.scheduled_at.split('T')[1].substring(0, 5) : 'N/A',
+      'Date': formaterDateNaive(a.scheduled_at),
+      'Heure': formaterHeureNaive(a.scheduled_at) || 'N/A',
       'Statut': a.status,
       'Notes': a.notes || 'N/A',
       'Créé le': new Date(a.created_at).toLocaleString('fr-FR')
@@ -602,7 +602,7 @@ export default function RdvPage() {
                   className="hover:bg-gray-50 cursor-pointer transition-colors"
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(appointment.scheduled_at).toLocaleDateString('fr-FR')}
+                    {formaterDateNaive(appointment.scheduled_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {appointment.scheduled_at ? appointment.scheduled_at.split('T')[1].substring(0, 5) : 'N/A'}

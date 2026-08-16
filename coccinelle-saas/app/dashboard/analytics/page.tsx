@@ -18,6 +18,7 @@ import {
 import Link from 'next/link';
 import Logo from '../../../src/components/Logo';
 import AIInsightsPanel from '../../../src/components/dashboard/AIInsightsPanel';
+import { jourSemaineNaive, NOMS_JOURS_COURTS } from '@/lib/dates';
 
 // Lazy load recharts (only when analytics tab is active)
 const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
@@ -224,20 +225,24 @@ export default function AnalyticsPage() {
   };
 
   const processAppointmentsByWeekdayFromList = (appointments: any[]): AppointmentByWeekday[] => {
-    const weekdays = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-    const counts = new Array(7).fill(0);
+    // `counts` est indexe CANONIQUEMENT (1=lundi … 7=dimanche), comme
+    // `availability_slots.day_of_week` et comme `NOMS_JOURS_COURTS`. L'indice 0 reste
+    // vide, ce qui rend un decalage impossible a ignorer.
+    const counts = new Array(8).fill(0);
 
     appointments.forEach(appt => {
-      if (appt.scheduled_at) {
-        const date = new Date(appt.scheduled_at);
-        const day = date.getDay();
-        counts[day]++;
-      }
+      const jour = jourSemaineNaive(appt.scheduled_at);
+      if (jour !== null) counts[jour]++;
     });
 
-    return weekdays.map((day, index) => ({
-      day,
-      count: counts[index]
+    // ⚠️ L'ORDRE D'AFFICHAGE EST PRESERVE A L'IDENTIQUE (dimanche en tete), pour que
+    // ce chantier ne change rien a l'ecran. Commencer la semaine au lundi serait
+    // probablement mieux pour un public francais, mais c'est une decision d'interface
+    // a prendre separement — pas un effet de bord d'un correctif de fuseau.
+    const ORDRE_AFFICHAGE = [7, 1, 2, 3, 4, 5, 6];
+    return ORDRE_AFFICHAGE.map(jour => ({
+      day: NOMS_JOURS_COURTS[jour],
+      count: counts[jour]
     }));
   };
 

@@ -6,6 +6,7 @@
 import { logger } from '../../utils/logger.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
 import { generateId, logAudit } from '../auth/helpers.js';
+import { minutesDepuisMinuit, jourSemaineNaive } from '../shared/dates.js';
 import { requireVoixIAAuth } from './auth.js';
 import { findOrCreateProspect } from '../prospects/dedup.js';
 import { findPrestationByName, findPrestationDurationById } from '../shared/prestations.js';
@@ -305,10 +306,12 @@ async function handleCheckAvailability(request, env) {
 
   if (!date) return errorResponse('Paramètre date requis (format YYYY-MM-DD)', 400);
 
-  // 1. Déterminer le jour de la semaine (1=lundi, 7=dimanche)
-  const dateObj = new Date(date + 'T00:00:00Z');
-  const jsDay = dateObj.getUTCDay(); // 0=dimanche
-  const dayOfWeek = jsDay === 0 ? 7 : jsDay; // Convertir en 1=lundi...7=dimanche
+  // 1. Jour de la semaine, canonique 1=lundi … 7=dimanche.
+  // La conversion 0→7 vit desormais dans `shared/dates.js` : elle etait recopiee a la
+  // main dans quatre fichiers, et c'est precisement dans le quatrieme
+  // (`twilio/conversation.js`) qu'elle avait ete oubliee — le dimanche y etait
+  // toujours annonce indisponible.
+  const dayOfWeek = jourSemaineNaive(date);
 
   // 1b. Résoudre le service et les agents assignés
   let resolvedServiceId = serviceId || null;
@@ -419,8 +422,15 @@ async function handleCheckAvailability(request, env) {
   const bookedRangesGlobal = [];   // { startMin, endMin } — RDV sans agent
 
   for (const a of existingAppointments) {
-    const d = new Date(a.scheduled_at);
-    const startMin = d.getUTCHours() * 60 + d.getUTCMinutes();
+    // ── Durcissement (chantier DATES, 16/08/2026) ──
+    // Avant : `new Date(a.scheduled_at)` puis `getUTCHours()`. C'etait JUSTE, mais par
+    // COMPENSATION : un Worker tourne en UTC, donc les composantes d'une heure murale
+    // y sont posees en UTC, et les relire en UTC rend le bon chiffre. Deux erreurs qui
+    // s'annulent. Le jour ou le runtime ne serait plus en UTC, ce calcul basculerait
+    // sans bruit, et rien dans le code ne disait qu'il en dependait.
+    // `minutesDepuisMinuit()` lit le TEXTE : aucune dependance au fuseau.
+    const startMin = minutesDepuisMinuit(a.scheduled_at);
+    if (startMin === null) continue;   // ligne abimee : on ne la traite pas au hasard
     const endMin = startMin + (a.duration_minutes || 60);
     if (a.agent_id) {
       bookedRangesByAgent.push({ agent_id: a.agent_id, startMin, endMin });
