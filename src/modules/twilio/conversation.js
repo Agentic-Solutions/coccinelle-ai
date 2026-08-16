@@ -634,7 +634,15 @@ LANGUE: Français exclusivement`;
       // Si on a un agent, vérifier ses disponibilités
       if (finalAgentId) {
         const appointmentDate = new Date(`${date}T${time}:00`);
-        const dayOfWeek = appointmentDate.getDay(); // 0=Dimanche, 1=Lundi, etc.
+        // ── day_of_week canonique : 1=Lundi … 7=Dimanche (corrige le 16/08/2026) ──
+        // `getDay()` rend 0 pour dimanche, la colonne attend 7. Lundi a samedi
+        // coincidaient (1..6), ce qui rendait le defaut invisible : SEUL le dimanche
+        // interrogeait `0`, ne trouvait aucune ligne, et etait donc toujours annonce
+        // indisponible. Meme conversion que `public/booking.js:130` et
+        // `voixia/routes.js:310` ; la convention est validee par
+        // `availability/routes.js:91` (« entre 1 (lundi) et 7 (dimanche) »).
+        const jsDay = appointmentDate.getDay();
+        const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
         const availability = await env.DB.prepare(`
           SELECT * FROM availability_slots

@@ -860,3 +860,62 @@ Un vrai plafond de requêtes exige l'un des deux :
 déplacement de domaine. En attendant, ce qui borne réellement le risque est le
 plafond quotidien de SMS (le coût) et le compteur de 401 (la visibilité), pas le
 limiteur.
+
+### 8. 🔴 Le fuseau des dates naïves — un `lib/dates` et 15 sites (balayage du 16/08/2026)
+
+**En tête du backlog.** Le balayage dédié est fait ; il ne reste que le chantier.
+
+**La règle 10quinquies est mal lue, et c'est le cœur du problème.** Elle dit « ne
+jamais passer `scheduled_at` à `new Date()` puis reformater avec un `timeZone` ».
+Elle a été comprise comme « `new Date()` est interdit », ce qui est trop large et
+fait manquer le vrai critère : **c'est le `timeZone` qui est interdit, pas le
+`new Date()`**. `scheduled_at` vaut `"2026-08-20 14:30:00"` — naïf, déjà local.
+Dans un Worker (fuseau UTC), `new Date(naïf)` puis `getUTCHours()` rend 14, juste ;
+`toLocaleString({timeZone:'Europe/Paris'})` rend 16:30, faux.
+
+**Ce qui reste à faire, par ordre de valeur :**
+
+1. **`lib/dates.ts` (front) + son pendant backend** : `lireDateNaive()` qui lit les
+   composantes du texte sans jamais passer par un fuseau. Puis les **15 sites** de
+   10 fichiers : `app/booking/[slug]`, `dashboard/rdv` (+`agenda`, +`[id]`),
+   `dashboard/communications`, `dashboard/analytics`, `cx2/RendezVousAVenir`,
+   `dashboard/SmartAlerts`, `lib/ai-insights`, `lib/live-updates`.
+   Aujourd'hui chacun refait `new Date(a.scheduled_at)` : correct pour un
+   utilisateur **en France**, faux pour tout autre fuseau — un client qui consulte
+   son agenda depuis les Antilles ou le Canada voit des heures décalées. `lib/`
+   porte déjà `horaires.ts` comme source unique des horaires ; il n'existe **rien**
+   pour les dates, et c'est pour ça que le défaut est réapparu trois fois.
+2. **Durcir les 2 sites backend justes par coïncidence** : `voixia/routes.js:422`
+   (`getUTCHours()`) et `twilio/conversation.js:636` (`getDay()`). Ils marchent
+   parce que le runtime du Worker est en UTC et que deux erreurs s'annulent. Le jour
+   où ce n'est plus vrai, ils basculent ensemble et silencieusement.
+
+**Déjà traité, ne pas rechercher :** les 4 applications de `timeZone` sont saines
+(deux portent `'UTC'`, qui EST le correctif ; `proactive/routes.js:105` s'applique à
+`new Date()` sans argument, donc à un instant réel). Le second envoyeur de rappels
+J-1 qui portait le défaut a été supprimé le 16/08.
+
+### 9. `getDay()` contre `day_of_week` — le reste est du code mort
+
+Balayage complet du 16/08/2026 sur les 21 usages de `getDay()`/`getUTCDay()`. La
+convention est **1 = lundi … 7 = dimanche**, validée par `availability/routes.js:91`.
+
+**Corrigé** : `twilio/conversation.js:637` (dimanche toujours indisponible).
+
+**Défectueux mais INERTE — `src/modules/retell/routes.js`, module commenté dans
+`index.js` (lignes 24 et 474) :**
+- `:711` — `(getDay() + 6) % 7` donne 0=lundi face à une colonne 1-7 : **décalé
+  d'un jour pour TOUS les jours**, un mardi lisant les horaires du lundi. Plus grave
+  que le défaut du dimanche, et invisible puisque inatteignable.
+- `:1117` — `getUTCDay()` brut contre `business_hours.day_of_week` : dimanche seul.
+
+⇒ **Décision à prendre sur le module `retell` : le supprimer ou le réparer.** Le
+laisser commenté garantit qu'une réactivation un jour livrera ces deux défauts. Ne
+pas corriger du code mort au cas par cas — c'est la décision qu'il faut, pas le
+correctif.
+
+**Vérifiés corrects, ne pas y revenir** : `public/booking.js:130`,
+`public/routes.js:169`, `voixia/routes.js:310` (les trois convertissent 0→7), les
+deux graphiques d'analytics (`strftime('%w')` = 0=dimanche, indexé sur un tableau
+qui commence par « Dim »), et l'agenda (`(getDay()+6)%7` pour l'affichage).
+Variable morte au passage : `twilio/conversation.js:577`, jamais relue.
