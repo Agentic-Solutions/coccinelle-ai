@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { ListeEtapes, useEtapesDemarrage } from '@/components/dashboard/EtapesDemarrage';
+import GarderSonNumero from '@/components/support/GarderSonNumero';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
 
@@ -255,6 +256,12 @@ export default function SupportPage() {
 
         {/* Bien démarrer — le recours quand la carte de « Mon activité » a été masquée */}
         <BlocDemarrage />
+
+        {/* « Garder mon numéro » — objection n°1 des artisans (16/08/2026). Section
+            versionnée et non entrée de FAQ : la FAQ de cette page vient de la base et ne
+            porte que des réponses d'une ligne, alors qu'il s'agit ici d'une marche à
+            suivre avec deux tableaux de codes et le cas particulier des box. */}
+        <GarderSonNumero />
 
         {/* Tabs */}
         <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 mb-6">

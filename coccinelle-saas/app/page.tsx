@@ -286,6 +286,32 @@ export default function LandingPage() {
               14 jours d&apos;essai gratuit (60 min, 20 SMS) — sans carte bancaire.
             </p>
           </div>
+
+          {/* ── « Vous gardez votre numéro » — objection n°1 (16/08/2026) ──
+              Un artisan qui a son numéro sur sa devanture, ses factures et ses cartes
+              depuis quinze ans n'achète pas un produit qui semble l'obliger à en
+              changer. Le produit répond déjà à cette objection ; ce n'était
+              simplement écrit nulle part — ni ici, ni sur Tarifs, ni dans
+              l'onboarding, ni dans l'Aide.
+
+              ⚠️ VERSION LONGUE, DÉLIBÉRÉMENT. La formule courte (« vous renvoyez
+              votre ligne, vos clients ne voient aucune différence ») est plus
+              percutante, mais elle laisse croire que la ligne est livrée à
+              l'inscription. Or l'attribution demande 2 à 3 jours ouvrés de validation
+              réglementaire, et un inscrit en essai n'a AUCUN numéro dédié : il appelle
+              le numéro d'essai PARTAGÉ depuis son mobile vérifié (§ e de CLAUDE.md).
+              Séparer les deux moments est précisément ce qui évite la déception au
+              premier jour. Ne pas raccourcir sans avoir rendu l'attribution immédiate. */}
+          <div className="max-w-3xl mx-auto mb-14 rounded-xl border border-gray-200 bg-gray-50 p-6 text-center">
+            <p className="font-semibold text-gray-900 mb-2">Vous gardez votre numéro.</p>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Pendant l&apos;essai, rien à changer : vous appelez votre assistant depuis votre
+              mobile vérifié pour l&apos;entendre. À la mise en service, une ligne française vous
+              est attribuée et vous y renvoyez vos appels — vos clients continuent d&apos;appeler
+              le numéro qu&apos;ils connaissent, celui de votre devanture et de vos factures.
+            </p>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {/* Essentiel */}
             <div className="bg-white rounded-xl border border-gray-200 p-8 flex flex-col">

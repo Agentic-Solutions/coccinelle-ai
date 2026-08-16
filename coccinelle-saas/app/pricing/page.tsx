@@ -100,6 +100,20 @@ const features: { category: string; rows: FeatureRow[] }[] = [
 
 const faqs = [
   {
+    // Objection n\u00B01 des artisans, plac\u00E9e en T\u00CATE de la FAQ (16/08/2026) : elle se
+    // pose au moment du prix, pas trois clics plus loin. La liste des documents est
+    // r\u00E9p\u00E9t\u00E9e ici ET dans l'Aide \u2014 la redondance co\u00FBte moins cher qu'un prospect qui
+    // se demande ce qu'on va lui r\u00E9clamer.
+    q: 'Dois-je changer de num\u00E9ro de t\u00E9l\u00E9phone ?',
+    a: 'Non, jamais. Votre num\u00E9ro ne bouge pas et vous n\u2019avez rien \u00E0 porter ni \u00E0 r\u00E9silier. '
+      + 'Nous vous attribuons une ligne fran\u00E7aise, vous y renvoyez vos appels depuis votre '
+      + 'op\u00E9rateur, et votre assistant d\u00E9croche. Vos clients composent toujours le m\u00EAme '
+      + 'num\u00E9ro. La ligne est attribu\u00E9e apr\u00E8s validation r\u00E9glementaire, sous 2 \u00E0 3 jours '
+      + 'ouvr\u00E9s \u00E0 compter de la r\u00E9ception de vos documents : Kbis, pi\u00E8ce d\u2019identit\u00E9 du '
+      + 'repr\u00E9sentant l\u00E9gal, justificatif d\u2019adresse et SIRET. Pendant l\u2019essai, vous n\u2019avez '
+      + 'aucun renvoi \u00E0 faire.',
+  },
+  {
     q: 'Que se passe-t-il apr\u00E8s les 14 jours ?',
     a: 'Vous choisissez un plan ou vos donn\u00E9es sont conserv\u00E9es 30 jours. Aucun pr\u00E9l\u00E8vement automatique \u2014 vous d\u00E9cidez.',
   },
@@ -172,6 +186,33 @@ export default function PricingPage() {
               Annuel
               <span className="ml-1.5 text-xs font-semibold text-green-600">-20%</span>
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ──────────── « VOTRE NUMÉRO RESTE LE VÔTRE » ────────────
+          Au-dessus des cartes de prix, parce que l'objection se pose AVANT le choix
+          du plan, pas après. Les documents sont listés ici volontairement (décision
+          du 16/08/2026) : « qu'est-ce qu'on va me demander ? » se pose au moment du
+          prix. La même liste vit dans l'Aide — redondance assumée.
+          ⚠️ « 2 à 3 jours ouvrés », jamais « 48 h » : la documentation Twilio dit
+          « jusqu'à trois jours ouvrés » pour la validation humaine du Regulatory
+          Bundle, et l'achat du numéro n'est possible qu'après. */}
+      <section className="pb-10 bg-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-6">
+            <p className="font-semibold text-gray-900 mb-2">Votre numéro reste le vôtre.</p>
+            <p className="text-sm text-gray-600 leading-relaxed mb-3">
+              Aucun portage, aucune résiliation. Nous vous attribuons une ligne française et
+              vous renvoyez la vôtre dessus — vos clients continuent d&apos;appeler le numéro
+              qu&apos;ils connaissent. Pendant l&apos;essai, vous n&apos;avez aucun renvoi à faire.
+            </p>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              L&apos;attribution demande une validation réglementaire de l&apos;opérateur :
+              comptez <strong className="text-gray-700">2 à 3 jours ouvrés</strong> après
+              réception de vos documents — Kbis, pièce d&apos;identité du représentant légal,
+              justificatif d&apos;adresse et SIRET.
+            </p>
           </div>
         </div>
       </section>

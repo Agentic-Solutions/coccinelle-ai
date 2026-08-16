@@ -179,7 +179,13 @@ async function computeStartupChecklist(env, tenantId, user) {
       id: 'call',
       title: 'Appeler mon assistant',
       hint: 'Le meilleur moyen de vérifier qu\'il répond bien',
-      explication: 'Composez le numéro d\'essai depuis votre numéro vérifié : votre assistant décroche, et vous l\'entendez exactement comme vos clients l\'entendront.',
+      // « Aucun renvoi a faire pour l'instant » est la moitie la plus utile de cette
+      // phrase : un inscrit qui lit « numero d'essai » se demande s'il doit deja
+      // basculer sa ligne chez son operateur. Il n'a rien a faire, et le dire evite
+      // a la fois l'abandon et une manipulation inutile chez l'operateur.
+      explication: 'Composez le numéro d\'essai depuis votre numéro vérifié : votre assistant '
+        + 'décroche, et vous l\'entendez exactement comme vos clients l\'entendront. Aucun renvoi '
+        + 'à faire pour l\'instant — c\'est l\'étape de la mise en service.',
       completed: callDone,
       href: '/dashboard/channels/numbers'
     },

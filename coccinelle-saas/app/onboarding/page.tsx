@@ -576,6 +576,20 @@ export default function OnboardingPage() {
                     <p className={`text-xs mt-1 ${phoneVerified ? 'text-green-600' : 'text-gray-500'}`}>{phoneMsg}</p>
                   )}
 
+                  {/* ── Lever l'objection ICI, à l'endroit exact où elle naît (16/08/2026) ──
+                      C'est le moment où l'inscrit donne un numéro, donc le moment où il se
+                      demande s'il devra changer le sien. Ce champ ne sert qu'à LE reconnaître
+                      quand il appellera le numéro d'essai partagé (`resolve-phone`, branche
+                      `caller`, § e de CLAUDE.md) : il n'est jamais communiqué à ses clients.
+                      Le dire évite qu'il abandonne en croyant renoncer à son numéro pro. */}
+                  <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                    Ce numéro sert à <strong className="text-gray-700">vous</strong> reconnaître
+                    quand vous appellerez votre assistant pour l&apos;essayer. Il n&apos;est jamais
+                    communiqué à vos clients, et{' '}
+                    <strong className="text-gray-700">vous ne changez pas de numéro professionnel</strong> :
+                    à la mise en service, vous garderez le vôtre et y renverrez vos appels.
+                  </p>
+
                   {/* Code input */}
                   {phoneCodeSent && !phoneVerified && (
                     <div className="mt-3 flex gap-2">
