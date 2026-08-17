@@ -17,7 +17,7 @@
 // rendez-vous qui vient d'etre pris.
 
 import { logger } from '../../utils/logger.js';
-import { enrichirSmsAvecLien } from './sms-booking-link.js';
+import { enrichirSmsAvecLien, estPourClient } from './sms-booking-link.js';
 import { compterSms } from './sms-format.js';
 import {
   ORIGINE_AUTHENTIFIEE, ORIGINE_PUBLIQUE, reserverUnite, relacherUnite,
@@ -149,9 +149,21 @@ export async function envoyerSmsTrace(env, {
   });
 
   // ── Trace, non bloquante : le SMS est parti, rien ne doit l'annuler ──
-  await tracerDansConversation(env, {
-    tenantId, destinataire, corps, sid, prospectId, nomContact, type,
-  }).catch(() => {});
+  //
+  // ⚠️ SAUTEE POUR LES TYPES INTERNES. `tracerDansConversation` indexe la
+  // conversation sur le NUMERO DU DESTINATAIRE : tracer un code de verification y
+  // creerait une « conversation » avec le gerant lui-meme, portant son propre code a
+  // six chiffres, visible dans « Mes communications ». Idem pour un SMS de test ou
+  // une notification de tache a un salarie. La decision vit dans `EST_INTERNE`
+  // (shared/sms-booking-link.js), une table — pas un `if` par appelant.
+  //
+  // Le message reste compacte et compte dans le plafond : il coute de l'argent
+  // comme les autres. Seule la trace est sautee.
+  if (estPourClient(type)) {
+    await tracerDansConversation(env, {
+      tenantId, destinataire, corps, sid, prospectId, nomContact, type,
+    }).catch(() => {});
+  }
 
   return { envoye: true, sid, segments: mesure.segments, corps };
 }

@@ -52,7 +52,34 @@ export const TYPES_SMS = {
   rappel_rdv: false,
   verification: false,      // code de verification du numero (tunnel d'inscription)
   interne: false,           // notification a l'equipe, pas au client
+  test: false,              // SMS de test declenche depuis le dashboard
 };
+
+/**
+ * Les types qui NE S'ADRESSENT PAS a un client — donc qui ne doivent PAS apparaitre
+ * dans « Mes communications ».
+ *
+ * ── POURQUOI UNE TABLE, ET PAS UN `if` PAR APPELANT ──
+ * `tracerDansConversation()` trace tout envoi portant un `tenantId`, en creant une
+ * conversation indexee sur le NUMERO DU DESTINATAIRE. Faire passer le code de
+ * verification par la creerait donc, dans la messagerie du dashboard, une
+ * « conversation » avec le numero du gerant lui-meme, contenant son propre code a six
+ * chiffres. Meme chose pour un SMS de test, ou pour la notification de tache envoyee a
+ * un salarie : ce sont des numeros internes, pas des clients.
+ *
+ * C'est exactement la faute qu'on ne voit qu'en production, et c'est pour ca que la
+ * decision vit ICI, a cote de `TYPES_SMS`, et non dans chaque module d'envoi. Ajouter
+ * un type interne = ajouter une ligne. Jamais un `if` chez l'appelant.
+ *
+ * ⚠️ Un type interne est quand meme COMPACTE (GSM-7) et COMPTE par le plafond
+ * quotidien : il coute de l'argent comme les autres. Seule la trace est sautee.
+ */
+export const EST_INTERNE = new Set(['verification', 'interne', 'test']);
+
+/** Ce message s'adresse-t-il a un client ? Un type inconnu est traite comme client. */
+export function estPourClient(type) {
+  return !EST_INTERNE.has(String(type || ''));
+}
 
 /** Type applique quand l'appelant n'en fournit pas : le cas general. */
 const TYPE_PAR_DEFAUT = 'information';

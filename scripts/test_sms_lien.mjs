@@ -10,8 +10,7 @@ import {
   TYPES_SMS,
   doitInclureLien,
   enrichirSmsAvecLien,
-  construireLienReservation,
-} from '../src/modules/shared/sms-booking-link.js';
+  construireLienReservation, estPourClient } from '../src/modules/shared/sms-booking-link.js';
 
 // ── Faux env : une base qui repond comme D1 ──
 function faireEnv(slugParTenant) {
@@ -50,8 +49,28 @@ for (const t of AVEC_LIEN) verifier(`${t} → lien`, doitInclureLien(t) === true
 for (const t of SANS_LIEN) verifier(`${t} → pas de lien`, doitInclureLien(t) === false);
 verifier('type inconnu → pas de lien (on ne devine pas)', doitInclureLien('type_jamais_vu') === false);
 verifier('type absent → cas general, donc lien', doitInclureLien(undefined) === true);
-verifier('la table couvre les 14 types documentes', Object.keys(TYPES_SMS).length === 14,
+verifier('la table couvre les 15 types documentes', Object.keys(TYPES_SMS).length === 15,
   `${Object.keys(TYPES_SMS).length} types`);
+
+// ── EST_INTERNE : la seconde decision de la meme table (chantier COMPACTION) ──
+// Un type interne ne s'adresse pas a un client, donc il n'est PAS trace dans
+// « Mes communications » — mais il est compacte et compte dans le plafond.
+console.log('\n══════ Types internes (trace sautee)');
+for (const t of ['verification', 'interne', 'test']) {
+  verifier(`${t} → interne, pas trace`, estPourClient(t) === false);
+}
+for (const t of ['devis', 'confirmation_rdv', 'rappel_rdv', 'manuel']) {
+  verifier(`${t} → pour le client, donc trace`, estPourClient(t) === true);
+}
+// Un type inconnu est traite comme CLIENT : mieux vaut une trace de trop qu'un
+// message envoye a un client et invisible dans sa fiche.
+verifier('type inconnu → traite comme client', estPourClient('type_jamais_vu') === true);
+verifier('type absent → traite comme client', estPourClient(undefined) === true);
+// Tout type interne doit aussi etre sans lien de reservation : on ne propose pas de
+// creneau a son propre salarie. C'est une coherence entre les deux tables.
+for (const t of ['verification', 'interne', 'test']) {
+  verifier(`${t} : interne ET sans lien`, doitInclureLien(t) === false);
+}
 
 console.log('\n══════ Construction du lien');
 verifier('slug present → URL publique',
