@@ -1,11 +1,11 @@
 // Module Public Widget - Routes publiques sans authentification
 // Pour permettre l'embed du widget sur sites clients
-import { createWebCall } from '../retell/routes.js';
 import { logger } from '../../utils/logger.js';
 import { jsonResponse, errorResponse, successResponse } from '../../utils/response.js';
 import { rateLimitResponse } from '../../utils/rate-limiter.js';
 import { handleGetBookingInfo, handleGetBookingSlots, handleCreatePublicBooking } from './booking.js';
 import { listPrestations } from '../shared/prestations.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 export async function handlePublicRoutes(request, env, path, method) {
   const url = new URL(request.url);
@@ -61,10 +61,12 @@ export async function handlePublicRoutes(request, env, path, method) {
       return await handleCreateBooking(request, env, path);
     }
 
-    // POST /api/v1/public/retell/web-call - Créer un appel WebRTC démo
-    if (path === '/api/v1/public/retell/web-call' && method === 'POST') {
-      return await createWebCall(request, env);
-    }
+    // ⛔ POST /api/v1/public/retell/web-call — SUPPRIMEE le 17/08/2026 avec le module
+    // `retell`. C'etait une route PUBLIQUE, SANS AUTHENTIFICATION et FONCTIONNELLE
+    // (`RETELL_API_KEY` etait toujours en secret), qu'AUCUN frontend n'appelait :
+    // n'importe qui pouvant la trouver consommait du credit Retell a nos frais.
+    // Coccinelle est sur LiveKit depuis des mois. Penser a supprimer le secret
+    // `RETELL_API_KEY`, qui n'a plus de lecteur.
 
     // Test endpoints - only available when ENABLE_TEST_ENDPOINTS=true in env
     if (path.startsWith('/api/v1/public/test/') && method === 'POST') {
@@ -426,32 +428,31 @@ async function handleTestSMS(request, env) {
     const twilioAuthToken = env.TWILIO_AUTH_TOKEN;
     const twilioFromNumber = env.TWILIO_PHONE_NUMBER || '+33939035761';
 
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${twilioAccountSid}:${twilioAuthToken}`),
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          From: twilioFromNumber,
-          To: formattedNumber,
-          Body: 'Test Coccinelle.AI - Votre canal SMS est opérationnel !'
-        })
-      }
-    );
+    // ── Chemin UNIQUE (chantier COMPACTION, 17/08/2026) ──
+    // Cette route est publique mais FERMEE par `ENABLE_TEST_ENDPOINTS` (absent de
+    // `wrangler.toml`, donc 403 en production). Elle est migree quand meme : une route
+    // fermee par un drapeau peut etre ouverte un jour, et ce jour-la elle doit passer
+    // par le chemin qui compacte, plafonne et journalise.
+    //
+    // `tenantId: null` : cette route n'a AUCUNE authentification, donc aucun tenant a
+    // qui imputer l'envoi. Consequence assumee et importante : le plafond quotidien ne
+    // peut PAS s'appliquer ici (il compte par tenant). C'est `ENABLE_TEST_ENDPOINTS`
+    // qui la protege, et rien d'autre — ne pas l'activer en production.
+    const envoi = await envoyerSmsTrace(env, {
+      tenantId: null,
+      to: formattedNumber,
+      message: 'Test Coccinelle.ai - votre canal SMS est operationnel !',
+      type: 'test',
+    });
 
-    const result = await response.json();
-
-    if (result.error_code) {
-      return errorResponse(`Erreur Twilio: ${result.error_message}`, 400);
+    if (!envoi.envoye) {
+      return errorResponse(envoi.erreur || 'Echec envoi SMS', 400);
     }
 
     return successResponse({
       success: true,
       message: 'SMS de test envoyé avec succès !',
-      messageId: result.sid,
+      messageId: envoi.sid,
       to: formattedNumber
     });
   } catch (error) {
