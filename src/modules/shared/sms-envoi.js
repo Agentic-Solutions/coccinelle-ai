@@ -18,6 +18,8 @@
 
 import { logger } from '../../utils/logger.js';
 import { enrichirSmsAvecLien, estPourClient } from './sms-booking-link.js';
+import { aRefuse } from './sms-refus.js';
+import { phoneVariants } from '../prospects/dedup.js';
 import { compterSms } from './sms-format.js';
 import {
   ORIGINE_AUTHENTIFIEE, ORIGINE_PUBLIQUE, reserverUnite, relacherUnite,
@@ -57,7 +59,7 @@ import {
  */
 export async function envoyerSmsTrace(env, {
   tenantId, to, message, type, prospectId, nomContact,
-  origine = ORIGINE_AUTHENTIFIEE, ignorerPlafond = false,
+  origine = ORIGINE_AUTHENTIFIEE, ignorerPlafond = false, destinataireVerifie = false,
 }) {
   const destinataire = String(to || '').trim();
   // Rien n'a ete tente : l'issue est certaine.
@@ -65,7 +67,83 @@ export async function envoyerSmsTrace(env, {
     return { envoye: false, refuse: true, erreur: 'Numéro destinataire manquant' };
   }
 
-  // ── PLAFOND QUOTIDIEN, avant toute chose (chantier ANTI-ROBOT) ──
+  // ══════════════════════════════════════════════════════════════════════════════
+  // DEUX GARDES DE CONSENTEMENT, AVANT LE PLAFOND (chantier CONSENTEMENT, 17/08/2026)
+  //
+  // Elles passent AVANT le plafond parce qu'elles sont d'un autre ordre : le plafond
+  // borne un cout, celles-ci disent si l'envoi est LEGITIME. Refuser pour cout apres
+  // avoir constate qu'on n'avait pas le droit d'envoyer serait absurde, et ferait
+  // consommer une unite de plafond a un message qui ne partira pas.
+  //
+  // Les types INTERNES echappent aux deux : ils ne s'adressent pas a la personne en
+  // tant que contact — le code de verification va au gerant lui-meme, l'alerte a nous,
+  // le SMS de test a un numero qu'on choisit pour tester. `EST_INTERNE` est la meme
+  // table que celle qui decide de la trace.
+  const pourClient = estPourClient(type);
+
+  // ── GARDE 1 : le refus (STOP / ARRET) ──
+  // Il bloque TOUT, confirmations et rappels inclus (decision du 17/08). Un refus est
+  // un refus : mieux vaut un client qui note son rendez-vous a la main qu'un client qui
+  // recoit un SMS apres avoir dit non. La degradation est deja ecrite — la page de
+  // reservation lit `confirmation_sent` et le dit.
+  //
+  // ⚠️ `aRefuse` ECHOUE EN FERMETURE (une lecture impossible vaut « a refuse ») :
+  // l'inverse du plafond, et c'est deliberé. Une panne de base ne doit pas faire
+  // envoyer un SMS a quelqu'un qui a dit non.
+  if (pourClient && tenantId) {
+    if (await aRefuse(env, tenantId, destinataire)) {
+      logger.warn('[SMS] Envoi refuse : le destinataire a demande STOP', { tenantId, type });
+      return {
+        envoye: false,
+        refuse: true,
+        refusDestinataire: true,
+        erreur: 'Ce numéro a demandé à ne plus recevoir de SMS',
+      };
+    }
+  }
+
+  // ── GARDE 2 : le destinataire doit etre un contact du tenant ──
+  // Etat avant ce lot : 9 chemins sur 18 acceptaient un numero ARBITRAIRE, dont 6
+  // derriere une simple authentification JWT et AUCUNE permission RBAC. Un garagiste —
+  // ou un robot ayant pris son compte — pouvait donc envoyer a n'importe qui.
+  //
+  // Cette garde est la premiere ligne, et elle vaut plus que le plafond : si aucun
+  // chemin n'accepte un numero arbitraire, l'attaque par relais n'existe plus et le
+  // plafond de 20/100 redevient une seconde ligne.
+  //
+  // ⚠️ ECHOUE EN OUVERTURE, a l'inverse de la garde 1. Une panne de base ne doit pas
+  // couper une confirmation de rendez-vous legitime. Le raisonnement differe parce que
+  // le risque differe : ici le pire cas est un envoi a un contact non verifie, la-bas
+  // c'est un envoi a quelqu'un qui a explicitement dit non.
+  //
+  // ⚠️ `destinataireVerifie` : la garde protege contre un numero VENU D'UNE REQUETE,
+  // pas contre un numero que nous avons nous-memes stocke. Le cron des rappels lit
+  // `COALESCE(a.customer_phone, p.phone)` — de NOS donnees — et `customer_phone` d'une
+  // reservation en ligne ne correspond pas toujours a une ligne `prospects` (format
+  // different, ou prospect absent). Revérifier la sortirait du CRM pour la comparer au
+  // CRM, et couperait des rappels legitimes.
+  //
+  // C'est une declaration AU NIVEAU DU CODE, comme `ignorerPlafond` : n'importe quel
+  // appelant peut la passer, et c'est acceptable parce que les appelants sont notre
+  // propre code, relu. Ce que la garde arrete, c'est une DESTINATION FOURNIE DE
+  // L'EXTERIEUR — le corps d'une requete, ou un numero choisi par le LLM.
+  if (pourClient && tenantId && !destinataireVerifie) {
+    const connu = await estContactDuTenant(env, tenantId, destinataire);
+    if (connu === false) {
+      logger.warn('[SMS] Envoi refuse : destinataire hors des contacts du tenant', {
+        tenantId, type,
+      });
+      return {
+        envoye: false,
+        refuse: true,
+        inconnu: true,
+        erreur: "Ce numéro n'est pas dans vos contacts. Ajoutez-le d'abord à votre CRM.",
+      };
+    }
+  }
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // ── PLAFOND QUOTIDIEN (chantier ANTI-ROBOT) ──
   //
   // `origine` et non `type` : au niveau d'un message, une attaque est
   // indistinguable d'une vraie reservation. Ce qui les separe est l'origine — le
@@ -279,4 +357,87 @@ async function nomDuTenant(env, tenantId) {
   } catch {
     return tenantId;
   }
+}
+
+/**
+ * Ce numero est-il un contact connu du tenant ?
+ *
+ * @returns {Promise<boolean|null>} `true` connu, `false` inconnu, `null` indeterminable
+ *   (panne de lecture). L'appelant traite `null` comme une AUTORISATION — voir la garde
+ *   2 : couper une confirmation legitime sur une panne de base serait pire que laisser
+ *   passer un envoi vers un contact non verifie.
+ *
+ * ── LE RAPPROCHEMENT DES NUMEROS EST LE POINT DELICAT ──
+ * On passe par `phoneVariants()` de `prospects/dedup.js`, la MEME fonction que la
+ * deduplication des prospects, et non une seconde implementation. Mesure du 17/08/2026 :
+ * 4 des 34 contacts ne sont PAS en E.164 (`0760…` au lieu de `+3376…`). Comparer
+ * strictement refuserait donc des envois vers des contacts pourtant enregistres — une
+ * garde de securite qui casse une fonction metier finit par etre desactivee.
+ *
+ * ⚠️ `customers` est VIDE aujourd'hui (0 ligne, les 34 contacts vivent dans
+ * `prospects`), mais on lit LES DEUX : le jour ou elle se remplit, la garde ne doit pas
+ * se mettre a refuser des contacts legitimes.
+ */
+async function estContactDuTenant(env, tenantId, telephone) {
+  if (!env?.DB || !tenantId) return null;
+  const variantes = phoneVariants(telephone);
+  if (!variantes.length) return false;
+  const marques = variantes.map(() => '?').join(', ');
+
+  try {
+    const prospect = await env.DB.prepare(
+      `SELECT 1 AS ok FROM prospects WHERE tenant_id = ? AND phone IN (${marques}) LIMIT 1`,
+    ).bind(tenantId, ...variantes).first();
+    if (prospect?.ok) return true;
+  } catch (error) {
+    logger.warn('[SMS] Lecture des prospects impossible', { tenantId, erreur: error.message });
+    return null;
+  }
+
+  try {
+    const client = await env.DB.prepare(
+      `SELECT 1 AS ok FROM customers WHERE tenant_id = ? AND phone IN (${marques}) LIMIT 1`,
+    ).bind(tenantId, ...variantes).first();
+    if (client?.ok) return true;
+  } catch (error) {
+    // Table absente ou illisible : on ne conclut PAS a l'inconnu sur cette seule base.
+    logger.warn('[SMS] Lecture des clients impossible', { tenantId, erreur: error.message });
+    return null;
+  }
+
+  // ── Deux recours, et ils sont indispensables ──
+  //
+  // Quelqu'un qui a deja ECRIT ou APPELE est un contact solicite, meme sans fiche CRM.
+  // C'est le cas courant de l'agent vocal : il envoie un devis au numero de l'appelant
+  // pendant l'appel, et `create_prospect` est un AUTRE outil qu'il n'a pas forcement
+  // appele. Sans ces deux recours, la garde couperait precisement le SMS que le client
+  // vient de demander a l'oral — une garde de securite qui casse la fonction metier
+  // qu'elle protege finit par etre desactivee, et on aurait tout perdu.
+  try {
+    const conv = await env.DB.prepare(
+      `SELECT 1 AS ok FROM omni_conversations
+        WHERE tenant_id = ? AND client_phone IN (${marques}) LIMIT 1`,
+    ).bind(tenantId, ...variantes).first();
+    if (conv?.ok) return true;
+  } catch (error) {
+    logger.warn('[SMS] Lecture des conversations impossible', { tenantId, erreur: error.message });
+    return null;
+  }
+
+  // Un appel entrant vaut sollicitation : la personne a compose le numero elle-meme.
+  // ⚠️ La colonne est `from_number`, PAS `caller_phone` — verifie sur le schema reel le
+  // 17/08/2026 (63 appels enregistres). Se tromper de nom ici ferait echouer la requete,
+  // donc rendre `null`, donc AUTORISER tous les envois : la garde tomberait en silence.
+  try {
+    const appel = await env.DB.prepare(
+      `SELECT 1 AS ok FROM calls
+        WHERE tenant_id = ? AND from_number IN (${marques}) LIMIT 1`,
+    ).bind(tenantId, ...variantes).first();
+    if (appel?.ok) return true;
+  } catch (error) {
+    logger.warn('[SMS] Lecture des appels impossible', { tenantId, erreur: error.message });
+    return null;
+  }
+
+  return false;
 }

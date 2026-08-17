@@ -228,6 +228,12 @@ export async function sendTomorrowReminders(env, { tenantId = null } = {}) {
         to: phone,
         message,
         type: 'rappel_rdv',        // pas d'ajout automatique de lien : il est deja la
+        // Le numero vient de NOS donnees — `COALESCE(a.customer_phone, p.phone)` —
+        // pas d'une requete. La garde de destinataire n'a donc rien a verifier, et la
+        // faire jouer couperait des rappels legitimes : `customer_phone` d'une
+        // reservation en ligne ne correspond pas toujours a une ligne `prospects`
+        // (format different, ou prospect absent). Le REFUS, lui, s'applique toujours.
+        destinataireVerifie: true,
         prospectId: apt.prospect_id || null,
         nomContact: customerName,
       });

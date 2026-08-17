@@ -79,7 +79,22 @@ function faireDB(rdv) {
                 && (!cantonne || r.tenant_id === tenantIdLie));
               return { results };
             },
-            async first() { return null; },
+            async first() {
+              // ── Gardes de consentement (chantier CONSENTEMENT, 17/08/2026) ──
+              // `envoyerSmsTrace` verifie desormais deux choses avant d'envoyer : que
+              // le destinataire n'a pas demande STOP, et qu'il est un contact du
+              // tenant. Ce faux D1 doit les modeliser, sinon il fait echouer des
+              // assertions qui portent sur la forme de retour de l'envoi.
+              //
+              // On repond « aucun refus » et « contact connu », ce qui est l'etat
+              // nominal. Le comportement des gardes elles-memes est teste a part, dans
+              // `scripts/test_sms_refus.mjs`, avec un faux D1 dedie.
+              if (/FROM sms_refus/.test(sql)) return null;              // personne n'a refuse
+              if (/FROM (prospects|customers|omni_conversations|calls)/.test(sql)) {
+                return { ok: 1 };                                      // contact connu
+              }
+              return null;
+            },
             async run() {
               // Reservation. La condition est celle QU'ON LIT DANS LE SQL, pas
               // celle qu'on suppose : c'est ce qui rend la regression detectable.

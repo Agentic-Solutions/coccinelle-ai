@@ -142,6 +142,10 @@ export async function sendAppointmentConfirmation(env, appointmentId, channel = 
           message: smsBody,
           type: 'confirmation_rdv',
           nomContact: customerName,
+          // Numero lu dans la jointure du rendez-vous (`appointment.customer_phone`
+          // ou la fiche prospect) : nos donnees, pas une saisie. Le REFUS s'applique
+          // quand meme — c'est la garde de CONTACT qui n'a rien a verifier ici.
+          destinataireVerifie: true,
         });
         if (envoi.envoye) {
           channelsUsed.push('sms');
