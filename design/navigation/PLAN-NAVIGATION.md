@@ -961,3 +961,66 @@ un lot de compaction mélangerait deux sujets. En garder **une** est le travail 
 Le module `retell` a été supprimé le 17/08/2026, mais `RETELL_API_KEY` est toujours dans
 les secrets du Worker. Plus aucun code ne le lit. À supprimer :
 `npx wrangler@latest secret delete RETELL_API_KEY`.
+
+## 13. Conformité SMS — second lot (diagnostic du 17/08/2026)
+
+Le premier lot (verrouillage) est fait : garde de destinataire, suppression des routes à
+contenu libre, traitement du STOP, retrait de l'onglet Préférences. **Ce qui suit est la
+conformité positive** — donner une pièce à produire, plutôt qu'empêcher.
+
+### 13.1 🔴 Une trace de consentement (2,5 h)
+
+Il n'existe **aucune** colonne de consentement dans tout le schéma D1. Le refus est
+désormais enregistré (`sms_refus`, migration 0088), mais l'**accord** ne l'est pas.
+
+⚠️ **Et la réserve sur le rappel J-1, qui est le vrai sujet** : il est **légitime par
+nature** — message de service strictement nécessaire à une prestation que la personne a
+elle-même demandée en prenant rendez-vous, sans contenu promotionnel, l'entreprise
+nommée — mais il est **invérifiable par la trace**. Si quelqu'un se plaint, on ne peut
+produire aucune pièce : ni consentement recueilli, ni horodatage. La légitimité tient au
+contexte, pas à un document. C'est exactement ce que cette entrée corrige.
+
+Travail : `sms_consent_at` + `sms_consent_source` (horodatés) sur `prospects`, la case
+sur le formulaire public de réservation, et l'affichage dans la fiche — **cette fois
+alimenté par l'API, pas par des littéraux**.
+
+### 13.2 🟠 Renommer le type `prospection` (0,5 h)
+
+Les 6 gabarits de `proactive_templates` ne sont **pas** de la prospection : « votre
+véhicule est prêt », « votre devis est disponible », « vos résultats d'analyses sont
+disponibles » sont des messages de service sur un dossier en cours. Le nom mentait, et
+il pilote la règle du lien de réservation (`prospection: true`). → `suivi_dossier`.
+
+### 13.3 🟠 La plage horaire du proactif n'est pas respectée (0,5 h)
+
+`proactive/routes.js` lit `hours_start`/`hours_end` (8h–19h), calcule l'heure de Paris
+ligne 107 — et **la variable `heure` n'est jamais utilisée**. Les lignes suivantes ne
+choisissent qu'un canal. Rien ne bloque un SMS à 23h, alors que la page affiche la
+plage. Réglage fictif, et c'est l'envoi nocturne qui déclenche un signalement.
+
+### 13.4 🟡 Contraindre le `to` du tool `send_sms` (1 h)
+
+`voixia/routes.js:610` : le numéro vient du corps de la requête, donc **du LLM**. Le
+prompt lui dit d'utiliser celui de l'appelant, rien ne le contraint côté serveur. Une KB
+empoisonnée ou un prompt manipulé pourrait faire envoyer ailleurs. La garde de contact
+posée au premier lot le couvre partiellement (le destinataire doit être un contact connu),
+mais elle n'impose pas que ce soit **l'appelant en cours**.
+
+### 13.5 🟡 Une permission RBAC sur l'envoi sortant (1 h)
+
+Aucune des routes SMS n'était protégée par une permission. Un salarié invité avec des
+droits minimaux pouvait envoyer. Les routes libres sont supprimées, mais les chemins
+restants (test, proactif) méritent une permission.
+
+### 13.6 🟡 Mention de refus dans les messages non transactionnels (0,5 h)
+
+Identification de l'expéditeur : ✅ présente (`{entreprise}` dans tous les gabarits).
+Moyen de refus affiché : ❌ absent. Toléré sur du transactionnel, pas sur un envoi à
+l'initiative de l'entreprise — et c'est aussi ce qui déclenche le filtrage opérateur.
+
+### 13.7 🟡 Envoi manuel par gabarit nommé (1,5 h)
+
+La modale « Envoyer un SMS » des fiches contact a été **retirée** au premier lot avec la
+route `/api/v1/sms/send`. `MODELES` ne contient qu'un gabarit (`confirmation_rdv`), qui
+n'a aucun sens comme message manuel. Si le besoin revient **d'un vrai client**, la voie
+est un choix parmi des gabarits nommés — jamais un champ libre.

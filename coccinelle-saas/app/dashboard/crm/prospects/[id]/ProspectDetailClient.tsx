@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Logo from '@/components/Logo';
-import CommunicationPreferencesTab from '@/components/customers/CommunicationPreferencesTab';
 import {
   ArrowLeft, Mail, Phone, MapPin, Calendar, ShoppingBag,
   Euro, MessageSquare, Tag, Edit, Save, X, Plus,
@@ -16,22 +15,6 @@ import { useToast } from '@/hooks/useToast';
 import ActionToastContainer from '@/src/components/ActionToast';
 
 // Types
-interface CommunicationPreferences {
-  // 'email' retiré le 15/08/2026 : aucun envoi n'est possible par ce canal.
-  preferredChannel: 'sms' | 'whatsapp' | 'phone';
-  emailOptIn: boolean;
-  smsOptIn: boolean;
-  whatsappOptIn: boolean;
-  phoneOptIn: boolean;
-  marketingOptIn: boolean;
-  frequency: 'realtime' | 'daily' | 'weekly' | 'monthly';
-  doNotDisturb: {
-    enabled: boolean;
-    startTime?: string;
-    endTime?: string;
-  };
-}
-
 interface Customer {
   id: string;
   firstName: string;
@@ -39,7 +22,6 @@ interface Customer {
   email?: string;
   phone?: string;
   preferredChannel?: string;
-  communicationPreferences?: CommunicationPreferences;
   segment?: string;
   tags?: string[];
   totalOrders: number;
@@ -78,13 +60,9 @@ export default function ProspectDetailClient() {
   const [activities, setActivities] = useState<CustomerActivity[]>([]);
   const [notes, setNotes] = useState<CustomerNote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'notes' | 'preferences'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'notes'>('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const [editedPreferences, setEditedPreferences] = useState<CommunicationPreferences | null>(null);
-  const [showSmsModal, setShowSmsModal] = useState(false);
-  const [smsTo, setSmsTo] = useState('');
-  const [smsMessage, setSmsMessage] = useState('');
   const [smsSending, setSmsSending] = useState(false);
   const toast = useToast();
 
@@ -114,16 +92,6 @@ export default function ProspectDetailClient() {
             email: p.email || undefined,
             phone: p.phone || undefined,
             preferredChannel: p.preferred_channel || 'phone',
-            communicationPreferences: {
-              preferredChannel: (p.preferred_channel || 'phone') as any,
-              emailOptIn: true,
-              smsOptIn: true,
-              whatsappOptIn: false,
-              phoneOptIn: true,
-              marketingOptIn: true,
-              frequency: 'daily',
-              doNotDisturb: { enabled: false },
-            },
             segment: p.status || 'prospect',
             tags: p.tags ? (typeof p.tags === 'string' ? p.tags.split(',') : p.tags) : [],
             totalOrders: p.interaction_count || 0,
@@ -161,32 +129,6 @@ export default function ProspectDetailClient() {
     setNewNote('');
   };
 
-  const openSmsModal = () => {
-    setSmsTo(customer?.phone || '');
-    setSmsMessage('');
-    setShowSmsModal(true);
-  };
-
-  const handleSendSms = async () => {
-    if (!smsTo.trim() || !smsMessage.trim()) return;
-    setSmsSending(true);
-    try {
-      const token = localStorage.getItem('auth_token');
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://coccinelle-api.youssef-amrouche.workers.dev';
-      const res = await fetch(`${API_URL}/api/v1/sms/send`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: smsTo, message: smsMessage }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast.success(`SMS envoye a ${smsTo}`);
-      setShowSmsModal(false);
-    } catch {
-      toast.error("Erreur lors de l'envoi du SMS");
-    } finally {
-      setSmsSending(false);
-    }
-  };
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -332,7 +274,6 @@ export default function ProspectDetailClient() {
                 {isEditing ? 'Annuler' : 'Modifier'}
               </button>
               <button
-                onClick={openSmsModal}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
               >
                 <MessageSquare className="w-5 h-5" />
@@ -395,16 +336,6 @@ export default function ProspectDetailClient() {
               Vue d'ensemble
             </button>
             <button
-              onClick={() => setActiveTab('preferences')}
-              className={`py-4 border-b-2 font-medium transition-colors ${
-                activeTab === 'preferences'
-                  ? 'border-gray-900 text-gray-900'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Préférences
-            </button>
-            <button
               onClick={() => setActiveTab('activity')}
               className={`py-4 border-b-2 font-medium transition-colors ${
                 activeTab === 'activity'
@@ -459,11 +390,10 @@ export default function ProspectDetailClient() {
                           const newChannel = e.target.value as 'sms' | 'whatsapp' | 'phone';
                           setCustomer({
                             ...customer,
-                            preferredChannel: newChannel,
-                            communicationPreferences: customer.communicationPreferences ? {
-                              ...customer.communicationPreferences,
-                              preferredChannel: newChannel
-                            } : undefined
+                            // `communicationPreferences` a disparu avec l'onglet
+                            // Preferences : il ne portait que des litteraux inventes.
+                            // Le canal prefere, lui, vient bien de l'API.
+                            preferredChannel: newChannel
                           });
                           // TODO: Sauvegarder via API
                         }}
@@ -540,22 +470,15 @@ export default function ProspectDetailClient() {
             </div>
           )}
 
-          {activeTab === 'preferences' && customer?.communicationPreferences && (
-            <CommunicationPreferencesTab
-              preferences={customer.communicationPreferences}
-              onSave={(newPrefs) => {
-                if (customer) {
-                  setCustomer({
-                    ...customer,
-                    communicationPreferences: newPrefs,
-                    preferredChannel: newPrefs.preferredChannel
-                  });
-                }
-                // TODO: Sauvegarder via API
-                console.log('Preferences saved:', newPrefs);
-              }}
-            />
-          )}
+          {/* ⛔ Onglet « Preferences » retire le 17/08/2026 (chantier CONSENTEMENT).
+              Il affichait `smsOptIn: true`, `marketingOptIn: true` — des LITTERAUX
+              codes dans ce composant, jamais lus depuis l'API, et il n'existe AUCUNE
+              colonne de consentement dans tout le schema D1. L'ecran affirmait donc au
+              garagiste que son client avait consenti au SMS et au marketing alors que
+              rien n'avait jamais ete recueilli.
+              Un ecran muet vaut mieux qu'un ecran qui donne une raison de croire qu'on
+              a le droit. Le consentement positif (colonne horodatee + case sur le
+              formulaire public) est au backlog. */}
 
           {activeTab === 'notes' && (
             <div className="space-y-6">
@@ -605,68 +528,6 @@ export default function ProspectDetailClient() {
       </div>
 
       {/* Modale SMS */}
-      {showSmsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <MessageSquare className="w-6 h-6 text-gray-700" />
-                Envoyer un SMS
-              </h3>
-              <button onClick={() => setShowSmsModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Destinataire</label>
-                <input
-                  type="tel"
-                  value={smsTo}
-                  onChange={(e) => setSmsTo(e.target.value)}
-                  readOnly={!!customer?.phone}
-                  placeholder="+33..."
-                  className={`w-full px-3 py-2.5 border border-gray-300 rounded-lg ${customer?.phone ? 'bg-gray-50 text-gray-500' : ''}`}
-                />
-                {customer && (
-                  <p className="text-sm text-gray-500 mt-1">{customer.firstName} {customer.lastName}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                <textarea
-                  value={smsMessage}
-                  onChange={(e) => setSmsMessage(e.target.value)}
-                  placeholder="Votre message..."
-                  rows={4}
-                  autoFocus
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg resize-none"
-                />
-                <p className={`text-xs text-right mt-1 ${smsMessage.length > 160 ? 'text-red-600' : 'text-gray-400'}`}>
-                  {smsMessage.length} / 160
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
-              <button onClick={() => setShowSmsModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100">
-                Annuler
-              </button>
-              <button
-                onClick={handleSendSms}
-                disabled={smsSending || !smsTo.trim() || !smsMessage.trim()}
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
-              >
-                {smsSending ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-                Envoyer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

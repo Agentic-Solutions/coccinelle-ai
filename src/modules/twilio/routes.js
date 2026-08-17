@@ -5,7 +5,6 @@ import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
 import { handleConversationWebSocket } from './websocket.js';
 import { TwilioSignatureValidator } from './validator.js';
-import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 export async function handleTwilioRoutes(request, env, path, method) {
   try {
@@ -59,30 +58,31 @@ export async function handleTwilioRoutes(request, env, path, method) {
       return await handleStats(env, tenantId);
     }
 
-    // ============ SMS ROUTES (require JWT auth) ============
-    // Supportent /api/v1/sms/*, /api/v1/twilio/sms/* et /api/v1/channels/sms/*
+    // ⛔ ============ QUATRE ROUTES SMS SUPPRIMEES (17/08/2026) ============
+    //
+    // `POST /api/v1/sms/send` (+ alias /twilio/ et /channels/), et
+    // `/sms/confirmation`, `/sms/reminder`, `/sms/cancel`.
+    //
+    // Les quatre prenaient `{to, …}` DANS LE CORPS de la requete et n'en verifiaient
+    // que la presence : aucun rapprochement avec les contacts du tenant, aucune
+    // permission RBAC. N'importe quel utilisateur authentifie d'un tenant — ou un robot
+    // ayant pris son compte — pouvait envoyer a un numero quelconque.
+    //
+    // `/sms/send` acceptait EN PLUS un `message` libre : c'etait le seul chemin du
+    // produit capable de porter du vrai demarchage. Un chemin a contenu libre finit
+    // toujours par servir a autre chose que ce pour quoi il a ete ecrit.
+    //
+    // Les trois autres (`confirmation`, `reminder`, `cancel`) n'avaient AUCUN appelant
+    // frontend, et le produit envoie deja ces messages par ses chemins legitimes :
+    // `public/booking.js` pour la confirmation, `cron/reminders.js` pour le rappel.
+    //
+    // La garde de destinataire posee dans `shared/sms-envoi.js` rendrait ces routes
+    // inoffensives, mais une route qui ne peut plus rien faire n'a pas de raison
+    // d'exister — et la garder inviterait a la « reparer » un jour.
+    //
+    // Envoi manuel par gabarit nomme : au backlog, s'il revient d'un vrai client.
 
-    // POST /api/v1/sms/send | /api/v1/twilio/sms/send | /api/v1/channels/sms/send
-    if ((path === '/api/v1/sms/send' || path === '/api/v1/twilio/sms/send' || path === '/api/v1/channels/sms/send') && method === 'POST') {
-      return await handleSendSMS(request, env, tenantId);
-    }
-
-    // POST /api/v1/sms/confirmation | /api/v1/twilio/sms/confirmation
-    if ((path === '/api/v1/sms/confirmation' || path === '/api/v1/twilio/sms/confirmation') && method === 'POST') {
-      return await handleSMSConfirmation(request, env, tenantId);
-    }
-
-    // POST /api/v1/sms/reminder | /api/v1/twilio/sms/reminder
-    if ((path === '/api/v1/sms/reminder' || path === '/api/v1/twilio/sms/reminder') && method === 'POST') {
-      return await handleSMSReminder(request, env, tenantId);
-    }
-
-    // POST /api/v1/sms/cancel | /api/v1/twilio/sms/cancel
-    if ((path === '/api/v1/sms/cancel' || path === '/api/v1/twilio/sms/cancel') && method === 'POST') {
-      return await handleSMSCancel(request, env, tenantId);
-    }
-
-    // GET /api/v1/sms/history | /api/v1/twilio/sms/history
+    // GET /api/v1/sms/history | /api/v1/twilio/sms/history — CONSERVEE (lecture seule)
     if ((path === '/api/v1/sms/history' || path === '/api/v1/twilio/sms/history') && method === 'GET') {
       return await handleSMSHistory(env, tenantId);
     }
@@ -661,121 +661,6 @@ async function handleIncomingSMS(request, env) {
 // ============ SMS ROUTES ============
 
 /**
- * POST /api/v1/sms/send - Envoyer un SMS manuel
- */
-async function handleSendSMS(request, env, tenantId) {
-  const body = await request.json();
-  const { to, message } = body;
-
-  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
-  if (!message) return errorResponse('Message requis', 400);
-
-  const result = await sendTwilioSMS(env, to, message, tenantId, 'manuel');
-  
-  if (result.success) {
-    return successResponse({
-      message_sid: result.messageSid,
-      to,
-      status: 'sent',
-      message: 'SMS envoyé avec succès'
-    });
-  } else {
-    return errorResponse(result.error, 400);
-  }
-}
-
-/**
- * POST /api/v1/sms/confirmation - SMS confirmation RDV (template)
- */
-async function handleSMSConfirmation(request, env, tenantId) {
-  const body = await request.json();
-  const { to, customer_name, date, time, company_name } = body;
-
-  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
-  if (!date || !time) return errorResponse('Date et heure requises', 400);
-
-  const name = customer_name || 'Client';
-  const company = company_name || 'notre établissement';
-
-  const message = `Bonjour ${name}, votre RDV est confirmé pour le ${date} à ${time} chez ${company}. À bientôt !`;
-
-  const result = await sendTwilioSMS(env, to, message, tenantId, 'confirmation_rdv');
-  
-  if (result.success) {
-    return successResponse({
-      message_sid: result.messageSid,
-      to,
-      type: 'confirmation',
-      status: 'sent'
-    });
-  } else {
-    return errorResponse(result.error, 400);
-  }
-}
-
-/**
- * POST /api/v1/sms/reminder - SMS rappel RDV (template)
- */
-async function handleSMSReminder(request, env, tenantId) {
-  const body = await request.json();
-  const { to, customer_name, date, time, company_name } = body;
-
-  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
-  if (!date || !time) return errorResponse('Date et heure requises', 400);
-
-  const name = customer_name || 'Client';
-  const company = company_name || 'notre établissement';
-
-  const message = `Rappel ${name} : votre RDV est demain ${date} à ${time} chez ${company}. Besoin de modifier ? Répondez à ce SMS.`;
-
-  const result = await sendTwilioSMS(env, to, message, tenantId, 'rappel_rdv');
-  
-  if (result.success) {
-    return successResponse({
-      message_sid: result.messageSid,
-      to,
-      type: 'reminder',
-      status: 'sent'
-    });
-  } else {
-    return errorResponse(result.error, 400);
-  }
-}
-
-/**
- * POST /api/v1/sms/cancel - SMS annulation RDV (template)
- */
-async function handleSMSCancel(request, env, tenantId) {
-  const body = await request.json();
-  const { to, customer_name, date, time, company_name } = body;
-
-  if (!to) return errorResponse('Numéro destinataire (to) requis', 400);
-
-  const name = customer_name || 'Client';
-  const company = company_name || 'notre établissement';
-
-  let message;
-  if (date && time) {
-    message = `Bonjour ${name}, votre RDV du ${date} à ${time} chez ${company} a été annulé. Contactez-nous pour reprogrammer.`;
-  } else {
-    message = `Bonjour ${name}, votre RDV chez ${company} a été annulé. Contactez-nous pour reprogrammer.`;
-  }
-
-  const result = await sendTwilioSMS(env, to, message, tenantId, 'annulation_rdv');
-  
-  if (result.success) {
-    return successResponse({
-      message_sid: result.messageSid,
-      to,
-      type: 'cancel',
-      status: 'sent'
-    });
-  } else {
-    return errorResponse(result.error, 400);
-  }
-}
-
-/**
  * GET /api/v1/sms/history - Historique des SMS
  *
  * Lisait `sms_messages`, table qui n'existe pas dans `coccinelle-db-eu` : la
@@ -816,30 +701,9 @@ async function handleSMSHistory(env, tenantId) {
 /**
  * Fonction commune pour envoyer un SMS via Twilio
  */
-/**
- * Envoi de SMS depuis le dashboard — délégué à l'envoi tracé (CX-3, 15/08/2026).
- *
- * Cette fonction faisait son propre appel Twilio, puis un
- * `INSERT INTO sms_messages` : une table qui n'existe pas dans
- * `coccinelle-db-eu`. L'échec était journalisé en `warn` et ignoré. Résultat, un
- * SMS écrit à la main depuis une fiche client ne laissait aucune trace — et la
- * route d'historique juste au-dessus, qui lit la même table absente, répondait
- * « SMS history table not configured » à tout le monde.
- *
- * Elle stockait par ailleurs `message` (le texte brut) et non le corps enrichi,
- * et retombait sur un `tenant_demo_001` écrit en dur quand `tenantId` manquait.
- *
- * `envoyerSmsTrace` porte les trois responsabilités : règle du lien
- * (`shared/sms-booking-link.js`), envoi, trace en conversation.
+/*
+ * ⛔ `sendTwilioSMS` supprimee le 17/08/2026 : elle n'existait que pour les quatre
+ * routes a destinataire libre, retirees ci-dessus. Les envois legitimes passent par
+ * `shared/sms-envoi.js`, seul fichier autorise a appeler Twilio
+ * (`scripts/verifier-sms.mjs`).
  */
-async function sendTwilioSMS(env, to, message, tenantId, type = 'manuel') {
-  const envoi = await envoyerSmsTrace(env, { tenantId, to, message, type });
-
-  if (!envoi.envoye) {
-    logger.warn('SMS non envoyé', { erreur: envoi.erreur, to });
-    return { success: false, error: envoi.erreur || 'SMS send failed' };
-  }
-
-  logger.info('SMS sent', { messageSid: envoi.sid, to, segments: envoi.segments });
-  return { success: true, messageSid: envoi.sid, corps: envoi.corps };
-}
