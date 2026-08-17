@@ -2,6 +2,7 @@
 // Gère la communication bidirectionnelle audio/texte avec Twilio
 import { logger } from '../../utils/logger.js';
 import { ConversationManager } from './conversation.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
 
 export async function handleConversationWebSocket(request, env) {
   // Extraire les paramètres de l'URL
@@ -310,24 +311,25 @@ async function sendSmsConfirmation(data, env, conversationManager) {
     const authToken = env.TWILIO_AUTH_TOKEN;
     const fromNumber = env.TWILIO_SMS_NUMBER || conversationManager.config.smsNumber;
 
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          From: fromNumber,
-          To: data.to,
-          Body: data.message
-        })
-      }
-    );
+    // ── Chemin UNIQUE (chantier COMPACTION, 17/08/2026) ──
+    // Ce message va a un CLIENT (`data.message` est le texte compose par l'agent), donc
+    // `type: 'information'` : il merite le lien de reservation et il EST trace dans
+    // « Mes communications ». C'est le seul des huit chemins migres qui ne soit pas
+    // interne.
+    //
+    // ⚠️ Route atteignable (`/webhooks/twilio/conversation`, montee dans
+    // `twilio/routes.js:31`) mais HORS du parcours vocal de production, qui va de Twilio
+    // SIP a l'agent LiveKit (§ e de CLAUDE.md). Migre quand meme : une route qui repond
+    // doit se comporter correctement le jour ou quelqu'un la branche.
+    const envoi = await envoyerSmsTrace(env, {
+      tenantId: conversationManager?.config?.tenantId || null,
+      to: data.to,
+      message: data.message,
+      type: 'information',
+    });
 
-    if (!response.ok) {
-      throw new Error(`SMS send failed: ${response.status}`);
+    if (!envoi.envoye) {
+      throw new Error(`SMS send failed: ${envoi.erreur || 'raison inconnue'}`);
     }
 
     logger.info('SMS confirmation sent', { to: data.to });

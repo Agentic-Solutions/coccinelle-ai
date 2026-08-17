@@ -560,35 +560,28 @@ async function testSmsChannel(env, tenantId, body) {
     const twilioAuthToken = env.TWILIO_AUTH_TOKEN;
     const twilioFromNumber = env.TWILIO_PHONE_NUMBER;
 
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${twilioAccountSid}:${twilioAuthToken}`),
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-          To: toNumber,
-          From: twilioFromNumber,
-          Body: '🧪 Test Coccinelle.AI - Votre canal SMS est correctement configuré !'
-        })
-      }
-    );
+    // ── Chemin UNIQUE (chantier COMPACTION) ── `type: 'test'` est interne : compacte
+    // et compte dans le plafond, mais pas trace comme une conversation client.
+    // ⚠️ Le 🧪 du message d'origine est un emoji HORS BMP : il coutait 2 unites UCS-2 et
+    // forcait tout le message en UCS-2. Retire — un SMS de test n'a pas besoin d'emoji.
+    const envoi = await envoyerSmsTrace(env, {
+      tenantId,
+      to: toNumber,
+      message: 'Test Coccinelle.ai - votre canal SMS est correctement configure !',
+      type: 'test',
+    });
 
-    const result = await response.json();
-
-    if (result.error_code) {
-      return errorResponse(`Erreur Twilio: ${result.error_message}`, 400);
+    if (!envoi.envoye) {
+      return errorResponse(envoi.erreur || 'Echec envoi SMS', 400);
     }
 
     // Logger le message
-    await logChannelMessage(env, tenantId, 'sms', toNumber, 'test', 'SMS de test', result.sid);
+    await logChannelMessage(env, tenantId, 'sms', toNumber, 'test', 'SMS de test', envoi.sid);
 
     return successResponse({
       success: true,
       message: 'SMS de test envoyé',
-      messageId: result.sid
+      messageId: envoi.sid
     });
   } catch (error) {
     logger.error('SMS test failed', { error: error.message, tenantId });
@@ -723,47 +716,30 @@ async function handleTestSMS(request, env, tenantId) {
   }
 
   try {
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const formData = new URLSearchParams();
-    formData.append('From', from);
-    formData.append('To', to);
-    formData.append('Body', message);
+    // ── Chemin UNIQUE (chantier COMPACTION) ──
+    // `type: 'test'` est interne. La trace manuelle dans `omni_messages` qui suivait
+    // est SUPPRIMEE : elle fabriquait un `conversation_id` inexistant
+    // (`test_{tenant}_{timestamp}`), donc une ligne rattachee a aucune conversation —
+    // invisible dans le dashboard et impossible a nettoyer. `envoyerSmsTrace` ne trace
+    // pas les types internes, ce qui est le comportement voulu ici.
+    //
+    // ⚠️ Ce handler est un DOUBLON de `testSmsChannel` ci-dessus (deux routes de test
+    // SMS qui font la meme chose, plus une troisieme dans `public/routes.js`). Les
+    // trois sont migrees a l'identique ; la deduplication est au backlog — supprimer
+    // une route pendant un lot de compaction melangerait deux sujets.
+    const envoi = await envoyerSmsTrace(env, { tenantId, to, message, type: 'test' });
 
-    const response = await fetch(twilioUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      logger.error('Test SMS Twilio error', { error: data, tenantId });
-      return errorResponse(data.message || 'Echec envoi SMS', 400);
+    if (!envoi.envoye) {
+      logger.error('Test SMS non parti', {
+        tenantId, erreur: envoi.erreur, refuse: envoi.refuse === true,
+      });
+      return errorResponse(envoi.erreur || 'Echec envoi SMS', 400);
     }
 
-    logger.info('Test SMS sent', { messageSid: data.sid, to, tenantId });
-
-    // Logger dans omni_messages (best effort)
-    try {
-      await env.DB.prepare(`
-        INSERT INTO omni_messages (id, conversation_id, channel, direction, content, content_type, sender_role, message_sid)
-        VALUES (?, ?, 'sms', 'outbound', ?, 'text', 'agent', ?)
-      `).bind(
-        `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        `test_${tenantId}_${Date.now()}`,
-        message,
-        data.sid
-      ).run();
-    } catch (dbError) {
-      logger.warn('Could not log test SMS to omni_messages', { error: dbError.message });
-    }
+    logger.info('Test SMS sent', { messageSid: envoi.sid, to, tenantId });
 
     return successResponse({
-      message_sid: data.sid,
+      message_sid: envoi.sid,
       to,
       status: 'sent',
       message: 'SMS de test envoyé avec succès'

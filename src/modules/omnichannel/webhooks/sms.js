@@ -5,7 +5,7 @@
 import { queries } from '../db/queries.js';
 import { omniLogger } from '../utils/logger.js';
 import { ClaudeAIService } from '../services/claude-ai.js';
-import { enrichirSmsAvecLien } from '../../shared/sms-booking-link.js';
+import { envoyerSmsTrace } from '../../shared/sms-envoi.js';
 
 /**
  * POST /webhooks/omnichannel/sms
@@ -134,41 +134,27 @@ export async function handleIncomingSMS(request, env) {
 }
 
 /**
- * Envoyer un SMS via l'API Twilio
+/**
+ * Envoyer un SMS de reponse a un client — DELEGUE au chemin unique.
+ *
+ * Avant le 17/08/2026, cette fonction appelait Twilio directement. Elle compactait
+ * bien (via `enrichirSmsAvecLien`), mais elle echappait au PLAFOND QUOTIDIEN et a la
+ * TRACE dans la conversation. Or c'est le chemin d'une reponse automatique a un SMS
+ * entrant : celui ou une boucle entre deux repondeurs automatiques coute le plus cher.
+ *
+ * `envoyerSmsTrace` fait les trois, et `enrichirSmsAvecLien` y est deja appele — le
+ * garder ici l'aurait execute deux fois (il est idempotent, mais compter deux fois sur
+ * cette propriete est fragile).
  */
 async function sendTwilioSMS(env, to, message, tenantId = null, type = 'reponse_sms') {
-  const accountSid = env.TWILIO_ACCOUNT_SID;
-  const authToken = env.TWILIO_AUTH_TOKEN;
-  const from = env.TWILIO_PHONE_NUMBER;
+  const envoi = await envoyerSmsTrace(env, { tenantId, to, message, type });
 
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-
-  // Reponse a un client qui ecrit : s'il pose une question, il peut vouloir
-  // venir. Regle d'inclusion dans shared/sms-booking-link.js.
-  const corps = await enrichirSmsAvecLien(env, { tenantId, message, type });
-
-  const body = new URLSearchParams({
-    To: to,
-    From: from,
-    Body: corps
-  });
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: body.toString()
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Twilio SMS API error: ${response.status} - ${errorText}`);
+  if (!envoi.envoye) {
+    // L'appelant `await`ait cette fonction sans lire son retour et comptait sur une
+    // exception : on la conserve, pour ne pas changer son comportement au passage.
+    throw new Error(`Envoi SMS refuse : ${envoi.erreur || 'raison inconnue'}`);
   }
 
-  const data = await response.json();
-  omniLogger.info('SMS sent via Twilio', { messageSid: data.sid, to });
-
-  return data;
+  omniLogger.info('SMS sent via Twilio', { messageSid: envoi.sid, to });
+  return { sid: envoi.sid };
 }

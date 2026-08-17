@@ -919,3 +919,45 @@ correctif.
 deux graphiques d'analytics (`strftime('%w')` = 0=dimanche, indexé sur un tableau
 qui commence par « Dim »), et l'agenda (`(getDay()+6)%7` pour l'affichage).
 Variable morte au passage : `twilio/conversation.js:577`, jamais relue.
+
+### 10. Chaîne SMS morte dans le FRONTEND — 1 314 lignes, et un jeton Twilio en puissance
+
+Découverte par `scripts/verifier-sms.mjs` le 17/08/2026, en dehors du cadrage du lot.
+
+`coccinelle-saas/src/modules/orchestrator/channelOrchestrator.ts` →
+`channels/sms/smsService.ts` → `channels/sms/twilioClient.ts` construit un client Twilio
+avec `accountSid` **et `authToken`**, et appelle `Messages.json` en `fetch` direct.
+
+**Mesuré : la chaîne est ENTIÈREMENT MORTE.** Zéro page ou composant n'importe
+`channelOrchestrator`, zéro occurrence dans le bundle construit. **Rien n'a fuité.**
+
+⚠️ Mais c'est un piège armé : le jour où quelqu'un branche cette chaîne sur une page,
+un **jeton d'authentification Twilio part dans le bundle du navigateur** — la faute
+exacte des clés VoixIA de `dashboard/proactive/page.tsx` et `dashboard/voixia/page.tsx`
+(§ r.1), où une clé n'était pas « exposée par le dépôt » mais **publiée par le produit**,
+à chaque chargement.
+
+⇒ **À supprimer.** C'est du code mort, et le supprimer désarme le piège. Ce n'est pas
+fait dans le lot COMPACTION parce que c'est un autre sujet : ce lot traite les chemins
+d'envoi du Worker.
+
+⇒ Et **`scripts/verifier-sms.mjs` exclut aujourd'hui `coccinelle-saas/` et
+`voixia-portal/`** pour cette raison — sans quoi `npm test` serait rouge en permanence
+sur un problème connu. Le motif est écrit dans le fichier. **Retirer cette exclusion le
+jour où la chaîne est supprimée**, sinon le garde-fou ne surveille plus le frontend, qui
+est précisément là où un jeton dans le bundle ferait le plus de dégâts.
+
+### 11. Déduplication des routes de test SMS
+
+Trois routes envoient un SMS de test et font la même chose :
+`POST /channels/sms/test` (`testSmsChannel`), `POST /channels/test-sms`
+(`handleTestSMS`), et `POST /public/test/sms` (fermée par `ENABLE_TEST_ENDPOINTS`).
+
+Les trois ont été migrées à l'identique au lot COMPACTION — supprimer une route pendant
+un lot de compaction mélangerait deux sujets. En garder **une** est le travail restant.
+
+### 12. Secret `RETELL_API_KEY` sans lecteur
+
+Le module `retell` a été supprimé le 17/08/2026, mais `RETELL_API_KEY` est toujours dans
+les secrets du Worker. Plus aucun code ne le lit. À supprimer :
+`npx wrangler@latest secret delete RETELL_API_KEY`.

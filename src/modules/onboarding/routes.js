@@ -26,6 +26,8 @@ import {
 } from '../shared/sector-prompts.js';
 import { indexerFiches } from '../shared/kb-ingest.js';
 import { realignerSlugSurNom } from '../shared/slug.js';
+import { envoyerSmsTrace } from '../shared/sms-envoi.js';
+import { checkRateLimit, getClientIP } from '../../utils/rate-limiter.js';
 
 /**
  * Journalise un événement d'onboarding (table onboarding_events, migration 0082).
@@ -562,6 +564,33 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
         });
       }
 
+      // ── RATE LIMIT (chantier COMPACTION, 17/08/2026) ──
+      // Cette route N'EN AVAIT AUCUN, et chaque appel envoie un VRAI SMS. Elle etait
+      // donc sans plafond quotidien ET sans limite de debit : une boucle dessus
+      // envoyait autant de SMS qu'elle voulait, sur le tunnel d'inscription. C'est
+      // exactement le trou que le plafond a ferme ailleurs.
+      //
+      // 20/heure/IP : un inscrit legitime en demande un, deux, trois s'il s'est trompe
+      // de numero. Vingt est genereux et sans rapport avec un abus.
+      //
+      // ⚠️ Le limiteur est une `Map` EN MEMOIRE du Worker, donc un compteur PAR
+      // ISOLATE (meme aveu qu'en tete de `voixia/auth.js`). Il eleve le cout d'une
+      // boucle, il ne l'interdit pas. Ce qui BORNE la facture, c'est le plafond
+      // quotidien que ce meme lot vient de brancher sur ce chemin.
+      const limiteSms = checkRateLimit(
+        `onboarding-verif:${getClientIP(request)}`, 20, 3_600_000,
+      );
+      if (!limiteSms.allowed) {
+        logger.warn('[Onboarding] Trop de demandes de code', { ip: getClientIP(request) });
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Trop de demandes de code. Reessayez dans une heure.',
+        }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       try {
         const body = await request.json();
         const phone = body.phone;
@@ -586,29 +615,33 @@ export async function handleOnboardingRoutes(request, env, ctx, corsHeaders) {
           WHERE id = ?
         `).bind(phone, code, authResult.user.id).run();
 
-        // Envoyer SMS via Twilio
-        const accountSid = env.TWILIO_ACCOUNT_SID;
-        const authToken = env.TWILIO_AUTH_TOKEN;
-        const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
-
-        if (accountSid && authToken) {
-          const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-          const formData = new URLSearchParams();
-          formData.append('From', from);
-          formData.append('To', phone);
-          formData.append('Body', `Votre code Coccinelle.ai : ${code}`);
-
-          const smsRes = await fetch(twilioUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: formData
+        // ── Envoi par le chemin UNIQUE (chantier COMPACTION, 17/08/2026) ──
+        // Avant : appel direct a Twilio, donc sans compaction GSM-7, sans plafond
+        // quotidien et sans trace. `envoyerSmsTrace` fait les trois.
+        //
+        // `type: 'verification'` est dans `EST_INTERNE` : le message est compacte et
+        // COMPTE dans le plafond, mais il n'est PAS trace. Le tracer creerait dans
+        // « Mes communications » une conversation avec le numero du gerant lui-meme,
+        // portant son propre code a six chiffres — le genre de fuite qu'on ne voit
+        // qu'en production.
+        //
+        // ⚠️ Ce chemin est sur le tunnel P0 : si le plafond le bloquait, l'inscrit ne
+        // pourrait plus verifier son numero et l'onboarding s'arreterait. C'est pour ca
+        // que la route porte desormais son propre rate limit (20/h/IP) : le debit est
+        // borne AVANT le plafond, donc ce seul chemin ne peut pas atteindre les
+        // 100/jour du seau authentifie.
+        if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
+          const envoi = await envoyerSmsTrace(env, {
+            tenantId: authResult.tenant?.id || null,
+            to: phone,
+            message: `Votre code Coccinelle.ai : ${code}`,
+            type: 'verification',
           });
 
-          if (!smsRes.ok) {
-            logger.error('Twilio SMS error during verification', { status: smsRes.status });
+          if (!envoi.envoye) {
+            logger.error('SMS de verification non parti', {
+              erreur: envoi.erreur, refuse: envoi.refuse === true,
+            });
           }
         } else {
           logger.warn('Twilio not configured, code stored but not sent', { code });

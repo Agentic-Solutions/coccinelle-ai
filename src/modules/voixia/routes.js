@@ -2248,23 +2248,23 @@ async function handleCreateTask(request, env) {
     if (assigneePhone && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_PHONE_NUMBER) {
       const priorityLabel = priority === 'high' ? 'URGENT' : 'Normale';
       const smsBody = `Nouvelle tâche [${priorityLabel}] : ${title}\nContact : ${contact_name || 'Inconnu'} — ${contact_phone || 'N/A'}\nVia Coccinelle.ai`;
-      try {
-        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
-        const formData = new URLSearchParams();
-        formData.append('To', assigneePhone);
-        formData.append('From', env.TWILIO_PHONE_NUMBER);
-        formData.append('Body', smsBody);
-        const twilioResp = await fetch(twilioUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`),
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: formData.toString(),
+      // ── Chemin UNIQUE (chantier COMPACTION, 17/08/2026) ──
+      // Avant : appel direct a Twilio. Ce message porte « tâche » (â) et un tiret
+      // cadratin (—), tous deux HORS table GSM-7 : il partait donc en UCS-2, a 70
+      // unites par segment, soit 114 unites = 2 SEGMENTS. Compacte, il fait 116 unites
+      // en GSM-7 = 1 SEGMENT. Il rallonge de deux caracteres et coute deux fois moins.
+      //
+      // `type: 'interne'` : le destinataire est un salarie, pas un client. Le message
+      // est compacte et compte dans le plafond, mais il n'est pas trace dans
+      // « Mes communications » (`EST_INTERNE`).
+      const envoiTache = await envoyerSmsTrace(env, {
+        tenantId, to: assigneePhone, message: smsBody, type: 'interne',
+      });
+      smsSent = envoiTache.envoye;
+      if (!envoiTache.envoye) {
+        logger.warn('SMS de tache non parti', {
+          erreur: envoiTache.erreur, refuse: envoiTache.refuse === true,
         });
-        smsSent = twilioResp.ok;
-      } catch (e) {
-        logger.warn('Task SMS envoi échoué', { error: e.message });
       }
     }
 

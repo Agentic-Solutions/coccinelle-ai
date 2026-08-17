@@ -1,5 +1,6 @@
 import { logger } from './logger.js';
 import { sendPushToTenant } from '../modules/push/push-service.js';
+import { envoyerSmsTrace } from '../modules/shared/sms-envoi.js';
 
 /**
  * Helper pour créer des notifications en base + envoi push navigateur
@@ -123,14 +124,31 @@ export async function sendAppointmentConfirmation(env, appointmentId, channel = 
 
     // Envoi SMS — le seul canal vers les contacts.
     if (channel !== 'email' && customerPhone && env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
+      // ── Chemin UNIQUE (chantier COMPACTION, 17/08/2026) ──
+      // Avant : appel direct a Twilio via `sendConfirmationSMSInternal`, donc sans
+      // compaction GSM-7 et sans plafond quotidien. Le message porte « confirmé » (é,
+      // dans la table) mais aussi « A bientot » — et le NOM du client, qui peut fort
+      // bien contenir un « ç » ou un « ô ». Un Francois ou une Chloé faisait basculer
+      // tout le message en UCS-2, a 70 unites par segment.
+      //
+      // `type: 'confirmation_rdv'` : c'est un message CLIENT, donc il est trace dans
+      // « Mes communications » (il n'est pas dans `EST_INTERNE`) et il ne recoit pas de
+      // lien de reservation — le rendez-vous est deja pris (`TYPES_SMS`).
       try {
         const smsBody = `Bonjour ${customerName}, votre ${typeName} est confirmé pour le ${dateStr} (${duration} min). A bientot ! - Coccinelle.ai`;
-        const smsResult = await sendConfirmationSMSInternal(env, customerPhone, smsBody);
-        if (smsResult.success) {
+        const envoi = await envoyerSmsTrace(env, {
+          tenantId: appointment.tenant_id || null,
+          to: customerPhone,
+          message: smsBody,
+          type: 'confirmation_rdv',
+          nomContact: customerName,
+        });
+        if (envoi.envoye) {
           channelsUsed.push('sms');
-          await logOmniMessage(env, appointment, 'sms', smsBody, smsResult.sid);
+          // `envoyerSmsTrace` trace deja dans la conversation du contact : la trace
+          // manuelle `logOmniMessage` faisait doublon et est supprimee.
         } else {
-          result.errors.push('SMS: ' + smsResult.error);
+          result.errors.push('SMS: ' + (envoi.erreur || 'echec'));
         }
       } catch (smsErr) {
         result.errors.push('SMS: ' + smsErr.message);
@@ -171,50 +189,22 @@ export async function sendAppointmentConfirmation(env, appointmentId, channel = 
  * (`compliance/notify.js`). Ceux-la ne sont pas une fonction vendue.
  */
 
-async function sendConfirmationSMSInternal(env, to, body) {
-  const accountSid = env.TWILIO_ACCOUNT_SID;
-  const authToken = env.TWILIO_AUTH_TOKEN;
-  const from = env.TWILIO_PHONE_NUMBER || '+33939035760';
-
-  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-  const formData = new URLSearchParams();
-  formData.append('From', from);
-  formData.append('To', to);
-  formData.append('Body', body);
-
-  const response = await fetch(twilioUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: formData
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    return { success: false, error: data.message || 'SMS send failed' };
-  }
-  return { success: true, sid: data.sid };
-}
-
-async function logOmniMessage(env, appointment, channel, content, externalId) {
-  try {
-    const conversationId = appointment.retell_call_id || appointment.id;
-    await env.DB.prepare(`
-      INSERT INTO omni_messages (id, conversation_id, channel, direction, content, content_type, sender_role, message_sid)
-      VALUES (?, ?, ?, 'outbound', ?, 'text', 'system', ?)
-    `).bind(
-      `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      conversationId,
-      channel,
-      content,
-      externalId || null
-    ).run();
-  } catch (err) {
-    logger.warn('Could not log confirmation to omni_messages', { error: err.message });
-  }
-}
+/*
+ * ⛔ `sendConfirmationSMSInternal` et `logOmniMessage` supprimees le 17/08/2026.
+ *
+ * La premiere appelait Twilio DIRECTEMENT (sans compaction GSM-7, sans plafond) ; la
+ * seconde ecrivait une trace a la main dans `omni_messages`. `envoyerSmsTrace` fait
+ * les deux, mieux : il compacte, il plafonne, et il rattache le message a la
+ * conversation du contact plutot que d'inserer une ligne isolee.
+ *
+ * ⚠️ CORRECTION D'UNE ERREUR D'ANALYSE. J'avais d'abord conclu que tout ce chemin
+ * etait MORT, au motif que son seul appelant serait `retell/routes.js`. C'etait faux :
+ * mon grep excluait « notifications.js », et il existe DEUX fichiers de ce nom. Le
+ * vrai appelant, `src/modules/appointments/notifications.js` → `appointments/routes.js`
+ * (creation d'un rendez-vous depuis le dashboard), etait donc masque par l'exclusion.
+ * Ce chemin est VIVANT et client-facing. Une exclusion de grep par NOM DE FICHIER, dans
+ * une base qui a deux fichiers homonymes, cache exactement ce qu'on cherche.
+ */
 
 function formatDateFR(isoDate) {
   try {
