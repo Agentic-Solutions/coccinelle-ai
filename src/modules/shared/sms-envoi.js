@@ -18,7 +18,9 @@
 
 import { logger } from '../../utils/logger.js';
 import { enrichirSmsAvecLien, estPourClient } from './sms-booking-link.js';
-import { aRefuse } from './sms-refus.js';
+import {
+  aRefuse, enregistrerRefus, tenantsAyantEcrit, CODE_TWILIO_DESABONNE,
+} from './sms-refus.js';
 import { phoneVariants } from '../prospects/dedup.js';
 import { compterSms } from './sms-format.js';
 import {
@@ -81,18 +83,32 @@ export async function envoyerSmsTrace(env, {
   // table que celle qui decide de la trace.
   const pourClient = estPourClient(type);
 
+  // L'EXPEDITEUR EST LA CLE DU REFUS — il doit donc etre connu AVANT la garde 1, pas
+  // au moment de l'appel Twilio comme auparavant. Repli sur la ligne Coccinelle.ai :
+  // `TWILIO_PHONE_NUMBER` vit dans les vars de wrangler.toml, mais les quatre chemins
+  // d'envoi absorbes par ce module portaient tous ce repli. Le retirer aurait change
+  // leur comportement en silence si la var venait a manquer sur un environnement.
+  const expediteur = env.TWILIO_PHONE_NUMBER || '+33939035760';
+
   // ── GARDE 1 : le refus (STOP / ARRET) ──
   // Il bloque TOUT, confirmations et rappels inclus (decision du 17/08). Un refus est
   // un refus : mieux vaut un client qui note son rendez-vous a la main qu'un client qui
   // recoit un SMS apres avoir dit non. La degradation est deja ecrite — la page de
   // reservation lit `confirmation_sent` et le dit.
   //
+  // ⚠️ CLE PAR EXPEDITEUR, PLUS PAR TENANT, et la condition ne porte donc PLUS sur
+  // `tenantId`. Deux consequences voulues :
+  //   — un refus vaut pour TOUS les tenants qui emettent depuis ce numero. C'est ce que
+  //     la personne a refuse : elle ne connait pas nos tenants, elle voit un numero ;
+  //   — un envoi sans `tenantId` (il en existe) est desormais soumis a la garde, alors
+  //     qu'il la contournait entierement. C'est un trou ferme, pas un effet de bord.
+  //
   // ⚠️ `aRefuse` ECHOUE EN FERMETURE (une lecture impossible vaut « a refuse ») :
   // l'inverse du plafond, et c'est deliberé. Une panne de base ne doit pas faire
   // envoyer un SMS a quelqu'un qui a dit non.
-  if (pourClient && tenantId) {
-    if (await aRefuse(env, tenantId, destinataire)) {
-      logger.warn('[SMS] Envoi refuse : le destinataire a demande STOP', { tenantId, type });
+  if (pourClient) {
+    if (await aRefuse(env, expediteur, destinataire)) {
+      logger.warn('[SMS] Envoi refuse : le destinataire a demande STOP', { expediteur, type });
       return {
         envoye: false,
         refuse: true,
@@ -168,11 +184,8 @@ export async function envoyerSmsTrace(env, {
 
   const accountSid = env.TWILIO_ACCOUNT_SID;
   const authToken = env.TWILIO_AUTH_TOKEN;
-  // Repli sur la ligne Coccinelle.ai : `TWILIO_PHONE_NUMBER` vit dans les vars
-  // de wrangler.toml, mais les quatre chemins d'envoi absorbes par ce module
-  // portaient tous ce repli. Le retirer aurait change leur comportement en
-  // silence si la var venait a manquer sur un environnement.
-  const expediteur = env.TWILIO_PHONE_NUMBER || '+33939035760';
+  // `expediteur` est declare plus haut : il sert de cle a la garde de refus, qui passe
+  // avant tout le reste.
   if (!accountSid || !authToken) {
     logger.warn('[SMS] Twilio non configuré — envoi ignoré', { tenantId, type });
     return { envoye: false, refuse: true, erreur: 'Twilio non configuré' };
@@ -205,8 +218,36 @@ export async function envoyerSmsTrace(env, {
       // decompte un SMS peut-etre parti que reouvrir le seau a un balayage qui
       // provoque des timeouts.
       if (!ignorerPlafond) await relacherUnite(env, tenantId, origine);
+
+      // ── 21610 : TWILIO NOUS ANNONCE UN REFUS QU'ON N'A PAS VU PASSER ──
+      //
+      // « Attempt to send to unsubscribed recipient ». Twilio tient sa propre liste
+      // d'opt-out et la nourrit des mots-cles qu'il reconnait. Ce chemin est le SEUL
+      // qui n'exige aucun message entrant : il fonctionne meme si le webhook n'est pas
+      // configure, meme si l'operateur absorbe tout. Sans lui, un refus connu de Twilio
+      // resterait invisible chez nous, et chaque envoi suivant repartirait en erreur
+      // sans que personne ne sache pourquoi.
+      //
+      // Il ne remplace pas le webhook et ne le double pas : mesure du 17/08, Twilio ne
+      // connait que « STOP » et laisse passer « ARRET » sans rien en faire. Chacun des
+      // deux chemins couvre exactement ce que l'autre ignore.
+      //
+      // Non bloquant : le SMS est deja refuse, l'enregistrement ne doit pas transformer
+      // un refus propre en exception.
+      if (Number(donnees?.code) === CODE_TWILIO_DESABONNE) {
+        const concernes = await tenantsAyantEcrit(env, destinataire).catch(() => []);
+        await enregistrerRefus(env, {
+          expediteur,
+          phone: destinataire,
+          message: donnees?.message || 'unsubscribed recipient',
+          source: 'twilio_21610',
+          tenantsConcernes: concernes,
+        }).catch(() => {});
+      }
+
       return {
         envoye: false, refuse: true, erreur: donnees?.message || 'Envoi refusé',
+        refusDestinataire: Number(donnees?.code) === CODE_TWILIO_DESABONNE || undefined,
         segments: mesure.segments, corps,
       };
     }

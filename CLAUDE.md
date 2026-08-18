@@ -1,5 +1,5 @@
 # CLAUDE.md — Coccinelle.ai
-# Dernière mise à jour : 13 août 2026
+# Dernière mise à jour : 18 août 2026
 # (remplace intégralement la version du 22 mai 2026 ; backup : CLAUDE.md.backup-20260702)
 
 > Ce fichier est la source de vérité opérationnelle du projet.
@@ -650,6 +650,41 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    `get_api_key()` de `tools/context.py`, alimentés par `set_call_context()` au début de l'appel.
    `VOIXIA_TENANT_ID` du `.env` est un secours, pas une source (voir § j, 11/08/2026).
 
+22. 🔴 **Un champ de configuration lu par API n'est PAS un comportement.** Deux conclusions
+   fausses coup sur coup le 17/08/2026, chacune tirée d'une lecture d'API, chacune ayant
+   envoyé le diagnostic dans le mur :
+   - `IncomingPhoneNumbers.sms_url` était vide ⇒ « les entrants ne vont nulle part ». Faux :
+     Twilio appelait une **autre** route, dont l'URL n'apparaît dans aucune surface d'API.
+   - Aucune alerte Twilio `11200` ⇒ « Twilio n'appelle pas ». Faux **et inversé** : il appelait
+     et recevait un **200 propre** d'une route qui faisait autre chose. L'absence d'alerte
+     prouvait que tout se passait bien.
+   Entre les deux, une théorie inventée (cache de propagation à 57 s) pour réconcilier des
+   mesures qui ne collaient pas. **Dès qu'une question porte sur ce qu'un tiers FAIT, aller à
+   l'observation directe en premier** — `wrangler tail`, journal Twilio — pas en dernier. Deux
+   minutes de tail ont tranché ce que trois heures de lecture d'API n'avaient pas établi. Et
+   quand deux mesures se contredisent, le dire au lieu de fabriquer le mécanisme qui les
+   réconcilie. Voir [[champ-api-nest-pas-un-comportement]].
+23. **Un refus SMS se clé sur le NUMÉRO EXPÉDITEUR, jamais sur le tenant** (migration 0089).
+   Tous les tenants émettent depuis `+33939035760` : résoudre un tenant faisait enregistrer un
+   STOP répondu à Garage Toulouse chez Coccinelle.ai. Énumérer « les tenants ayant déjà écrit »
+   ne suffit pas non plus — un tenant qui écrit pour la **première fois après** le refus passe
+   au travers. Vérifié en production le 18/08 : `tenants_concernes` contenait **deux** tenants
+   pour un seul refus. La clé par expéditeur se resserrera d'elle-même quand chaque tenant aura
+   son numéro. Voir [[sms-consentement-cle-expediteur]].
+23bis. **Les décisions d'un SMS entrant vivent dans `shared/sms-entrant.js`, et TOUTE route
+   d'entrée les appelle** — signature, refus, résolution du tenant. Corollaire de la règle 22 :
+   puisqu'on ne sait pas quelle porte Twilio empruntera, on ne parie pas dessus. Ajouter une
+   route, c'est ajouter ces trois appels en tête.
+23ter. ⚠️ **La signature Twilio se valide contre le token de la RÉGION QUI ÉMET.** La messagerie
+   vit en **us1** (`TWILIO_AUTH_TOKEN`), les numéros en **IE1** (`TWILIO_IE1_AUTH_TOKEN`) —
+   chacun renvoie 401 chez l'autre. `signatureTwilioValide()` accepte les deux : n'en accepter
+   qu'un ferait tomber les webhooks en **403 silencieux** le jour d'une bascule.
+23quater. **Un compte Twilio suspendu répond `20003 Authenticate`, comme de mauvais identifiants.**
+   Mesuré le 18/08 (suspension pour impayé) : les deux tokens régionaux, valeurs inchangées,
+   ont répondu 401 sur toutes les routes, aucun SMS entrant n'a été reçu, et l'API qui aurait
+   renseigné était elle-même coupée. **Avant de conclure à une rotation de secret, vérifier le
+   statut du compte** — `GET /Accounts/{sid}.json`, champ `status`.
+
 ---
 
 ## j) BUGS CONNUS + SOLUTIONS
@@ -662,7 +697,10 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | ✅ Clos | ~~Clé API VoixIA exposée — rotation TERMINÉE le 15/08/2026~~ | **Contrôle final : `401` sur l'ancienne clé, `200` sur la nouvelle**, et `wrangler secret list` ne montre plus que `VOIXIA_API_KEY` — `VOIXIA_API_KEY_ROTATION` est supprimé, la fenêtre est fermée. La clé publiée reste lisible dans **23 commits accessibles** (mesuré, 20/03→16/05) mais **n'ouvre plus rien** : c'est exactement ce que la rotation garantit, et pourquoi elle est le seul remède réel à une fuite d'historique. ⚠️ Elle vivait dans **TROIS** fichiers, pas seulement la doc : `CLAUDE.md`, `dashboard/proactive/page.tsx` et `dashboard/voixia/page.tsx` — donc **en clair dans le bundle JavaScript** servi aux visiteurs de ces pages à l'époque. Une clé dans un composant front n'est pas « exposée par le dépôt », elle est publiée par le produit. Sauvegarde serveur `/opt/voixia/.env.avant-rotation` purgée (elle portait encore l'ancienne). Procédure réutilisable en § r.1 |
 | ✅ Clos | ~~Régénérer clés Meta~~ | **Vérifié le 11/08** : `META_WHATSAPP_ACCESS_TOKEN` expiré le 28/01 (Graph API code 190), `META_APP_SECRET` invalidé par la réinitialisation du 19/07 (« Invalid OAuth access token signature »), `META_WEBHOOK_VERIFY_TOKEN` bien tourné (la valeur publique renvoie 403 sur le handshake). `WHATSAPP_ACCESS_TOKEN` **n'a jamais été dans le dépôt**. Les 3 valeurs Meta restent lisibles dans `wrangler.toml` à 3 commits publics (01/03→09/05) mais n'ouvrent plus rien |
 | 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
-| 🟠 Haute | **Webhook SMS entrant : tenant en dur** | `omnichannel/webhooks/sms.js:49` crée toute nouvelle conversation avec `'tenant_mihmuebzieaxehi7qv'` **écrit en dur** — un tenant purgé le 10/08, donc inexistant. Même antipattern que la faille WhatsApp (fallback « premier tenant actif »). À résoudre par `omni_phone_mappings` sur le numéro appelé, comme `resolve-phone`. En attendant, le lien de réservation est omis sur ce chemin plutôt que fabriqué au hasard |
+| ✅ Clos | ~~Webhook SMS entrant : tenant en dur~~ | Les DEUX webhooks devinaient un tenant : `omnichannel/webhooks/sms.js` écrivait `'tenant_mihmuebzieaxehi7qv'` (purgé), et la route legacy `twilio/routes.js` retombait sur `'tenant_demo_001'`. **C'est la seconde qui servait en production** (mesuré au tail le 17/08). Les deux passent désormais par `resoudreTenantParNumeroAppele()` (`shared/sms-entrant.js`) ; un numéro inconnu est rejeté, jamais deviné |
+| 🟠 Haute | **On ne sait pas quelle URL Twilio appellera** | La fiche du numéro porte `sms_url = .../webhooks/omnichannel/sms` (écrite le 17/08, `date_updated` inchangé depuis), mais Twilio appelle **`/webhooks/twilio/sms`** — mesuré au `wrangler tail` : UA `TwilioProxy/1.1`, signature valide, 200. Le numéro n'est dans aucun Messaging Service, aucune TwiML App ne porte de `sms_url`, la console n'a pas été touchée. **Provenance inexpliquée.** Question posée dans `docs/ticket-twilio-optout-fr.md`. En attendant : les décisions critiques vivent sur les DEUX routes |
+| 🟡 Moyenne | Deux `tenant_demo_001` restants | `twilio/routes.js` lignes ~254 et ~529, chemin **voix** (`handleGatherResponse` + un repli de config). Hors périmètre du lot du 18/08, non traités |
+| 🔴 Critique | **AF2M : la loi nous fait indiquer un canal de refus qui ne fonctionne pas** | Mesuré le 17/08/2026, deux SMS depuis un vrai combiné vers `+33939035760` : **`STOP` est intercepté par l'opérateur français (Legos)**, qui répond « Demande enregistrée… SMS non surtaxé » et **ne nous transmet rien** — absent du journal Twilio, dans les deux sens. **`ARRET`, envoyé une minute plus tard, arrive.** Or Twilio ne connaît que `STOP` (il laisse passer `ARRET` sans réagir) et le refus n'est appliqué par personne : l'envoi de contrôle qui a suivi est arrivé sur le téléphone. ⇒ Une personne reçoit **la confirmation écrite** que son refus est enregistré, et continue de recevoir nos SMS ; l'expéditeur affiché, c'est nous. La mention AF2M nous **oblige** à écrire « STOP » dans les SMS, c'est-à-dire à orienter les clients vers le seul mot que nous ne recevons jamais. **Ne rien changer aux mentions sans avis conformité.** Deux pistes : ticket Twilio (brouillon prêt, `docs/ticket-twilio-optout-fr.md`), et éventuellement une seconde formulation qui, elle, nous parvient. Ni le webhook ni le chemin `21610` ne couvrent ce cas |
 | 🟡 Moyenne | Outlook OAuth | Secrets Azure non configurés |
 | 🟡 Moyenne | Yahoo OAuth | Client ID incorrect |
 | 🟡 Moyenne | Gmail OAuth | Bug corrigé, test inbox jamais fait |
@@ -1071,6 +1109,30 @@ deploy).
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Chantier CONSENTEMENT — refus SMS (17–18/08/2026)** — Un « STOP » client était enregistré
+  comme un message ordinaire puis interprété par l'IA comme une question. Le lot livre la table
+  `sms_refus` (migration **0089**), clée sur le **numéro expéditeur** et non sur le tenant, la
+  vérification de signature Twilio sur les deux webhooks, et l'apprentissage d'un refus par
+  l'erreur Twilio **21610**. **Recetté en production le 18/08 par un vrai combiné** : « Arret »
+  reçu, refus enregistré, confirmation reçue en 1 segment GSM-7.
+
+  Trois découvertes que seule la mesure pouvait donner, et qui ont chacune changé le lot :
+  1. **Twilio n'appelle pas la route configurée.** `sms_url` porte `/webhooks/omnichannel/sms`,
+     Twilio appelle `/webhooks/twilio/sms` — une route legacy sans aucune vérification de
+     signature, qui annulait des rendez-vous sur `Body=ANNULER` **sans filtre de tenant** (donc
+     toutes entreprises confondues), écrivait dans une table inexistante et retombait sur
+     `tenant_demo_001`. Provenance de l'URL toujours inexpliquée (§ j).
+  2. **L'opérateur français absorbe `STOP` et ne l'applique pas.** Legos répond « Demande
+     enregistrée… SMS non surtaxé », ne transmet rien, et l'envoi suivant arrive quand même sur
+     le téléphone. `ARRET` traverse et n'est traité par personne d'autre que nous. Point de
+     conformité **ouvert**, ticket rédigé (`docs/ticket-twilio-optout-fr.md`, non envoyé).
+  3. **Un refus vaut pour plusieurs tenants.** Le premier refus réel a porté
+     `tenants_concernes = [Garage Toulouse, Syndic Horizon]` : la clé par tenant aurait laissé
+     le second continuer d'envoyer.
+
+  Méthode : deux conclusions fausses tirées de champs d'API (§ i, règle 22), et un `wrangler tail`
+  qui a tranché en deux minutes. Recette : `npm test` (57/57 refus, 19/19 entrant).
 
 - **Chantier CX-2 (12–13/08/2026)** — « Mon Assistant » et « Ce que sait votre assistant »,
   déployées et recettées en conditions réelles (correction d'un tarif confirmée à l'oral par
