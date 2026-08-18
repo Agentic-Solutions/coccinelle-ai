@@ -5,6 +5,9 @@ import { logger } from '../../utils/logger.js';
 import { requireAuth } from '../auth/helpers.js';
 import { handleConversationWebSocket } from './websocket.js';
 import { TwilioSignatureValidator } from './validator.js';
+import {
+  signatureTwilioValide, intercepterRefus, resoudreTenantParNumeroAppele, twimlVide,
+} from '../shared/sms-entrant.js';
 
 export async function handleTwilioRoutes(request, env, path, method) {
   try {
@@ -557,6 +560,15 @@ function escapeXml(text) {
  */
 async function handleIncomingSMS(request, env) {
   try {
+    // ── SIGNATURE TWILIO — AVANT TOUT, ET AVANT TOUTE LECTURE DU CORPS ──
+    // Cette route n'a JAMAIS rien vérifié, alors qu'elle annule des rendez-vous sur un
+    // simple `Body=ANNULER`. N'importe qui pouvait annuler le rendez-vous de n'importe
+    // qui, sans authentification, en connaissant un numéro de téléphone.
+    if (!(await signatureTwilioValide(request, env))) {
+      logger.warn('Webhook SMS legacy : signature Twilio absente ou invalide — rejete');
+      return new Response('Forbidden', { status: 403 });
+    }
+
     const formData = await request.formData();
     const from = formData.get('From');
     const to = formData.get('To');
@@ -565,49 +577,54 @@ async function handleIncomingSMS(request, env) {
 
     logger.info('Incoming SMS received', { from, to, messageSid, body: body?.substring(0, 50) });
 
-    // Identifier le tenant par le numéro Twilio destinataire
-    const normalizedTo = to?.replace(/^\+/, '');
-    const tenantResult = await env.DB.prepare(`
-      SELECT t.id as tenant_id
-      FROM tenants t
-      INNER JOIN channel_configurations cc ON t.id = cc.tenant_id AND cc.channel_type = 'sms'
-      WHERE cc.enabled = 1
-        AND (
-          JSON_EXTRACT(cc.config_public, '$.phoneNumber') = ?
-          OR JSON_EXTRACT(cc.config_public, '$.phoneNumber') = ?
-        )
-      LIMIT 1
-    `).bind(to, normalizedTo).first();
+    // ── LE REFUS, AVANT TOUT LE RESTE ──
+    //
+    // ⚠️ C'EST CETTE ROUTE QUE TWILIO APPELLE, PAS `/webhooks/omnichannel/sms`.
+    // Mesuré au `wrangler tail` le 17/08/2026 : trois « ARRET » envoyés depuis un vrai
+    // combiné sont arrivés ICI, ont traversé sans être reconnus, et sont partis à l'IA.
+    // Le code de refus vivait sur l'autre route et n'a jamais été atteint.
+    // Voir `shared/sms-entrant.js` : on ne parie plus sur la porte d'entrée.
+    const refus = await intercepterRefus(env, { from, to, body });
+    if (refus) return refus;
 
-    const tenantId = tenantResult?.tenant_id || 'tenant_demo_001';
-
-    // Sauvegarder le SMS entrant en DB
-    try {
-      await env.DB.prepare(`
-        INSERT INTO sms_messages (id, tenant_id, to_number, from_number, message, status, direction, twilio_sid, created_at)
-        VALUES (?, ?, ?, ?, ?, 'received', 'inbound', ?, datetime('now'))
-      `).bind(
-        `sms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        tenantId,
-        to,
-        from,
-        body || '',
-        messageSid
-      ).run();
-    } catch (dbError) {
-      logger.warn('Could not save incoming SMS to DB', { error: dbError.message });
+    // ── RESOLUTION DU TENANT PAR LE NUMERO APPELE ──
+    //
+    // Avant : `channel_configurations` puis repli sur **`'tenant_demo_001'`** en dur.
+    // Mesuré en production le 17/08 : c'est le repli qui servait — un SMS entrant réel
+    // était traité sous `tenant_demo_001`. Même antipattern que le tenant en dur de
+    // l'autre webhook, et que le « premier tenant actif » de la faille WhatsApp V1.
+    //
+    // Un numéro appelé INCONNU est désormais REJETÉ, jamais deviné.
+    const tenantId = await resoudreTenantParNumeroAppele(env, to);
+    if (!tenantId) {
+      // 200 et non 404 : Twilio réessaierait sur une erreur, et un numéro non rattaché
+      // n'est pas une panne — c'est une configuration absente.
+      logger.warn('SMS entrant sur un numero non rattache — ignore', { to, from });
+      return twimlVide();
     }
 
+    // L'INSERT dans `sms_messages` a été retiré (18/08/2026) : la table N'EXISTE PAS
+    // dans `coccinelle-db-eu`, et l'erreur était avalée en `warn` — un log d'erreur par
+    // SMS reçu, et aucun entrant enregistré nulle part. Les SMS entrants vivent dans
+    // `omni_messages`, comme le reste, écrits par l'orchestrateur omnicanal plus bas.
+    // C'est déjà la source que lit `handleSMSHistory`.
+
     // Detecter reponse CONFIRMER / ANNULER pour RDV
+    //
+    // ⚠️ CES REQUETES SONT DESORMAIS BORNEES AU TENANT. Sans le filtre, elles
+    // cherchaient le rendez-vous par le SEUL numéro de téléphone, toutes entreprises
+    // confondues : un « ANNULER » annulait le premier rendez-vous trouvé, qui pouvait
+    // appartenir à un autre tenant que celui du numéro appelé.
     const upperBody = (body || '').trim().toUpperCase();
     if (['CONFIRMER', 'OUI', 'CONFIRM'].includes(upperBody)) {
       const apt = await env.DB.prepare(`
         SELECT id FROM appointments
-        WHERE (customer_phone = ? OR customer_phone = ?)
+        WHERE tenant_id = ?
+          AND (customer_phone = ? OR customer_phone = ?)
           AND DATE(scheduled_at) >= DATE('now')
           AND status NOT IN ('cancelled','completed','confirmed')
         ORDER BY scheduled_at ASC LIMIT 1
-      `).bind(from, from.replace('+33', '0')).first();
+      `).bind(tenantId, from, from.replace('+33', '0')).first();
       if (apt) {
         await env.DB.prepare(`UPDATE appointments SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?`).bind(apt.id).run();
         logger.info('Appointment confirmed via SMS', { appointmentId: apt.id, from });
@@ -620,11 +637,12 @@ async function handleIncomingSMS(request, env) {
     if (['ANNULER', 'NON', 'CANCEL'].includes(upperBody)) {
       const apt = await env.DB.prepare(`
         SELECT id FROM appointments
-        WHERE (customer_phone = ? OR customer_phone = ?)
+        WHERE tenant_id = ?
+          AND (customer_phone = ? OR customer_phone = ?)
           AND DATE(scheduled_at) >= DATE('now')
           AND status NOT IN ('cancelled','completed')
         ORDER BY scheduled_at ASC LIMIT 1
-      `).bind(from, from.replace('+33', '0')).first();
+      `).bind(tenantId, from, from.replace('+33', '0')).first();
       if (apt) {
         await env.DB.prepare(`UPDATE appointments SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?`).bind(apt.id).run();
         logger.info('Appointment cancelled via SMS', { appointmentId: apt.id, from });
