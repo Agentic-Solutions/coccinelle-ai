@@ -22,6 +22,8 @@ import { DAY_LABELS, type DayKey, type Horaires } from '@/lib/horaires';
 import { CX2, LIEN_POLICES, POLICE_MONO, POLICE_TEXTE, STYLE_CARTE, STYLE_VALEUR_HALO } from '@/components/cx2/theme';
 import PanneauAccordeon from '@/components/cx2/PanneauAccordeon';
 import OngletsAssistant from '@/components/cx2/OngletsAssistant';
+import BarreEnregistrement from '@/components/cx2/BarreEnregistrement';
+import { construireGreeting, formaterEntreprise } from '@/lib/greeting';
 import {
   chargerEtatCanaux, chargerConfigAssistant, ecouterVoix, enregistrerConfigAssistant,
   type Canal, type ConfigAssistant,
@@ -202,7 +204,14 @@ export default function PageAssistant() {
   // capitalise, puisque la phrase commence bien une nouvelle phrase.
   const phraseMessage = horsHoraires === 'message'
     ? 'Je prends votre message' : 'Je vous rappelle nos horaires';
-  const accueil = `${societe}, bonjour ! ${prenom} à votre écoute, que puis-je faire pour vous ?`;
+  // ── L'APERCU EST CONSTRUIT PAR LA MEME FORMULE QUE CE QUE L'AGENT DIRA ──
+  // Avant, cette ligne composait la phrase a la main et ignorait le PREFIXE METIER :
+  // la page affichait « Toulouse Auto, bonjour ! » quand l'agent disait « Garage
+  // Toulouse Auto, bonjour ! ». `lib/greeting.ts` est verrouille sur son jumeau
+  // backend par `scripts/test_greeting.mjs` (18 prenoms x 14 secteurs).
+  const secteurNorm = config.sector_normalise || config.sector || 'generaliste';
+  const nomAnnonce = formaterEntreprise(societe, secteurNorm);
+  const accueil = construireGreeting(societe, secteurNorm, prenom);
   const voixChoisie = VOICE_OPTIONS.find((v) => v.id === voix);
   const scenario = config.scenarios || { lieu: 'nos bureaux', demande: 'prendre rendez-vous cette semaine' };
 
@@ -226,19 +235,9 @@ export default function PageAssistant() {
               Cliquez sur un mot surligné pour le modifier
             </p>
           </div>
-          <button
-            type="button"
-            onClick={enregistrer}
-            disabled={!modifie || enregistrement}
-            style={{
-              padding: '11px 24px', border: 'none', borderRadius: '10px', background: CX2.encre,
-              color: CX2.surface, fontSize: '14.5px', fontWeight: 500,
-              cursor: modifie && !enregistrement ? 'pointer' : 'default',
-              opacity: modifie && !enregistrement ? 1 : 0.45,
-            }}
-          >
-            {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
+          {/* Le bouton vit desormais dans la barre collante du bas : celui-ci sortait
+              du champ de vision des qu'on descendait. Deux boutons identiques a deux
+              endroits seraient pires — on ne saurait plus lequel fait foi. */}
         </header>
 
         {/* Les deux faces de l'assistant — ce qu'il dit, ce qu'il sait.
@@ -247,19 +246,6 @@ export default function PageAssistant() {
           <OngletsAssistant />
         </div>
 
-        {message && (
-          <div style={{
-            maxWidth: 1280, margin: '0 auto 14px', padding: '11px 15px',
-            border: `1px solid ${CX2.bordure}`, background: CX2.surface,
-            borderRadius: '10px', fontSize: '13.5px',
-          }}>
-            {message}
-            <button type="button" onClick={() => setMessage(null)} style={{
-              float: 'right', border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: '13px', color: CX2.texteSecondaire, textDecoration: 'underline',
-            }}>Fermer</button>
-          </div>
-        )}
 
         <div style={{
           maxWidth: 1280, margin: '0 auto', display: 'grid',
@@ -285,7 +271,7 @@ export default function PageAssistant() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <BulleAssistant initiale={initiale}>
-                <Valeur onClick={() => setOuvert('voix')}>{societe}</Valeur>, bonjour !{' '}
+                <Valeur onClick={() => setOuvert('voix')}>{nomAnnonce}</Valeur>, bonjour !{' '}
                 <Valeur onClick={() => setOuvert('voix')}>{prenom}</Valeur> à votre écoute,
                 que puis-je faire pour vous ?
                 <span
@@ -627,6 +613,20 @@ export default function PageAssistant() {
             </a>
           )}
         </section>
+      </div>
+
+      {/* La barre remplace le bouton du haut : il sortait du champ de vision des
+          qu'on descendait, et c'est ce qui a fait croire que l'ecriture etait
+          cassee alors qu'elle ne l'avait jamais ete. */}
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <BarreEnregistrement
+          visible={modifie}
+          enregistrement={enregistrement}
+          onEnregistrer={enregistrer}
+          message={message}
+          onFermerMessage={() => setMessage(null)}
+          libelle={enregistrement ? 'Enregistrement…' : 'Enregistrer'}
+        />
       </div>
     </>
   );

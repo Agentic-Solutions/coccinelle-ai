@@ -183,7 +183,14 @@ export async function importerDepuisSite(startUrl: string, maxPages = 5) {
 export interface ConfigAssistant {
   company: string;
   sector: string;
+  /** Secteur ramene aux 14 cles canoniques — c'est LUI qui choisit le prefixe metier
+   *  du greeting (« Garage … », « Cabinet … »). `sector` peut porter un alias. */
+  sector_normalise: string;
   agent_name: string;
+  /** La phrase EXACTE que l'agent prononcera, construite par le backend.
+   *  La page garde un apercu vivant local (`lib/greeting.ts`) pour la mettre a jour
+   *  pendant la frappe ; les deux sont verrouillees par `scripts/test_greeting.mjs`. */
+  greeting: string;
   voice_id: string | null;
   transfer_number: string;
   transfer_enabled: boolean;

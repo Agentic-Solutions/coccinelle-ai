@@ -38,10 +38,20 @@ logger = logging.getLogger("voixia.main")
 
 _nr_initialise = False
 
-# Regex pour extraire le prenom de l'assistant depuis le system_prompt.
-# Matche "Tu es Sara", "Tu es Léa", "Tu es Jean-Pierre", etc.
+# Regex de REPLI pour extraire le prenom depuis le system_prompt.
+#
+# ⚠️ CE N'EST PLUS LA SOURCE. Depuis le 18/08/2026, le backend renvoie `greeting`
+# deja construit et `agent_name` : cette regex ne sert plus qu'aux agents parlant a
+# un backend non redeploye, et aux tenants dont `voixia_configs.agent_name` est vide.
+#
+# ⚠️ ELLE EST ALIGNEE SUR CELLE DU BACKEND, et ca compte. L'ancienne exigeait une
+# majuscule suivie de minuscules : passees sur 18 prenoms plausibles, les deux regex
+# divergeaient sur 8. `LEO`, `SARA`, `léa`, `N'Golo`, `L3a` ne remontaient pas — la
+# page affichait un prenom que l'agent ne prononcait pas — et `Marie Claire` etait
+# tronque en `Marie`. On borne desormais sur la virgule, comme le backend.
 _ASSISTANT_NAME_RE = re.compile(
-    r"Tu es ([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:-[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+)?)",
+    r"Tu es\s+([^,]{1,40}),\s*l['\u2019]assistant",
+    re.IGNORECASE,
 )
 
 
@@ -50,7 +60,7 @@ def _extract_assistant_name(system_prompt: str | None) -> str | None:
     if not system_prompt:
         return None
     m = _ASSISTANT_NAME_RE.search(system_prompt)
-    return m.group(1) if m else None
+    return m.group(1).strip() if m else None
 
 
 def _init_newrelic() -> None:
@@ -223,14 +233,35 @@ async def entrypoint(ctx: JobContext) -> None:
     })
 
     # --- Etape 3 : Preparer le greeting AVANT de demarrer la session ---
-    assistant_name = _extract_assistant_name(system_prompt)
-    greeting = get_greeting(
-        prompt_type,
-        company_name=company_name,
-        assistant_name=assistant_name,
-    )
-    logger.info("Greeting dynamique — assistant=%s company=%s secteur=%s",
-                assistant_name or "(defaut)", company_name or "(defaut)", prompt_type)
+    #
+    # ── LA PHRASE VIENT DU BACKEND (chantier PRENOM, 18/08/2026) ──
+    # L'agent la PRONONCE, il ne la fabrique plus. Elle etait construite ici en Python
+    # ET dans la page « Mon Assistant » en TypeScript : deux formulations a garder
+    # synchronisees a la main, sans rien pour le verifier. Le 13/08 elles avaient deja
+    # diverge — la page annoncait un prenom que l'agent ne disait pas.
+    #
+    # Le repli local reste, et il est necessaire : un agent deploye avant le backend,
+    # ou une resolution en echec, n'ont pas de `greeting`. Dans ce cas `company_name`
+    # est vide (Lot B) et `get_greeting` rend la phrase neutre — jamais une raison
+    # sociale qui n'est pas celle de l'appele.
+    # `tenant_info` vaut {} tant que la resolution n'a pas eu lieu — jamais None.
+    greeting = (tenant_info or {}).get("greeting")
+    assistant_name = (tenant_info or {}).get("agent_name")
+    origine_greeting = "backend"
+
+    if not greeting:
+        origine_greeting = "repli local"
+        if not assistant_name:
+            assistant_name = _extract_assistant_name(system_prompt)
+        greeting = get_greeting(
+            prompt_type,
+            company_name=company_name,
+            assistant_name=assistant_name,
+        )
+
+    logger.info("Greeting dynamique (%s) — assistant=%s company=%s secteur=%s",
+                origine_greeting, assistant_name or "(defaut)",
+                company_name or "(defaut)", prompt_type)
 
     # --- Etape 4 : Construction du pipeline vocal ---
     vad = silero.VAD.load()

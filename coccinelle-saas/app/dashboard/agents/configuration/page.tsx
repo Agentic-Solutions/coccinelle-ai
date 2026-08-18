@@ -207,6 +207,10 @@ export default function AgentConfigurationPage() {
   const [companyName, setCompanyName] = useState('');
   const [promptSecteur, setPromptSecteur] = useState('generaliste');
   const [editingName, setEditingName] = useState(false);
+  // Le prenom TEL QU'IL EST EN BASE. Sans lui on ne peut pas savoir si la saisie a
+  // change quelque chose, et on enverrait une requete a chaque clic hors du champ.
+  const [assistantNameSaved, setAssistantNameSaved] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   // Prompt
   const [promptText, setPromptText] = useState('');
@@ -263,6 +267,57 @@ export default function AgentConfigurationPage() {
   function showMsg(type: 'success' | 'error', text: string) {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 6000);
+  }
+
+  /**
+   * Enregistre le prenom de l'assistant.
+   *
+   * ── POURQUOI CETTE FONCTION EXISTE (chantier PRENOM, 18/08/2026) ──
+   * Le titre etait cliquable, invitait explicitement a modifier (« Cliquer pour
+   * modifier », curseur texte), acceptait la saisie, l'affichait… et la perdait au
+   * rechargement. `Entree` ne faisait que `setEditingName(false)`. Aucune requete,
+   * aucun message, aucune ecriture. C'est le SEUL chemin du produit qui produisait un
+   * prenom saisi sans le moindre retour — et c'est celui qui a ete emprunte.
+   *
+   * ⚠️ MEME ROUTE QUE LE MODE SIMPLE, volontairement : `PUT /api/v1/assistant/config`.
+   * Une seule ecriture de cette valeur dans tout le produit. Un second chemin
+   * finirait par diverger, comme les deux regex d'extraction avant lui.
+   *
+   * ⚠️ Cette route NE TOUCHE PLUS au prompt personnalise : elle ne regenere que si le
+   * prompt stocke est identique au gabarit calcule avec l'ANCIEN prenom. C'est ce qui
+   * rend ce branchement possible ici — le mode Avance est justement l'endroit ou
+   * vivent les prompts ecrits a la main.
+   */
+  async function enregistrerPrenom() {
+    const prenom = assistantName.trim();
+    setEditingName(false);
+    if (!prenom || prenom === assistantNameSaved) return;   // rien a envoyer
+
+    setSavingName(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/v1/assistant/config'), {
+        method: 'PUT',
+        headers: getVoixIAHeaders(),
+        body: JSON.stringify({ agent_name: prenom }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // On remet la valeur de la base : laisser a l'ecran un prenom qui n'est pas
+        // enregistre reproduirait exactement le defaut qu'on corrige.
+        setAssistantName(assistantNameSaved);
+        showMsg('error', data?.error || "Le prénom n'a pas pu être enregistré");
+      } else {
+        setAssistantNameSaved(prenom);
+        // Texte IDENTIQUE au mode Simple : deux formulations pour le meme fait
+        // apprendraient au client qu'il s'agit de deux choses differentes.
+        showMsg('success', 'Enregistré. Votre assistant parlera ainsi dès le prochain appel.');
+      }
+    } catch {
+      setAssistantName(assistantNameSaved);
+      showMsg('error', 'Erreur réseau — le prénom n\'a pas été enregistré');
+    } finally {
+      setSavingName(false);
+    }
   }
 
   function insertVariable(variable: string) {
@@ -357,7 +412,11 @@ export default function AgentConfigurationPage() {
       const name = data.tenant?.name || data.tenant?.company_name;
       if (name) { setCompanyName(name); setCreateCompany(name); }
       const agentName = data.tenant?.agent_name;
-      if (agentName) { setAssistantName(agentName); setCreateName(agentName); }
+      if (agentName) {
+        setAssistantName(agentName);
+        setCreateName(agentName);
+        setAssistantNameSaved(agentName);
+      }
       const sector = data.tenant?.sector || data.tenant?.industry || '';
       if (sector && getSectorPrompt(sector)) { setPromptSecteur(sector); setCreateSector(sector); }
     } catch { /* ignore */ }
@@ -823,7 +882,13 @@ export default function AgentConfigurationPage() {
       {view === 'config' && (
         <>
           {/* Header */}
-          <header className="bg-white border-b border-gray-200">
+          {/* `sticky top-0` : le bouton « Enregistrer » vit deja dans ce header, avec tout
+              l'etat qu'il lui faut. Le rendre collant suffit a ce qu'il ne quitte plus
+              l'ecran — introduire un drapeau « modifie » sur cette page (1 400 lignes,
+              plusieurs points d'ecriture de `promptText`) serait un bien plus gros
+              changement pour le meme resultat visible. Le prenom, lui, s'enregistre
+              seul au blur : il n'a rien a attendre d'un bouton. */}
+          <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
@@ -835,8 +900,16 @@ export default function AgentConfigurationPage() {
                     {editingName ? (
                       <input
                         type="text" value={assistantName} onChange={e => setAssistantName(e.target.value)}
-                        onBlur={() => setEditingName(false)} onKeyDown={e => e.key === 'Enter' && setEditingName(false)}
-                        autoFocus className="text-xl font-bold text-gray-900 border-b-2 border-gray-900 outline-none bg-transparent px-0"
+                        disabled={savingName}
+                        onBlur={enregistrerPrenom}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') enregistrerPrenom();
+                          // Echap annule : sans lui, la seule sortie du champ est le
+                          // blur, qui enregistre. Une frappe accidentelle deviendrait
+                          // definitive.
+                          if (e.key === 'Escape') { setAssistantName(assistantNameSaved); setEditingName(false); }
+                        }}
+                        autoFocus className="text-xl font-bold text-gray-900 border-b-2 border-gray-900 outline-none bg-transparent px-0 disabled:opacity-50"
                       />
                     ) : (
                       <h1

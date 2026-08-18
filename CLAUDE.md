@@ -309,7 +309,8 @@ Alias `/tools/*` disponibles (availability, book-appointment, knowledge, product
 |--------|---------------|--------------------|
 | Nom entreprise | `tenants.name` | `tenants.company_name` |
 | Secteur métier | `tenants.sector` | `voixia_configs.secteur`, `tenants.industry` |
-| Prénom agent | Regex sur `system_prompt` | `users.first_name` |
+| Prénom agent | **`voixia_configs.agent_name`** (18/08/2026) | `users.first_name`, regex sur `system_prompt` (repli seulement) |
+| Phrase d'accueil | **`src/modules/shared/greeting.js`** — servie par `resolve-phone` et `GET /assistant/config` | la reconstruire côté agent ou côté page |
 | **Prompt actif** | **`ai_prompt_versions.is_active=1` (1 SEUL par tenant)** | — |
 | Config LLM/voix | `voixia_configs` (llm_provider, llm_model, voice_id, transfer_*) | — |
 | Liste voix | `lib/voices.ts` (VOICE_OPTIONS) | — |
@@ -318,6 +319,29 @@ Alias `/tools/*` disponibles (availability, book-appointment, knowledge, product
 | Tél personnel | `users.phone` (vérifié `users.phone_verified`) | — |
 | Tél pro Twilio | `tenants.phone` | — |
 | Onboarding | `tenants.onboarding_completed` + `onboarding_sessions` | localStorage |
+
+> ⚠️ **Le prénom n'est plus déduit du prompt (18/08/2026).** Il vivait dans une *regex*
+> appliquée au `system_prompt`, et il y avait **deux** regex — une en JS, une en Python —
+> qui divergeaient sur **8 prénoms sur 18** : `LEO`, `SARA`, `léa`, `N'Golo`, `L3a` ne
+> remontaient pas jusqu'à l'agent (accueil sans prénom), `Marie Claire` et `Ana Sofia`
+> étaient tronqués au premier mot. Et un prompt **personnalisé** perdait son prénom : la
+> regex ne retrouvait rien, ce qui touchait exactement les revendeurs et le mode Avancé.
+>
+> La source est désormais la colonne `voixia_configs.agent_name`. La regex subsiste des
+> deux côtés comme **repli** pour les tenants dont la colonne est vide, et les deux sont
+> maintenant identiques.
+>
+> ⚠️ **Corollaire : `PUT /assistant/config` ne régénère plus un prompt personnalisé.**
+> Il ne régénère que si le prompt stocké est *exactement* le gabarit recalculé avec
+> l'**ancien** prénom — comparaison, pas devinette. Un prompt non conforme reste
+> régénéré inconditionnellement (règle 6bis). C'est ce qui a rendu possible de brancher
+> le mode Avancé sur cette route sans détruire le travail de l'utilisateur.
+>
+> ⚠️ **La phrase d'accueil est construite par le backend et PRONONCÉE telle quelle.**
+> Elle était écrite deux fois — en Python (`prompts.py`) et en TypeScript (page « Mon
+> Assistant ») — et elle avait déjà divergé le 13/08. La page garde une copie TS pour
+> l'aperçu vivant pendant la frappe ; `scripts/test_greeting.mjs` la verrouille sur
+> **18 prénoms × 14 secteurs**, caractère pour caractère. Voir [[greeting-source-unique]].
 
 **Règle prompt actif :** exactement UN `ai_prompt_versions.is_active=1` par tenant.
 `ai_prompt_versions.id` = INTEGER PRIMARY KEY autoincrement (utiliser `meta.last_row_id`).

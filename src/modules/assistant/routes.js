@@ -22,6 +22,7 @@ import {
   DEFAULT_AGENT_NAME,
 } from '../shared/sector-prompts.js';
 import { parseHoraires, syncHorairesToSlots, DAY_KEYS } from '../shared/horaires-slots.js';
+import { construireGreeting } from '../shared/greeting.js';
 
 /** Comportements hors horaires acceptes (segmente de la maquette). */
 const HORS_HORAIRES = ['message', 'horaires'];
@@ -44,14 +45,32 @@ export async function handleAssistantRoutes(request, env, path, method) {
 }
 
 /**
- * Le prenom de l'assistant : SOURCE = le prompt actif (CLAUDE.md § f).
- * `voixia_configs.agent_name` existe mais n'est qu'un miroir d'affichage — il a
- * derive par le passe, le prompt fait foi puisque c'est lui que le LLM lit.
+ * Le prenom de l'assistant : SOURCE = `voixia_configs.agent_name` (CLAUDE.md § f,
+ * renverse le 18/08/2026). La regex sur le prompt n'est plus qu'un REPLI.
+ *
+ * ── POURQUOI CE RENVERSEMENT ──
+ * Un prenom deduit d'un texte se perd des que le texte sort du gabarit. Trois
+ * consequences mesurees :
+ *   — un prompt PERSONNALISE (tout l'objet du mode Avance, et le cas des revendeurs)
+ *     perdait son prenom : la regex ne retrouvait rien ;
+ *   — les DEUX regex du produit divergeaient. Passees sur 18 prenoms plausibles,
+ *     8 divergent : `LEO`, `SARA`, `léa`, `N'Golo`, `L3a` ne remontaient pas cote
+ *     agent (accueil sans prenom), `Marie Claire` et `Ana Sofia` etaient tronques au
+ *     premier mot ;
+ *   — brancher le mode Avance sur cette route aurait REGENERE le prompt personnalise
+ *     de l'utilisateur au moment meme ou il change un prenom.
+ *
+ * L'ordre des sources est donc : colonne -> regex (historique) -> defaut.
+ *
+ * @param systemPrompt prompt actif, lu UNIQUEMENT en repli
+ * @param stocke       `voixia_configs.agent_name` — la source
  */
-export function extraireAgentName(systemPrompt, secours) {
+export function extraireAgentName(systemPrompt, stocke) {
+  const colonne = String(stocke || '').trim();
+  if (colonne) return colonne;
   const m = String(systemPrompt || '').match(/Tu es\s+([^,]{1,40}),\s*l['’]assistant/i);
   const trouve = m && m[1] ? m[1].trim() : '';
-  return trouve || String(secours || '').trim() || DEFAULT_AGENT_NAME;
+  return trouve || DEFAULT_AGENT_NAME;
 }
 
 /** « 9h » / « 17h30 » — meme rendu que la maquette. */
@@ -115,6 +134,15 @@ async function construireConfig(env, tenant, user) {
     sector: secteur,
     sector_normalise: normalizeSector(secteur),
     agent_name: extraireAgentName(prompt?.system_prompt, config?.agent_name),
+    // La phrase EXACTE que l'agent prononcera — construite par la meme fonction que
+    // celle servie a `resolve-phone`. La page affiche donc l'etat enregistre sans le
+    // reformuler. Son apercu vivant (pendant la frappe) garde une copie TypeScript,
+    // verrouillee par `scripts/test_greeting.mjs`.
+    greeting: construireGreeting({
+      companyName: tenant.name || '',
+      secteur: normalizeSector(secteur),
+      agentName: extraireAgentName(prompt?.system_prompt, config?.agent_name),
+    }),
     voice_id: config?.voice_id || null,
     llm_provider: config?.llm_provider || null,
     llm_model: config?.llm_model || null,
@@ -264,9 +292,46 @@ async function ecrireConfig(request, env, tenant, user) {
     horsHoraires,
   });
 
+  // ── QUAND REGENERER LE PROMPT — et surtout QUAND NE PAS Y TOUCHER ──
+  //
+  // Avant le 18/08 : on regenerait des que le texte differait du gabarit. Or un
+  // prompt PERSONNALISE differe toujours du gabarit. Cette route l'ecrasait donc a
+  // chaque enregistrement — y compris pour un simple changement de prenom, et y
+  // compris depuis le mode Simple. C'est precisement ce qui interdisait de brancher
+  // le mode Avance dessus.
+  //
+  // La regle est desormais une COMPARAISON EXACTE, sans devinette : on recalcule le
+  // gabarit avec l'ANCIEN prenom. Si le prompt stocke lui est identique, il vient de
+  // nous et on le rafraichit ; sinon il vient de l'utilisateur et on n'y touche pas.
+  //
+  // ⚠️ La regeneration d'un prompt NON CONFORME reste inconditionnelle : c'est la
+  // regle 6bis (un prompt sans l'instruction `search_knowledge` ni les regles vocales
+  // rend l'agent muet sur les tarifs). On protege le travail de l'utilisateur, pas
+  // un prompt casse.
+  //
+  // Le prenom, lui, est enregistre DANS TOUS LES CAS : il vit maintenant dans
+  // `voixia_configs.agent_name` (ecrit plus haut), et `resolve-phone` construit le
+  // greeting a partir de cette colonne. Un prompt personnalise garde donc son
+  // prenom a jour sans etre modifie d'une ligne.
+  const gabaritAvant = buildSectorPrompt({
+    secteur,
+    agentName: avant.agentName,          // l'ANCIEN prenom : c'est tout l'interet
+    companyName: avant.company,
+    horaires: horairesEnTexte(avant.horaires),
+    telephone: tenant.phone || '',
+    horsHoraires: avant.horsHoraires,
+  });
+  const promptEstLeNotre = !!prompt && prompt.system_prompt === gabaritAvant;
+
   const doitRegenerer = !prompt
     || !isPromptCompliant(prompt.system_prompt)
-    || prompt.system_prompt !== systemPrompt;
+    || (promptEstLeNotre && prompt.system_prompt !== systemPrompt);
+
+  if (prompt && !promptEstLeNotre && isPromptCompliant(prompt.system_prompt)) {
+    logger.info('[Assistant] Prompt personnalisé préservé', {
+      tenantId: tenant.id, promptId: prompt.id, agentName,
+    });
+  }
 
   let nouveauPrompt = null;
   if (doitRegenerer) {
