@@ -17,7 +17,7 @@ bind_addresses:
 # En production, utiliser des cles generees par deploy.sh
 # ---------------------------------------------------------------------------
 keys:
-  devkey: devsecret1234567890abcdef
+  CHANGEZ_MOI_cle_api: CHANGEZ_MOI_secret_api
 
 # ---------------------------------------------------------------------------
 # Region — Paris, Europe
@@ -101,7 +101,7 @@ limit:
 # webhook:
 #   urls:
 #     - https://coccinelle-api.youssef-amrouche.workers.dev/api/voixia/webhook
-#   api_key: devkey
+#   api_key: CHANGEZ_MOI_cle_api
 
 # ---------------------------------------------------------------------------
 # Audio — Configuration specifique pour les appels vocaux
