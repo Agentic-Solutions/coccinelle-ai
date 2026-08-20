@@ -85,8 +85,16 @@ bundle), nettoyer le code, améliorer l'UX (mobile-first : les clients sont au t
 
 | Serveur | IP | Rôle | Accès |
 |---------|-----|------|-------|
-| **VoixIA** (Scaleway) | `51.15.130.204` | Agent Python LiveKit (voix) | `ssh root@51.15.130.204` |
+| **VoixIA** (Scaleway **PLAY2-MICRO**, 4 vCPU / 8 Go) | `51.15.130.204` | Agent Python LiveKit (voix) | `ssh root@51.15.130.204` |
 | **LightRAG** (Hetzner CPX32, Nuremberg) | `188.245.221.62` | RAG souverain, Mistral | `ssh lightrag` (alias) |
+
+> 🔴 **PLAFOND RÉEL : ~25–30 appels simultanés sur cette machine, PAS 30–50.** Mesuré le
+> 20/08/2026 : un job actif pèse **115–150 Mo** de RSS, et l'agent partage les 8 Go avec
+> `livekit-server`, `livekit-sip` et Redis (2 451 Mo occupés au repos). 50 appels
+> réclameraient 6 à 7,5 Go pour les seuls jobs. Et ce plafond n'est atteignable **qu'après**
+> la règle de dispatch `individual` (§ i, règle 24) : en `Direct`, le second appelant
+> n'obtenait aucun agent. Au-delà de ~30, il faut séparer le média de l'agent, ou grossir.
+> Chiffres à ne pas ré-estimer : `ps -eo rss` sur les process `job_proc`, et `free -m`.
 
 ### Structure du dépôt
 
@@ -723,6 +731,33 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    ont répondu 401 sur toutes les routes, aucun SMS entrant n'a été reçu, et l'API qui aurait
    renseigné était elle-même coupée. **Avant de conclure à une rotation de secret, vérifier le
    statut du compte** — `GET /Accounts/{sid}.json`, champ `status`.
+24. 🔴 **LiveKit dispatche un job par ROOM, pas par participant. La règle SIP doit donc être
+   `individual`, jamais `Direct`.** La règle active jusqu'au 20/08/2026 était `Direct` sur un
+   room **fixe** (`voixia-sip`). Conséquence mesurée le 20/08 : l'appel de 08:46:22 a rejoint
+   un room qui contenait encore l'agent de l'appel précédent (le process ne sort qu'à +48 s) et
+   **n'a obtenu aucun job** — 10,2 s de silence total, aucune trace côté agent. C'est le
+   scénario « je rappelle tout de suite pour voir », et il était garanti muet.
+   Le champ proto est `no_randomness` : l'aléa est **actif par défaut** — mais on le fige
+   explicitement à `false`, sinon deux appels du **même numéro** retombent dans le même room et
+   reproduisent le défaut. Charges utiles versionnées : `voixia/sip/01-dispatch-individual.json`
+   et son **retour arrière** `voixia/sip/00-RETOUR-ARRIERE-dispatch-direct.json` (appliquer par
+   `lk sip dispatch update`, qui modifie **en place** : un `delete` + `create` ouvrirait une
+   fenêtre sans aucune règle, pendant laquelle les appels entrants sont rejetés).
+   ⚠️ `voixia/sip/dispatch-rules.json` décrit une règle qui **n'a jamais été appliquée**. La
+   source de vérité est `lk sip dispatch list`, jamais un fichier du dépôt.
+25. 🔴 **Une mesure calculée après un `await` mesure l'`await`, pas ce qu'elle nomme.**
+   `« Demarrage en X ms »` était calculé après `await session.say(greeting)`. Or `say()` rend un
+   `SpeechHandle` : l'attendre attend la **fin de la diction**, ou le raccroché. Vérifié sur
+   3 appels — le compteur s'arrêtait 3 à 14 ms après le **BYE SIP de l'appelant**. « 14 651 ms »
+   et « 31 320 ms » mesuraient donc **la patience de l'appelant**, et c'est sur ces chiffres
+   qu'un chantier « latence » a failli partir. Le signal qui aurait dû alerter : une valeur qui
+   varie de 3,1 s à 31,3 s **sans corrélation avec quoi que ce soit de technique**.
+   ⇒ Nommer ce qu'on mesure et le prouver par les bornes : `Accueil demande en` (job → appel de
+   `say()`), `Premier son en` (+ TTFB réel du TTS, via `session.on("metrics_collected")`),
+   `Accueil termine en` (fin de diction). Trois lignes distinctes, jamais une seule.
+   ⚠️ Corollaire vécu le même jour : `logging.basicConfig(DEBUG)` **est écrasé** par
+   `cli.run_app`. Les logs des plugins sont muets — 14,4 s de journal parfaitement vide ne
+   prouvent donc pas qu'il ne se passait rien.
 
 ---
 
@@ -1148,6 +1183,37 @@ deploy).
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Chantier LATENCE AU DÉCROCHÉ (20/08/2026)** — Signalé : « premier appel après inactivité =
+  `Demarrage en 14651.6 ms`, l'appelant entend 15 s de silence et raccroche ». **Le chiffre ne
+  mesurait pas ce qu'il annonçait** (§ i, règle 25) : calculé après `await session.say()`, il
+  s'arrêtait au raccroché. Le chemin réel jusqu'à la parole est de **1 838 ms**, et il est
+  **identique à 2 ms près** entre le premier appel après 44 h d'inactivité et le suivant — il
+  n'y a jamais eu de pénalité de démarrage à froid.
+
+  La vraie cause du silence était structurelle : la règle de dispatch SIP était `Direct` sur un
+  room **fixe**, donc un second appelant n'obtenait **aucun agent** (§ i, règle 24). Mesuré :
+  trois appels le 20/08, celui de 08:46:22 sans le moindre job.
+
+  Livré, dans l'ordre : (1) règle `individual` — charge utile et **retour arrière** versionnés
+  dans `voixia/sip/` ; (2) instrumentation honnête (`Accueil demande en` / `Premier son en` /
+  `Accueil termine en`, TTFB TTS lu via `metrics_collected`), et au passage la capture de
+  transcript et le shutdown callback **déplacés avant** l'accueil — ils étaient enregistrés
+  après, donc rien n'écoutait pendant toute sa durée et le callback s'est enregistré 5 ms après
+  un raccroché ; (3) **budget total de 1,5 s** sur `resolve_tenant`, retentatives comprises —
+  l'accueil personnalisé est conservé (nominal mesuré : 46–84 ms), la panne du 18/08 (30,2 s de
+  silence) est bornée ; (4) `prewarm_fnc` + `num_idle_processes=4` explicites — **126 ms et
+  +39,5 Mo par process**, mesurés ; (6) `requirements.lock.txt` figé depuis la production, qui
+  ferme la dérive de versions ouverte depuis le 15/08.
+
+  **Poste 5 non touché** : le `sleep(0.8)` de stabilisation média est le poste le plus lourd du
+  chemin, mais c'est aussi lui qui empêche le début de l'accueil d'être coupé. Il ne bougera
+  qu'après lecture de `Premier son en …` — pas de réglage à l'aveugle.
+
+  Méthode : le banc `scripts/test_resolution_budget.py` a **trouvé un défaut dans le correctif**
+  — plafonner via `httpx.Timeout` revient à faire confiance à httpx pour s'interrompre, alors
+  que le diagnostic QW8 dit que la boucle LiveKit peut affamer la requête. Le plafond est
+  désormais le nôtre (`asyncio.wait_for`). Voir [[latence-decroche-livekit]].
 
 - **Chantier PRÉNOM DE L'ASSISTANT (18–20/08/2026)** — Le prénom quitte la *regex* sur le
   `system_prompt` pour la colonne `voixia_configs.agent_name`, la phrase d'accueil n'est plus

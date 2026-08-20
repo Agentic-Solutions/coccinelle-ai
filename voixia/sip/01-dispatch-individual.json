@@ -1,0 +1,22 @@
+{
+  "_pourquoi": "Poste 1 du chantier latence (20/08/2026) — un room par appel.",
+  "_constat": "La regle active etait Direct sur un room FIXE 'voixia-sip'. LiveKit",
+  "_constat2": "dispatche un job par ROOM, pas par participant : un 2e appelant qui",
+  "_constat3": "rejoint un room deja occupe n'obtient AUCUN agent. Mesure le 20/08 :",
+  "_constat4": "l'appel de 08:46:22 n'a genere aucun job — 10,2 s de silence total.",
+
+  "_no_randomness": "FIGE A false VOLONTAIREMENT. Le champ proto est no_randomness,",
+  "_no_randomness2": "donc l'alea est actif par defaut — mais on ne depend pas d'un defaut :",
+  "_no_randomness3": "sans alea, deux appels du MEME numero retomberaient dans le meme room",
+  "_no_randomness4": "et reproduiraient exactement le bug qu'on corrige. C'est le cas de la recette.",
+
+  "sipDispatchRuleId": "SDR_YnG4niKZYk6h",
+  "update": {
+    "rule": {
+      "dispatchRuleIndividual": {
+        "roomPrefix": "call",
+        "noRandomness": false
+      }
+    }
+  }
+}

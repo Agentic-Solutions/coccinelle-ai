@@ -1,4 +1,12 @@
 {
+  "_AVERTISSEMENT_20260820": "CE FICHIER N'A JAMAIS ETE APPLIQUE. Il decrit une regle",
+  "_AVERTISSEMENT_20260820_2": "'individual' avec room_prefix 'call-' ; la regle REELLEMENT active",
+  "_AVERTISSEMENT_20260820_3": "en production etait 'Direct' sur le room fixe 'voixia-sip', et c'est",
+  "_AVERTISSEMENT_20260820_4": "elle qui a cause les appels sans agent. Lire ce fichier pour connaitre",
+  "_AVERTISSEMENT_20260820_5": "l'etat de la prod menait droit a un faux diagnostic.",
+  "_AVERTISSEMENT_20260820_6": "La source de verite est 'lk sip dispatch list', jamais ce fichier.",
+  "_AVERTISSEMENT_20260820_7": "Le changement reellement applique vit dans 01-dispatch-individual.json.",
+
   "dispatch_rule": {
     "name": "voixia-inbound-dispatch",
     "rule": {

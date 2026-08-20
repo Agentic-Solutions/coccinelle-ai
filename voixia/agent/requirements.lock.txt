@@ -1,0 +1,121 @@
+# ==============================================================================
+# VoixIA — ETAT EXACT du venv de production, fige le 20/08/2026
+# ==============================================================================
+# Genere par : ssh root@51.15.130.204 "/opt/voixia/agent/venv/bin/pip freeze"
+#
+# ── POURQUOI CE FICHIER EXISTE ──
+# Le 15/08/2026, un `rsync --delete` a detruit /opt/voixia/agent/venv/ (panne de
+# l'agent vocal, ~10 min). La reconstruction depuis `requirements.txt` a reinstalle
+# des versions PLUS RECENTES que celles d'origine : `requirements.txt` contraint
+# 4 paquets en `~=` mais AUCUNE dependance transitive. transformers, numpy, openai
+# et httpx se sont donc installes au dernier compatible.
+#
+# Consequence : chaque reconstruction produit un agent DIFFERENT, et une regression
+# vocale (latence, coupures, qualite TTS, appels d'outils) devient inexplicable —
+# on ne peut pas comparer a un etat de reference qui n'existe pas.
+#
+# ── COMMENT S'EN SERVIR ──
+# Reconstruction a l'identique :
+#   /opt/voixia/agent/venv/bin/pip install -r requirements.lock.txt
+# `requirements.txt` reste la liste des dependances VOULUES (lisible, commentee) ;
+# ce fichier-ci est l'etat CONSTATE. Les deux ont un role, ne pas fusionner.
+#
+# A regenerer apres tout changement volontaire de dependance, jamais autrement.
+# ==============================================================================
+
+aiofiles==25.1.0
+aiohappyeyeballs==2.7.1
+aiohttp==3.14.3
+aiosignal==1.4.0
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anthropic==0.122.0
+anyio==4.14.2
+attrs==26.1.0
+av==18.1.0
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.4.2
+colorama==0.4.6
+distro==1.9.0
+docstring_parser==0.18.0
+eval_type_backport==0.4.0
+filelock==3.32.3
+flatbuffers==25.12.19
+frozenlist==1.8.0
+fsspec==2026.7.0
+googleapis-common-protos==1.75.1
+grpcio==1.83.0
+h11==0.16.0
+hf-xet==1.6.0
+httpcore==1.0.9
+httpcore2==2.10.0
+httpx==0.28.1
+httpx2==2.10.0
+huggingface_hub==0.36.2
+idna==3.18
+importlib_metadata==8.7.1
+Jinja2==3.1.6
+jiter==0.16.0
+livekit==1.1.2
+livekit-agents==1.4.6
+livekit-api==1.2.0
+livekit-blingfire==1.1.0
+livekit-plugins-anthropic==1.4.6
+livekit-plugins-cartesia==1.4.6
+livekit-plugins-deepgram==1.4.6
+livekit-plugins-elevenlabs==1.4.6
+livekit-plugins-openai==1.4.6
+livekit-plugins-silero==1.4.6
+livekit-plugins-turn-detector==1.4.6
+livekit-protocol==1.1.22
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+mdurl==0.1.2
+multidict==6.7.1
+nest-asyncio==1.6.0
+numpy==2.5.2
+onnxruntime==1.28.0
+openai==3.1.0
+opentelemetry-api==1.39.1
+opentelemetry-exporter-otlp==1.39.1
+opentelemetry-exporter-otlp-proto-common==1.39.1
+opentelemetry-exporter-otlp-proto-grpc==1.39.1
+opentelemetry-exporter-otlp-proto-http==1.39.1
+opentelemetry-proto==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-semantic-conventions==0.60b1
+packaging==26.3
+pillow==12.3.0
+prometheus_client==0.26.0
+propcache==0.5.2
+protobuf==6.33.6
+psutil==7.2.2
+pycparser==3.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+Pygments==2.20.0
+PyJWT==2.13.0
+python-dotenv==1.1.1
+PyYAML==6.0.3
+regex==2026.7.19
+requests==2.34.2
+rich==15.0.0
+safetensors==0.8.0
+shellingham==1.5.4
+sniffio==1.3.1
+sounddevice==0.5.5
+tokenizers==0.22.2
+tqdm==4.70.0
+transformers==4.57.1
+truststore==0.10.4
+typer==0.27.1
+types-protobuf==7.34.1.20260518
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.7.0
+watchfiles==1.2.0
+websockets==15.0.1
+yarl==1.24.5
+zipp==4.1.0
