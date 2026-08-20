@@ -1121,6 +1121,17 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
       accessible). Ne détourne pas l'effort du funnel — c'est de l'attente, pas du dev.
 
 ### 🟠 P1 — Frictions UX Maze restantes
+- [ ] **Poste 5 du chantier latence — arbitrer `GREETING_MEDIA_WARMUP_S` (0,8 s).** Volontairement
+      laissé ouvert : c'est le poste le PLUS LOURD du chemin (**800 ms sur 1 340 ms d'accueil
+      demandé, soit 60 %**), et c'est aussi lui qui empêche le début de l'accueil d'être coupé
+      (« bonszz…rouche »). Mesures du 20/08 désormais disponibles pour trancher :
+      premier son à **2 025 ms** puis **1 565 ms**, dont 800 ms de ce délai. Le supprimer
+      entièrement donnerait ~1 225 ms et ~765 ms — mais le supprimer n'est justement pas
+      l'option, il faut **mesurer le vrai délai de disponibilité du RTP** et se caler dessus.
+      Repère utile relevé le 20/08 : côté SIP, `accepting RTP stream` arrive **255 ms avant**
+      l'appel de `say()`. ⚠️ Ne se règle que par appel réel, à l'oreille : un début tronqué ne
+      se voit dans aucun journal. Le TTS TTFB varie par ailleurs de 269 à 685 ms d'un appel à
+      l'autre — l'écart de 460 ms entre les deux appels vient de là, pas de notre code.
 - [x] ~~**Chunking KB mort — décision à prendre**~~ : **tranché le 11/08**. `knowledge_chunks`
       n'est plus une table morte : elle porte désormais les **fiches** (une ligne de tableau =
       une fiche), écrites par `shared/kb-ingest.js` aux 6 points d'ingestion. Le découpage en
@@ -1235,10 +1246,34 @@ deploy).
   chemin, mais c'est aussi lui qui empêche le début de l'accueil d'être coupé. Il ne bougera
   qu'après lecture de `Premier son en …` — pas de réglage à l'aveugle.
 
+  **RECETTÉ EN PRODUCTION LE 20/08 À 14h32**, deux appels successifs depuis un vrai combiné :
+  deux rooms **distincts** (`call_+33760762153_2pf4BytfANvc` et `…_Np8ew7QAZBpc` — même numéro
+  appelant, suffixes différents), **aucun appel sans agent**. Décomposition relevée :
+
+  | | appel 1 | appel 2 |
+  |---|---|---|
+  | Accueil demandé | 1 339,8 ms | 1 295,9 ms |
+  | — dont stabilisation média (poste 5) | **800 ms** | **800 ms** |
+  | TTS TTFB (ElevenLabs) | 685,3 ms | 268,9 ms |
+  | **Premier son** | **2 025,2 ms** | **1 564,8 ms** |
+  | Accueil terminé | 6 408,7 ms | 5 557,1 ms |
+
+  L'instrumentation se referme sur elle-même : `accueil terminé − premier son` vaut 4 383 ms
+  pour 4,34 s d'audio et 3 992 ms pour 3,92 s — à 40 ms près, donc **plus aucun blocage** entre
+  le TTS et l'oreille. C'est le contrôle qui manquait le 17/08, où `say()` mettait 14,4 s sans
+  qu'aucune borne ne permette de dire où.
+
+  ⚠️ **Non reproduit ≠ expliqué** : le `say()` de 14,4 s du 17/08 n'a pas réapparu depuis, mais
+  rien dans ces mesures ne l'explique rétroactivement (4 s d'audio, pas 14). À surveiller dans
+  `Accueil termine en` : un écart à `audio_duration` est désormais visible, il ne l'était pas.
+
   Méthode : le banc `scripts/test_resolution_budget.py` a **trouvé un défaut dans le correctif**
   — plafonner via `httpx.Timeout` revient à faire confiance à httpx pour s'interrompre, alors
   que le diagnostic QW8 dit que la boucle LiveKit peut affamer la requête. Le plafond est
-  désormais le nôtre (`asyncio.wait_for`). Voir [[latence-decroche-livekit]].
+  désormais le nôtre (`asyncio.wait_for`). Et les commandes de dispatch livrées d'abord **ne
+  pouvaient pas fonctionner** : `urfave/cli` cesse de lire les drapeaux après le premier
+  positionnel, et la forme JSON du CLI Go n'est pas celle du proto Python (§ i, règle 24).
+  Voir [[latence-decroche-livekit]].
 
 - **Chantier PRÉNOM DE L'ASSISTANT (18–20/08/2026)** — Le prénom quitte la *regex* sur le
   `system_prompt` pour la colonne `voixia_configs.agent_name`, la phrase d'accueil n'est plus
