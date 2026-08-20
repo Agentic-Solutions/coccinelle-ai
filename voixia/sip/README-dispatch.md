@@ -66,19 +66,31 @@ s'applique au trunk entier — les quatre changent en même temps.
 
 Version du CLI utilisée : image `livekit/livekit-cli:latest`, `lk version 2.18.2`.
 
-## Retour arrière — à avoir sous la main AVANT
+## Préalable — charger les identifiants depuis le serveur
+
+⚠️ **Le dépôt est PUBLIC. Aucun identifiant LiveKit ne doit apparaître dans ces commandes.**
+Ils vivent déjà sur le serveur : on les lit, on ne les recopie pas.
 
 ```bash
 ssh root@51.15.130.204
 ```
 
-Puis, sur le serveur :
+Puis, une fois sur le serveur, dans le shell d'où partiront les commandes :
+
+```bash
+export LIVEKIT_URL=ws://localhost:7880
+export LIVEKIT_API_KEY=$(awk '/^api_key:/{print $2}' /opt/voixia/sip/config.yaml)
+export LIVEKIT_API_SECRET=$(awk '/^api_secret:/{print $2}' /opt/voixia/sip/config.yaml)
+```
+
+Les `docker run` ci-dessous transmettent ces variables par `-e NOM` **sans valeur** : rien
+n'est écrit ni dans ce fichier, ni dans la ligne de commande, ni dans l'historique du shell.
+
+## Retour arrière — à avoir sous la main AVANT
 
 ```bash
 docker run --rm -i --network host \
-  -e LIVEKIT_URL=ws://localhost:7880 \
-  -e LIVEKIT_API_KEY=devkey \
-  -e LIVEKIT_API_SECRET=LU_DEPUIS_LE_SERVEUR \
+  -e LIVEKIT_URL -e LIVEKIT_API_KEY -e LIVEKIT_API_SECRET \
   livekit/livekit-cli sip dispatch update - <<'JSON'
 {"sipDispatchRuleId":"SDR_YnG4niKZYk6h","name":"VoixIA-Rule","trunkIds":["ST_t32snCUn7y2f"],"rule":{"dispatchRuleDirect":{"roomName":"voixia-sip"}}}
 JSON
@@ -90,9 +102,7 @@ Remet exactement l'état relevé le 20/08 à 09h21. Effet immédiat, aucun redé
 
 ```bash
 docker run --rm -i --network host \
-  -e LIVEKIT_URL=ws://localhost:7880 \
-  -e LIVEKIT_API_KEY=devkey \
-  -e LIVEKIT_API_SECRET=LU_DEPUIS_LE_SERVEUR \
+  -e LIVEKIT_URL -e LIVEKIT_API_KEY -e LIVEKIT_API_SECRET \
   livekit/livekit-cli sip dispatch update - <<'JSON'
 {"sipDispatchRuleId":"SDR_YnG4niKZYk6h","name":"VoixIA-Rule","trunkIds":["ST_t32snCUn7y2f"],"rule":{"dispatchRuleIndividual":{"roomPrefix":"call","noRandomness":false}}}
 JSON
@@ -106,9 +116,7 @@ pendant laquelle aucune règle ne couvre le trunk, et les appels entrants sont *
 
 ```bash
 docker run --rm --network host \
-  -e LIVEKIT_URL=ws://localhost:7880 \
-  -e LIVEKIT_API_KEY=devkey \
-  -e LIVEKIT_API_SECRET=LU_DEPUIS_LE_SERVEUR \
+  -e LIVEKIT_URL -e LIVEKIT_API_KEY -e LIVEKIT_API_SECRET \
   livekit/livekit-cli sip dispatch list
 ```
 
