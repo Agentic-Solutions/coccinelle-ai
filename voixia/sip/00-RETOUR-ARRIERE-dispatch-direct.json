@@ -1,9 +1,4 @@
 {
-  "_pourquoi": "RETOUR ARRIERE du poste 1 (20/08/2026). Remet la regle de dispatch SIP",
-  "_pourquoi2": "EXACTEMENT dans l'etat releve en production le 20/08 a 09h21 :",
-  "_pourquoi3": "  SDR_YnG4niKZYk6h | VoixIA-Rule | ST_t32snCUn7y2f | Direct | voixia-sip",
-  "_avertissement": "A executer AVANT d'avoir besoin de le chercher. Voir 01-....json",
-
   "sipDispatchRuleId": "SDR_YnG4niKZYk6h",
   "update": {
     "rule": {
