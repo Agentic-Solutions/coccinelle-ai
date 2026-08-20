@@ -1,10 +1,10 @@
 {
   "sipDispatchRuleId": "SDR_YnG4niKZYk6h",
-  "update": {
-    "rule": {
-      "dispatchRuleDirect": {
-        "roomName": "voixia-sip"
-      }
+  "name": "VoixIA-Rule",
+  "trunkIds": ["ST_t32snCUn7y2f"],
+  "rule": {
+    "dispatchRuleDirect": {
+      "roomName": "voixia-sip"
     }
   }
 }

@@ -1,11 +1,11 @@
 {
   "sipDispatchRuleId": "SDR_YnG4niKZYk6h",
-  "update": {
-    "rule": {
-      "dispatchRuleIndividual": {
-        "roomPrefix": "call",
-        "noRandomness": false
-      }
+  "name": "VoixIA-Rule",
+  "trunkIds": ["ST_t32snCUn7y2f"],
+  "rule": {
+    "dispatchRuleIndividual": {
+      "roomPrefix": "call",
+      "noRandomness": false
     }
   }
 }

@@ -743,6 +743,18 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    et son **retour arrière** `voixia/sip/00-RETOUR-ARRIERE-dispatch-direct.json` (appliquer par
    `lk sip dispatch update`, qui modifie **en place** : un `delete` + `create` ouvrirait une
    fenêtre sans aucune règle, pendant laquelle les appels entrants sont rejetés).
+   ⚠️ **Trois pièges de forme, payés le 20/08** (détail : `voixia/sip/README-dispatch.md`) :
+   (a) `urfave/cli` **cesse de lire les drapeaux après le premier argument positionnel** — avec
+   `update - --url …` l'auth échoue en `no projects configured` ; passer l'auth par
+   `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` ; (b) la forme JSON du **CLI Go**
+   n'est pas celle du **proto Python** — `lk` 2.18.2 refuse le champ `update` de
+   `livekit-protocol`, il attend `rule` **à plat** ; (c) inclure `name` et `trunkIds`, faute de
+   savoir si le serveur fusionne ou remplace — une règle qui perdrait son trunk rejetterait
+   **tous** les entrants.
+   💡 **Une commande d'écriture se teste sans écrire** : la même charge utile envoyée sur un
+   `sipDispatchRuleId` **inexistant** valide l'auth, stdin et le parsing, et répond
+   `twirp error not_found` sans rien modifier. À réutiliser pour toute commande d'API
+   destructive ou en production.
    ⚠️ `voixia/sip/dispatch-rules.json` décrit une règle qui **n'a jamais été appliquée**. La
    source de vérité est `lk sip dispatch list`, jamais un fichier du dépôt.
 25. 🔴 **Une mesure calculée après un `await` mesure l'`await`, pas ce qu'elle nomme.**
