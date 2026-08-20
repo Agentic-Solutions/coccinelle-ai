@@ -1081,6 +1081,16 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
 > ⚠️ L'ancienne cible « lancement 1er avril 2026 » est **obsolète**. Priorité = débloquer le funnel.
 
 ### 🔴 P0 — Débloquer le business
+- [ ] **Lot « repli tenant » — à lancer APRÈS le chantier latence.** Quand `resolve_tenant`
+      échoue (ou qu'il n'y a pas de métadonnées SIP), `set_call_context` n'est pas posé et les
+      **6 modules d'outils** retombent sur `VOIXIA_TENANT_ID` du `.env` = `Agentic solutions`,
+      **le tenant de l'éditeur** (8 documents KB, 15 RDV, 22 prospects — mesuré le 20/08).
+      `search_knowledge` lit chez l'éditeur, `book_appointment` et `create_prospect` y
+      **écrivent**. Même famille que l'incident LightRAG du 08/08. ⚠️ Le chantier latence a
+      ramené le plafond de résolution de 15,9 s à 1,5 s : ce chemin, jusqu'ici réservé aux
+      pannes franches, devient atteignable sur une simple lenteur — **nous avons rendu un
+      chemin dangereux plus facile à emprunter**. Cadrage complet et mesures :
+      **`LOT-REPLI-TENANT.md`** (racine). Aucun code écrit, en attente d'arbitrage.
 - [ ] **Instrumenter l'onboarding** : mesurer l'abandon par étape (8/145, 0 depuis 25 j).
 - [ ] Simplifier le parcours onboarding (identifier l'étape tueuse, réduire la friction).
 - [x] ~~**WhatsApp Lot 0 — sécurisation**~~ : **fait et déployé le 19/07/2026** (kill switch 4 surfaces,
