@@ -22,13 +22,33 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path, override=True)
 
-from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli
+from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions, cli
 
 from config import PROMPT_TYPE
 from prompts import get_greeting
 
 # Delai de stabilisation du media SIP avant le greeting (voir Etape 5).
+#
+# ⚠️ NE PAS TOUCHER SANS MESURE (poste 5 du chantier latence, 20/08/2026). C'est le
+# poste le plus lourd du chemin (800 ms sur 1 838 ms), et c'est aussi lui qui empeche
+# le debut de l'accueil d'etre coupe (« bonszz...rouche »). Il ne bougera qu'une fois
+# que « Premier son en ... ms » aura donne le vrai delai de disponibilite du RTP.
 GREETING_MEDIA_WARMUP_S = 0.8
+
+# Budget TOTAL de la resolution du tenant, retentatives comprises.
+#
+# ── POURQUOI UN BUDGET, ET POURQUOI 1,5 s (chantier latence, 20/08/2026) ──
+# Le 18/08 a 12h41, resolve-phone a repondu ReadTimeout (15 s) puis 500 (15 s) :
+# 30,2 s de silence AVANT le moindre son, parce que l'accueil personnalise attend
+# cette reponse. Le delai unitaire a ete ramene a 5 s x 3 essais le 18/08, mais un
+# delai unitaire ne borne pas le total : 3 x 5 s + 2 x 0,3 s = 15,6 s au pire.
+#
+# La latence nominale mesuree le 20/08 depuis le serveur est de 46 a 84 ms. 1,5 s,
+# c'est donc ~18 fois le pire cas normal : on ne sacrifie PAS l'accueil personnalise
+# (« Garage Toulouse, bonjour ») pour 234 ms — c'est le produit lui-meme — mais on
+# refuse de laisser une panne du backend tenir l'appelant en silence.
+# Au-dela du budget : accueil neutre, et l'appel continue.
+RESOLUTION_BUDGET_S = 1.5
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -37,6 +57,18 @@ logging.basicConfig(
 logger = logging.getLogger("voixia.main")
 
 _nr_initialise = False
+
+# Taches de fond gardees en reference forte : asyncio ne tient ses taches que par
+# reference FAIBLE (`_all_tasks` est un WeakSet). Une tache creee puis oubliee peut
+# etre ramassee par le GC en plein vol — le symptome serait un journal qui perd
+# « Accueil termine » au hasard, c'est-a-dire une instrumentation qui ment.
+_taches_de_fond: set[asyncio.Task] = set()
+
+
+def _lancer_en_fond(coro) -> None:
+    tache = asyncio.create_task(coro)
+    _taches_de_fond.add(tache)
+    tache.add_done_callback(_taches_de_fond.discard)
 
 # Regex de REPLI pour extraire le prenom depuis le system_prompt.
 #
@@ -196,7 +228,9 @@ async def entrypoint(ctx: JobContext) -> None:
     caller_phone = _extract_caller_phone(participant, sip_to_number)
 
     if sip_to_number:
-        tenant_info = await resolve_tenant(sip_to_number, caller=caller_phone)
+        tenant_info = await resolve_tenant(
+            sip_to_number, caller=caller_phone, budget_s=RESOLUTION_BUDGET_S,
+        )
         prompt_type   = tenant_info["prompt_type"]
         company_name  = tenant_info["company_name"]
         llm_provider  = tenant_info["llm_provider"]
@@ -264,7 +298,10 @@ async def entrypoint(ctx: JobContext) -> None:
                 company_name or "(defaut)", prompt_type)
 
     # --- Etape 4 : Construction du pipeline vocal ---
-    vad = silero.VAD.load()
+    # Le VAD vient du process PRECHAUFFE (voir prewarm() en bas de fichier). Le
+    # `or` n'est pas de la prudence decorative : un process qui n'a pas eu le temps
+    # d'etre prechauffe doit servir l'appel quand meme, pas planter dessus.
+    vad = ctx.proc.userdata.get("vad") or silero.VAD.load()
     stt = deepgram.STT(language="fr")
     llm = get_llm_client(provider=llm_provider, model=llm_model)
     # Sans voice_settings explicites, ElevenLabs applique les reglages par
@@ -309,23 +346,13 @@ async def entrypoint(ctx: JobContext) -> None:
         system_prompt=system_prompt,
     )
     session = AgentSession(stt=stt, llm=llm, tts=tts, vad=vad)
-    await session.start(room=ctx.room, agent=agent)
-
-    # Stabilisation du media SIP sortant avant de parler : sans ce delai, le flux
-    # RTP vers l appelant n est pas encore etabli au decrochage et le DEBUT du
-    # greeting est coupe / bruite ("bonszz...rouche"). ~0.8s suffit a amorcer le
-    # track audio. Ne PAS supprimer : session.say() joue sinon dans le vide.
-    await asyncio.sleep(GREETING_MEDIA_WARMUP_S)
-    logger.info("Session demarree (media stabilise +%.1fs) — envoi du greeting...", GREETING_MEDIA_WARMUP_S)
-
-    # Le greeting est la PREMIERE et UNIQUE prise de parole initiale.
-    # generate_reply(instructions=...) demande au LLM de generer le message
-    # d'accueil. Il est envoye immediatement car le participant est deja
-    # connecte (wait_for_participant ci-dessus).
-    await session.say(greeting)
-    logger.info("Message d'accueil envoye — l'agent ecoute.")
 
     # --- Capture de transcript en temps reel ---
+    #
+    # ⚠️ ENREGISTRE AVANT L'ACCUEIL (chantier latence, 20/08/2026). Ce bloc vivait
+    # APRES `await session.say()`, donc rien n'ecoutait pendant toute la duree de
+    # l'accueil : un appelant qui parle par-dessus n'etait pas capte, et si l'appel
+    # tombait pendant l'accueil, la capture n'avait jamais commence.
     transcript_lines: list[str] = []
 
     @session.on("conversation_item_added")
@@ -339,14 +366,49 @@ async def entrypoint(ctx: JobContext) -> None:
             transcript_lines.append(f"{label}: {text.strip()}")
             logger.debug("Transcript +1 — %s: %s", label, text[:50])
 
+    # --- Instrumentation du PREMIER SON (poste 2 du chantier latence) ---
+    #
+    # ── CE QU'ON MESURAIT AVANT, ET POURQUOI C'ETAIT FAUX ──
+    # « Demarrage en X ms » etait calcule APRES `await session.say(...)`. Or `say()`
+    # rend un SpeechHandle et l'attendre attend la FIN de la diction — ou le
+    # raccroche. Verifie sur 3 appels : le compteur s'arretait 3 a 14 ms apres le BYE
+    # SIP de l'appelant. « 14 651 ms » et « 31 320 ms » mesuraient la PATIENCE DE
+    # L'APPELANT, pas la latence de l'agent. D'ou une valeur qui variait de 3,1 s a
+    # 31,3 s sans correlation avec quoi que ce soit de technique, et un chantier
+    # entier qui aurait pu partir sur une fausse piste.
+    #
+    # Ce qu'on mesure desormais, et qui est verifiable ligne a ligne dans le journal :
+    #   « Accueil demande en X ms »  : job -> appel de say(). Le chemin qu'on optimise.
+    #   « Premier son en Y ms »      : X + le TTFB reel du TTS. Ce que l'appelant attend.
+    #   « Accueil termine en Z ms »  : fin de diction. Jamais confondu avec les deux autres.
+    premier_son_journalise = False
+    t_accueil_demande_ms = 0.0
 
-    # --- Metriques de demarrage ---
-    duree_ms = (time.perf_counter() - debut_appel) * 1000
-    _nr_record_metric("voixia.startup_time_ms", duree_ms)
-    logger.info("Demarrage en %.1f ms — LLM : %s", duree_ms, llm_provider)
+    @session.on("metrics_collected")
+    def _on_metrics(event):
+        """Journalise le TTFB du TOUT PREMIER segment TTS de l'appel."""
+        nonlocal premier_son_journalise
+        metrics = getattr(event, "metrics", None)
+        if premier_son_journalise or getattr(metrics, "type", "") != "tts_metrics":
+            return
+        premier_son_journalise = True
+        ttfb_ms = float(getattr(metrics, "ttfb", 0.0)) * 1000
+        logger.info(
+            "Premier son en %.1f ms — accueil demande a %.1f ms + TTS ttfb %.1f ms "
+            "(audio %.2f s, %d car.)",
+            t_accueil_demande_ms + ttfb_ms, t_accueil_demande_ms, ttfb_ms,
+            float(getattr(metrics, "audio_duration", 0.0)),
+            int(getattr(metrics, "characters_count", 0)),
+        )
+        _nr_record_metric("voixia.premier_son_ms", t_accueil_demande_ms + ttfb_ms)
 
     # --- Etape 6 : Log-call en fin de session ---
     # caller_phone deja extrait a l etape 2 (avant la resolution du tenant)
+    #
+    # ⚠️ ENREGISTRE AVANT L'ACCUEIL, comme la capture de transcript. Il l'etait apres :
+    # le 20/08 a 08h46, `ctx.add_shutdown_callback` s'est execute 5 ms APRES le
+    # raccroche de l'appelant. Ca a tenu par chance ; un appel coupe pendant l'accueil
+    # n'aurait laisse aucune trace dans `calls`.
 
     async def _on_shutdown():
         """Log l appel termine vers POST /api/v1/voixia/log-call."""
@@ -390,7 +452,77 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.add_shutdown_callback(_on_shutdown)
     logger.info("Shutdown callback log-call enregistre")
 
+    # --- Etape 7 : Demarrage de la session + accueil ---
+    # Tout ce qui doit exister PENDANT l'accueil est enregistre au-dessus.
+    await session.start(room=ctx.room, agent=agent)
+
+    # Stabilisation du media SIP sortant avant de parler : sans ce delai, le flux
+    # RTP vers l appelant n est pas encore etabli au decrochage et le DEBUT du
+    # greeting est coupe / bruite ("bonszz...rouche"). ~0.8s suffit a amorcer le
+    # track audio. Ne PAS supprimer : session.say() joue sinon dans le vide.
+    await asyncio.sleep(GREETING_MEDIA_WARMUP_S)
+    logger.info("Session demarree (media stabilise +%.1fs) — envoi du greeting...", GREETING_MEDIA_WARMUP_S)
+
+    # Le greeting est la PREMIERE et UNIQUE prise de parole initiale.
+    #
+    # ⚠️ PAS DE `await` ICI, ET C'EST LE COEUR DU POSTE 2. `say()` n'est pas une
+    # coroutine : elle rend un SpeechHandle (verifie dans la signature de
+    # livekit-agents 1.4.6). L'attendre bloquait l'entrypoint jusqu'a la fin de la
+    # diction, ce qui (a) faussait toutes les mesures et (b) retardait tout ce qui
+    # suivait. Retirer le `await` est sans danger : le job ne se termine pas quand
+    # l'entrypoint retourne, il se termine sur la deconnexion de la room
+    # (`_shutdown_fut` dans job_proc_lazy_main.py) — verifie dans le SDK installe.
+    handle = session.say(greeting)
+    t_accueil_demande_ms = (time.perf_counter() - debut_appel) * 1000
+    _nr_record_metric("voixia.accueil_demande_ms", t_accueil_demande_ms)
+    logger.info(
+        "Accueil demande en %.1f ms — LLM : %s (dont %.0f ms de stabilisation media)",
+        t_accueil_demande_ms, llm_provider, GREETING_MEDIA_WARMUP_S * 1000,
+    )
+
+    async def _journaliser_fin_accueil():
+        """Fin de diction — la valeur que l'ancien « Demarrage en » melangeait au reste."""
+        try:
+            await handle
+            logger.info(
+                "Accueil termine en %.1f ms — l'agent ecoute.",
+                (time.perf_counter() - debut_appel) * 1000,
+            )
+        except Exception as exc:  # diction interrompue (raccroche, barge-in)
+            logger.info("Accueil interrompu avant la fin : %r", exc)
+
+    _lancer_en_fond(_journaliser_fin_accueil())
+
+
+def prewarm(proc: JobProcess) -> None:
+    """
+    Prechauffe un process AVANT qu'un appel lui soit confie (poste 4).
+
+    ── POURQUOI (chantier latence, 20/08/2026) ──
+    `WorkerOptions` n'avait PAS de `prewarm_fnc`. Les 4 process inactifs existaient
+    bien (defaut prod `num_idle_processes = ceil(cpu_count)`), mais ils ne
+    prechargeaient rien : `silero.VAD.load()` et l'import des plugins tournaient
+    dans `entrypoint`, donc dans le chemin de chaque appel.
+
+    ⚠️ Gain mesure : ~107 ms. Reel, mais ce n'est PAS la ou etaient les secondes —
+    on l'ecrit ici pour que personne ne recommence a chercher de ce cote. Les
+    secondes etaient dans la regle de dispatch (poste 1) et dans resolve-phone
+    (poste 3). Cout : le modele Silero est charge dans chaque process inactif,
+    soit ~30 a 60 Mo x 4.
+    """
+    from livekit.plugins import deepgram, elevenlabs, silero  # noqa: F401
+
+    proc.userdata["vad"] = silero.VAD.load()
+
 
 if __name__ == "__main__":
     logger.info("Demarrage de l'agent vocal VoixIA (prompt=%s)...", PROMPT_TYPE)
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    # num_idle_processes explicite : c'est deja le defaut en mode `start` (prod),
+    # mais un defaut qui depend du nombre de vCPU change tout seul le jour ou la
+    # machine grossit. 4 process x ~115 Mo + le VAD prechauffe, c'est ce qui a ete
+    # mesure et valide ici.
+    cli.run_app(WorkerOptions(
+        entrypoint_fnc=entrypoint,
+        prewarm_fnc=prewarm,
+        num_idle_processes=4,
+    ))

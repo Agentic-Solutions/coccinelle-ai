@@ -85,8 +85,16 @@ bundle), nettoyer le code, améliorer l'UX (mobile-first : les clients sont au t
 
 | Serveur | IP | Rôle | Accès |
 |---------|-----|------|-------|
-| **VoixIA** (Scaleway) | `51.15.130.204` | Agent Python LiveKit (voix) | `ssh root@51.15.130.204` |
+| **VoixIA** (Scaleway **PLAY2-MICRO**, 4 vCPU / 8 Go) | `51.15.130.204` | Agent Python LiveKit (voix) | `ssh root@51.15.130.204` |
 | **LightRAG** (Hetzner CPX32, Nuremberg) | `188.245.221.62` | RAG souverain, Mistral | `ssh lightrag` (alias) |
+
+> 🔴 **PLAFOND RÉEL : ~25–30 appels simultanés sur cette machine, PAS 30–50.** Mesuré le
+> 20/08/2026 : un job actif pèse **115–150 Mo** de RSS, et l'agent partage les 8 Go avec
+> `livekit-server`, `livekit-sip` et Redis (2 451 Mo occupés au repos). 50 appels
+> réclameraient 6 à 7,5 Go pour les seuls jobs. Et ce plafond n'est atteignable **qu'après**
+> la règle de dispatch `individual` (§ i, règle 24) : en `Direct`, le second appelant
+> n'obtenait aucun agent. Au-delà de ~30, il faut séparer le média de l'agent, ou grossir.
+> Chiffres à ne pas ré-estimer : `ps -eo rss` sur les process `job_proc`, et `free -m`.
 
 ### Structure du dépôt
 
@@ -723,6 +731,45 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
    ont répondu 401 sur toutes les routes, aucun SMS entrant n'a été reçu, et l'API qui aurait
    renseigné était elle-même coupée. **Avant de conclure à une rotation de secret, vérifier le
    statut du compte** — `GET /Accounts/{sid}.json`, champ `status`.
+24. 🔴 **LiveKit dispatche un job par ROOM, pas par participant. La règle SIP doit donc être
+   `individual`, jamais `Direct`.** La règle active jusqu'au 20/08/2026 était `Direct` sur un
+   room **fixe** (`voixia-sip`). Conséquence mesurée le 20/08 : l'appel de 08:46:22 a rejoint
+   un room qui contenait encore l'agent de l'appel précédent (le process ne sort qu'à +48 s) et
+   **n'a obtenu aucun job** — 10,2 s de silence total, aucune trace côté agent. C'est le
+   scénario « je rappelle tout de suite pour voir », et il était garanti muet.
+   Le champ proto est `no_randomness` : l'aléa est **actif par défaut** — mais on le fige
+   explicitement à `false`, sinon deux appels du **même numéro** retombent dans le même room et
+   reproduisent le défaut. Charges utiles versionnées : `voixia/sip/01-dispatch-individual.json`
+   et son **retour arrière** `voixia/sip/00-RETOUR-ARRIERE-dispatch-direct.json` (appliquer par
+   `lk sip dispatch update`, qui modifie **en place** : un `delete` + `create` ouvrirait une
+   fenêtre sans aucune règle, pendant laquelle les appels entrants sont rejetés).
+   ⚠️ **Trois pièges de forme, payés le 20/08** (détail : `voixia/sip/README-dispatch.md`) :
+   (a) `urfave/cli` **cesse de lire les drapeaux après le premier argument positionnel** — avec
+   `update - --url …` l'auth échoue en `no projects configured` ; passer l'auth par
+   `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` ; (b) la forme JSON du **CLI Go**
+   n'est pas celle du **proto Python** — `lk` 2.18.2 refuse le champ `update` de
+   `livekit-protocol`, il attend `rule` **à plat** ; (c) inclure `name` et `trunkIds`, faute de
+   savoir si le serveur fusionne ou remplace — une règle qui perdrait son trunk rejetterait
+   **tous** les entrants.
+   💡 **Une commande d'écriture se teste sans écrire** : la même charge utile envoyée sur un
+   `sipDispatchRuleId` **inexistant** valide l'auth, stdin et le parsing, et répond
+   `twirp error not_found` sans rien modifier. À réutiliser pour toute commande d'API
+   destructive ou en production.
+   ⚠️ `voixia/sip/dispatch-rules.json` décrit une règle qui **n'a jamais été appliquée**. La
+   source de vérité est `lk sip dispatch list`, jamais un fichier du dépôt.
+25. 🔴 **Une mesure calculée après un `await` mesure l'`await`, pas ce qu'elle nomme.**
+   `« Demarrage en X ms »` était calculé après `await session.say(greeting)`. Or `say()` rend un
+   `SpeechHandle` : l'attendre attend la **fin de la diction**, ou le raccroché. Vérifié sur
+   3 appels — le compteur s'arrêtait 3 à 14 ms après le **BYE SIP de l'appelant**. « 14 651 ms »
+   et « 31 320 ms » mesuraient donc **la patience de l'appelant**, et c'est sur ces chiffres
+   qu'un chantier « latence » a failli partir. Le signal qui aurait dû alerter : une valeur qui
+   varie de 3,1 s à 31,3 s **sans corrélation avec quoi que ce soit de technique**.
+   ⇒ Nommer ce qu'on mesure et le prouver par les bornes : `Accueil demande en` (job → appel de
+   `say()`), `Premier son en` (+ TTFB réel du TTS, via `session.on("metrics_collected")`),
+   `Accueil termine en` (fin de diction). Trois lignes distinctes, jamais une seule.
+   ⚠️ Corollaire vécu le même jour : `logging.basicConfig(DEBUG)` **est écrasé** par
+   `cli.run_app`. Les logs des plugins sont muets — 14,4 s de journal parfaitement vide ne
+   prouvent donc pas qu'il ne se passait rien.
 
 ---
 
@@ -735,6 +782,7 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🔴 Critique | **Funnel onboarding** | 8/145 complétions, 0 depuis 25 jours — instrumenter + simplifier |
 | ✅ Clos | ~~Clé API VoixIA exposée — rotation TERMINÉE le 15/08/2026~~ | **Contrôle final : `401` sur l'ancienne clé, `200` sur la nouvelle**, et `wrangler secret list` ne montre plus que `VOIXIA_API_KEY` — `VOIXIA_API_KEY_ROTATION` est supprimé, la fenêtre est fermée. La clé publiée reste lisible dans **23 commits accessibles** (mesuré, 20/03→16/05) mais **n'ouvre plus rien** : c'est exactement ce que la rotation garantit, et pourquoi elle est le seul remède réel à une fuite d'historique. ⚠️ Elle vivait dans **TROIS** fichiers, pas seulement la doc : `CLAUDE.md`, `dashboard/proactive/page.tsx` et `dashboard/voixia/page.tsx` — donc **en clair dans le bundle JavaScript** servi aux visiteurs de ces pages à l'époque. Une clé dans un composant front n'est pas « exposée par le dépôt », elle est publiée par le produit. Sauvegarde serveur `/opt/voixia/.env.avant-rotation` purgée (elle portait encore l'ancienne). Procédure réutilisable en § r.1 |
 | ✅ Clos | ~~Régénérer clés Meta~~ | **Vérifié le 11/08** : `META_WHATSAPP_ACCESS_TOKEN` expiré le 28/01 (Graph API code 190), `META_APP_SECRET` invalidé par la réinitialisation du 19/07 (« Invalid OAuth access token signature »), `META_WEBHOOK_VERIFY_TOKEN` bien tourné (la valeur publique renvoie 403 sur le handshake). `WHATSAPP_ACCESS_TOKEN` **n'a jamais été dans le dépôt**. Les 3 valeurs Meta restent lisibles dans `wrangler.toml` à 3 commits publics (01/03→09/05) mais n'ouvrent plus rien |
+| 🔴 Critique | **Secret LiveKit public depuis le 02/04/2026, et le port est ouvert au monde** | `api_secret` de LiveKit (`livekit.yaml`, `sip/config.yaml`, `ExecStart` de `voixia.service`) est lisible dans **2 commits de `main`** — `ac8466c` (02/04) et `e908232` (16/05, l'audit sécurité lui-même). Le dépôt est **public**. Et `livekit-server` écoute sur **`0.0.0.0:7880`** (vérifié le 20/08, `ss -tlnp`) : ce n'est pas un identifiant de développement enfermé sur une boucle locale, c'est la clé d'administration d'un média-serveur joignable depuis Internet — création de rooms, règles de dispatch SIP, appels sortants. ⚠️ **Un `git rm` n'y changera rien** : la seule issue est une rotation (§ r), qui touche `livekit.yaml`, `sip/config.yaml`, l'unité systemd et les trois conteneurs — donc un lot dédié, pas une correction en passant. Au minimum, restreindre 7880 au pare-feu en attendant. Le port `5060` est par ailleurs balayé depuis `27.0.232.172` (backlog) |
 | 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
 | ✅ Clos | ~~Webhook SMS entrant : tenant en dur~~ | Les DEUX webhooks devinaient un tenant : `omnichannel/webhooks/sms.js` écrivait `'tenant_mihmuebzieaxehi7qv'` (purgé), et la route legacy `twilio/routes.js` retombait sur `'tenant_demo_001'`. **C'est la seconde qui servait en production** (mesuré au tail le 17/08). Les deux passent désormais par `resoudreTenantParNumeroAppele()` (`shared/sms-entrant.js`) ; un numéro inconnu est rejeté, jamais deviné |
 | 🟠 Haute | **On ne sait pas quelle URL Twilio appellera** | La fiche du numéro porte `sms_url = .../webhooks/omnichannel/sms` (écrite le 17/08, `date_updated` inchangé depuis), mais Twilio appelle **`/webhooks/twilio/sms`** — mesuré au `wrangler tail` : UA `TwilioProxy/1.1`, signature valide, 200. Le numéro n'est dans aucun Messaging Service, aucune TwiML App ne porte de `sms_url`, la console n'a pas été touchée. **Provenance inexpliquée.** Question posée dans `docs/ticket-twilio-optout-fr.md`. En attendant : les décisions critiques vivent sur les DEUX routes |
@@ -1046,6 +1094,19 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
 > ⚠️ L'ancienne cible « lancement 1er avril 2026 » est **obsolète**. Priorité = débloquer le funnel.
 
 ### 🔴 P0 — Débloquer le business
+- [ ] **Lot « repli tenant » — à lancer APRÈS le chantier latence.** Quand `resolve_tenant`
+      échoue (ou qu'il n'y a pas de métadonnées SIP), `set_call_context` n'est pas posé et les
+      **6 modules d'outils** retombent sur `VOIXIA_TENANT_ID` du `.env` = `Agentic solutions`,
+      **le tenant de l'éditeur** (8 documents KB, 15 RDV, 22 prospects — mesuré le 20/08).
+      `search_knowledge` lit chez l'éditeur, `book_appointment` et `create_prospect` y
+      **écrivent**. Même famille que l'incident LightRAG du 08/08. ⚠️ Le chantier latence a
+      ramené le plafond de résolution de 15,9 s à 1,5 s : ce chemin, jusqu'ici réservé aux
+      pannes franches, devient atteignable sur une simple lenteur — **nous avons rendu un
+      chemin dangereux plus facile à emprunter**. Cadrage complet et mesures :
+      **`LOT-REPLI-TENANT.md`** (racine). **Arbitré le 20/08 : « échouer proprement »** — le
+      repli vers un autre tenant disparaît, il ne se met pas sous condition ; sur contexte
+      absent les 6 outils rendent une non-réponse explicite + `create_task` (règle 6ter),
+      jamais une réponse venue d'ailleurs. Aucun code écrit, à lancer après le lot latence.
 - [ ] **Instrumenter l'onboarding** : mesurer l'abandon par étape (8/145, 0 depuis 25 j).
 - [ ] Simplifier le parcours onboarding (identifier l'étape tueuse, réduire la friction).
 - [x] ~~**WhatsApp Lot 0 — sécurisation**~~ : **fait et déployé le 19/07/2026** (kill switch 4 surfaces,
@@ -1061,6 +1122,17 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
       accessible). Ne détourne pas l'effort du funnel — c'est de l'attente, pas du dev.
 
 ### 🟠 P1 — Frictions UX Maze restantes
+- [ ] **Poste 5 du chantier latence — arbitrer `GREETING_MEDIA_WARMUP_S` (0,8 s).** Volontairement
+      laissé ouvert : c'est le poste le PLUS LOURD du chemin (**800 ms sur 1 340 ms d'accueil
+      demandé, soit 60 %**), et c'est aussi lui qui empêche le début de l'accueil d'être coupé
+      (« bonszz…rouche »). Mesures du 20/08 désormais disponibles pour trancher :
+      premier son à **2 025 ms** puis **1 565 ms**, dont 800 ms de ce délai. Le supprimer
+      entièrement donnerait ~1 225 ms et ~765 ms — mais le supprimer n'est justement pas
+      l'option, il faut **mesurer le vrai délai de disponibilité du RTP** et se caler dessus.
+      Repère utile relevé le 20/08 : côté SIP, `accepting RTP stream` arrive **255 ms avant**
+      l'appel de `say()`. ⚠️ Ne se règle que par appel réel, à l'oreille : un début tronqué ne
+      se voit dans aucun journal. Le TTS TTFB varie par ailleurs de 269 à 685 ms d'un appel à
+      l'autre — l'écart de 460 ms entre les deux appels vient de là, pas de notre code.
 - [x] ~~**Chunking KB mort — décision à prendre**~~ : **tranché le 11/08**. `knowledge_chunks`
       n'est plus une table morte : elle porte désormais les **fiches** (une ligne de tableau =
       une fiche), écrites par `shared/kb-ingest.js` aux 6 points d'ingestion. Le découpage en
@@ -1148,6 +1220,61 @@ deploy).
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Chantier LATENCE AU DÉCROCHÉ (20/08/2026)** — Signalé : « premier appel après inactivité =
+  `Demarrage en 14651.6 ms`, l'appelant entend 15 s de silence et raccroche ». **Le chiffre ne
+  mesurait pas ce qu'il annonçait** (§ i, règle 25) : calculé après `await session.say()`, il
+  s'arrêtait au raccroché. Le chemin réel jusqu'à la parole est de **1 838 ms**, et il est
+  **identique à 2 ms près** entre le premier appel après 44 h d'inactivité et le suivant — il
+  n'y a jamais eu de pénalité de démarrage à froid.
+
+  La vraie cause du silence était structurelle : la règle de dispatch SIP était `Direct` sur un
+  room **fixe**, donc un second appelant n'obtenait **aucun agent** (§ i, règle 24). Mesuré :
+  trois appels le 20/08, celui de 08:46:22 sans le moindre job.
+
+  Livré, dans l'ordre : (1) règle `individual` — charge utile et **retour arrière** versionnés
+  dans `voixia/sip/` ; (2) instrumentation honnête (`Accueil demande en` / `Premier son en` /
+  `Accueil termine en`, TTFB TTS lu via `metrics_collected`), et au passage la capture de
+  transcript et le shutdown callback **déplacés avant** l'accueil — ils étaient enregistrés
+  après, donc rien n'écoutait pendant toute sa durée et le callback s'est enregistré 5 ms après
+  un raccroché ; (3) **budget total de 1,5 s** sur `resolve_tenant`, retentatives comprises —
+  l'accueil personnalisé est conservé (nominal mesuré : 46–84 ms), la panne du 18/08 (30,2 s de
+  silence) est bornée ; (4) `prewarm_fnc` + `num_idle_processes=4` explicites — **126 ms et
+  +39,5 Mo par process**, mesurés ; (6) `requirements.lock.txt` figé depuis la production, qui
+  ferme la dérive de versions ouverte depuis le 15/08.
+
+  **Poste 5 non touché** : le `sleep(0.8)` de stabilisation média est le poste le plus lourd du
+  chemin, mais c'est aussi lui qui empêche le début de l'accueil d'être coupé. Il ne bougera
+  qu'après lecture de `Premier son en …` — pas de réglage à l'aveugle.
+
+  **RECETTÉ EN PRODUCTION LE 20/08 À 14h32**, deux appels successifs depuis un vrai combiné :
+  deux rooms **distincts** (`call_+33760762153_2pf4BytfANvc` et `…_Np8ew7QAZBpc` — même numéro
+  appelant, suffixes différents), **aucun appel sans agent**. Décomposition relevée :
+
+  | | appel 1 | appel 2 |
+  |---|---|---|
+  | Accueil demandé | 1 339,8 ms | 1 295,9 ms |
+  | — dont stabilisation média (poste 5) | **800 ms** | **800 ms** |
+  | TTS TTFB (ElevenLabs) | 685,3 ms | 268,9 ms |
+  | **Premier son** | **2 025,2 ms** | **1 564,8 ms** |
+  | Accueil terminé | 6 408,7 ms | 5 557,1 ms |
+
+  L'instrumentation se referme sur elle-même : `accueil terminé − premier son` vaut 4 383 ms
+  pour 4,34 s d'audio et 3 992 ms pour 3,92 s — à 40 ms près, donc **plus aucun blocage** entre
+  le TTS et l'oreille. C'est le contrôle qui manquait le 17/08, où `say()` mettait 14,4 s sans
+  qu'aucune borne ne permette de dire où.
+
+  ⚠️ **Non reproduit ≠ expliqué** : le `say()` de 14,4 s du 17/08 n'a pas réapparu depuis, mais
+  rien dans ces mesures ne l'explique rétroactivement (4 s d'audio, pas 14). À surveiller dans
+  `Accueil termine en` : un écart à `audio_duration` est désormais visible, il ne l'était pas.
+
+  Méthode : le banc `scripts/test_resolution_budget.py` a **trouvé un défaut dans le correctif**
+  — plafonner via `httpx.Timeout` revient à faire confiance à httpx pour s'interrompre, alors
+  que le diagnostic QW8 dit que la boucle LiveKit peut affamer la requête. Le plafond est
+  désormais le nôtre (`asyncio.wait_for`). Et les commandes de dispatch livrées d'abord **ne
+  pouvaient pas fonctionner** : `urfave/cli` cesse de lire les drapeaux après le premier
+  positionnel, et la forme JSON du CLI Go n'est pas celle du proto Python (§ i, règle 24).
+  Voir [[latence-decroche-livekit]].
 
 - **Chantier PRÉNOM DE L'ASSISTANT (18–20/08/2026)** — Le prénom quitte la *regex* sur le
   `system_prompt` pour la colonne `voixia_configs.agent_name`, la phrase d'accueil n'est plus

@@ -12,6 +12,7 @@ Fallback : config generaliste si le numero n est pas trouve.
 import asyncio
 import os
 import logging
+import time
 
 import httpx
 
@@ -41,9 +42,15 @@ DEFAULT_LLM_MODEL    = "mistral-large-latest"
 DEFAULT_VOICE_ID     = "cgSgspJ2msm6clMCkdW9"
 
 
-async def resolve_tenant(phone: str, caller: str | None = None) -> dict:
+async def resolve_tenant(
+    phone: str, caller: str | None = None, budget_s: float | None = None,
+) -> dict:
     """
     Resout la config complete du tenant a partir du numero appele.
+
+    `budget_s` : duree TOTALE accordee, retentatives et pauses comprises. Passe ce
+    delai, on rend les valeurs par defaut plutot que de continuer a essayer.
+    `None` = pas de plafond (comportement historique, conserve pour les scripts).
 
     Appelle GET /api/v1/voixia/resolve-phone?phone=<phone>&caller=<caller>
     `caller` (numero APPELANT) est optionnel : il ne sert au backend que si le numero
@@ -79,18 +86,58 @@ async def resolve_tenant(phone: str, caller: str | None = None) -> dict:
     # timeout, tentative 2 rapide » : s'il devient systematique, rallonger. On ne regle
     # pas a l'aveugle — l'instrumentation cote Worker (Lot C.1) dira si le 500 vient du
     # serveur ou de la famine locale.
-    timeout = httpx.Timeout(5.0, connect=3.0)
+    # ── BUDGET TOTAL (chantier latence, 20/08/2026) ──
+    # Un delai UNITAIRE ne borne pas le total : 3 essais x 5 s + 2 pauses de 0,3 s
+    # = 15,6 s au pire, pendant lesquelles l'appelant n'entend RIEN puisque l'accueil
+    # personnalise attend cette reponse. C'est la forme attenuee de la panne du 18/08
+    # (2 x 15 s = 30,2 s), pas sa correction.
+    # Le budget borne l'ENSEMBLE : chaque essai voit son delai rabote sur ce qui
+    # reste, et on ne relance pas un essai qu'on n'a pas les moyens de finir.
+    timeout_unitaire, connect_unitaire = 5.0, 3.0
+    echeance = (time.monotonic() + budget_s) if budget_s else None
     last_error = None
     for attempt in range(3):
+        if echeance is not None:
+            restant = echeance - time.monotonic()
+            # 0,25 s : en dessous, un essai ne peut pas aboutir (la latence nominale
+            # mesuree est de 46 a 84 ms, mais le connect TLS a froid coute plus).
+            # Mieux vaut parler tout de suite que consommer le budget pour rien.
+            if restant < 0.25:
+                logger.warning(
+                    "Budget de resolution epuise (%.2f s) apres %d essai(s) — "
+                    "accueil neutre, l'appel continue",
+                    budget_s, attempt,
+                )
+                break
+            timeout = httpx.Timeout(
+                min(timeout_unitaire, restant), connect=min(connect_unitaire, restant),
+            )
+        else:
+            timeout = httpx.Timeout(timeout_unitaire, connect=connect_unitaire)
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.get(
+                appel = client.get(
                     url,
                     headers={
                         "X-VoixIA-Key": VOIXIA_KEY,
                         "X-VoixIA-Tenant": VOIXIA_TENANT,
                     },
                 )
+                # ⚠️ LE PLAFOND EST LE NOTRE, PAS CELUI DE httpx.
+                # Cloisonner l'essai par le seul `httpx.Timeout` revient a faire
+                # confiance a httpx pour s'interrompre — or le diagnostic QW8 du
+                # 18/07 dit l'inverse : la boucle d'evenements LiveKit peut affamer
+                # cette requete pendant le setup media. Une requete jamais
+                # replanifiee ne declenche pas non plus son propre delai.
+                # Le banc `scripts/test_resolution_budget.py` a trouve exactement ce
+                # trou : avec un client qui ignore le timeout, la resolution
+                # repartait pour 30 s.
+                if echeance is not None:
+                    resp = await asyncio.wait_for(
+                        appel, timeout=max(0.05, echeance - time.monotonic()),
+                    )
+                else:
+                    resp = await appel
                 resp.raise_for_status()
                 data = resp.json()
                 logger.info(
@@ -126,6 +173,10 @@ async def resolve_tenant(phone: str, caller: str | None = None) -> dict:
                 attempt + 1, phone, e,
             )
             if attempt < 2:
+                # Ne pas dormir si la pause elle-meme mange le budget restant :
+                # ce serait echanger du silence contre du silence.
+                if echeance is not None and (echeance - time.monotonic()) < 0.55:
+                    break
                 await asyncio.sleep(0.3)
 
     logger.warning(
