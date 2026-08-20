@@ -27,7 +27,15 @@ VOIXIA_KEY = os.environ.get("VOIXIA_API_KEY", "")
 VOIXIA_TENANT = "tenant_eW91c3NlZi5hbXJvdWNoZUBvdXRsb29rLmZy"
 
 DEFAULT_PROMPT_TYPE  = "generaliste"
-DEFAULT_COMPANY_NAME = "VoixIA"
+# ⚠️ VIDE, ET C'EST VOLONTAIRE (Lot B, 18/08/2026).
+# Cette constante valait "VoixIA" — le nom de l'EDITEUR. Le 18/08 a 12h41, apres un
+# echec de resolution, l'agent a decroche en disant « VoixIA » chez un client du
+# Garage Toulouse. Meme famille que la fuite LightRAG du 08/08 : l'identite de
+# l'editeur servie au client.
+# Vide, `get_greeting()` retombe sur « Bonjour ! Comment puis-je vous aider ? » —
+# le comportement neutre existait deja, il n'etait simplement jamais atteint.
+# `company_name` ne sert par ailleurs qu'aux logs et a un champ New Relic (verifie).
+DEFAULT_COMPANY_NAME = ""
 DEFAULT_LLM_PROVIDER = "mistral"
 DEFAULT_LLM_MODEL    = "mistral-large-latest"
 DEFAULT_VOICE_ID     = "cgSgspJ2msm6clMCkdW9"
@@ -55,9 +63,25 @@ async def resolve_tenant(phone: str, caller: str | None = None) -> dict:
     # la requete httpx jusqu au timeout -> on retombait a tort sur le generaliste.
     # 2 tentatives + timeout genereux (connect court, read long) corrigent ca sans
     # penaliser le chemin nominal (~0.3s). Voir diag QW8 du 18/07.
-    timeout = httpx.Timeout(15.0, connect=5.0)
+    # ── DELAI UNITAIRE ET NOMBRE DE TENTATIVES (Lot C.2, 18/08/2026) ──
+    #
+    # Avant : 2 tentatives x 15 s = 30 s au pire. Mesure du 18/08 a 12h41 : tentative 1
+    # en ReadTimeout apres 15 s, tentative 2 en 500 — l'appelant a attendu 30 s avant
+    # d'entendre quoi que ce soit. Un prospect a raccroche bien avant.
+    #
+    # Latence reelle mesuree le 18/08 sur 15 appels : 345-498 ms, mediane 417 ms.
+    # 5 s reste 12x le pire cas observe. 3 x 5 s = ~16 s au pire, soit la moitie
+    # d'avant, avec une tentative de plus.
+    #
+    # ⚠️ TENSION A CONNAITRE : les 15 s venaient du diagnostic QW8 du 18/07 — la boucle
+    # d'evenements LiveKit affame la requete httpx pendant le setup media. Raccourcir
+    # peut reintroduire de faux timeouts. Le signal a surveiller est « tentative 1 en
+    # timeout, tentative 2 rapide » : s'il devient systematique, rallonger. On ne regle
+    # pas a l'aveugle — l'instrumentation cote Worker (Lot C.1) dira si le 500 vient du
+    # serveur ou de la famine locale.
+    timeout = httpx.Timeout(5.0, connect=3.0)
     last_error = None
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.get(
@@ -85,14 +109,23 @@ async def resolve_tenant(phone: str, caller: str | None = None) -> dict:
                     "llm_model":    data.get("llm_model",    DEFAULT_LLM_MODEL),
                     "voice_id":     data.get("voice_id",     DEFAULT_VOICE_ID),
                     "system_prompt": data.get("system_prompt", None),
+                    # ── Champs ADDITIFS (chantier PRENOM, 18/08/2026) ──
+                    # `greeting` est la phrase d'accueil DEJA CONSTRUITE par le
+                    # backend. L'agent la prononce, il ne la fabrique plus : la
+                    # fabriquer ici etait la seconde source, et elle divergeait de ce
+                    # que la page « Mon Assistant » montrait au client.
+                    # `None` si le backend n'est pas encore deploye -> main.py
+                    # retombe sur l'ancien chemin, sans fenetre de casse.
+                    "greeting":   data.get("greeting", None),
+                    "agent_name": data.get("agent_name", None),
                 }
         except Exception as e:
             last_error = e
             logger.warning(
-                "Resolution tenant essai %d/2 echouee pour %s : %r",
+                "Resolution tenant essai %d/3 echouee pour %s : %r",
                 attempt + 1, phone, e,
             )
-            if attempt == 0:
+            if attempt < 2:
                 await asyncio.sleep(0.3)
 
     logger.warning(
@@ -107,6 +140,10 @@ async def resolve_tenant(phone: str, caller: str | None = None) -> dict:
         "llm_model":    DEFAULT_LLM_MODEL,
         "voice_id":     DEFAULT_VOICE_ID,
         "system_prompt": None,
+        # Pas de greeting impose : `company_name` etant vide (Lot B), `get_greeting`
+        # rendra la phrase neutre sans aucune raison sociale.
+        "greeting":   None,
+        "agent_name": None,
     }
 
 

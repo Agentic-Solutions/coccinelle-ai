@@ -309,7 +309,8 @@ Alias `/tools/*` disponibles (availability, book-appointment, knowledge, product
 |--------|---------------|--------------------|
 | Nom entreprise | `tenants.name` | `tenants.company_name` |
 | Secteur métier | `tenants.sector` | `voixia_configs.secteur`, `tenants.industry` |
-| Prénom agent | Regex sur `system_prompt` | `users.first_name` |
+| Prénom agent | **`voixia_configs.agent_name`** (18/08/2026) | `users.first_name`, regex sur `system_prompt` (repli seulement) |
+| Phrase d'accueil | **`src/modules/shared/greeting.js`** — servie par `resolve-phone` et `GET /assistant/config` | la reconstruire côté agent ou côté page |
 | **Prompt actif** | **`ai_prompt_versions.is_active=1` (1 SEUL par tenant)** | — |
 | Config LLM/voix | `voixia_configs` (llm_provider, llm_model, voice_id, transfer_*) | — |
 | Liste voix | `lib/voices.ts` (VOICE_OPTIONS) | — |
@@ -318,6 +319,29 @@ Alias `/tools/*` disponibles (availability, book-appointment, knowledge, product
 | Tél personnel | `users.phone` (vérifié `users.phone_verified`) | — |
 | Tél pro Twilio | `tenants.phone` | — |
 | Onboarding | `tenants.onboarding_completed` + `onboarding_sessions` | localStorage |
+
+> ⚠️ **Le prénom n'est plus déduit du prompt (18/08/2026).** Il vivait dans une *regex*
+> appliquée au `system_prompt`, et il y avait **deux** regex — une en JS, une en Python —
+> qui divergeaient sur **8 prénoms sur 18** : `LEO`, `SARA`, `léa`, `N'Golo`, `L3a` ne
+> remontaient pas jusqu'à l'agent (accueil sans prénom), `Marie Claire` et `Ana Sofia`
+> étaient tronqués au premier mot. Et un prompt **personnalisé** perdait son prénom : la
+> regex ne retrouvait rien, ce qui touchait exactement les revendeurs et le mode Avancé.
+>
+> La source est désormais la colonne `voixia_configs.agent_name`. La regex subsiste des
+> deux côtés comme **repli** pour les tenants dont la colonne est vide, et les deux sont
+> maintenant identiques.
+>
+> ⚠️ **Corollaire : `PUT /assistant/config` ne régénère plus un prompt personnalisé.**
+> Il ne régénère que si le prompt stocké est *exactement* le gabarit recalculé avec
+> l'**ancien** prénom — comparaison, pas devinette. Un prompt non conforme reste
+> régénéré inconditionnellement (règle 6bis). C'est ce qui a rendu possible de brancher
+> le mode Avancé sur cette route sans détruire le travail de l'utilisateur.
+>
+> ⚠️ **La phrase d'accueil est construite par le backend et PRONONCÉE telle quelle.**
+> Elle était écrite deux fois — en Python (`prompts.py`) et en TypeScript (page « Mon
+> Assistant ») — et elle avait déjà divergé le 13/08. La page garde une copie TS pour
+> l'aperçu vivant pendant la frappe ; `scripts/test_greeting.mjs` la verrouille sur
+> **18 prénoms × 14 secteurs**, caractère pour caractère. Voir [[greeting-source-unique]].
 
 **Règle prompt actif :** exactement UN `ai_prompt_versions.is_active=1` par tenant.
 `ai_prompt_versions.id` = INTEGER PRIMARY KEY autoincrement (utiliser `meta.last_row_id`).
@@ -519,6 +543,21 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 15. Termes techniques BANNIS dans l'UI : RAG → « Recherche intelligente », Crawl → « Importer
     depuis un site », Knowledge Base → « Base de connaissances », embedding/vector/chunks → cachés.
 16. Palette dashboard : blanc/noir/gris (exceptions vert/rouge pour variations).
+16aa. 🔴 **Un défaut d'UI se MESURE dans un navigateur avant d'être corrigé — c'est la règle 22
+   appliquée à l'écran.** Le 20/08/2026, « le sticky ne tient pas » a été vérifié sur la
+   production en trois minutes : `getBoundingClientRect().top` du header à **56 px** quel que
+   soit le défilement, sur deux tailles d'écran, capture à l'appui. Le `sticky` fonctionnait.
+   Corriger le positionnement aurait consommé le lot sans rien changer pour l'utilisateur.
+   **Ce qu'un rapport d'UI décrit est un ressenti, pas un mécanisme** : « il faut scroller pour
+   voir Enregistrer » voulait dire « rien ne me dit qu'il reste quelque chose à enregistrer ».
+   ⇒ Mesurer le mécanisme, puis chercher le manque juste à côté.
+16ab. **Une action d'enregistrement se montre quand il y a quelque chose à enregistrer**, pas
+   quand la mise en page le permet. Le drapeau se calcule en comparant l'état courant à une
+   **empreinte de ce qui est en base**, construite sur les valeurs **exactement** envoyées par
+   la fonction de sauvegarde — ni plus (un champ non persisté ferait clignoter la barre), ni
+   moins (une modification silencieuse resterait invisible). L'empreinte se repose **après**
+   les rechargements serveur qui suivent l'écriture, jamais sur un état React encore en vol.
+   Référence : `coccinelle-saas/app/dashboard/agents/configuration/page.tsx` (`empreinteConfig`) et `src/components/cx2/BarreEnregistrement.tsx` (le composant, partage avec le mode Simple).
 
 ### Frontend (export statique)
 16bis. **`redirect()` de `next/navigation` est INTERDIT dans une page.** Le site est exporté en
@@ -1109,6 +1148,36 @@ deploy).
 ---
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
+
+- **Chantier PRÉNOM DE L'ASSISTANT (18–20/08/2026)** — Le prénom quitte la *regex* sur le
+  `system_prompt` pour la colonne `voixia_configs.agent_name`, la phrase d'accueil n'est plus
+  écrite qu'à un seul endroit (`src/modules/shared/greeting.js`), et le mode Avancé écrit ce
+  prénom par la **même** route que le mode Simple (`PUT /assistant/config`), sans détruire un
+  prompt personnalisé. Détail et invariants en § f. **Recetté en production le 19/08** :
+  `assistant=Julien`, `company=Garage Toulouse`, prénom enregistré, prompt personnalisé
+  préservé, prononcé au décrochage.
+
+  **Clôture (20/08) — le défaut d'UI signalé n'était pas celui qu'on croyait.** Le rapport était
+  « sur `/dashboard/agents/configuration`, le bouton Enregistrer est tout en bas, le sticky ne
+  tient pas ». **Mesuré d'abord** (Chromium sur la production, 1280×800 puis 390×844, build
+  déployé) : le header colle, `top = 56 px` à tous les niveaux de défilement, capture à l'appui.
+  Le `sticky` n'était pas cassé. Le vrai manque était ailleurs : **rien n'indiquait qu'il restait
+  quelque chose à enregistrer**, donc le bouton du haut ne se distinguait pas du décor et on le
+  cherchait en bas, là où les formulaires mettent le leur.
+  Et `grep BarreEnregistrement` disait où : le composant de barre d'enregistrement écrit le 18/08
+  **pour cette page et pour « Mon assistant »** n'avait été monté que sur la seconde — son propre
+  entête affirmait pourtant « montée sur DEUX pages ». Un commentaire qui décrit une intention
+  plutôt qu'un fait rend le manque invisible.
+  ⇒ Livré : le composant **existant** (`src/components/cx2/BarreEnregistrement.tsx`, `sticky
+  bottom-0`) monté sur la configuration avancée, visible seulement si la configuration diffère de
+  celle en base. Une barre locale aurait donné deux barres qui divergent, ce que son entête
+  interdit. Le bouton du header est conservé ici (contrairement à « Mon assistant ») : ce header
+  porte aussi « Simuler » et « Séquences ». `empreinteConfig()` ne compare
+  que les **7 valeurs que `handleSaveAll` envoie** — y mettre la température (non persistée) ou
+  l'onglet courant ferait clignoter « non enregistré » sur ce que le bouton n'enregistre pas.
+  Recette : barre absente à l'ouverture, présente et visible **sans défiler** dès la première
+  frappe, absente à nouveau quand la frappe est annulée ; `tsc` 254 = 254 (base inchangée),
+  `npm test` vert. Voir [[defaut-ui-se-mesure]].
 
 - **Chantier CONSENTEMENT — refus SMS (17–18/08/2026)** — Un « STOP » client était enregistré
   comme un message ordinaire puis interprété par l'IA comme une question. Le lot livre la table

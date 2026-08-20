@@ -19,6 +19,7 @@ import {
 // la compaction GSM-7 et la trace en conversation. `enrichirSmsAvecLien` n'est
 // plus importée ici — la redécider à ce niveau serait la dupliquer.
 import { envoyerSmsTrace } from '../shared/sms-envoi.js';
+import { construireGreeting } from '../shared/greeting.js';
 import {
   classerFiches,
   detecterAmbiguite,
@@ -1554,7 +1555,7 @@ async function resolveTrialTenantByCaller(env, caller) {
     SELECT
       t.id AS tenant_id, NULL AS phone_number, 1 AS is_active,
       t.name AS company_name, t.sector, t.api_key,
-      vc.llm_provider, vc.llm_model, vc.voice_id,
+      vc.llm_provider, vc.llm_model, vc.voice_id, vc.agent_name,
       vc.active_prompt_id, vc.secteur AS vc_secteur,
       apv.system_prompt, apv.version AS prompt_version
     FROM users u
@@ -1600,6 +1601,7 @@ async function handleResolvePhone(request, env) {
 
   // Normalisation : retirer le + de tete pour couvrir les deux formats
   const normalizedPhone = String(phone).replace(/^\+/, '');
+  const debutMs = Date.now();
 
   try {
     // ── OPTIMISE BUG #010 : 1 seule requete JOIN au lieu de 3 sequentielles ──
@@ -1608,7 +1610,7 @@ async function handleResolvePhone(request, env) {
       SELECT
         m.tenant_id, m.phone_number, m.is_active,
         t.name AS company_name, t.sector, t.api_key,
-        vc.llm_provider, vc.llm_model, vc.voice_id,
+        vc.llm_provider, vc.llm_model, vc.voice_id, vc.agent_name,
         vc.active_prompt_id, vc.secteur AS vc_secteur,
         apv.system_prompt, apv.version AS prompt_version
       FROM omni_phone_mappings m
@@ -1658,6 +1660,12 @@ async function handleResolvePhone(request, env) {
         llm_model: defaultTemplate?.llm_model || 'mistral-large-latest',
         voice_id: defaultTemplate?.voice_id || 'cgSgspJ2msm6clMCkdW9',
         system_prompt: buildSectorPrompt({ secteur: 'generaliste' }),
+        agent_name: null,
+        // Pas de tenant, donc AUCUNE raison sociale : `construireGreeting` sans
+        // `companyName` rend « Bonjour ! Comment puis-je vous aider ? ». C'est le
+        // Lot B applique au backend — l'agent ne doit jamais prononcer un nom
+        // d'entreprise qui n'est pas celui de l'appele.
+        greeting: construireGreeting({}),
         message: 'Numéro non associé à un tenant — config généraliste par défaut'
       });
     }
@@ -1691,6 +1699,29 @@ async function handleResolvePhone(request, env) {
       }
     }
 
+    // ── LE PRENOM DE L'ASSISTANT (chantier PRENOM, 18/08/2026) ──
+    //
+    // SOURCE = `voixia_configs.agent_name`. La regex sur le `system_prompt` n'est plus
+    // qu'un REPLI, pour les tenants dont la colonne n'a jamais ete renseignee.
+    //
+    // Pourquoi ce renversement : un prenom deduit d'un texte se perd des que le texte
+    // sort du gabarit. Un revendeur qui ecrit son propre prompt — c'est tout l'objet du
+    // mode Avance — voyait son prenom disparaitre. Et les deux regex du produit (JS et
+    // Python) divergeaient sur 8 prenoms sur 18 : `LEO`, `SARA`, `léa`, `N'Golo` ne
+    // remontaient pas cote agent, `Marie Claire` etait tronque en `Marie`.
+    const agentName = String(resolved.agent_name || '').trim()
+      || (String(systemPrompt || '').match(/Tu es\s+([^,]{1,40}),\s*l['’]assistant/i)?.[1] || '').trim()
+      || null;
+
+    // La phrase est CONSTRUITE ICI et prononcee telle quelle par l'agent. Il ne la
+    // fabrique plus : c'etait la seconde source, en Python, qui divergeait de ce que
+    // la page « Mon Assistant » montrait au client.
+    const greeting = construireGreeting({
+      companyName: resolved.company_name || '',
+      secteur,
+      agentName,
+    });
+
     // Numero trouve — retourner config complete (format identique pour agent Python)
     return successResponse({
       tenant_id: resolved.tenant_id,
@@ -1706,13 +1737,41 @@ async function handleResolvePhone(request, env) {
       system_prompt: applyPromptVariables(systemPrompt, {
         companyName: resolved.company_name || '',
       }),
+      // Additifs (chantier PRENOM) : un agent non redeploye les ignore et garde
+      // son comportement actuel. Le deploiement backend peut donc preceder le
+      // deploiement Python sans fenetre de casse.
+      agent_name: agentName,
+      greeting,
       active_prompt_id: resolved.active_prompt_id || null,
       prompt_version: resolved.prompt_version || null,
       message: 'Tenant résolu avec succès'
     });
 
   } catch (error) {
-    logger.error('VoixIA resolve-phone error', { error: error.message, phone });
+    // ── INSTRUMENTATION DU 500 (Lot C, 18/08/2026) ──
+    //
+    // Le 18/08 a 12h41, cet endpoint a mis 15 s a ne pas repondre puis a renvoye un
+    // 500 : l'agent est retombe sur ses valeurs par defaut et a decroche au nom de
+    // « VoixIA » chez un client du Garage Toulouse. Frequence mesuree sur 14 jours :
+    // 1 appel sur ~31.
+    //
+    // L'ancien log ne portait que `error.message` — impossible de savoir quelle
+    // requete, quelle branche, ni combien de temps. On ne corrige pas a l'aveugle :
+    // on instrumente, on attend la prochaine occurrence, puis on regle.
+    //
+    // `stack` incluse volontairement : c'est elle qui designera la ligne fautive, et
+    // ce champ n'a pas de valeur sensible (aucun secret n'est concatene ici).
+    logger.error('VoixIA resolve-phone error', {
+      error: error.message,
+      stack: String(error.stack || '').split('\n').slice(0, 4).join(' | '),
+      phone,
+      caller: caller || null,
+      // La branche `caller` (numero d'essai partage) fait une requete differente de
+      // la branche nominale : savoir laquelle a echoue divise le champ de recherche
+      // par deux.
+      branche: isTrialNumber(phone, env) ? 'caller/essai' : 'nominale',
+      duree_ms: Date.now() - debutMs,
+    });
     return errorResponse('Erreur lors de la résolution du numéro', 500);
   }
 }
