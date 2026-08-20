@@ -1090,7 +1090,10 @@ npx wrangler d1 execute coccinelle-db-eu --remote --file=migrations/XXXX_nom.sql
       ramené le plafond de résolution de 15,9 s à 1,5 s : ce chemin, jusqu'ici réservé aux
       pannes franches, devient atteignable sur une simple lenteur — **nous avons rendu un
       chemin dangereux plus facile à emprunter**. Cadrage complet et mesures :
-      **`LOT-REPLI-TENANT.md`** (racine). Aucun code écrit, en attente d'arbitrage.
+      **`LOT-REPLI-TENANT.md`** (racine). **Arbitré le 20/08 : « échouer proprement »** — le
+      repli vers un autre tenant disparaît, il ne se met pas sous condition ; sur contexte
+      absent les 6 outils rendent une non-réponse explicite + `create_task` (règle 6ter),
+      jamais une réponse venue d'ailleurs. Aucun code écrit, à lancer après le lot latence.
 - [ ] **Instrumenter l'onboarding** : mesurer l'abandon par étape (8/145, 0 depuis 25 j).
 - [ ] Simplifier le parcours onboarding (identifier l'étape tueuse, réduire la friction).
 - [x] ~~**WhatsApp Lot 0 — sécurisation**~~ : **fait et déployé le 19/07/2026** (kill switch 4 surfaces,

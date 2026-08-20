@@ -1,7 +1,8 @@
 # Lot — le repli `VOIXIA_TENANT_ID` fait travailler les outils chez l'éditeur
 
 > Ouvert le 20/08/2026, à la demande de Youssef, à traiter **après** le chantier latence.
-> État : **cadré et mesuré, aucun code écrit.** R4 — plan avant tout code.
+> État : **cadré, mesuré, arbitré. Aucun code écrit.** R4 — plan avant tout code.
+> Décision : *échouer proprement* (voir § Arbitrage).
 
 ## Le défaut
 
@@ -60,26 +61,48 @@ aujourd'hui (la clé VoixIA est unique et globale), mais le paramètre donne l'i
 clé par tenant qui n'existe pas. À supprimer, ou à alimenter — pas à laisser ambigu.
 Lié au point ouvert de `CLAUDE.md` § r.1 : clé globale + tenant choisi par en-tête.
 
-## Direction proposée (à valider avant tout code)
+## ⚖️ ARBITRAGE RENDU — 20/08/2026, Youssef
 
-Le raisonnement de 2026-08-08 derrière le repli — « mieux vaut le secours `.env` qu'un 401 en
-plein appel » — est le bon souci et la mauvaise réponse : il compare un outil qui échoue à un
-outil qui réussit, alors que la vraie alternative est un outil qui **répond juste** contre un
-outil qui **répond faux avec assurance**. Un agent qui dit « je n'ai pas cette information,
-je vous fais rappeler » est un moindre mal qu'un agent qui annonce le tarif d'une autre
-entreprise — c'est déjà la porte de sortie prévue par `TOOL_ORDER_BLOCK` (règle 6ter).
+> **« Échouer proprement » (piste 1).** Un outil qui répond faux avec assurance est pire
+> qu'un outil qui échoue — **c'est la règle zéro invention du produit.**
 
-Pistes à arbitrer avec Youssef :
+La piste 2 (drapeau d'autorisation du secours) est donc **écartée** : elle laisse le
+comportement dangereux disponible, et un drapeau finit toujours par être posé. Le repli vers
+un autre tenant disparaît, il ne se met pas sous condition.
 
-1. **Échouer proprement** : sur repli, poser un contexte explicitement vide et faire répondre
-   les outils « information indisponible » plutôt que d'interroger un autre tenant. L'agent a
-   déjà le chemin conversationnel pour ça (`create_task` + rappel).
-2. **Restreindre le secours** au seul usage pour lequel il a été écrit — scripts et tests
-   manuels — par un drapeau explicite (`VOIXIA_TENANT_FALLBACK_AUTORISE=1`), absent en
-   production. Même forme que le kill switch WhatsApp : absent = fermé.
-3. Ne pas se contenter du prénom du défaut : **vérifier les 6 modules un par un**, y compris
-   `messaging` (un SMS partirait avec l'identité de l'éditeur) et `transfer` (un transfert
-   vers le numéro d'un autre tenant).
+Ce que cela implique concrètement, à écrire au lancement du lot :
+- `get_tenant_id()` ne consulte plus `VOIXIA_TENANT_ID` sur le chemin d'un appel ; le secours
+  `.env` ne survit, s'il survit, que pour les scripts hors appel — et par un chemin distinct,
+  pas par la même fonction ;
+- sur contexte absent, les 6 outils rendent une **non-réponse explicite** (« je n'ai pas cette
+  information »), jamais une réponse venue d'ailleurs. L'agent a déjà le chemin
+  conversationnel : porte de sortie conditionnée + `create_task` obligatoire (règle 6ter) —
+  un rappel promis sans `create_task` n'existe pas ;
+- vérifier les 6 modules **un par un**. `messaging` (un SMS partirait sous l'identité de
+  l'éditeur) et `transfer` (transfert vers le numéro d'un autre tenant) sont les deux où
+  l'échec silencieux serait le plus coûteux.
+
+Rattachement doctrinal : `CLAUDE.md` § i règle 6ter (ZÉRO INVENTION — ni invention **ni
+approximation**) et règle 21 (un outil ne lit jamais le tenant dans l'environnement).
+
+**Ordonnancement : après le chantier latence**, une fois les postes 1 à 4 déployés et recettés.
+
+## Ce que le commentaire d'origine avait manqué
+
+Le raisonnement du 08/08/2026 derrière le repli est écrit en toutes lettres dans
+`tools/context.py` : « mieux vaut le secours `.env` qu'un en-tête vide qui ferait échouer tous
+les outils avec un 401 en plein appel ». C'est **le bon souci et la mauvaise réponse** : il
+compare un outil qui échoue à un outil qui réussit, alors que la vraie alternative est un
+outil qui **répond juste** contre un outil qui **répond faux avec assurance**.
+
+Un agent qui dit « je n'ai pas cette information, je vous fais rappeler » est un moindre mal
+qu'un agent qui annonce le tarif d'une autre entreprise. C'est déjà la porte de sortie prévue
+par `TOOL_ORDER_BLOCK`. L'arbitrage ci-dessus tranche dans ce sens.
+
+⚠️ Ce commentaire est à **réécrire** en même temps que le code : laissé tel quel, il
+justifierait le retour du repli à la première relecture. C'est la leçon du 20/08 sur
+`BarreEnregistrement` — un commentaire qui décrit une intention périmée rend le défaut
+invisible ([[defaut-ui-se-mesure]]).
 
 ## Recette envisagée
 
