@@ -17,9 +17,19 @@
  * La generaliser a tout le dashboard sortirait du lot, et chaque page a sa propre
  * notion de « modifie ».
  *
+ * ⚠️ 20/08/2026 — cette phrase etait FAUSSE pendant deux jours : le composant n'etait
+ * monte que sur « Mon assistant ». La configuration avancee a ete signalee exactement
+ * pour ce qu'il manquait (« il faut scroller pour voir Enregistrer »), et la mesure a
+ * montre que son `sticky top-0` tenait pourtant : ce n'etait pas la position du bouton
+ * du haut qui manquait, c'etait le signal « vous avez quelque chose a enregistrer ».
+ * Un commentaire qui decrit une intention plutot qu'un fait rend le manque invisible —
+ * `grep BarreEnregistrement` disait la verite, pas cet entete.
+ *
  * ⚠️ Le bouton du haut a ete SUPPRIME de « Mon assistant » au profit de celle-ci :
  * deux boutons identiques a deux endroits sont pires que l'actuel — on ne sait plus
- * lequel fait foi, et l'un des deux finit par diverger.
+ * lequel fait foi, et l'un des deux finit par diverger. La configuration avancee garde
+ * le sien : son header porte aussi « Simuler » et « Sequences », et le groupe d'actions
+ * de l'agent perdrait son action principale.
  */
 
 import { Loader2 } from 'lucide-react';

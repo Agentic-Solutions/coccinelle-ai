@@ -18,6 +18,7 @@ import { VOICE_OPTIONS } from '@/lib/voices';
 import type { VoiceOption } from '@/lib/voices';
 import { SECTOR_PROMPTS, getSectorPrompt } from '@/lib/prompts';
 import { FLOW_TEMPLATES, type FlowTemplate } from '@/lib/flow-templates';
+import BarreEnregistrement from '@/components/cx2/BarreEnregistrement';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -173,6 +174,25 @@ function Toggle({ checked, onChange, label, description }: {
   );
 }
 
+// ─── Empreinte de la configuration ──────────────────────────────────────────
+//
+// Les SEULES valeurs que `handleSaveAll` envoie. Toute autre valeur de la page
+// (onglet courant, voix en cours d'ecoute, temperature — qui n'est pas encore
+// persistee) n'a rien a faire ici : elle ferait clignoter « non enregistre » sur
+// une modification que le bouton n'enregistre pas.
+type ConfigEnregistrable = {
+  promptText: string; promptSecteur: string; promptNotes: string;
+  selectedLLM: string; selectedVoice: string;
+  humanTransfer: boolean; transferNumber: string;
+};
+
+function empreinteConfig(c: ConfigEnregistrable): string {
+  return JSON.stringify([
+    c.promptText, c.promptSecteur, c.promptNotes,
+    c.selectedLLM, c.selectedVoice, c.humanTransfer, c.transferNumber,
+  ]);
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function AgentConfigurationPage() {
@@ -218,6 +238,11 @@ export default function AgentConfigurationPage() {
   const templateBaseRef = useRef('');
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // La configuration TELLE QU'ELLE EST EN BASE, serialisee. Sans elle on ne peut pas
+  // savoir s'il reste quelque chose a enregistrer — et c'est cette question, pas la
+  // position du bouton, qui decide si l'utilisateur doit le voir.
+  const [instantaneEnregistre, setInstantaneEnregistre] = useState('');
+
   // Voice
   const [selectedVoice, setSelectedVoice] = useState(VOICE_OPTIONS[0]?.id || '');
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
@@ -253,6 +278,14 @@ export default function AgentConfigurationPage() {
   const activePrompt = prompts.find(p => p.is_active === 1);
   const selectedVoiceObj = VOICE_OPTIONS.find(v => v.id === selectedVoice);
   const currentScenarios = SECTOR_PROMPTS[promptSecteur]?.quick_scenarios || [];
+
+  const empreinteCourante = empreinteConfig({
+    promptText, promptSecteur, promptNotes,
+    selectedLLM, selectedVoice, humanTransfer, transferNumber,
+  });
+  // `instantaneEnregistre` vide = on n'a pas encore ouvert de config : rien a comparer.
+  const modificationsNonEnregistrees =
+    view === 'config' && instantaneEnregistre !== '' && empreinteCourante !== instantaneEnregistre;
 
   // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -455,6 +488,25 @@ export default function AgentConfigurationPage() {
       setPromptSecteur(active.secteur || 'generaliste');
     }
 
+    // Une note decrit LA version qu'on s'apprete a creer. La reporter d'un agent a
+    // l'autre la collerait a une version qu'elle ne decrit pas — et ferait afficher
+    // « non enregistre » sur une page qu'on vient d'ouvrir.
+    setPromptNotes('');
+
+    // L'empreinte se construit sur les MEMES valeurs que celles qu'on vient de poser,
+    // pas sur l'etat React (qui ne sera a jour qu'au rendu suivant). Les `if` ci-dessus
+    // sont donc rejoues a l'identique : une valeur absente laisse l'ancienne en place.
+    setInstantaneEnregistre(empreinteConfig({
+      promptText: active ? active.system_prompt : promptText,
+      promptSecteur: active ? (active.secteur || 'generaliste') : (agent.secteur || promptSecteur),
+      promptNotes: '',
+      selectedLLM: (agent.llm_provider && agent.llm_model)
+        ? `${agent.llm_provider}|${agent.llm_model}` : selectedLLM,
+      selectedVoice: agent.voice_id || selectedVoice,
+      humanTransfer: agent.transfer_enabled === 1,
+      transferNumber: agent.transfer_number || '',
+    }));
+
     loadVersions();
     setConfigTab('prompt');
     setView('config');
@@ -463,6 +515,7 @@ export default function AgentConfigurationPage() {
   function goBackToList() {
     setView('list');
     setSelectedAgent(null);
+    setInstantaneEnregistre('');
     loadAgents();
   }
 
@@ -498,6 +551,15 @@ export default function AgentConfigurationPage() {
         const actData = await actRes.json();
         showMsg('success', actData.prompt_id ? 'Configuration sauvegardée et activée.' : `Prompt v${data.version} créé mais activation échouée.`);
         await Promise.all([loadPrompts(), loadVersions(), loadAgents()]);
+        // L'empreinte se cale sur ce qui vient d'etre ECRIT, pas sur l'etat React :
+        // `loadPrompts()` repose voix/LLM/transfert depuis le serveur de facon
+        // asynchrone, et comparer a un etat encore en vol rallumerait la barre juste
+        // apres l'enregistrement.
+        setPromptNotes('');
+        setInstantaneEnregistre(empreinteConfig({
+          promptText, promptSecteur, promptNotes: '',
+          selectedLLM, selectedVoice, humanTransfer, transferNumber,
+        }));
       } else { showMsg('error', 'Erreur lors de la sauvegarde'); }
     } catch { showMsg('error', 'Erreur réseau'); }
     setSaving(false);
@@ -522,6 +584,15 @@ export default function AgentConfigurationPage() {
           if (active) {
             setPromptText(active.system_prompt);
             templateBaseRef.current = active.system_prompt;
+            // Une version restauree EST l'etat de la base : la barre doit s'eteindre.
+            setPromptNotes('');
+            setInstantaneEnregistre(empreinteConfig({
+              promptText: active.system_prompt,
+              promptSecteur: active.secteur || promptSecteur,
+              promptNotes: '',
+              selectedLLM, selectedVoice, humanTransfer, transferNumber,
+            }));
+            setPromptSecteur(active.secteur || promptSecteur);
           }
         }
       }
@@ -882,12 +953,16 @@ export default function AgentConfigurationPage() {
       {view === 'config' && (
         <>
           {/* Header */}
-          {/* `sticky top-0` : le bouton « Enregistrer » vit deja dans ce header, avec tout
-              l'etat qu'il lui faut. Le rendre collant suffit a ce qu'il ne quitte plus
-              l'ecran — introduire un drapeau « modifie » sur cette page (1 400 lignes,
-              plusieurs points d'ecriture de `promptText`) serait un bien plus gros
-              changement pour le meme resultat visible. Le prenom, lui, s'enregistre
-              seul au blur : il n'a rien a attendre d'un bouton. */}
+          {/* `sticky top-0` : le bouton « Enregistrer » vit dans ce header, avec tout
+              l'etat qu'il lui faut, et le header ne quitte plus l'ecran.
+              ⚠️ La colle tient dans `main` (`overflow-auto` du layout dashboard), qui est
+              le conteneur de defilement reel — la page ne fait PAS defiler la fenetre.
+              Mesure du 20/08/2026 en production, Chromium 1280x800 et 390x844 : header a
+              y=56 a tous les niveaux de defilement. Ne pas mettre `overflow-hidden` sur un
+              parent intermediaire, ce serait le seul moyen de casser ca en silence.
+              La barre du bas (voir plus loin) prend le relais quand il y a une
+              modification en attente. Le prenom, lui, s'enregistre seul au blur : il n'a
+              rien a attendre d'un bouton. */}
           <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
               <div className="flex items-center justify-between">
@@ -1195,6 +1270,28 @@ export default function AgentConfigurationPage() {
 
               </div>
             </div>
+
+            {/* ── Barre d'enregistrement ───────────────────────────────────────
+                LE MEME composant que le mode Simple (« Mon assistant »). Son entete
+                annonce depuis le 18/08 qu'il est monte « sur DEUX pages » — il ne
+                l'etait que sur une. C'est precisement ce qui manquait ici : le bouton
+                du header colle bien (mesure sur la prod, `top = 56 px` a tous les
+                niveaux de defilement), mais rien ne disait qu'il restait quelque chose
+                a enregistrer. Reecrire une barre locale aurait donne deux barres qui
+                finissent par diverger, exactement ce que son entete interdit.
+
+                Le bouton du header est CONSERVE ici, contrairement a « Mon assistant » :
+                cette page a aussi « Simuler » et « Sequences » a cet endroit, et le
+                groupe d'actions de l'agent perdrait son action principale. */}
+            <BarreEnregistrement
+              visible={modificationsNonEnregistrees}
+              enregistrement={saving}
+              onEnregistrer={handleSaveAll}
+              libelle={saving ? 'Enregistrement…' : 'Enregistrer'}
+            />
+            {/* `message` n'est volontairement pas passe : cette page a deja son toast
+                (`showMsg`), et faire dire la meme chose a deux endroits apprendrait au
+                client qu'il s'agit de deux evenements. */}
           </div>
         </>
       )}
