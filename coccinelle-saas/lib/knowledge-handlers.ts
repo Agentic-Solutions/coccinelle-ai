@@ -65,7 +65,7 @@ export async function structureWithAI(documents: any[]) {
 }
 
 export async function crawlWebsite(url: string, maxPages: number, maxDepth: number) {
-  const response = await fetch(buildApiUrl('/api/knowledge/crawl'), {
+  const response = await fetch(buildApiUrl('/api/v1/knowledge/crawl'), {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({ startUrl: url, tenantId: getCurrentTenantId(), maxPages, maxDepth })
@@ -226,7 +226,7 @@ export function saveManualInformation(category: string, data: any) {
 }
 
 export async function askKnowledgeBase(question: string, documents: any[], useAI: boolean) {
-  const response = await fetch(buildApiUrl('/api/knowledge/ask'), {
+  const response = await fetch(buildApiUrl('/api/v1/knowledge/ask'), {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({

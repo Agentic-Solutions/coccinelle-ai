@@ -301,7 +301,7 @@ export default function KnowledgePage() {
       formData.append('file', selectedFile);
       formData.append('tenantId', getCurrentTenantId());
 
-      const response = await fetch(buildApiUrl('/api/knowledge/documents/upload'), {
+      const response = await fetch(buildApiUrl('/api/v1/knowledge/documents/upload'), {
         method: 'POST',
         body: formData
       });

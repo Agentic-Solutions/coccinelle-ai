@@ -69,3 +69,9 @@ __pycache__/
 # Sauvegardes locales datées (jamais versionnées)
 *.bak-*
 *.backup-*
+
+# Graphe de connaissance graphify (peut contenir des extraits de fichiers)
+graphify-out/
+
+# Runbook de securite interne — ne JAMAIS committer (depot public)
+LOT-ROTATION-LIVEKIT.md
