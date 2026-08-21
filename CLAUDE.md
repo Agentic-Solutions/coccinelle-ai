@@ -782,7 +782,9 @@ ssh lightrag "cat /opt/lightrag-coccinelle/.env"   # config (secrets — prudenc
 | 🔴 Critique | **Funnel onboarding** | 8/145 complétions, 0 depuis 25 jours — instrumenter + simplifier |
 | ✅ Clos | ~~Clé API VoixIA exposée — rotation TERMINÉE le 15/08/2026~~ | **Contrôle final : `401` sur l'ancienne clé, `200` sur la nouvelle**, et `wrangler secret list` ne montre plus que `VOIXIA_API_KEY` — `VOIXIA_API_KEY_ROTATION` est supprimé, la fenêtre est fermée. La clé publiée reste lisible dans **23 commits accessibles** (mesuré, 20/03→16/05) mais **n'ouvre plus rien** : c'est exactement ce que la rotation garantit, et pourquoi elle est le seul remède réel à une fuite d'historique. ⚠️ Elle vivait dans **TROIS** fichiers, pas seulement la doc : `CLAUDE.md`, `dashboard/proactive/page.tsx` et `dashboard/voixia/page.tsx` — donc **en clair dans le bundle JavaScript** servi aux visiteurs de ces pages à l'époque. Une clé dans un composant front n'est pas « exposée par le dépôt », elle est publiée par le produit. Sauvegarde serveur `/opt/voixia/.env.avant-rotation` purgée (elle portait encore l'ancienne). Procédure réutilisable en § r.1 |
 | ✅ Clos | ~~Régénérer clés Meta~~ | **Vérifié le 11/08** : `META_WHATSAPP_ACCESS_TOKEN` expiré le 28/01 (Graph API code 190), `META_APP_SECRET` invalidé par la réinitialisation du 19/07 (« Invalid OAuth access token signature »), `META_WEBHOOK_VERIFY_TOKEN` bien tourné (la valeur publique renvoie 403 sur le handshake). `WHATSAPP_ACCESS_TOKEN` **n'a jamais été dans le dépôt**. Les 3 valeurs Meta restent lisibles dans `wrangler.toml` à 3 commits publics (01/03→09/05) mais n'ouvrent plus rien |
-| 🔴 Critique | **Secret LiveKit public depuis le 02/04/2026, et le port est ouvert au monde** | `api_secret` de LiveKit (`livekit.yaml`, `sip/config.yaml`, `ExecStart` de `voixia.service`) est lisible dans **2 commits de `main`** — `ac8466c` (02/04) et `e908232` (16/05, l'audit sécurité lui-même). Le dépôt est **public**. Et `livekit-server` écoute sur **`0.0.0.0:7880`** (vérifié le 20/08, `ss -tlnp`) : ce n'est pas un identifiant de développement enfermé sur une boucle locale, c'est la clé d'administration d'un média-serveur joignable depuis Internet — création de rooms, règles de dispatch SIP, appels sortants. ⚠️ **Un `git rm` n'y changera rien** : la seule issue est une rotation (§ r), qui touche `livekit.yaml`, `sip/config.yaml`, l'unité systemd et les trois conteneurs — donc un lot dédié, pas une correction en passant. Au minimum, restreindre 7880 au pare-feu en attendant. Le port `5060` est par ailleurs balayé depuis `27.0.232.172` (backlog) |
+| ✅ Clos | ~~Secret LiveKit public depuis le 02/04/2026~~ — **rotation TERMINÉE le 20/08/2026** | Contrôle final : `devkey` répond **401**, la nouvelle clé répond **200**, et `keys:` ne contient plus qu'une entrée. Le nom de la clé a changé aussi (`devkey` était le nom **par défaut documenté** de LiveKit, le premier que teste un scanner). Le secret reste lisible dans les 2 commits publics `ac8466c` (02/04) et `e908232` (16/05) — la rotation ne l'en retire pas, elle le rend **inoffensif** (§ r). ⚠️ **Il y avait SEPT porteurs, pas six** : le lot en dénombrait six côté serveur, mais le **Worker Cloudflare** détient `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` en secrets et signe un JWT `sip:{admin:true}` dans `src/modules/reseller/routes.js`. La preuve du lot (« grep `LIVEKIT_URL` sur le dépôt → 0 résultat ») l'a manqué parce que la variable s'appelle `LIVEKIT_API_**URL**` et que l'IP vit dans un secret, pas dans le code. Après rotation, le secret littéral ne vit plus que dans **4** fichiers : il a quitté `ExecStart` (il était lisible par `ps` et partait dans journald) et `docker-compose.yml` (substitution). Voir [[rotation-livekit-sept-porteurs]] |
+| 🟠 Haute | **Fermer 7880 a coupé un chemin du Worker, en silence** | Le § 1.1 du lot conclut « consommateur externe de 7880 : AUCUN » ; c'est faux. `livekitList()` et `livekitEnsureNumber()` (`src/modules/reseller/routes.js`) appellent `${LIVEKIT_API_URL}/twirp/livekit.SIP/...` depuis le Worker, donc **depuis Internet**. Mesuré le 20/08 : `http://51.15.130.204:7880` répond **200 depuis l'hôte** et **timeout depuis l'extérieur** — les règles `DOCKER-USER`/`INPUT`/`ip6tables` du § 2 sont en place (et posées **en double**, à nettoyer). Conséquences : `GET /reseller/numbers/livekit-status` renvoie désormais `reachable:false`, et `livekitEnsureNumber` échoue à l'achat de numéro. **Le besoin fonctionnel est couvert** par `pool-sync.sh` (cron serveur, chaque minute) — c'est d'ailleurs ce que dit le commentaire de la route d'achat (« routage LiveKit assuré par le cron server-pull »). Reste à trancher : retirer ce code mort, ou autoriser les IP Cloudflare sur 7880 (plage large, mauvaise idée). ⚠️ Ne PAS rouvrir 7880 au monde pour ça. |
+| 🟡 Moyenne | **5060 activement sondé pour de la fraude à la terminaison** | Deux INVITE de balayage en 40 s le 20/08, depuis `46.19.138.10` (`toUser=149233756758573`) et `144.172.112.245` (`toUser=011.525598160169`, préfixe Mexique). Rejetés (`486 flood`). Confirme le § 4.3 du lot : restreindre 5060 aux plages SIP de Twilio — lot séparé, car le RTP de `livekit-sip` utilise des ports **dynamiques**. |
 | 🟠 Haute | Dérive de schéma `omni_phone_mappings` | Les colonnes `channel_type`, `meta_phone_number_id`, `meta_waba_id`, `meta_access_token`, `display_name` **existent en prod mais aucune migration ne les crée** (appliquées hors-bande) → un rebuild depuis `migrations/` ≠ prod. À régulariser (Lot 3). `meta_access_token` est stocké **en clair** ; `channel_configurations.config_encrypted` contient un simple `JSON.stringify` malgré son nom |
 | ✅ Clos | ~~Webhook SMS entrant : tenant en dur~~ | Les DEUX webhooks devinaient un tenant : `omnichannel/webhooks/sms.js` écrivait `'tenant_mihmuebzieaxehi7qv'` (purgé), et la route legacy `twilio/routes.js` retombait sur `'tenant_demo_001'`. **C'est la seconde qui servait en production** (mesuré au tail le 17/08). Les deux passent désormais par `resoudreTenantParNumeroAppele()` (`shared/sms-entrant.js`) ; un numéro inconnu est rejeté, jamais deviné |
 | 🟠 Haute | **On ne sait pas quelle URL Twilio appellera** | La fiche du numéro porte `sms_url = .../webhooks/omnichannel/sms` (écrite le 17/08, `date_updated` inchangé depuis), mais Twilio appelle **`/webhooks/twilio/sms`** — mesuré au `wrangler tail` : UA `TwilioProxy/1.1`, signature valide, 200. Le numéro n'est dans aucun Messaging Service, aucune TwiML App ne porte de `sms_url`, la console n'a pas été touchée. **Provenance inexpliquée.** Question posée dans `docs/ticket-twilio-optout-fr.md`. En attendant : les décisions critiques vivent sur les DEUX routes |
@@ -1221,6 +1223,43 @@ deploy).
 
 ## n) HISTORIQUE COMPACT DES SPRINTS
 
+- **Chantier ROTATION DE LA CLÉ LIVEKIT (20/08/2026)** — `devkey` et son secret — le couple
+  **par défaut documenté** de LiveKit, public dans 2 commits depuis le 02/04 — remplacé par une paire générée sur le serveur, nom compris.
+  **RECETTÉ EN PRODUCTION LE 20/08**, deux appels réels : décroché, accueil prononcé, outils
+  appelés (`search_knowledge`, `check_availability`, `book_appointment`), deux rooms distincts
+  pour le même appelant (la règle `individual` tient), premier son à **1 809** puis **1 749 ms**
+  — dans la plage du chantier latence du matin, donc sans coût.
+
+  **Contrôle final, avec témoin négatif** : `devkey` répond **401**, la nouvelle clé **200**,
+  `keys:` ne porte plus qu'une entrée. Zéro erreur d'authentification sur l'agent, le SIP et
+  LiveKit.
+
+  **Le cadrage annonçait six porteurs ; il y en avait sept.** Le 7ᵉ est le **Worker Cloudflare**
+  (`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` en secrets, JWT `sip:{admin:true}` signé dans
+  `src/modules/reseller/routes.js`). Le grep qui l'avait manqué cherchait `LIVEKIT_URL` ; la
+  variable s'appelle `LIVEKIT_API_URL`, et l'IP vit dans un secret, pas dans le code. **Un
+  consommateur dont la configuration est un secret est invisible à un grep du dépôt** —
+  l'inventaire d'un secret partagé passe aussi par `wrangler secret list`.
+
+  Deux autres écarts, chacun capable de casser la rotation en silence : le
+  `docker-compose.yml` sur disque **décrivait un autre conteneur que celui en service** (il
+  montait `sip-config.yaml`, le conteneur montait `config.yaml`, seul porteur de l'adresse
+  Redis) — le `docker compose up -d sip` prévu par le plan aurait recréé le SIP **sans Redis** ;
+  et les replis `${…:-devkey}` / `${…:-devsecret…}` réinjectent silencieusement l'ancienne clé,
+  remplacés par `${…:?message}` sur le serveur et dans le dépôt. Le critère du lot
+  (`grep devkey`) ne voyait pas les trois `LIVEKIT_API_SECRET:-devsecret…`.
+
+  **Le secret a quitté deux endroits fuyants** : les drapeaux `--api-secret` de `ExecStart`
+  (lisibles par `ps`, écrits dans le champ `_CMDLINE` de journald) et `docker-compose.yml`. Il ne
+  vit plus littéralement que dans **4** fichiers. Les 5 sauvegardes `.avant-rotation` ont été
+  `shred`, ainsi qu'un instantané `docker inspect` **créé pendant la rotation elle-même** et
+  25 lignes de `.bash_history` (caviardées, pas supprimées). ⚠️ L'ancien secret reste dans le
+  champ `_CMDLINE` du journal systemd — `journalctl` n'en affiche rien, seul un `grep` sur les
+  fichiers bruts le trouve. **Non purgé volontairement** : `--vacuum` détruirait les journaux
+  d'appels dont le diagnostic dépend, pour une valeur qui ne s'authentifie plus ; rétention
+  mesurée ≈ 9 jours (`SystemMaxUse=100M`), donc extinction naturelle vers le 29/08.
+  Voir [[rotation-livekit-sept-porteurs]].
+
 - **Chantier LATENCE AU DÉCROCHÉ (20/08/2026)** — Signalé : « premier appel après inactivité =
   `Demarrage en 14651.6 ms`, l'appelant entend 15 s de silence et raccroche ». **Le chiffre ne
   mesurait pas ce qu'il annonçait** (§ i, règle 25) : calculé après `await session.say()`, il
@@ -1563,6 +1602,35 @@ les clones, et dans les caches d'indexation. **La rotation est le seul remède r
 de l'arbre n'est que de l'hygiène. Corollaire vécu : l'audit du 16/05 a retiré la clé VoixIA de
 `CLAUDE.md` et l'a crue traitée — elle était encore valide et publique le 11/08, trois mois plus
 tard.
+
+### r.0 — INVENTORIER LES PORTEURS : par les CONSOMMATEURS, jamais par les fichiers
+
+**Deux rotations, deux inventaires faux, la même cause.** Un `grep` sur le dépôt ne peut pas
+voir un porteur dont la configuration est un secret de plateforme, ni un porteur qui n'est pas
+un fichier.
+
+| Rotation | Porteur manqué | Pourquoi le grep l'a raté |
+|---|---|---|
+| `VOIXIA_API_KEY` (15/08) | `dashboard/proactive/page.tsx` et `dashboard/voixia/page.tsx` | on cherchait la clé dans la **doc et la config**, pas dans un composant front — elle partait donc **dans le bundle JS servi à tout visiteur** |
+| Clé admin LiveKit (20/08) | le **Worker Cloudflare** (7ᵉ porteur, le lot en annonçait 6) | la variable s'appelle `LIVEKIT_API_**URL**` et l'IP vit dans un **secret Worker**, pas dans le code — `grep "LIVEKIT_URL"` rendait 0 résultat |
+
+⇒ **Checklist avant toute rotation d'un secret partagé :**
+1. Lister les **consommateurs** (« qui s'authentifie avec ce secret ? »), pas les occurrences.
+   Un consommateur peut n'avoir aucune ligne dans le dépôt.
+2. `wrangler secret list` — les secrets de plateforme font partie de l'inventaire.
+3. `docker inspect` chaque conteneur (montages, entrypoint, env) : **le fichier n'est pas le
+   conteneur** — un compose sur disque a déjà décrit un autre montage que celui en service.
+4. Chercher aussi dans le **front** : une clé dans un composant n'est pas « exposée par le
+   dépôt », elle est **publiée par le produit** à chaque chargement de page.
+5. Remplacer tout repli `${VAR:-valeur}` par `${VAR:?message}` — un repli silencieux fait
+   paraître réussie une rotation qui ne l'est pas.
+6. Prouver la fin par un **témoin négatif** : l'ancienne valeur DOIT répondre 401.
+7. Utiliser une **fenêtre de rotation** (second secret accepté temporairement) pour éviter la
+   coupure, et la **refermer** sitôt vérifiée — voir r.1.
+
+⚠️ Et se demander ce que la fermeture d'un port casse : couper 7880 a coupé le chemin LiveKit
+du Worker **en silence** (§ j). Un porteur oublié laisse la clé publique en service ; un porteur
+qu'on coupe sans le savoir casse une fonction sans alerte.
 
 ### r.1 — `VOIXIA_API_KEY` (✅ ROTATION TERMINÉE le 15/08/2026)
 

@@ -41,8 +41,8 @@ services:
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     environment:
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret1234567890abcdef}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:?LIVEKIT_API_KEY absent de .env}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET absent de .env}
     depends_on:
       redis:
         condition: service_healthy
@@ -67,8 +67,8 @@ services:
       - "5060:5060/tcp"   # SIP signaling (TCP)
       - "10000-10100:10000-10100/udp"  # Plage RTP media pour SIP
     environment:
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret1234567890abcdef}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:?LIVEKIT_API_KEY absent de .env}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET absent de .env}
       - LIVEKIT_URL=ws://livekit:7880
       - SIP_PORT=5060
       - SIP_RTP_PORT_LOW=10000
@@ -98,8 +98,8 @@ services:
       - recording
     environment:
       - EGRESS_CONFIG_FILE=/etc/egress.yaml
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret1234567890abcdef}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:?LIVEKIT_API_KEY absent de .env}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET absent de .env}
       - LIVEKIT_WS_URL=ws://livekit:7880
     volumes:
       - egress_data:/recordings

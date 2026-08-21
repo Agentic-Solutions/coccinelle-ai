@@ -80,7 +80,7 @@ check_prerequisites() {
 generate_livekit_keys() {
     source "$SCRIPT_DIR/.env"
 
-    if [ "${LIVEKIT_API_KEY:-devkey}" = "devkey" ] || [ "${LIVEKIT_API_KEY:-}" = "CHANGEZ_MOI_cle_api" ] || [ -z "${LIVEKIT_API_KEY:-}" ]; then
+    if [ "${LIVEKIT_API_KEY:-CHANGEZ_MOI_cle_api}" = "CHANGEZ_MOI_cle_api" ] || [ "${LIVEKIT_API_KEY:-}" = "CHANGEZ_MOI_cle_api" ] || [ -z "${LIVEKIT_API_KEY:-}" ]; then
         log_warn "Cles LiveKit par defaut detectees. Generation de nouvelles cles..."
 
         # Generer une cle API (prefixe API + 12 caracteres aleatoires)
@@ -101,10 +101,10 @@ generate_livekit_keys() {
 
         # Mettre a jour livekit.yaml avec la nouvelle cle
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s|^  devkey:.*|  ${NEW_API_KEY}: ${NEW_API_SECRET}|" "$SCRIPT_DIR/livekit.yaml"
+            sed -i '' "s|^  CHANGEZ_MOI_cle_api:.*|  ${NEW_API_KEY}: ${NEW_API_SECRET}|" "$SCRIPT_DIR/livekit.yaml"
             sed -i '' "s|^  API[a-f0-9]*:.*|  ${NEW_API_KEY}: ${NEW_API_SECRET}|" "$SCRIPT_DIR/livekit.yaml"
         else
-            sed -i "s|^  devkey:.*|  ${NEW_API_KEY}: ${NEW_API_SECRET}|" "$SCRIPT_DIR/livekit.yaml"
+            sed -i "s|^  CHANGEZ_MOI_cle_api:.*|  ${NEW_API_KEY}: ${NEW_API_SECRET}|" "$SCRIPT_DIR/livekit.yaml"
             sed -i "s|^  API[a-f0-9]*:.*|  ${NEW_API_KEY}: ${NEW_API_SECRET}|" "$SCRIPT_DIR/livekit.yaml"
         fi
 
@@ -169,7 +169,7 @@ show_info() {
     echo -e "  ${YELLOW}Playground LiveKit:${NC}"
     echo -e "  https://agents-playground.livekit.io/"
     echo -e "  → URL: ws://${host}:7880"
-    echo -e "  → API Key: ${LIVEKIT_API_KEY:-devkey}"
+    echo -e "  → API Key: ${LIVEKIT_API_KEY:-<non definie — voir .env>}"
     echo -e "  → API Secret: (voir fichier .env)"
     echo ""
     echo -e "  ${YELLOW}Commandes utiles:${NC}"

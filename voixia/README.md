@@ -310,7 +310,7 @@ docker compose exec livekit cat /etc/livekit.yaml
 ```bash
 # Regenerer les cles LiveKit
 # Supprimer les cles existantes dans .env
-sed -i 's/^LIVEKIT_API_KEY=.*/LIVEKIT_API_KEY=devkey/' .env
+sed -i 's/^LIVEKIT_API_KEY=.*/LIVEKIT_API_KEY=CHANGEZ_MOI_cle_api/' .env
 # Relancer le deploiement (les cles seront regenerees)
 ./deploy.sh dev
 ```
