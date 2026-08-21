@@ -1603,6 +1603,35 @@ de l'arbre n'est que de l'hygiène. Corollaire vécu : l'audit du 16/05 a retir�
 `CLAUDE.md` et l'a crue traitée — elle était encore valide et publique le 11/08, trois mois plus
 tard.
 
+### r.0 — INVENTORIER LES PORTEURS : par les CONSOMMATEURS, jamais par les fichiers
+
+**Deux rotations, deux inventaires faux, la même cause.** Un `grep` sur le dépôt ne peut pas
+voir un porteur dont la configuration est un secret de plateforme, ni un porteur qui n'est pas
+un fichier.
+
+| Rotation | Porteur manqué | Pourquoi le grep l'a raté |
+|---|---|---|
+| `VOIXIA_API_KEY` (15/08) | `dashboard/proactive/page.tsx` et `dashboard/voixia/page.tsx` | on cherchait la clé dans la **doc et la config**, pas dans un composant front — elle partait donc **dans le bundle JS servi à tout visiteur** |
+| Clé admin LiveKit (20/08) | le **Worker Cloudflare** (7ᵉ porteur, le lot en annonçait 6) | la variable s'appelle `LIVEKIT_API_**URL**` et l'IP vit dans un **secret Worker**, pas dans le code — `grep "LIVEKIT_URL"` rendait 0 résultat |
+
+⇒ **Checklist avant toute rotation d'un secret partagé :**
+1. Lister les **consommateurs** (« qui s'authentifie avec ce secret ? »), pas les occurrences.
+   Un consommateur peut n'avoir aucune ligne dans le dépôt.
+2. `wrangler secret list` — les secrets de plateforme font partie de l'inventaire.
+3. `docker inspect` chaque conteneur (montages, entrypoint, env) : **le fichier n'est pas le
+   conteneur** — un compose sur disque a déjà décrit un autre montage que celui en service.
+4. Chercher aussi dans le **front** : une clé dans un composant n'est pas « exposée par le
+   dépôt », elle est **publiée par le produit** à chaque chargement de page.
+5. Remplacer tout repli `${VAR:-valeur}` par `${VAR:?message}` — un repli silencieux fait
+   paraître réussie une rotation qui ne l'est pas.
+6. Prouver la fin par un **témoin négatif** : l'ancienne valeur DOIT répondre 401.
+7. Utiliser une **fenêtre de rotation** (second secret accepté temporairement) pour éviter la
+   coupure, et la **refermer** sitôt vérifiée — voir r.1.
+
+⚠️ Et se demander ce que la fermeture d'un port casse : couper 7880 a coupé le chemin LiveKit
+du Worker **en silence** (§ j). Un porteur oublié laisse la clé publique en service ; un porteur
+qu'on coupe sans le savoir casse une fonction sans alerte.
+
 ### r.1 — `VOIXIA_API_KEY` (✅ ROTATION TERMINÉE le 15/08/2026)
 
 **État final, vérifié** : `401` sur l'ancienne clé, `200` sur la nouvelle, et `wrangler secret

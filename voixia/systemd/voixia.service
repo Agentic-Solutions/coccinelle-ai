@@ -1,0 +1,22 @@
+[Unit]
+Description=VoixIA Agent Vocal
+After=network.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/voixia/agent
+EnvironmentFile=/opt/voixia/.env
+ExecStartPre=/bin/bash -c 'fuser -k 8081/tcp 2>/dev/null || true'
+ExecStartPre=/bin/bash -c 'sleep 2'
+ExecStart=/opt/voixia/agent/venv/bin/python main.py start
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=voixia
+
+[Install]
+WantedBy=multi-user.target

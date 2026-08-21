@@ -1,0 +1,19 @@
+[Unit]
+Description=VoixIA — fermeture des ports Docker exposes (7880, 7881, 6380, 8081)
+Documentation=file:///opt/voixia/firewall/voixia-firewall.sh
+# Docker recree ses chaines a chaque demarrage : nos regles doivent etre posees
+# APRES lui, sinon DOCKER-USER n'existe pas encore et les ports restent ouverts.
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/voixia/firewall/voixia-firewall.sh
+# `Restart=` est interdit avec Type=oneshot (systemd refuse de charger l'unite).
+# La visibilite d'un echec passe donc par : sortie non nulle -> unite `failed`
+# (visible dans `systemctl --failed`) + trace syslog posee par le script.
+
+[Install]
+WantedBy=multi-user.target
